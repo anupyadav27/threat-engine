@@ -112,7 +112,8 @@ class RuleReader:
                     f"""
                     SELECT rule_id, severity, title, description, remediation,
                            rationale, domain, subcategory, compliance_frameworks,
-                           threat_category, threat_tags, risk_score, mitre_tactics, mitre_techniques
+                           threat_category, threat_tags, risk_score, mitre_tactics, mitre_techniques,
+                           resource_service
                     FROM rule_metadata
                     WHERE rule_id IN ({placeholders})
                     """,

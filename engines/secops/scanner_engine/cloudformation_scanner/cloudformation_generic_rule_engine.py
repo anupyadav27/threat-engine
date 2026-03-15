@@ -1162,7 +1162,7 @@ class CloudFormationGenericRule:
             if resource_name in resources:
                 # Return a placeholder line number - in practice this would come from the parser
                 return hash(resource_name) % 100 + 1  # Simple hash-based line number
-        except:
+        except Exception:
             pass
         return 0
 

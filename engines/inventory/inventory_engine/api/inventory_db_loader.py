@@ -197,6 +197,9 @@ class InventoryDBLoader:
             rt = row["resource_type"] or ""
             assets.append(self._row_to_asset(row, rt))
 
+        # Back-fill last_scanned from scan_orchestration for assets missing it
+        self._backfill_last_scanned(assets)
+
         return assets, total
 
     @staticmethod
@@ -231,6 +234,49 @@ class InventoryDBLoader:
             "metadata": row.get("properties") or {},
         }
     
+    @staticmethod
+    def _backfill_last_scanned(assets: List[Dict[str, Any]]) -> None:
+        """Resolve last_scanned for assets where updated_at was NULL.
+
+        Looks up scan_orchestration.completed_at (or started_at) in the
+        onboarding DB using each asset's inventory_scan_id.  A single
+        batch query covers all distinct scan IDs in the page.
+        """
+        need = {
+            a["scan_run_id"]
+            for a in assets
+            if not a.get("last_scanned") and a.get("scan_run_id")
+        }
+        if not need:
+            return
+
+        try:
+            from engine_common.orchestration import _get_orchestration_conn
+            conn = _get_orchestration_conn()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT inventory_scan_id,
+                               COALESCE(completed_at, started_at) AS ts
+                        FROM scan_orchestration
+                        WHERE inventory_scan_id = ANY(%s::text[])
+                        """,
+                        (list(need),),
+                    )
+                    ts_map = {r[0]: r[1] for r in cur.fetchall() if r[1]}
+            finally:
+                conn.close()
+        except Exception as exc:
+            logger.warning("Could not resolve last_scanned from scan_orchestration: %s", exc)
+            return
+
+        for a in assets:
+            if not a.get("last_scanned") and a.get("scan_run_id"):
+                ts = ts_map.get(a["scan_run_id"])
+                if ts:
+                    a["last_scanned"] = ts.isoformat()
+
     def load_asset_by_uid(
         self,
         tenant_id: str,
@@ -729,10 +775,12 @@ class InventoryDBLoader:
             try:
                 with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
                     cur.execute(
-                        "SELECT resource_uid, name, resource_type, provider, "
+                        "SELECT DISTINCT ON (resource_uid) "
+                        "resource_uid, name, resource_type, provider, "
                         "account_id, region "
                         "FROM inventory_findings "
-                        "WHERE tenant_id = %s AND resource_uid = ANY(%s)",
+                        "WHERE tenant_id = %s AND resource_uid = ANY(%s) "
+                        "ORDER BY resource_uid, updated_at DESC",
                         (tenant_id, node_uids),
                     )
                     for r in cur.fetchall():
@@ -815,6 +863,343 @@ class InventoryDBLoader:
             "total_impacted": 0,
             "depth_distribution": {},
         }
+
+    # ------------------------------------------------------------------
+    # Graph BFS traversal (multi-cloud)
+    # ------------------------------------------------------------------
+
+    # Root container types across all supported cloud providers
+    _ROOT_TYPES = [
+        'ec2.vpc',                       # AWS
+        'network.virtual-network',       # Azure
+        'vpc.vpc', 'compute.network',    # GCP
+        'core.vcn', 'vcn.vcn',          # OCI
+        'is.vpc',                        # IBM
+    ]
+
+    # All relation types for BFS graph walking — traverse EVERY known edge
+    # so the BFS discovers IAM roles (assumes), KMS keys (encrypted_by),
+    # Lambda functions (triggers/invokes), ALBs (serves_traffic_for), etc.
+    # The UI layer decides which edges render as lines vs. reference badges.
+    _STRUCTURAL_TYPES = [
+        # containment / membership
+        'contained_by', 'contains', 'member_of',
+        # connectivity / routing
+        'attached_to', 'routes_to', 'connected_to', 'allows_traffic_from',
+        # compute / execution
+        'uses', 'assumes', 'runs_on', 'deployed_by', 'depends_on',
+        'triggers', 'invokes', 'scales_with',
+        # traffic / exposure
+        'serves_traffic_for', 'exposed_through', 'resolves_to',
+        # security / access
+        'controlled_by', 'has_policy', 'grants_access_to',
+        'authenticated_by', 'protected_by',
+        # data / storage
+        'stores_data_in', 'backs_up_to', 'replicates_to',
+        'encrypted_by', 'cached_by',
+        # observability / governance
+        'logging_enabled_to', 'monitored_by', 'scanned_by',
+        'manages', 'complies_with',
+        # messaging
+        'publishes_to', 'subscribes_to',
+        # network layers (on-prem / hybrid)
+        '1st_layer', '2nd_layer', '3rd_layer', '4th_layer',
+        'on_prem_datacenter',
+        # internet exposure (also loaded separately in Step 6)
+        'internet_connected',
+    ]
+
+    # Global service type prefixes (multi-cloud)
+    _GLOBAL_SERVICE_PREFIXES = [
+        'iam.%', 's3.%', 'kms.%', 'cloudwatch.%', 'route53.%',
+        'cloudfront.%', 'cloudtrail.%', 'config.%', 'acm.%',
+        'waf.%', 'guardduty.%', 'sns.%', 'sqs.%', 'dynamodb.%',
+        # Azure
+        'keyvault.%', 'monitor.%', 'authorization.%',
+        # GCP
+        'cloudkms.%', 'logging.%', 'pubsub.%',
+        # OCI
+        'identity.%', 'objectstorage.%',
+    ]
+
+    def load_graph_bfs(
+        self,
+        tenant_id: str,
+        scan_run_id: Optional[str] = None,
+        max_depth: int = 5,
+        max_nodes: int = 2000,
+    ) -> Dict[str, Any]:
+        """
+        Load graph data using recursive CTE BFS traversal.
+
+        Algorithm:
+        1. Seed with VPC/VNet/VCN root containers
+        2. Walk structural edges up to max_depth hops
+        3. Batch load all discovered assets
+        4. Load ALL relationships between discovered nodes
+        5. Separately load global-service assets referenced by relationships
+        6. Include exposure relationships (internet_connected, exposed_through)
+
+        Returns:
+            Dict with keys: nodes (list), relationships (list), exposure (list)
+        """
+        # Resolve effective scan
+        effective_scan = self._resolve_scan_id(tenant_id, scan_run_id)
+        if not effective_scan:
+            return {"nodes": [], "relationships": [], "exposure": []}
+
+        # Step 1-2: Recursive CTE to discover all graph node UIDs
+        cte_query = """
+            WITH RECURSIVE graph_walk AS (
+                -- Seed: VPC/VNet/VCN root nodes
+                SELECT resource_uid AS node_uid, 0 AS depth,
+                       ARRAY[resource_uid] AS path
+                FROM inventory_findings
+                WHERE tenant_id = %(tenant_id)s
+                  AND inventory_scan_id = %(scan_id)s
+                  AND resource_type = ANY(%(root_types)s)
+
+                UNION ALL
+
+                -- Walk structural edges (bidirectional)
+                SELECT
+                    CASE WHEN ir.from_uid = gw.node_uid
+                         THEN ir.to_uid ELSE ir.from_uid END AS node_uid,
+                    gw.depth + 1,
+                    gw.path || CASE WHEN ir.from_uid = gw.node_uid
+                                    THEN ir.to_uid ELSE ir.from_uid END
+                FROM graph_walk gw
+                JOIN inventory_relationships ir
+                  ON ir.tenant_id = %(tenant_id)s
+                 AND ir.inventory_scan_id = %(scan_id)s
+                 AND (ir.from_uid = gw.node_uid OR ir.to_uid = gw.node_uid)
+                 AND ir.relation_type = ANY(%(structural_types)s)
+                WHERE gw.depth < %(max_depth)s
+                  AND NOT (
+                    CASE WHEN ir.from_uid = gw.node_uid
+                         THEN ir.to_uid ELSE ir.from_uid END
+                    = ANY(gw.path)
+                  )
+            )
+            SELECT DISTINCT node_uid FROM graph_walk
+            LIMIT %(max_nodes)s
+        """
+
+        params = {
+            "tenant_id": tenant_id,
+            "scan_id": effective_scan,
+            "root_types": self._ROOT_TYPES,
+            "structural_types": self._STRUCTURAL_TYPES,
+            "max_depth": max_depth,
+            "max_nodes": max_nodes,
+        }
+
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute(cte_query, params)
+                discovered_uids = [row[0] for row in cur.fetchall()]
+        except Exception as e:
+            logger.warning(f"Graph BFS CTE failed: {e}")
+            return {"nodes": [], "relationships": [], "exposure": []}
+
+        if not discovered_uids:
+            return {"nodes": [], "relationships": [], "exposure": []}
+
+        # Step 3: Batch load assets for discovered UIDs
+        nodes = []
+        try:
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """SELECT DISTINCT ON (resource_uid)
+                       resource_uid, name, resource_type, provider,
+                       account_id, region, tags, metadata, config_hash
+                    FROM inventory_findings
+                    WHERE tenant_id = %s AND resource_uid = ANY(%s)
+                    ORDER BY resource_uid, updated_at DESC""",
+                    (tenant_id, discovered_uids),
+                )
+                nodes = [dict(r) for r in cur.fetchall()]
+        except Exception as e:
+            logger.warning(f"Graph BFS asset load failed: {e}")
+
+        # Step 4: Load ALL relationships where both endpoints are discovered
+        relationships = []
+        try:
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """SELECT from_uid, to_uid, relation_type,
+                           from_resource_type, to_resource_type,
+                           provider, account_id, region, properties
+                    FROM inventory_relationships
+                    WHERE tenant_id = %s AND inventory_scan_id = %s
+                      AND from_uid = ANY(%s) AND to_uid = ANY(%s)""",
+                    (tenant_id, effective_scan, discovered_uids, discovered_uids),
+                )
+                relationships = [dict(r) for r in cur.fetchall()]
+        except Exception as e:
+            logger.warning(f"Graph BFS relationship load failed: {e}")
+
+        # Step 5: Load global-service assets referenced by discovered relationships
+        global_nodes = []
+        try:
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """SELECT DISTINCT ON (f.resource_uid)
+                       f.resource_uid, f.name, f.resource_type, f.provider,
+                       f.account_id, f.region, f.tags, f.metadata
+                    FROM inventory_findings f
+                    WHERE f.tenant_id = %s
+                      AND f.resource_uid IN (
+                          SELECT DISTINCT to_uid FROM inventory_relationships
+                          WHERE tenant_id = %s AND inventory_scan_id = %s
+                            AND from_uid = ANY(%s)
+                            AND to_resource_type LIKE ANY(%s)
+                      )
+                      AND f.resource_uid != ALL(%s)
+                    ORDER BY f.resource_uid, f.updated_at DESC""",
+                    (
+                        tenant_id, tenant_id, effective_scan,
+                        discovered_uids, self._GLOBAL_SERVICE_PREFIXES,
+                        discovered_uids,
+                    ),
+                )
+                global_nodes = [dict(r) for r in cur.fetchall()]
+        except Exception as e:
+            logger.warning(f"Graph BFS global services load failed: {e}")
+
+        # Also load relationships TO global nodes
+        global_uids = [n["resource_uid"] for n in global_nodes]
+        global_rels = []
+        if global_uids:
+            try:
+                with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute(
+                        """SELECT from_uid, to_uid, relation_type,
+                               from_resource_type, to_resource_type,
+                               provider, account_id, region, properties
+                        FROM inventory_relationships
+                        WHERE tenant_id = %s AND inventory_scan_id = %s
+                          AND from_uid = ANY(%s) AND to_uid = ANY(%s)""",
+                        (tenant_id, effective_scan, discovered_uids, global_uids),
+                    )
+                    global_rels = [dict(r) for r in cur.fetchall()]
+            except Exception as e:
+                logger.warning(f"Graph BFS global-rel load failed: {e}")
+
+        # Step 6: Load exposure relationships
+        exposure = []
+        try:
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """SELECT from_uid, to_uid, relation_type, properties
+                    FROM inventory_relationships
+                    WHERE tenant_id = %s AND inventory_scan_id = %s
+                      AND from_uid = ANY(%s)
+                      AND relation_type IN ('internet_connected', 'internet_accessible',
+                                            'exposed_through')""",
+                    (tenant_id, effective_scan, discovered_uids),
+                )
+                exposure = [dict(r) for r in cur.fetchall()]
+        except Exception as e:
+            logger.warning(f"Graph BFS exposure load failed: {e}")
+
+        # Step 7: Supplement with orphan resources not reached by BFS
+        # Ensures IAM, Lambda, S3, etc. show up even without relationships.
+        # Excludes known junk types and orders by resource_type to get
+        # a diverse mix (not all from the same type).
+        all_discovered = set(discovered_uids + global_uids)
+        remaining_capacity = max_nodes - len(all_discovered)
+        orphan_nodes = []
+        orphan_rels = []
+
+        # Junk types to exclude from orphan supplement
+        _JUNK_TYPES = [
+            'ec2.vpc_block_public_access_exclusion_resource',
+            'ec2.vpc_block_public_access_exclusion',
+            'ec2.local_gateway_route_table_vpc_association_local_gateway_route_table',
+            'ec2.local_gateway_route_table_vpc_association',
+        ]
+
+        if remaining_capacity > 0:
+            try:
+                with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute(
+                        """SELECT DISTINCT ON (resource_uid)
+                               resource_uid, name, resource_type, provider,
+                               account_id, region, tags, metadata, config_hash
+                        FROM inventory_findings
+                        WHERE tenant_id = %s
+                          AND resource_uid != ALL(%s)
+                          AND resource_type != ALL(%s)
+                        ORDER BY resource_uid, updated_at DESC
+                        LIMIT %s""",
+                        (tenant_id, list(all_discovered), _JUNK_TYPES,
+                         remaining_capacity),
+                    )
+                    orphan_nodes = [dict(r) for r in cur.fetchall()]
+            except Exception as e:
+                logger.warning(f"Graph BFS orphan supplement failed: {e}")
+
+            # Also load any relationships between orphan nodes and discovered nodes
+            orphan_uids = [n["resource_uid"] for n in orphan_nodes]
+            if orphan_uids:
+                all_uids = list(all_discovered) + orphan_uids
+                try:
+                    with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                        cur.execute(
+                            """SELECT from_uid, to_uid, relation_type,
+                                   from_resource_type, to_resource_type,
+                                   provider, account_id, region, properties
+                            FROM inventory_relationships
+                            WHERE tenant_id = %s AND inventory_scan_id = %s
+                              AND from_uid = ANY(%s) AND to_uid = ANY(%s)
+                              AND NOT (from_uid = ANY(%s) AND to_uid = ANY(%s))""",
+                            (
+                                tenant_id, effective_scan,
+                                all_uids, all_uids,
+                                list(all_discovered), list(all_discovered),
+                            ),
+                        )
+                        orphan_rels = [dict(r) for r in cur.fetchall()]
+                except Exception as e:
+                    logger.warning(f"Graph BFS orphan-rel load failed: {e}")
+
+        # Merge all nodes + relationships
+        all_nodes = nodes + global_nodes + orphan_nodes
+        all_rels = relationships + global_rels + orphan_rels
+
+        return {
+            "nodes": all_nodes,
+            "relationships": all_rels,
+            "exposure": exposure,
+        }
+
+    def _resolve_scan_id(
+        self, tenant_id: str, scan_run_id: Optional[str]
+    ) -> Optional[str]:
+        """Resolve effective scan_run_id with fallback to latest."""
+        effective_scan = scan_run_id
+        if effective_scan and effective_scan != "latest":
+            with self.conn.cursor() as cur:
+                cur.execute(
+                    "SELECT COUNT(*) FROM inventory_relationships "
+                    "WHERE tenant_id = %s AND inventory_scan_id = %s",
+                    (tenant_id, effective_scan),
+                )
+                if cur.fetchone()[0] == 0:
+                    effective_scan = None
+
+        if not effective_scan or effective_scan == "latest":
+            with self.conn.cursor() as cur:
+                cur.execute(
+                    "SELECT inventory_scan_id FROM inventory_relationships "
+                    "WHERE tenant_id = %s ORDER BY created_at DESC LIMIT 1",
+                    (tenant_id,),
+                )
+                row = cur.fetchone()
+                effective_scan = row[0] if row else None
+
+        return effective_scan
 
     def close(self):
         """Close database connection"""

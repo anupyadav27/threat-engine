@@ -126,22 +126,7 @@ async def get_iam_ui_data(
                 iam_scan_id = scan_id
 
             if not iam_scan_id:
-                return {
-                    "summary": {
-                        "total_findings": 0,
-                        "risk_score": 0,
-                        "by_module": {},
-                        "by_status": {},
-                        "by_severity": {},
-                        "by_account": [],
-                        "by_region": [],
-                        "report_insights": {},
-                    },
-                    "modules": [],
-                    "findings": [],
-                    "total_findings": 0,
-                    "scan_id": None,
-                }
+                return _empty_iam_response()
 
             # ── 2. Report-level summary ─────────────────────────────────
             cur.execute(
@@ -316,6 +301,13 @@ async def get_iam_ui_data(
                     "finding_data": fd,
                 })
 
+            # ── 8. Module-grouped finding sections ───────────────────
+            # The BFF expects pre-grouped sections for the IAM page tabs.
+            roles = _query_findings_by_module(cur, iam_scan_id, tenant_id, "roles", limit)
+            access_keys = _query_findings_by_module(cur, iam_scan_id, tenant_id, "access_keys", limit)
+            privilege_escalation = _query_findings_by_module(cur, iam_scan_id, tenant_id, "privilege_escalation", limit)
+            service_accounts = _query_service_account_findings(cur, iam_scan_id, tenant_id, limit)
+
         return {
             "summary": {
                 "total_findings": report_total,
@@ -329,28 +321,17 @@ async def get_iam_ui_data(
             },
             "modules": modules_list,
             "findings": findings,
+            "roles": roles,
+            "access_keys": access_keys,
+            "privilege_escalation": privilege_escalation,
+            "service_accounts": service_accounts,
             "total_findings": report_total,
             "scan_id": iam_scan_id,
         }
 
     except Exception:
         logger.exception("Error building IAM UI data payload")
-        return {
-            "summary": {
-                "total_findings": 0,
-                "risk_score": 0,
-                "by_module": {},
-                "by_status": {},
-                "by_severity": {},
-                "by_account": [],
-                "by_region": [],
-                "report_insights": {},
-            },
-            "modules": [],
-            "findings": [],
-            "total_findings": 0,
-            "scan_id": None,
-        }
+        return _empty_iam_response()
     finally:
         if conn is not None:
             try:
@@ -471,6 +452,160 @@ def _query_by_account(
         ]
     except Exception:
         logger.warning("IAM by_account query failed", exc_info=True)
+        return []
+
+
+def _empty_iam_response() -> Dict[str, Any]:
+    """Return a valid but empty IAM UI data response."""
+    return {
+        "summary": {
+            "total_findings": 0,
+            "risk_score": 0,
+            "by_module": {},
+            "by_status": {},
+            "by_severity": {},
+            "by_account": [],
+            "by_region": [],
+            "report_insights": {},
+        },
+        "modules": [],
+        "findings": [],
+        "roles": [],
+        "access_keys": [],
+        "privilege_escalation": [],
+        "service_accounts": [],
+        "total_findings": 0,
+        "scan_id": None,
+    }
+
+
+def _finding_row_to_dict(f: Dict[str, Any]) -> Dict[str, Any]:
+    """Convert a finding DB row to a serializable dict.
+
+    Shared by the main findings list and the module-grouped sections.
+    """
+    fd = f.get("finding_data")
+    if not isinstance(fd, dict):
+        fd = {}
+    return {
+        "finding_id": f["finding_id"],
+        "rule_id": f["rule_id"],
+        "iam_modules": f.get("iam_modules") or [],
+        "severity": f["severity"],
+        "status": f["status"],
+        "resource_type": f.get("resource_type"),
+        "resource_id": f.get("resource_id"),
+        "resource_arn": f.get("resource_arn"),
+        "account_id": f.get("account_id"),
+        "region": f.get("region"),
+        "resource_uid": f.get("resource_uid"),
+        "hierarchy_id": f.get("hierarchy_id"),
+        "provider": f.get("provider"),
+        "finding_data": fd,
+    }
+
+
+def _query_findings_by_module(
+    cur: psycopg2.extensions.cursor,
+    iam_scan_id: str,
+    tenant_id: str,
+    module_name: str,
+    limit: int = 200,
+) -> List[Dict[str, Any]]:
+    """Return findings where iam_modules[] contains *module_name*.
+
+    Args:
+        cur: Database cursor (RealDictCursor).
+        iam_scan_id: IAM scan identifier.
+        tenant_id: Tenant identifier.
+        module_name: Module name to filter on (e.g. 'roles', 'access_keys').
+        limit: Max findings to return.
+
+    Returns:
+        List of finding dicts sorted by severity.
+    """
+    try:
+        cur.execute(
+            """
+            SELECT finding_id, rule_id, iam_modules, severity, status,
+                   resource_type, resource_id, resource_arn, account_id,
+                   region, finding_data, resource_uid, hierarchy_id, provider
+            FROM iam_findings
+            WHERE iam_scan_id = %s
+              AND tenant_id = %s
+              AND %s = ANY(iam_modules)
+            ORDER BY
+                CASE severity
+                    WHEN 'critical' THEN 1
+                    WHEN 'high' THEN 2
+                    WHEN 'medium' THEN 3
+                    WHEN 'low' THEN 4
+                    ELSE 5
+                END,
+                finding_id
+            LIMIT %s
+            """,
+            (iam_scan_id, tenant_id, module_name, limit),
+        )
+        return [_finding_row_to_dict(row) for row in cur.fetchall()]
+    except Exception:
+        logger.warning(
+            "IAM module query failed for %s", module_name, exc_info=True
+        )
+        return []
+
+
+def _query_service_account_findings(
+    cur: psycopg2.extensions.cursor,
+    iam_scan_id: str,
+    tenant_id: str,
+    limit: int = 200,
+) -> List[Dict[str, Any]]:
+    """Return findings for service accounts.
+
+    Service accounts are identified either by an 'service_accounts' entry in
+    iam_modules OR by finding_data->>'identity_type' = 'service' /
+    finding_data->>'identity_name' matching service patterns (lambda, ecs, etc.).
+
+    Args:
+        cur: Database cursor (RealDictCursor).
+        iam_scan_id: IAM scan identifier.
+        tenant_id: Tenant identifier.
+        limit: Max findings to return.
+
+    Returns:
+        List of finding dicts sorted by severity.
+    """
+    try:
+        cur.execute(
+            """
+            SELECT finding_id, rule_id, iam_modules, severity, status,
+                   resource_type, resource_id, resource_arn, account_id,
+                   region, finding_data, resource_uid, hierarchy_id, provider
+            FROM iam_findings
+            WHERE iam_scan_id = %s
+              AND tenant_id = %s
+              AND (
+                  'service_accounts' = ANY(iam_modules)
+                  OR finding_data->>'identity_type' = 'service'
+                  OR resource_type ILIKE '%%role%%'
+              )
+            ORDER BY
+                CASE severity
+                    WHEN 'critical' THEN 1
+                    WHEN 'high' THEN 2
+                    WHEN 'medium' THEN 3
+                    WHEN 'low' THEN 4
+                    ELSE 5
+                END,
+                finding_id
+            LIMIT %s
+            """,
+            (iam_scan_id, tenant_id, limit),
+        )
+        return [_finding_row_to_dict(row) for row in cur.fetchall()]
+    except Exception:
+        logger.warning("IAM service_accounts query failed", exc_info=True)
         return []
 
 

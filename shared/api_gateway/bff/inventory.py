@@ -1,17 +1,24 @@
-"""BFF view: /inventory page.
+"""BFF view: /inventory page + asset detail + blast-radius.
 
-Consolidates into 3 parallel calls (inventory/ui-data + threat/ui-data + onboarding/ui-data).
+List view: 3 parallel calls (inventory/ui-data + threat/ui-data + onboarding/ui-data).
+Asset detail: 4 parallel calls (inventory + check + threat + compliance per resource).
+Blast radius: inventory graph + parallel posture enrichment per node.
+
 Adds resilience: cross-engine enrichment with threat data for findings counts,
 provider enrichment from cloud_accounts, and fallback when inventory engine is sparse.
 """
 
+import asyncio
 import datetime
-from typing import Optional, Dict
+import logging
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Query
 
-from ._shared import fetch_many, safe_get
+from ._shared import ENGINE_URLS, ENGINE_TIMEOUTS, DEFAULT_TIMEOUT, fetch_many, safe_get
 from ._transforms import normalize_asset, apply_global_filters, _safe_upper
+
+logger = logging.getLogger("api-gateway.bff")
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
@@ -149,4 +156,620 @@ async def view_inventory(
         "summary": summary_resp,
         "byProvider": by_provider,
         "byService": dict(sorted(by_service.items(), key=lambda x: x[1], reverse=True)[:15]),
+    }
+
+
+# ── Drift Timeline Transform ──────────────────────────────────────────────
+
+# Maps field names/paths to UI category groups
+_FIELD_CATEGORIES: Dict[str, str] = {
+    # Security
+    "security_groups": "security", "sg": "security",
+    "public_access": "security", "public": "security",
+    "encryption": "security", "encrypted": "security", "encryption_status": "security",
+    "ssl": "security", "tls": "security", "kms": "security",
+    "iam_role": "security", "iam_policy": "security", "iam": "security",
+    "access_control": "security", "acl": "security", "policy": "security",
+    "mfa": "security", "logging": "security", "versioning": "security",
+    "firewall": "security", "waf": "security",
+    # Network
+    "subnet_id": "network", "subnet": "network",
+    "vpc_id": "network", "vpc": "network",
+    "private_ip": "network", "public_ip": "network", "ip_address": "network",
+    "cidr": "network", "route_table": "network", "dns": "network",
+    "load_balancer": "network", "port": "network", "protocol": "network",
+    "endpoint": "network", "internet_gateway": "network",
+    "network_interface": "network", "nat_gateway": "network",
+    # Tags
+    "tags": "tags", "environment": "tags", "costcenter": "tags",
+    "owner": "tags", "name": "tags", "project": "tags",
+    "team": "tags", "department": "tags", "application": "tags",
+    # Config
+    "instance_type": "config", "instance_class": "config",
+    "storage": "config", "size": "config", "capacity": "config",
+    "engine": "config", "engine_version": "config", "runtime": "config",
+    "monitoring": "config", "backup": "config", "retention": "config",
+    "replicas": "config", "multi_az": "config", "availability_zone": "config",
+    "region": "config", "ami": "config", "image": "config",
+    "state": "config", "status": "config",
+}
+
+# Order for display
+_CATEGORY_ORDER = ["security", "network", "tags", "config"]
+
+# Severity weights for drift scoring
+_CATEGORY_SEVERITY_WEIGHT = {"security": 3, "network": 2, "tags": 1, "config": 1}
+
+
+def _classify_field(field_path: str) -> str:
+    """Map a changed field path to a UI category."""
+    lower = field_path.lower().replace(".", "_").replace("/", "_")
+    # Direct lookup
+    if lower in _FIELD_CATEGORIES:
+        return _FIELD_CATEGORIES[lower]
+    # Check if any known prefix matches
+    for key, cat in _FIELD_CATEGORIES.items():
+        if key in lower:
+            return cat
+    # Tags sub-keys (e.g. tags.CostCenter)
+    if lower.startswith("tags"):
+        return "tags"
+    return "config"  # default bucket
+
+
+def _extract_field_changes(change: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Extract individual field-level changes from a drift change record.
+
+    Handles multiple changes_summary formats:
+      - {"field": {"before": x, "after": y}}
+      - {"changes": [{"path": p, "before": x, "after": y}]}
+      - {} (fall back to change_type label)
+    """
+    summary = change.get("changes_summary", {})
+    if not isinstance(summary, dict):
+        summary = {}
+
+    fields: List[Dict[str, Any]] = []
+
+    # Format A: {"changes": [{"path": ..., "before": ..., "after": ...}]}
+    if "changes" in summary and isinstance(summary["changes"], list):
+        for c in summary["changes"]:
+            fields.append({
+                "field": c.get("path", "unknown"),
+                "category": _classify_field(c.get("path", "")),
+                "before": c.get("before"),
+                "after": c.get("after"),
+            })
+    else:
+        # Format B: {"field_name": {"before": x, "after": y}}
+        for field_name, diff in summary.items():
+            if isinstance(diff, dict) and ("before" in diff or "after" in diff):
+                fields.append({
+                    "field": field_name,
+                    "category": _classify_field(field_name),
+                    "before": diff.get("before"),
+                    "after": diff.get("after"),
+                })
+
+    # Fallback: if no field-level detail, create a synthetic entry.
+    # This covers asset_added (new resource), asset_removed (gone),
+    # and asset_changed when the old detector only wrote "metadata changed".
+    if not fields:
+        raw_type = change.get("change_type", "modified")
+        if "add" in raw_type:
+            fields.append({
+                "field": "resource",
+                "category": "config",
+                "before": None,
+                "after": "New resource discovered",
+            })
+        elif "remov" in raw_type:
+            fields.append({
+                "field": "resource",
+                "category": "config",
+                "before": "Resource existed",
+                "after": None,
+            })
+        else:
+            fields.append({
+                "field": "configuration",
+                "category": "config",
+                "before": "(previous version)",
+                "after": "(current version)",
+            })
+
+    return fields
+
+
+def _build_drift_timeline(
+    raw_drift: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Transform raw engine drift_info into a grouped timeline for the UI.
+
+    Groups changes by scan transition, categorises fields, and computes
+    a summary table — ready for the timeline component.
+    """
+    changes = raw_drift.get("changes", [])
+    if not changes:
+        return {
+            "last_check": raw_drift.get("last_check"),
+            "has_drift": False,
+            "scans": [],
+            "transitions": [],
+            "summary": {"modified": 0, "added": 0, "removed": 0},
+            "total": 0,
+        }
+
+    # ── Group changes by scan transition ──────────────────────────────
+    # Each unique (scan_run_id, previous_scan_id) pair = one transition
+    from collections import OrderedDict
+    transitions_map: Dict[str, Dict[str, Any]] = OrderedDict()
+
+    for c in changes:
+        scan_id = c.get("scan_run_id", "")
+        prev_id = c.get("previous_scan_id", "")
+        key = f"{scan_id}|{prev_id}"
+
+        if key not in transitions_map:
+            transitions_map[key] = {
+                "scan_run_id": scan_id,
+                "previous_scan_id": prev_id,
+                "detected_at": c.get("detected_at"),
+                "field_changes": [],
+                "counts": {"modified": 0, "added": 0, "removed": 0},
+            }
+
+        change_type = c.get("change_type", "modified")
+        # Normalise change_type to one of modified/added/removed
+        if "add" in change_type:
+            ct = "added"
+        elif "remov" in change_type:
+            ct = "removed"
+        else:
+            ct = "modified"
+
+        transitions_map[key]["counts"][ct] = (
+            transitions_map[key]["counts"].get(ct, 0) + 1
+        )
+
+        # Extract field-level diffs
+        for field in _extract_field_changes(c):
+            field["change_type"] = ct
+            field["severity"] = c.get("severity", "medium")
+            transitions_map[key]["field_changes"].append(field)
+
+    # ── Build per-transition category groups ──────────────────────────
+    transitions = []
+    for t in transitions_map.values():
+        by_category: Dict[str, List[Dict[str, Any]]] = {}
+        for fc in t["field_changes"]:
+            cat = fc.get("category", "config")
+            by_category.setdefault(cat, []).append(fc)
+
+        # Sort categories in display order
+        ordered_cats = []
+        for cat in _CATEGORY_ORDER:
+            if cat in by_category:
+                ordered_cats.append({
+                    "category": cat,
+                    "fields": by_category[cat],
+                })
+        # Any remaining categories not in the standard order
+        for cat, fields in by_category.items():
+            if cat not in _CATEGORY_ORDER:
+                ordered_cats.append({"category": cat, "fields": fields})
+
+        # Compute drift severity for this transition
+        severity_score = sum(
+            _CATEGORY_SEVERITY_WEIGHT.get(fc.get("category", "config"), 1)
+            for fc in t["field_changes"]
+        )
+        if severity_score >= 6:
+            drift_severity = "high"
+        elif severity_score >= 3:
+            drift_severity = "medium"
+        else:
+            drift_severity = "low"
+
+        transitions.append({
+            "scan_run_id": t["scan_run_id"],
+            "previous_scan_id": t["previous_scan_id"],
+            "detected_at": t["detected_at"],
+            "categories": ordered_cats,
+            "counts": t["counts"],
+            "drift_severity": drift_severity,
+            "total_fields_changed": len(t["field_changes"]),
+        })
+
+    # ── Collect unique scan IDs for the timeline rail ─────────────────
+    scan_ids_seen: Dict[str, Optional[str]] = OrderedDict()
+    for t in transitions:
+        if t["scan_run_id"]:
+            scan_ids_seen.setdefault(t["scan_run_id"], t["detected_at"])
+        if t["previous_scan_id"]:
+            scan_ids_seen.setdefault(t["previous_scan_id"], None)
+
+    scans = [
+        {"scan_run_id": sid, "detected_at": ts}
+        for sid, ts in scan_ids_seen.items()
+    ]
+
+    # ── Grand summary ─────────────────────────────────────────────────
+    total_counts = {"modified": 0, "added": 0, "removed": 0}
+    for t in transitions:
+        for k in total_counts:
+            total_counts[k] += t["counts"].get(k, 0)
+
+    return {
+        "last_check": raw_drift.get("last_check"),
+        "has_drift": True,
+        "scans": scans,
+        "transitions": transitions,
+        "summary": total_counts,
+        "total": raw_drift.get("total", len(changes)),
+    }
+
+
+# ── Asset Detail View ─────────────────────────────────────────────────────
+
+
+@router.get("/inventory/asset/{resource_uid:path}")
+async def view_asset_detail(
+    resource_uid: str,
+    tenant_id: str = Query(...),
+    scan_run_id: str = Query("latest"),
+):
+    """Asset detail with cross-engine enrichment via HTTP fan-out.
+
+    Assembles the full asset picture from 4 engines in parallel:
+    - inventory: base asset data + drift info
+    - check: severity counts + detailed misconfig findings
+    - threat: MITRE ATT&CK findings + severity counts
+    - compliance: framework compliance findings per resource
+
+    The :path converter is greedy, so sub-route suffixes are dispatched
+    manually (same pattern used by the inventory engine).
+    """
+    # ── Sub-route dispatch (greedy :path swallows suffixes) ────────────
+    if resource_uid.endswith("/blast-radius"):
+        actual_uid = resource_uid[: -len("/blast-radius")]
+        return await view_blast_radius(
+            resource_uid=actual_uid,
+            tenant_id=tenant_id,
+            scan_run_id=scan_run_id,
+        )
+
+    # ── 4 parallel calls ──────────────────────────────────────────────
+    results = await fetch_many([
+        ("inventory",  f"/api/v1/inventory/assets/{resource_uid}",
+         {"tenant_id": tenant_id, "scan_run_id": scan_run_id}),
+        ("check",      f"/api/v1/check/findings/resource/{resource_uid}",
+         {"tenant_id": tenant_id}),
+        ("threat",     f"/api/v1/threat/findings/resource/{resource_uid}",
+         {"tenant_id": tenant_id}),
+        ("compliance", f"/api/v1/compliance/findings/resource/{resource_uid}",
+         {"tenant_id": tenant_id}),
+    ])
+
+    inventory_data, check_data, threat_data, compliance_data = results
+
+    # Safely unwrap — failed calls return None
+    inventory_data = inventory_data if isinstance(inventory_data, dict) else {}
+    check_data = check_data if isinstance(check_data, dict) else {}
+    threat_data = threat_data if isinstance(threat_data, dict) else {}
+    compliance_data = compliance_data if isinstance(compliance_data, dict) else {}
+
+    # ── Transform drift into timeline view ───────────────────────────
+    raw_drift = inventory_data.get("drift_info", {})
+    if not isinstance(raw_drift, dict):
+        raw_drift = {}
+    drift_timeline = _build_drift_timeline(raw_drift)
+
+    return {
+        "asset": inventory_data,
+        "check_findings": check_data.get("findings", []),
+        "check_severity": check_data.get("severity_counts", {}),
+        "check_posture": check_data.get("posture_by_domain", {}),
+        "threat_findings": threat_data.get("findings", []),
+        "threat_severity": threat_data.get("severity_counts", {}),
+        "compliance_findings": compliance_data.get("findings", []),
+        "drift": drift_timeline,
+        "relationships": inventory_data.get("relationships", []),
+    }
+
+
+# ── Blast Radius View ─────────────────────────────────────────────────────
+
+
+async def _fetch_posture_for_nodes(
+    node_uids: List[str],
+    tenant_id: str,
+) -> Dict[str, Dict[str, Any]]:
+    """Batch-fetch check + threat severity counts for a set of resource_uids.
+
+    Makes 2×N parallel HTTP calls (one check + one threat per node).
+    Returns {resource_uid: {"check": {sev_counts}, "threat": {sev_counts}}}.
+    """
+    import httpx
+
+    if not node_uids:
+        return {}
+
+    posture: Dict[str, Dict[str, Any]] = {
+        uid: {"check": {}, "threat": {}} for uid in node_uids
+    }
+
+    async with httpx.AsyncClient() as client:
+        tasks = []
+        task_meta: List[tuple] = []  # (uid, engine_name)
+
+        for uid in node_uids:
+            for engine, path_tpl in [
+                ("check",  "/api/v1/check/findings/resource/{}"),
+                ("threat", "/api/v1/threat/findings/resource/{}"),
+            ]:
+                base = ENGINE_URLS.get(engine, "")
+                url = f"{base}{path_tpl.format(uid)}"
+                timeout = ENGINE_TIMEOUTS.get(engine, DEFAULT_TIMEOUT)
+                tasks.append(
+                    client.get(url, params={"tenant_id": tenant_id}, timeout=timeout)
+                )
+                task_meta.append((uid, engine))
+
+        # Gather all — exceptions are caught individually
+        responses = await asyncio.gather(*tasks, return_exceptions=True)
+
+        for (uid, engine), resp in zip(task_meta, responses):
+            if isinstance(resp, Exception):
+                logger.debug("Blast-radius posture %s/%s failed: %s", engine, uid, resp)
+                continue
+            if resp.status_code == 200:
+                try:
+                    data = resp.json()
+                    posture[uid][engine] = data.get("severity_counts", {})
+                except Exception:
+                    pass
+
+    return posture
+
+
+@router.get("/inventory/asset/{resource_uid:path}/blast-radius")
+async def view_blast_radius(
+    resource_uid: str,
+    tenant_id: str = Query(...),
+    scan_run_id: str = Query("latest"),
+    max_depth: int = Query(3, ge=1, le=5),
+):
+    """Blast-radius graph with per-node posture enrichment.
+
+    Step 1: Get the relationship graph from inventory engine (recursive CTE).
+    Step 2: Collect all unique node resource_uids.
+    Step 3: Fan out to check + threat engines for severity counts per node.
+    Step 4: Merge posture data into each graph node.
+    """
+    # Step 1: Get graph from inventory engine
+    graph_results = await fetch_many([
+        ("inventory",
+         f"/api/v1/inventory/assets/{resource_uid}/blast-radius",
+         {"tenant_id": tenant_id, "scan_run_id": scan_run_id,
+          "max_depth": str(max_depth)}),
+    ])
+
+    graph_data = graph_results[0]
+    if not isinstance(graph_data, dict):
+        graph_data = {"nodes": [], "edges": [], "center": resource_uid,
+                      "max_depth": max_depth, "total_nodes": 0, "total_edges": 0}
+
+    nodes = graph_data.get("nodes", [])
+    edges = graph_data.get("edges", [])
+
+    if not nodes:
+        return graph_data
+
+    # Step 2: Collect unique resource_uids from nodes
+    node_uids = list({
+        n.get("resource_uid") or n.get("id", "")
+        for n in nodes
+        if n.get("resource_uid") or n.get("id")
+    })
+
+    # Step 3: Parallel posture fetch (check + threat per node)
+    posture_map = await _fetch_posture_for_nodes(node_uids, tenant_id)
+
+    # Step 4: Enrich nodes with posture badges
+    for node in nodes:
+        uid = node.get("resource_uid") or node.get("id", "")
+        node_posture = posture_map.get(uid, {})
+
+        check_sev = node_posture.get("check", {})
+        threat_sev = node_posture.get("threat", {})
+
+        node["posture"] = {
+            "check": check_sev,
+            "threat": threat_sev,
+            "total_critical": check_sev.get("critical", 0) + threat_sev.get("critical", 0),
+            "total_high": check_sev.get("high", 0) + threat_sev.get("high", 0),
+        }
+
+    return {
+        "nodes": nodes,
+        "edges": edges,
+        "center": resource_uid,
+        "max_depth": graph_data.get("max_depth", max_depth),
+        "total_nodes": len(nodes),
+        "total_edges": len(edges),
+    }
+
+
+# ── Architecture Graph View (posture-enriched) ───────────────────────────
+
+
+async def _batch_posture_for_nodes(
+    resource_uids: List[str],
+    tenant_id: str,
+) -> Dict[str, Dict[str, Any]]:
+    """Fetch check + threat severity counts for many resources in 2 batch calls.
+
+    Uses the batch-severity endpoints (POST) on check + threat engines
+    instead of making 2×N individual GET calls. Falls back gracefully
+    if batch endpoints are unavailable.
+    """
+    import httpx
+
+    if not resource_uids:
+        return {}
+
+    payload = {"resource_uids": resource_uids, "tenant_id": tenant_id}
+    check_base = ENGINE_URLS.get("check", "")
+    threat_base = ENGINE_URLS.get("threat", "")
+    check_timeout = ENGINE_TIMEOUTS.get("check", DEFAULT_TIMEOUT)
+    threat_timeout = ENGINE_TIMEOUTS.get("threat", DEFAULT_TIMEOUT)
+
+    check_map: Dict[str, Dict[str, int]] = {}
+    threat_map: Dict[str, Dict[str, int]] = {}
+
+    async with httpx.AsyncClient() as client:
+        results = await asyncio.gather(
+            client.post(
+                f"{check_base}/api/v1/check/findings/batch-severity",
+                json=payload,
+                timeout=check_timeout,
+            ),
+            client.post(
+                f"{threat_base}/api/v1/threat/findings/batch-severity",
+                json=payload,
+                timeout=threat_timeout,
+            ),
+            return_exceptions=True,
+        )
+
+        check_resp, threat_resp = results
+
+        if not isinstance(check_resp, Exception) and check_resp.status_code == 200:
+            try:
+                check_map = check_resp.json().get("results", {})
+            except Exception:
+                pass
+        else:
+            logger.debug("Batch check severity failed: %s", check_resp)
+
+        if not isinstance(threat_resp, Exception) and threat_resp.status_code == 200:
+            try:
+                threat_map = threat_resp.json().get("results", {})
+            except Exception:
+                pass
+        else:
+            logger.debug("Batch threat severity failed: %s", threat_resp)
+
+    # Build unified posture map keyed by resource_uid
+    posture: Dict[str, Dict[str, Any]] = {}
+    all_uids = set(resource_uids)
+
+    for uid in all_uids:
+        short_id = uid.rsplit("/", 1)[-1]
+        # Match by full UID first, then short ID
+        check = check_map.get(uid) or check_map.get(short_id) or {}
+        threat = threat_map.get(uid) or threat_map.get(short_id) or {}
+        posture[uid] = {
+            "check": {
+                "critical": check.get("critical", 0),
+                "high": check.get("high", 0),
+                "medium": check.get("medium", 0),
+                "low": check.get("low", 0),
+            },
+            "threat": {
+                "critical": threat.get("critical", 0),
+                "high": threat.get("high", 0),
+                "medium": threat.get("medium", 0),
+                "low": threat.get("low", 0),
+            },
+        }
+
+    return posture
+
+
+@router.get("/inventory/graph")
+async def view_inventory_graph(
+    tenant_id: str = Query(...),
+    depth: int = Query(5, ge=1, le=10),
+    limit: int = Query(2000, ge=1, le=5000),
+    provider: Optional[str] = Query(None),
+    service: Optional[str] = Query(None),
+):
+    """Architecture graph view — inventory graph + cross-engine posture enrichment.
+
+    Step 1: Get graph from inventory engine (recursive BFS traversal + exposure).
+    Step 2: Batch-fetch check + threat severity counts for all nodes (2 calls total).
+    Step 3: Merge posture data into each node.
+    Step 4: Return enriched response ready for the architecture diagram UI.
+    """
+    # Step 1: Get graph from inventory engine
+    params: Dict[str, str] = {
+        "tenant_id": tenant_id,
+        "depth": str(depth),
+        "limit": str(limit),
+    }
+    if provider:
+        params["provider"] = provider
+    if service:
+        params["service"] = service
+
+    graph_results = await fetch_many([
+        ("inventory", "/api/v1/inventory/runs/latest/graph", params),
+    ])
+
+    graph_data = graph_results[0]
+    if not isinstance(graph_data, dict) or "nodes" not in graph_data:
+        return {
+            "nodes": [],
+            "links": [],
+            "exposure": [],
+            "meta": {"total_nodes": 0, "total_links": 0, "enriched": False},
+        }
+
+    nodes = graph_data.get("nodes", [])
+    links = graph_data.get("links", [])
+    exposure = graph_data.get("exposure", [])
+
+    if not nodes:
+        return {
+            "nodes": nodes,
+            "links": links,
+            "exposure": exposure,
+            "meta": {"total_nodes": 0, "total_links": 0, "enriched": False},
+        }
+
+    # Step 2: Collect resource UIDs (skip synthetic nodes)
+    resource_uids = [
+        n["id"] for n in nodes
+        if n.get("id") and not n.get("synthetic")
+    ]
+
+    # Step 3: Batch posture enrichment (2 calls instead of 2×N)
+    posture_map = await _batch_posture_for_nodes(resource_uids, tenant_id)
+
+    # Step 4: Enrich each node with posture data
+    for node in nodes:
+        uid = node.get("id", "")
+        node_posture = posture_map.get(uid, {})
+
+        check_sev = node_posture.get("check", {})
+        threat_sev = node_posture.get("threat", {})
+
+        node["posture"] = {
+            "check": check_sev,
+            "threat": threat_sev,
+            "total_critical": check_sev.get("critical", 0) + threat_sev.get("critical", 0),
+            "total_high": check_sev.get("high", 0) + threat_sev.get("high", 0),
+        }
+
+    return {
+        "nodes": nodes,
+        "links": links,
+        "exposure": exposure,
+        "meta": {
+            "total_nodes": len(nodes),
+            "total_links": len(links),
+            "enriched": True,
+        },
     }

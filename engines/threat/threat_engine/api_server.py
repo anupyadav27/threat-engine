@@ -16,7 +16,7 @@ import threading
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, timezone
 import psycopg2
 
 # Add common to path for logger import
@@ -105,19 +105,9 @@ def get_check_scan_id_from_orchestration(scan_run_id: str) -> Optional[str]:
         return None
 
 
-# Include check results router (standalone - no configscan dependency)
-try:
-    from .api.check_router import router as check_router
-    app.include_router(check_router)
-except ImportError as e:
-    logger.warning("Check router not available", extra={"extra_fields": {"error": str(e)}})
-
-# Include discovery results router (standalone - no configscan dependency)
-try:
-    from .api.discovery_router import router as discovery_router
-    app.include_router(discovery_router)
-except ImportError as e:
-    logger.warning("Discovery router not available", extra={"extra_fields": {"error": str(e)}})
+# NOTE: check_router and discovery_router removed — they depended on
+# engine_configscan.DatabaseManager which no longer exists. The underlying
+# data is now served via the /ui-data endpoint (ui_data_router).
 
 # Include unified UI data router (single endpoint for all UI views)
 try:
@@ -537,7 +527,7 @@ async def generate_threat_report_async(request: ThreatReportRequest):
         "status": "running",
         "scan_run_id": request.scan_run_id,
         "tenant_id": request.tenant_id,
-        "started_at": datetime.utcnow().isoformat(),
+        "started_at": datetime.now(timezone.utc).isoformat(),
         "error": None,
     }
 
@@ -545,11 +535,11 @@ async def generate_threat_report_async(request: ThreatReportRequest):
         try:
             asyncio.run(generate_threat_report(request))
             threat_jobs[job_id]["status"] = "completed"
-            threat_jobs[job_id]["completed_at"] = datetime.utcnow().isoformat()
+            threat_jobs[job_id]["completed_at"] = datetime.now(timezone.utc).isoformat()
         except Exception as e:
             threat_jobs[job_id]["status"] = "failed"
             threat_jobs[job_id]["error"] = str(e)
-            threat_jobs[job_id]["completed_at"] = datetime.utcnow().isoformat()
+            threat_jobs[job_id]["completed_at"] = datetime.now(timezone.utc).isoformat()
 
     threading.Thread(target=_worker, daemon=True).start()
     return threat_jobs[job_id]
@@ -1303,7 +1293,7 @@ async def get_threat_trend(
             })
             
             # Calculate date range
-            end_date = datetime.utcnow()
+            end_date = datetime.now(timezone.utc)
             start_date = end_date - timedelta(days=days)
             
             for report_meta in reports:
@@ -1654,7 +1644,7 @@ async def list_threats(
             params.append(status)
 
         if resource_uid:
-            where_parts.append("t.resource_arn = %s")
+            where_parts.append("t.resource_uid = %s")
             params.append(resource_uid)
 
         where_clause = " AND ".join(where_parts)
@@ -1671,7 +1661,7 @@ async def list_threats(
                 t.detection_type as threat_type, t.threat_category as category,
                 t.severity, t.confidence, t.status, t.rule_name as title,
                 t.rule_id as primary_rule_id,
-                t.resource_arn, t.resource_type, t.account_id, t.region,
+                t.resource_uid, t.resource_type, t.account_id, t.region,
                 t.mitre_techniques, t.mitre_tactics,
                 t.first_seen_at, t.last_seen_at, t.resolved_at
             FROM threat_detections t
@@ -1733,7 +1723,7 @@ async def get_threat_detail(
                     detection_id as threat_id, scan_id as scan_run_id,
                     detection_type as threat_type, threat_category as category,
                     severity, confidence, status, rule_name as title,
-                    rule_id, resource_arn, resource_id, resource_type,
+                    rule_id, resource_uid, resource_id, resource_type,
                     account_id, region, provider,
                     mitre_techniques, mitre_tactics,
                     evidence, context,
@@ -1893,7 +1883,7 @@ async def list_drift_records(
         # Get paginated results
         query = f"""
             SELECT
-                detection_id, detection_type, resource_arn, resource_type,
+                detection_id, detection_type, resource_uid, resource_type,
                 account_id, region, severity, status,
                 rule_id, rule_name, mitre_techniques, mitre_tactics,
                 evidence, context,
@@ -1943,8 +1933,8 @@ async def get_resource_threats(
         
         conn = psycopg2.connect(conn_str)
         
-        # Build query using threat_detections (resource_arn matches resource_uid)
-        where_parts = ["t.resource_arn = %s", "t.tenant_id = %s"]
+        # Build query using threat_detections (resource_uid is canonical identifier)
+        where_parts = ["t.resource_uid = %s", "t.tenant_id = %s"]
         params = [resource_uid, tenant_id]
 
         if scan_run_id:
@@ -2401,6 +2391,196 @@ async def list_hunt_results(
         return {"results": results, "total": len(results)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to list hunt results: {str(e)}")
+
+
+# ── Per-resource finding endpoint (used by BFF asset detail) ──────────────
+
+@app.get("/api/v1/threat/findings/resource/{resource_uid:path}")
+async def get_threat_findings_for_resource(
+    resource_uid: str,
+    tenant_id: str = Query(...),
+    limit: int = Query(200, ge=1, le=1000),
+):
+    """
+    Return threat findings for a specific resource.
+
+    Used by the BFF layer to enrich asset detail views with
+    MITRE ATT&CK techniques and threat severity.
+    Matches on both resource_uid and resource_arn to handle format differences.
+    """
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+
+    try:
+        conn = psycopg2.connect(
+            host=os.getenv("THREAT_DB_HOST", "localhost"),
+            port=int(os.getenv("THREAT_DB_PORT", "5432")),
+            dbname=os.getenv("THREAT_DB_NAME", "threat_engine_threat"),
+            user=os.getenv("THREAT_DB_USER", "threat_user"),
+            password=os.getenv("THREAT_DB_PASSWORD", "threat_password"),
+            connect_timeout=5,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Database unavailable: {e}")
+
+    try:
+        # Severity counts
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT
+                    LOWER(COALESCE(severity, 'medium')) AS severity,
+                    COUNT(*) AS cnt
+                FROM threat_findings
+                WHERE resource_uid = %s
+                  AND tenant_id = %s
+                GROUP BY LOWER(COALESCE(severity, 'medium'))
+            """, (resource_uid, tenant_id))
+            sev_rows = cur.fetchall()
+
+        severity_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+        for r in sev_rows:
+            sev = r.get("severity", "medium")
+            if sev in severity_counts:
+                severity_counts[sev] = int(r.get("cnt") or 0)
+
+        # Detailed findings
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT
+                    finding_id, rule_id, threat_category, severity, status,
+                    resource_type, region, account_id,
+                    mitre_tactics, mitre_techniques, evidence,
+                    first_seen_at, last_seen_at
+                FROM threat_findings
+                WHERE resource_uid = %s
+                  AND tenant_id = %s
+                ORDER BY
+                    CASE LOWER(COALESCE(severity, 'medium'))
+                        WHEN 'critical' THEN 1 WHEN 'high' THEN 2
+                        WHEN 'medium' THEN 3 WHEN 'low' THEN 4 ELSE 5
+                    END,
+                    last_seen_at DESC
+                LIMIT %s
+            """, (resource_uid, tenant_id, limit))
+            detail_rows = cur.fetchall()
+
+        findings = []
+        for r in detail_rows:
+            first_seen = r.get("first_seen_at")
+            last_seen = r.get("last_seen_at")
+            findings.append({
+                "finding_id": r.get("finding_id"),
+                "rule_id": r.get("rule_id"),
+                "threat_category": r.get("threat_category") or "",
+                "severity": (r.get("severity") or "medium").lower(),
+                "status": r.get("status") or "open",
+                "resource_type": r.get("resource_type") or "",
+                "region": r.get("region") or "",
+                "account_id": r.get("account_id") or "",
+                "mitre_tactics": r.get("mitre_tactics") or [],
+                "mitre_techniques": r.get("mitre_techniques") or [],
+                "evidence": r.get("evidence") or {},
+                "first_seen_at": first_seen.isoformat() if first_seen else None,
+                "last_seen_at": last_seen.isoformat() if last_seen else None,
+            })
+
+        return {
+            "resource_uid": resource_uid,
+            "severity_counts": severity_counts,
+            "findings": findings,
+        }
+    finally:
+        conn.close()
+
+
+# ── Batch severity endpoint (used by BFF graph view) ─────────────────────
+
+
+class BatchSeverityRequest(BaseModel):
+    """Request body for batch severity lookup."""
+    resource_uids: List[str]
+    tenant_id: str
+
+
+@app.post("/api/v1/threat/findings/batch-severity")
+async def batch_severity(payload: BatchSeverityRequest):
+    """
+    Return threat severity counts grouped by resource_uid for a list of UIDs.
+
+    Used by the BFF graph view to enrich architecture diagram nodes
+    with threat posture in a single batch call (instead of N individual calls).
+
+    Handles UID format mismatch: matches on both resource_uid and
+    the last segment (resource_id) for cross-format matching.
+    """
+    from psycopg2.extras import RealDictCursor
+
+    resource_uids = payload.resource_uids
+    tenant_id = payload.tenant_id
+
+    if not resource_uids or not tenant_id:
+        return {"results": {}}
+
+    # Extract short IDs (last segment after '/') for suffix matching
+    short_ids = [uid.rsplit("/", 1)[-1] for uid in resource_uids]
+
+    try:
+        conn = psycopg2.connect(
+            host=os.getenv("THREAT_DB_HOST", "localhost"),
+            port=int(os.getenv("THREAT_DB_PORT", "5432")),
+            dbname=os.getenv("THREAT_DB_NAME", "threat_engine_threat"),
+            user=os.getenv("THREAT_DB_USER", "threat_user"),
+            password=os.getenv("THREAT_DB_PASSWORD", "threat_password"),
+            connect_timeout=5,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Database unavailable: {e}")
+
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # Match on full resource_uid OR short resource_id
+            cur.execute("""
+                SELECT
+                    resource_uid,
+                    LOWER(COALESCE(severity, 'medium')) AS severity,
+                    COUNT(*) AS cnt
+                FROM threat_findings
+                WHERE tenant_id = %s
+                  AND (resource_uid = ANY(%s) OR resource_uid LIKE ANY(%s))
+                GROUP BY resource_uid, LOWER(COALESCE(severity, 'medium'))
+            """, (
+                tenant_id,
+                resource_uids,
+                [f'%/{sid}' for sid in short_ids],
+            ))
+            rows = cur.fetchall()
+
+        # Build results map
+        results: Dict[str, Dict[str, int]] = {}
+
+        for r in rows:
+            uid = r.get("resource_uid", "")
+            sev = r.get("severity", "medium")
+            cnt = int(r.get("cnt") or 0)
+
+            # Add full UID entry
+            if uid:
+                if uid not in results:
+                    results[uid] = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+                if sev in results[uid]:
+                    results[uid][sev] += cnt
+
+                # Also add short-ID entry for cross-reference matching
+                short = uid.rsplit("/", 1)[-1]
+                if short != uid:
+                    if short not in results:
+                        results[short] = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+                    if sev in results[short]:
+                        results[short][sev] += cnt
+
+        return {"results": results}
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":

@@ -16,7 +16,7 @@ import re
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Paths
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -130,7 +130,7 @@ def load_resource_inventory_report(service_path: Path) -> Optional[Dict]:
         try:
             with open(report_file, 'r') as f:
                 return json.load(f)
-        except:
+        except Exception:
             return None
     return None
 
@@ -142,7 +142,7 @@ def load_resource_operations_prioritized(service_path: Path) -> Optional[Dict]:
         try:
             with open(ops_file, 'r') as f:
                 return json.load(f)
-        except:
+        except Exception:
             return None
     return None
 
@@ -152,7 +152,7 @@ def build_classification_index() -> Dict:
     
     index = {
         "version": "1.0",
-        "generated_at": datetime.utcnow().isoformat(),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
         "source": "pythonsdk-database/aws",
         "classifications": {
             "by_discovery_operation": {},  # discovery_id -> classification

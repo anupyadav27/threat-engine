@@ -13,7 +13,7 @@ import logging
 import os
 import time
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 import psycopg2
@@ -424,7 +424,7 @@ def _query_findings(conn, where: str, params: list, limit: int, offset: int):
         cur.execute(
             f"SELECT "
             f"  finding_id, rule_id, threat_category, severity, status, "
-            f"  resource_type, resource_id, resource_arn, resource_uid, "
+            f"  resource_type, resource_id, resource_uid, "
             f"  account_id, region, "
             f"  mitre_tactics, mitre_techniques, "
             f"  evidence, finding_data, "
@@ -447,7 +447,6 @@ def _query_findings(conn, where: str, params: list, limit: int, offset: int):
                 "status": row["status"],
                 "threat_category": row["threat_category"],
                 "resource_uid": row["resource_uid"],
-                "resource_arn": row["resource_arn"],
                 "resource_type": row["resource_type"],
                 "account_id": row["account_id"],
                 "region": row["region"],
@@ -520,7 +519,7 @@ def _query_mitre_matrix(conn, where: str, params: list) -> List[dict]:
 def _query_trend(conn, tenant_id: str, days: int) -> List[dict]:
     trend: List[dict] = []
     try:
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
         date_map: Dict[str, Dict[str, Any]] = defaultdict(
             lambda: {"date": "", "total": 0, "critical": 0, "high": 0, "medium": 0, "low": 0}
         )

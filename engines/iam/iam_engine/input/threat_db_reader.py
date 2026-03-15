@@ -43,7 +43,7 @@ class ThreatDBReader:
     The threat_findings table stores individual misconfig findings with columns:
         finding_id, threat_scan_id, tenant_id, customer_id, scan_run_id,
         rule_id, threat_category, severity, status, resource_type,
-        resource_id, resource_arn, resource_uid, account_id, region,
+        resource_id, resource_uid, account_id, region,
         mitre_tactics (jsonb), mitre_techniques (jsonb),
         evidence (jsonb), finding_data (jsonb),
         first_seen_at, last_seen_at, created_at
@@ -90,10 +90,26 @@ class ThreatDBReader:
         The threat_findings table uses threat_scan_id as FK, not scan_run_id directly.
         threat_scan_id format is typically 'threat_{scan_run_id}'.
 
-        If scan_run_id already starts with 'threat_' it IS the threat_scan_id — return it directly
-        to avoid the double-prefix bug (threat_threat_...) that occurs when IAM receives the
-        orchestration threat_scan_id value and mistakenly tries to resolve it again.
+        Special cases:
+          - 'latest' → find the most recent threat_scan_id for this tenant.
+          - Already prefixed with 'threat_' → return as-is to avoid double-prefix bug.
         """
+        # Handle "latest" — resolve to the most recent threat_scan_id for the tenant
+        if scan_run_id == "latest":
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT threat_scan_id FROM threat_report WHERE tenant_id = %s ORDER BY created_at DESC LIMIT 1",
+                        (tenant_id,),
+                    )
+                    row = cur.fetchone()
+                    if row:
+                        return row[0]
+            except Exception as e:
+                logger.error(f"Error resolving latest threat_scan_id: {e}")
+                conn.rollback()
+            return None
+
         # Already a threat_scan_id (passed from orchestration metadata)
         if scan_run_id.startswith("threat_"):
             return scan_run_id
@@ -192,7 +208,7 @@ class ThreatDBReader:
                     SELECT finding_id, threat_scan_id, tenant_id, customer_id,
                            scan_run_id, rule_id, threat_category,
                            severity, status,
-                           resource_type, resource_id, resource_arn, resource_uid,
+                           resource_type, resource_id, resource_uid,
                            account_id, region,
                            mitre_tactics, mitre_techniques,
                            evidence, finding_data,
@@ -209,7 +225,7 @@ class ThreatDBReader:
                     SELECT finding_id, threat_scan_id, tenant_id, customer_id,
                            scan_run_id, rule_id, threat_category,
                            severity, status,
-                           resource_type, resource_id, resource_arn, resource_uid,
+                           resource_type, resource_id, resource_uid,
                            account_id, region,
                            mitre_tactics, mitre_techniques,
                            evidence, finding_data,
@@ -243,7 +259,7 @@ class ThreatDBReader:
                     'service': (row['resource_type'] or ''),
                     'resource_type': row['resource_type'] or '',
                     'resource_id': row['resource_id'] or '',
-                    'resource_arn': row['resource_arn'] or '',
+                    'resource_arn': row['resource_uid'] or '',
                     'resource_uid': row['resource_uid'] or '',
                     'resource': fd.get('resource', {}),
                     'title': fd.get('title', ''),
@@ -304,16 +320,16 @@ class ThreatDBReader:
                 SELECT finding_id, threat_scan_id, tenant_id, customer_id,
                        scan_run_id, rule_id, threat_category,
                        severity, status,
-                       resource_type, resource_id, resource_arn, resource_uid,
+                       resource_type, resource_id, resource_uid,
                        account_id, region,
                        mitre_tactics, mitre_techniques,
                        evidence, finding_data,
                        first_seen_at, last_seen_at, created_at
                 FROM threat_findings
                 WHERE tenant_id = %s AND threat_scan_id = %s
-                  AND (resource_uid = %s OR resource_arn = %s)
+                  AND resource_uid = %s
             """
-            params = [tenant_id, threat_scan_id, resource_uid, resource_uid]
+            params = [tenant_id, threat_scan_id, resource_uid]
 
             if iam_rule_ids:
                 placeholders = ','.join(['%s'] * len(iam_rule_ids))
@@ -344,7 +360,7 @@ class ThreatDBReader:
                     'service': (row['resource_type'] or ''),
                     'resource_type': row['resource_type'] or '',
                     'resource_uid': row['resource_uid'] or '',
-                    'resource_arn': row['resource_arn'] or '',
+                    'resource_arn': row['resource_uid'] or '',
                     'resource': fd.get('resource', {}),
                     'title': fd.get('title', ''),
                     'description': fd.get('description', ''),

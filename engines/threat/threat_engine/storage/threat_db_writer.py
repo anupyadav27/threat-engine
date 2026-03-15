@@ -159,14 +159,14 @@ def save_report_to_db(report: ThreatReport) -> str:
                         break
 
             # Extract resource info from first affected asset
-            resource_arn = None
+            resource_uid = None
             resource_id = None
             resource_type = None
             account_id = None
             region = None
             if threat.affected_assets:
                 asset = threat.affected_assets[0]
-                resource_arn = asset.get('resource_arn') or asset.get('resource_uid')
+                resource_uid = asset.get('resource_uid') or asset.get('resource_arn')
                 resource_id = asset.get('resource_id')
                 resource_type = asset.get('resource_type')
                 account_id = asset.get('account')
@@ -201,7 +201,7 @@ def save_report_to_db(report: ThreatReport) -> str:
                     INSERT INTO threat_detections (
                         detection_id, tenant_id, scan_id,
                         detection_type, rule_id, rule_name,
-                        resource_arn, resource_id, resource_type,
+                        resource_uid, resource_id, resource_type,
                         account_id, region, provider,
                         severity, confidence, status,
                         threat_category,
@@ -224,7 +224,7 @@ def save_report_to_db(report: ThreatReport) -> str:
                     threat_type_val,
                     primary_rule_id,
                     threat.title,
-                    resource_arn,
+                    resource_uid,
                     resource_id,
                     resource_type,
                     account_id,
@@ -283,13 +283,13 @@ def save_report_to_db(report: ThreatReport) -> str:
                         finding_id, threat_scan_id, tenant_id, customer_id,
                         scan_run_id, rule_id, threat_category,
                         severity, status,
-                        resource_type, resource_id, resource_arn, resource_uid,
+                        resource_type, resource_id, resource_uid,
                         account_id, region,
                         mitre_tactics, mitre_techniques,
                         evidence, finding_data,
                         first_seen_at, last_seen_at
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (finding_id) DO UPDATE SET
                         threat_scan_id = EXCLUDED.threat_scan_id,
                         scan_run_id = EXCLUDED.scan_run_id,
@@ -311,8 +311,7 @@ def save_report_to_db(report: ThreatReport) -> str:
                     finding.result,
                     finding.resource.get('resource_type'),
                     finding.resource.get('resource_id'),
-                    finding.resource.get('resource_arn'),
-                    finding.resource.get('resource_uid'),
+                    finding.resource.get('resource_uid') or finding.resource.get('resource_arn'),
                     finding.account,
                     finding.region,
                     Json(mitre_tactics),
@@ -702,7 +701,7 @@ def get_analyses_from_db(
                         a.analysis_results, a.recommendations,
                         a.related_threats, a.attack_chain,
                         a.started_at, a.completed_at, a.created_at,
-                        d.resource_arn, d.resource_type, d.severity as detection_severity,
+                        d.resource_uid, d.resource_type, d.severity as detection_severity,
                         d.rule_name, d.rule_id, d.threat_category,
                         d.mitre_techniques, d.mitre_tactics
                     FROM threat_analysis a

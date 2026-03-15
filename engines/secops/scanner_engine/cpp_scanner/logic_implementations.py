@@ -5395,7 +5395,7 @@ def check_incomplete_types_deleted(ast_tree, filename):
         try:
             with open(filename, 'r', encoding='utf-8') as f:
                 source_content = f.read()
-        except:
+        except Exception:
             # Fall back to AST source if file reading fails
             source_content = ast_tree.get('source', '') if isinstance(ast_tree, dict) else ''
         

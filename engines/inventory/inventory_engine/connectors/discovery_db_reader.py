@@ -14,8 +14,7 @@ Tables READ:
                          list_available_scans() — SELECT + COUNT(*) FROM discovery_findings
   - discovery_findings : read_discovery_records() — SELECT discovery_scan_id, customer_id, tenant_id, provider,
                            hierarchy_id, hierarchy_type, discovery_id, region, service,
-                           COALESCE(resource_uid, resource_arn) as resource_uid,
-                           resource_arn, resource_id, emitted_fields, raw_response, config_hash,
+                           resource_uid, resource_id, emitted_fields, raw_response, config_hash,
                            scan_timestamp, version
                          Filters: discovery_scan_id, tenant_id, hierarchy_id, region, service
 
@@ -127,8 +126,7 @@ class DiscoveryDBReader:
                 discovery_scan_id, customer_id, tenant_id, provider,
                 hierarchy_id, hierarchy_type, discovery_id,
                 region, service,
-                COALESCE(resource_uid, resource_arn) as resource_uid,
-                resource_arn, resource_id,
+                resource_uid, resource_id,
                 emitted_fields, raw_response, config_hash,
                 scan_timestamp, version
             FROM discovery_findings
@@ -160,7 +158,7 @@ class DiscoveryDBReader:
             query += " AND service = %s"
             params.append(service)
         
-        query += " ORDER BY COALESCE(resource_uid, resource_arn), discovery_id"
+        query += " ORDER BY resource_uid, discovery_id"
         
         try:
             with self.conn.cursor(cursor_factory=RealDictCursor) as cur:

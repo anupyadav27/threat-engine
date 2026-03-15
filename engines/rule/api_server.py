@@ -242,7 +242,7 @@ async def generate_rule(request: RuleCreateRequest):
         result = rule_builder_api.generate_rule(rule, request.provider)
         
         # Store rule with provider
-        from datetime import datetime
+        from datetime import datetime, timezone
         rules_storage[request.rule_id] = {
             "rule_id": request.rule_id,
             "provider": request.provider,  # Include provider
@@ -254,8 +254,8 @@ async def generate_rule(request: RuleCreateRequest):
             "logical_operator": request.logical_operator,
             "yaml_path": result.get("yaml_path"),
             "metadata_path": result.get("metadata_path"),
-            "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat()
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat()
         }
         
         return result
@@ -342,7 +342,7 @@ async def update_rule(rule_id: str, request: RuleCreateRequest):
         result = rule_builder_api.generate_rule(rule, request.provider)
         
         # Update stored rule
-        from datetime import datetime
+        from datetime import datetime, timezone
         rules_storage[rule_id].update({
             "provider": request.provider,  # Include provider
             "service": request.service,
@@ -353,7 +353,7 @@ async def update_rule(rule_id: str, request: RuleCreateRequest):
             "logical_operator": request.logical_operator,
             "yaml_path": result.get("yaml_path"),
             "metadata_path": result.get("metadata_path"),
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.now(timezone.utc).isoformat()
         })
         
         return {
@@ -391,6 +391,28 @@ async def list_service_rules(provider: str, service: str):
         "rules": service_rules,
         "total": len(service_rules)
     }
+
+
+@app.get("/api/v1/health/live")
+async def liveness_check():
+    """Kubernetes liveness probe — no DB, no external calls."""
+    return {"status": "ok", "service": "yaml-rule-builder"}
+
+
+@app.get("/api/v1/health/ready")
+async def readiness_check():
+    """Kubernetes readiness probe — verifies DB connectivity."""
+    try:
+        conn = _get_check_db_connection()
+        conn.cursor().execute("SELECT 1")
+        conn.close()
+        return {"status": "ready", "database": "connected"}
+    except Exception as e:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=503,
+            content={"status": "not_ready", "database": "disconnected", "error": str(e)}
+        )
 
 
 @app.get("/api/v1/health")
@@ -555,12 +577,12 @@ async def copy_rule(rule_id: str):
             counter += 1
         
         # Create copy with new rule_id
-        from datetime import datetime
+        from datetime import datetime, timezone
         copied_rule = original_rule.copy()
         copied_rule["rule_id"] = new_rule_id
         copied_rule["title"] = f"{copied_rule.get('title', 'Rule')} (Copy)"
-        copied_rule["created_at"] = datetime.utcnow().isoformat()
-        copied_rule["updated_at"] = datetime.utcnow().isoformat()
+        copied_rule["created_at"] = datetime.now(timezone.utc).isoformat()
+        copied_rule["updated_at"] = datetime.now(timezone.utc).isoformat()
         
         # Generate new rule files
         rule = rule_builder_api.create_rule_from_ui_input({
@@ -809,11 +831,11 @@ async def import_rules(rules: List[Dict[str, Any]]):
                     continue
                 
                 # Store rule
-                from datetime import datetime
+                from datetime import datetime, timezone
                 rule_data["yaml_path"] = result.get("yaml_path")
                 rule_data["metadata_path"] = result.get("metadata_path")
-                rule_data["created_at"] = rule_data.get("created_at") or datetime.utcnow().isoformat()
-                rule_data["updated_at"] = datetime.utcnow().isoformat()
+                rule_data["created_at"] = rule_data.get("created_at") or datetime.now(timezone.utc).isoformat()
+                rule_data["updated_at"] = datetime.now(timezone.utc).isoformat()
                 
                 rules_storage[rule_id] = rule_data
                 imported.append(rule_id)
@@ -985,7 +1007,7 @@ async def create_rule_from_template(
         result = rule_builder_api.generate_rule(rule, request.provider)
         
         # Store rule
-        from datetime import datetime
+        from datetime import datetime, timezone
         rules_storage[request.rule_id] = {
             "rule_id": request.rule_id,
             "provider": request.provider,
@@ -997,8 +1019,8 @@ async def create_rule_from_template(
             "logical_operator": logical_operator,
             "yaml_path": result.get("yaml_path"),
             "metadata_path": result.get("metadata_path"),
-            "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
             "template_id": template_id
         }
         

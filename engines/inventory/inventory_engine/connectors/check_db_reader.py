@@ -81,7 +81,7 @@ class CheckDBReader:
         """
         query = """
             SELECT
-                COALESCE(resource_uid, resource_arn) AS resource_uid,
+                resource_uid AS resource_uid,
                 COUNT(*) AS total,
                 COUNT(*) FILTER (WHERE status = 'PASS') AS passed,
                 COUNT(*) FILTER (WHERE status = 'FAIL') AS failed,
@@ -93,7 +93,7 @@ class CheckDBReader:
         if hierarchy_id:
             query += " AND hierarchy_id = %s"
             params.append(hierarchy_id)
-        query += " GROUP BY COALESCE(resource_uid, resource_arn)"
+        query += " GROUP BY resource_uid"
 
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(query, params)

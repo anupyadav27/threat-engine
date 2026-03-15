@@ -225,7 +225,7 @@ def parse_openai_response(response: str) -> Optional[List[Dict[str, Any]]]:
                 relationships = data.get("relationships", [])
                 print(f"Found JSON in response, extracted {len(relationships)} relationships")
                 return relationships
-            except:
+            except Exception:
                 pass
         return None
     except Exception as e:

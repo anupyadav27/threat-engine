@@ -6,7 +6,7 @@ Detects threats from normalized misconfig findings using pattern matching and co
 
 import hashlib
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from ..schemas.threat_report_schema import (
     Threat,
     ThreatType,
@@ -380,8 +380,8 @@ class ThreatDetector:
             severity=highest_severity,
             confidence=group["confidence"],
             status=ThreatStatus.OPEN,
-            first_seen_at=datetime.utcnow(),
-            last_seen_at=datetime.utcnow(),
+            first_seen_at=datetime.now(timezone.utc),
+            last_seen_at=datetime.now(timezone.utc),
             correlations=correlations,
             affected_assets=affected_assets,
             evidence_refs=evidence_refs,

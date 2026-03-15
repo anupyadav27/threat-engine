@@ -13,7 +13,7 @@ This script:
 import json
 import sys
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from collections import defaultdict
 
 
@@ -180,7 +180,7 @@ def generate_complete_relationships(existing):
     
     return {
         "version": "2.0",
-        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "generated_at": datetime.now(timezone.utc).isoformat() + "Z",
         "description": "Complete AWS Relationship Database - ALL Services",
         "source": "Extended from aws_relationship_index_20260123T065606Z.json",
         "metadata": {

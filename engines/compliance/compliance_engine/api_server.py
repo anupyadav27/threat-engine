@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import uuid
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 import psycopg2
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
@@ -332,14 +332,14 @@ def load_scan_results_from_s3(scan_id: str, csp: str) -> Dict[str, Any]:
                         summary = json.loads(summary_obj['Body'].read().decode('utf-8'))
                         account_id = account_id or summary.get('account_id')
                         scanned_at = scanned_at or summary.get('scanned_at')
-                    except:
+                    except Exception:
                         pass
-                
+
                 return {
                     'scan_id': scan_id,
                     'csp': csp,
                     'account_id': account_id,
-                    'scanned_at': scanned_at or datetime.utcnow().isoformat() + 'Z',
+                    'scanned_at': scanned_at or datetime.now(timezone.utc).isoformat() + 'Z',
                     'results': results
                 }
         except s3_client.exceptions.NoSuchKey:
@@ -412,14 +412,14 @@ def load_scan_results_from_s3(scan_id: str, csp: str) -> Dict[str, Any]:
                         summary = json.load(f)
                         account_id = account_id or summary.get('account_id')
                         scanned_at = scanned_at or summary.get('scanned_at')
-                except:
+                except Exception:
                     pass
-            
+
             return {
                 'scan_id': scan_id,
                 'csp': csp,
                 'account_id': account_id,
-                'scanned_at': scanned_at or datetime.utcnow().isoformat() + 'Z',
+                'scanned_at': scanned_at or datetime.now(timezone.utc).isoformat() + 'Z',
                 'results': results
             }
     
@@ -504,7 +504,7 @@ async def generate_compliance_report(
                 'report_id': report_id,
                 'scan_id': check_query_scan_id,  # Use resolved check_scan_id
                 'csp': request.csp,
-                'generated_at': datetime.utcnow().isoformat() + 'Z',
+                'generated_at': datetime.now(timezone.utc).isoformat() + 'Z',
                 'executive_dashboard': dashboard,
                 'framework_reports': framework_reports
             }
@@ -620,7 +620,7 @@ async def generate_compliance_report_direct(request: ScanResultsInput):
             'report_id': report_id,
             'scan_id': request.scan_results.get('scan_id'),
             'csp': request.csp,
-            'generated_at': datetime.utcnow().isoformat() + 'Z',
+            'generated_at': datetime.now(timezone.utc).isoformat() + 'Z',
             'executive_dashboard': dashboard,
             'framework_reports': framework_reports
         }
@@ -728,7 +728,7 @@ async def generate_compliance_report_from_threat_engine(
             'report_id': report_id,
             'scan_id': scan_results.get('scan_id'),
             'csp': request.csp,
-            'generated_at': datetime.utcnow().isoformat() + 'Z',
+            'generated_at': datetime.now(timezone.utc).isoformat() + 'Z',
             'source': 'threat_engine',
             'executive_dashboard': dashboard,
             'framework_reports': framework_reports
@@ -848,7 +848,7 @@ async def generate_compliance_report_from_check_db(
             "scan_id": scan_results.get("scan_id"),
             "csp": request.csp,
             "tenant_id": request.tenant_id,
-            "generated_at": datetime.utcnow().isoformat() + "Z",
+            "generated_at": datetime.now(timezone.utc).isoformat() + "Z",
             "source": "check_db",
             "executive_dashboard": dashboard,
             "framework_reports": framework_reports,
@@ -984,7 +984,7 @@ async def generate_compliance_report_from_threat_db(
             "scan_id": scan_results.get("scan_id"),
             "csp": request.csp,
             "tenant_id": request.tenant_id,
-            "generated_at": datetime.utcnow().isoformat() + "Z",
+            "generated_at": datetime.now(timezone.utc).isoformat() + "Z",
             "source": "threat_db",
             "executive_dashboard": dashboard,
             "framework_reports": framework_reports,
@@ -1176,8 +1176,8 @@ async def generate_enterprise_report(
                 trigger_type=TriggerType(request.trigger_type),
                 cloud=Cloud(csp),
                 collection_mode=CollectionMode(request.collection_mode),
-                started_at=scan_results.get('scanned_at', datetime.utcnow().isoformat() + 'Z'),
-                completed_at=datetime.utcnow().isoformat() + 'Z'
+                started_at=scan_results.get('scanned_at', datetime.now(timezone.utc).isoformat() + 'Z'),
+                completed_at=datetime.now(timezone.utc).isoformat() + 'Z'
             )
 
             s3_bucket = os.getenv("S3_BUCKET", "cspm-lgtech")
@@ -2004,7 +2004,7 @@ async def generate_detailed_reports(
             'csp': csp,
             'account_id': scan_results.get('account_id'),
             'scanned_at': scan_results.get('scanned_at'),
-            'generated_at': datetime.utcnow().isoformat() + 'Z',
+            'generated_at': datetime.now(timezone.utc).isoformat() + 'Z',
             'output_directory': str(scan_output_dir),
             'executive_summary': 'executive_summary.json',
             'frameworks': {
@@ -2348,15 +2348,15 @@ async def get_framework_detail(
 
 
 @app.get("/api/v1/compliance/control-detail/{framework}/{control_id}")
-async def get_control_detail(
+async def get_control_detail_by_tenant(
     framework: str,
     control_id: str,
     tenant_id: str = Query(...),
     scan_id: Optional[str] = Query("latest")
 ):
     """
-    Detailed control view with affected resources.
-    
+    Detailed control view with affected resources (tenant-scoped, DB-backed).
+
     Uses: compliance_control_detail + resource_compliance_status
     """
     try:
@@ -2505,6 +2505,79 @@ try:
     app.include_router(ui_data_router)
 except ImportError as e:
     logger.warning("UI data router not available", extra={"extra_fields": {"error": str(e)}})
+
+
+# ── Per-resource finding endpoint (used by BFF asset detail) ──────────────
+
+@app.get("/api/v1/compliance/findings/resource/{resource_uid:path}")
+async def get_compliance_findings_for_resource(
+    resource_uid: str,
+    tenant_id: str = Query(...),
+    limit: int = Query(200, ge=1, le=1000),
+):
+    """
+    Return compliance findings for a specific resource.
+
+    Used by the BFF layer to enrich asset detail views with
+    per-resource framework compliance status.
+    Matches on both resource_uid and resource_arn to handle format differences.
+    """
+    try:
+        conn = _get_compliance_db_connection()
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Database unavailable: {e}")
+
+    try:
+        from psycopg2.extras import RealDictCursor
+
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT
+                    compliance_framework,
+                    control_id,
+                    control_name,
+                    severity,
+                    status,
+                    rule_id,
+                    category,
+                    last_seen_at
+                FROM compliance_findings
+                WHERE (resource_uid = %s OR resource_arn = %s)
+                  AND tenant_id = %s
+                ORDER BY
+                    CASE LOWER(COALESCE(severity, 'medium'))
+                        WHEN 'critical' THEN 1 WHEN 'high' THEN 2
+                        WHEN 'medium' THEN 3 WHEN 'low' THEN 4 ELSE 5
+                    END,
+                    compliance_framework, control_id
+                LIMIT %s
+            """, (resource_uid, resource_uid, tenant_id, limit))
+            rows = cur.fetchall()
+
+        findings = []
+        for r in rows:
+            last_seen = r.get("last_seen_at")
+            findings.append({
+                "framework": r.get("compliance_framework") or "",
+                "control_id": r.get("control_id") or "",
+                "control_name": r.get("control_name") or "",
+                "severity": (r.get("severity") or "medium").lower(),
+                "status": r.get("status") or "open",
+                "rule_id": r.get("rule_id") or "",
+                "category": r.get("category") or "",
+                "last_seen": last_seen.isoformat() if last_seen else None,
+            })
+
+        return {
+            "resource_uid": resource_uid,
+            "findings": findings,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to query compliance findings: {e}")
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":

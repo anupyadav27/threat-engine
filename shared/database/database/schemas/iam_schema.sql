@@ -57,14 +57,13 @@ CREATE TABLE IF NOT EXISTS iam_findings (
     status VARCHAR(20) NOT NULL,
     resource_type VARCHAR(100),
     resource_id VARCHAR(255),
-    resource_arn TEXT,
+    resource_uid TEXT,                -- Canonical identifier (ARN for AWS, ARM ID for Azure, etc.)
     account_id VARCHAR(50),
     region VARCHAR(50),
     finding_data JSONB NOT NULL,
     first_seen_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     customer_id VARCHAR(255),
-    resource_uid TEXT,
     hierarchy_id VARCHAR(255),
     provider VARCHAR(50) DEFAULT 'aws',
 
@@ -85,7 +84,6 @@ CREATE INDEX IF NOT EXISTS idx_iam_findings_iam_scan ON iam_findings(iam_scan_id
 CREATE INDEX IF NOT EXISTS idx_iam_findings_tenant ON iam_findings(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_iam_findings_rule ON iam_findings(rule_id);
 CREATE INDEX IF NOT EXISTS idx_iam_findings_severity ON iam_findings(severity, status);
-CREATE INDEX IF NOT EXISTS idx_iam_findings_resource ON iam_findings(resource_arn);
 CREATE INDEX IF NOT EXISTS idx_iam_findings_resource_uid ON iam_findings(resource_uid);
 CREATE INDEX IF NOT EXISTS idx_iam_findings_provider ON iam_findings(provider);
 CREATE INDEX IF NOT EXISTS idx_iam_findings_hierarchy ON iam_findings(hierarchy_id);

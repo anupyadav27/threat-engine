@@ -590,7 +590,7 @@ class GoScannerEnhanced:
                             try:
                                 symbol_table = build_symbol_table_from_ast(enhanced_ast)
                                 enhanced_ast['symbol_table'] = symbol_table.dump_symbol_table()
-                            except:
+                            except Exception:
                                 enhanced_ast['symbol_table'] = {
                                     'symbols': {name: info for name, info in model.symbols.items()},
                                     'functions': model.functions
@@ -650,7 +650,7 @@ class GoScannerEnhanced:
                                     enhanced_ast.get('symbol_table', {}).get('symbols', {})
                                 )
                                 enhanced_ast['data_flow'] = data_flow_results
-                            except:
+                            except Exception:
                                 # Fallback to model-based data flow info
                                 enhanced_ast['data_flow'] = {
                                     'taint_analysis': 'model_based',

@@ -4,7 +4,7 @@ Webhook sender for scan completion notifications
 import httpx
 import logging
 from typing import Dict, Any, Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ class WebhookSender:
             "provider": provider,
             "status": status,
             "scan_id": scan_id,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "metadata": metadata or {}
         }
         
@@ -94,7 +94,7 @@ class WebhookSender:
         payload = {
             "event_type": "orchestration_completed",
             "scan_run_id": scan_run_id,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "orchestration": orchestration_results
         }
         

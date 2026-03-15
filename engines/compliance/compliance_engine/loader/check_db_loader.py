@@ -11,7 +11,7 @@ all data is stored in local PostgreSQL. Configure via CHECK_DB_* env vars.
 import os
 import json
 from typing import Dict, List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from collections import defaultdict
 
 try:
@@ -142,7 +142,7 @@ class CheckDBLoader:
             SELECT
                 cr.check_scan_id, cr.customer_id, cr.tenant_id, cr.provider,
                 cr.hierarchy_id, cr.hierarchy_type, cr.rule_id,
-                cr.resource_uid, cr.resource_arn, cr.resource_id, cr.resource_type,
+                cr.resource_uid, cr.resource_id, cr.resource_type,
                 cr.status, cr.checked_fields, cr.finding_data, cr.created_at
             FROM check_findings cr
             WHERE cr.check_scan_id = %s AND cr.tenant_id = %s
@@ -154,8 +154,8 @@ class CheckDBLoader:
             params.append(account_id)
         if region:
             pat = f"%:{region}:%"
-            query += " AND (cr.resource_arn LIKE %s OR cr.resource_uid::text LIKE %s)"
-            params.extend([pat, pat])
+            query += " AND cr.resource_uid::text LIKE %s"
+            params.append(pat)
         if service:
             query += " AND cr.resource_type::text LIKE %s"
             params.append(f"%{service}%")
@@ -191,7 +191,7 @@ class CheckDBLoader:
                     if ts and hasattr(ts, "isoformat"):
                         rec["scan_timestamp"] = ts.isoformat() + "Z"
                     else:
-                        rec["scan_timestamp"] = datetime.utcnow().isoformat() + "Z"
+                        rec["scan_timestamp"] = datetime.now(timezone.utc).isoformat() + "Z"
                     rows.append(rec)
         except Exception:
             return []
@@ -212,14 +212,14 @@ class CheckDBLoader:
                 "scan_id": scan_id or "",
                 "csp": csp,
                 "account_id": account_id or "",
-                "scanned_at": scanned_at or datetime.utcnow().isoformat() + "Z",
+                "scanned_at": scanned_at or datetime.now(timezone.utc).isoformat() + "Z",
                 "results": [],
             }
 
         first = check_results[0]
         sid = scan_id or first.get("check_scan_id", "")
         acc = account_id or first.get("hierarchy_id", "")
-        at = scanned_at or first.get("scan_timestamp", datetime.utcnow().isoformat() + "Z")
+        at = scanned_at or first.get("scan_timestamp", datetime.now(timezone.utc).isoformat() + "Z")
         if isinstance(at, datetime):
             at = at.isoformat() + "Z"
 
@@ -229,7 +229,6 @@ class CheckDBLoader:
             rule_id = rec.get("rule_id", "")
             status = rec.get("status", "UNKNOWN")
             resource_type = rec.get("resource_type") or "unknown"
-            resource_arn = rec.get("resource_arn") or ""
             resource_id = rec.get("resource_id") or ""
             resource_uid = rec.get("resource_uid") or ""
 
@@ -239,8 +238,8 @@ class CheckDBLoader:
                 service = parts[1] if len(parts) >= 2 else "unknown"
 
             region = "global"
-            if resource_arn:
-                arn_parts = resource_arn.split(":")
+            if resource_uid:
+                arn_parts = resource_uid.split(":")
                 if len(arn_parts) >= 4:
                     region = arn_parts[3] or "global"
 
@@ -257,7 +256,7 @@ class CheckDBLoader:
                 "result": result,
                 "severity": severity,
                 "resource": {
-                    "arn": resource_arn,
+                    "arn": resource_uid,
                     "id": resource_id,
                     "type": resource_type,
                     "uid": resource_uid,

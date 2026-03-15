@@ -74,7 +74,7 @@ def save_compliance_report_to_db(compliance_report: Dict[str, Any]) -> str:
         # Parse timestamps
         try:
             generated_at = datetime.fromisoformat(generated_at_str.replace('Z', '+00:00'))
-        except:
+        except Exception:
             generated_at = datetime.now(timezone.utc)
 
         started_at = generated_at

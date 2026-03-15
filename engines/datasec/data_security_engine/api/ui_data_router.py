@@ -250,6 +250,11 @@ async def get_datasec_ui_data(
             # ── 8b. Build data-store catalog ────────────────────────────
             catalog = _build_catalog(cur, datasec_scan_id, tenant_id)
 
+            # ── 9a. Module-grouped sections for BFF ─────────────────────
+            classifications = _query_findings_by_module(cur, datasec_scan_id, tenant_id, "classification", limit)
+            dlp_violations = _query_findings_by_module(cur, datasec_scan_id, tenant_id, "dlp", limit)
+            encryption_status = _query_findings_by_module(cur, datasec_scan_id, tenant_id, "encryption", limit)
+
             # ── 9. Paginated findings list ──────────────────────────────
             cur.execute(
                 """
@@ -260,13 +265,12 @@ async def get_datasec_ui_data(
                        status,
                        resource_type,
                        resource_id,
-                       resource_arn,
+                       resource_uid,
                        account_id,
                        region,
                        data_classification,
                        sensitivity_score,
-                       finding_data,
-                       resource_uid
+                       finding_data
                 FROM datasec_findings
                 WHERE datasec_scan_id = %s AND tenant_id = %s
                 ORDER BY
@@ -299,12 +303,11 @@ async def get_datasec_ui_data(
                     "status": f["status"],
                     "resource_type": f.get("resource_type"),
                     "resource_id": f.get("resource_id"),
-                    "resource_arn": f.get("resource_arn"),
+                    "resource_uid": f.get("resource_uid"),
                     "account_id": f.get("account_id"),
                     "region": f.get("region"),
                     "data_classification": f.get("data_classification") or [],
                     "sensitivity_score": f.get("sensitivity_score"),
-                    "resource_uid": f.get("resource_uid"),
                     "finding_data": fd,
                 })
 
@@ -321,6 +324,12 @@ async def get_datasec_ui_data(
                 "by_region": by_region,
             },
             "catalog": catalog,
+            "classifications": classifications,
+            "dlp_violations": dlp_violations,
+            "encryption_status": encryption_status,
+            "residency": by_region,
+            "activity": [],
+            "lineage": {},
             "findings": findings,
             "total_findings": total_findings,
             "scan_id": datasec_scan_id,
@@ -356,10 +365,93 @@ def _empty_response() -> Dict[str, Any]:
             "by_region": [],
         },
         "catalog": [],
+        "classifications": [],
+        "dlp_violations": [],
+        "encryption_status": [],
+        "residency": [],
+        "activity": [],
+        "lineage": {},
         "findings": [],
         "total_findings": 0,
         "scan_id": None,
     }
+
+
+def _query_findings_by_module(
+    cur: psycopg2.extensions.cursor,
+    datasec_scan_id: str,
+    tenant_id: str,
+    module_name: str,
+    limit: int = 200,
+) -> List[Dict[str, Any]]:
+    """Return findings where datasec_modules[] contains *module_name*.
+
+    Args:
+        cur: Database cursor (RealDictCursor).
+        datasec_scan_id: DataSec scan identifier.
+        tenant_id: Tenant identifier.
+        module_name: Module pattern to filter on (e.g. 'classification', 'dlp', 'encryption').
+        limit: Max findings to return.
+
+    Returns:
+        List of finding dicts sorted by severity.
+    """
+    try:
+        # Use ILIKE ANY to match partial module names (e.g. 'data_protection_encryption' matches 'encryption')
+        cur.execute(
+            """
+            SELECT finding_id, rule_id, datasec_modules, severity, status,
+                   resource_type, resource_id, resource_uid, account_id,
+                   region, data_classification, sensitivity_score,
+                   finding_data
+            FROM datasec_findings
+            WHERE datasec_scan_id = %s
+              AND tenant_id = %s
+              AND EXISTS (
+                  SELECT 1 FROM unnest(datasec_modules) AS m
+                  WHERE m ILIKE %s
+              )
+            ORDER BY
+                CASE severity
+                    WHEN 'critical' THEN 1
+                    WHEN 'high' THEN 2
+                    WHEN 'medium' THEN 3
+                    WHEN 'low' THEN 4
+                    ELSE 5
+                END,
+                sensitivity_score DESC NULLS LAST,
+                finding_id
+            LIMIT %s
+            """,
+            (datasec_scan_id, tenant_id, f"%{module_name}%", limit),
+        )
+        rows = cur.fetchall()
+        result: List[Dict[str, Any]] = []
+        for f in rows:
+            fd = f.get("finding_data")
+            if not isinstance(fd, dict):
+                fd = {}
+            result.append({
+                "finding_id": f["finding_id"],
+                "rule_id": f["rule_id"],
+                "datasec_modules": f.get("datasec_modules") or [],
+                "severity": f["severity"],
+                "status": f["status"],
+                "resource_type": f.get("resource_type"),
+                "resource_id": f.get("resource_id"),
+                "resource_uid": f.get("resource_uid"),
+                "account_id": f.get("account_id"),
+                "region": f.get("region"),
+                "data_classification": f.get("data_classification") or [],
+                "sensitivity_score": f.get("sensitivity_score"),
+                "finding_data": fd,
+            })
+        return result
+    except Exception:
+        logger.warning(
+            "DataSec module query failed for %s", module_name, exc_info=True
+        )
+        return []
 
 
 def _compute_encrypted_pct(
@@ -443,7 +535,6 @@ def _build_catalog(
         SELECT resource_uid,
                resource_type,
                resource_id,
-               resource_arn,
                account_id,
                region,
                data_classification,
@@ -453,7 +544,7 @@ def _build_catalog(
                COUNT(*) FILTER (WHERE status = 'PASS') AS pass_count
         FROM datasec_findings
         WHERE datasec_scan_id = %s AND tenant_id = %s
-        GROUP BY resource_uid, resource_type, resource_id, resource_arn,
+        GROUP BY resource_uid, resource_type, resource_id,
                  account_id, region, data_classification, sensitivity_score
         ORDER BY fail_count DESC, sensitivity_score DESC NULLS LAST
         """,
@@ -478,7 +569,6 @@ def _build_catalog(
             "resource_uid": uid,
             "resource_type": row.get("resource_type"),
             "resource_id": row.get("resource_id"),
-            "resource_arn": row.get("resource_arn"),
             "account_id": row.get("account_id"),
             "region": row.get("region"),
             "data_classification": row.get("data_classification") or [],

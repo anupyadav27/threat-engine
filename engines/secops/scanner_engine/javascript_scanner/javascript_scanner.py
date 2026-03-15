@@ -66,7 +66,7 @@ def parse_js_file(file_path):
         # Try parsing as module first (for import/export), then fall back to script
         try:
             ast = esprima.parseModule(source_code, {'loc': True, 'range': True, 'tokens': True, 'comment': True})
-        except:
+        except Exception:
             # Fall back to script parsing for non-module files
             ast = esprima.parseScript(source_code, {'loc': True, 'range': True, 'tokens': True, 'comment': True})
         

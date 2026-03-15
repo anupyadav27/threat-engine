@@ -83,8 +83,7 @@ CREATE TABLE IF NOT EXISTS discovery_findings (
     hierarchy_type VARCHAR(50),
     account_id VARCHAR(255),
     discovery_id VARCHAR(255) NOT NULL,
-    resource_uid TEXT,
-    resource_arn TEXT,
+    resource_uid TEXT,                -- Canonical identifier (ARN for AWS, ARM ID for Azure, etc.)
     resource_id VARCHAR(255),
     resource_type VARCHAR(100),
     service VARCHAR(100),
@@ -114,8 +113,7 @@ CREATE TABLE IF NOT EXISTS discovery_history (
     hierarchy_id VARCHAR(255),
     hierarchy_type VARCHAR(50),
     discovery_id VARCHAR(255) NOT NULL,
-    resource_uid TEXT,
-    resource_arn TEXT,
+    resource_uid TEXT,                -- Canonical identifier (ARN for AWS, ARM ID for Azure, etc.)
     discovery_scan_id VARCHAR(255) NOT NULL,
     config_hash VARCHAR(64) NOT NULL,
     raw_response JSONB,
@@ -144,7 +142,6 @@ CREATE INDEX IF NOT EXISTS idx_discoveries_execution_id ON discovery_report_lega
 CREATE INDEX IF NOT EXISTS idx_df_scan ON discovery_findings(discovery_scan_id, discovery_id);
 CREATE INDEX IF NOT EXISTS idx_df_tenant ON discovery_findings(tenant_id, hierarchy_id);
 CREATE INDEX IF NOT EXISTS idx_df_resource_uid ON discovery_findings(resource_uid);
-CREATE INDEX IF NOT EXISTS idx_df_resource_arn ON discovery_findings(resource_arn);
 CREATE INDEX IF NOT EXISTS idx_df_hash ON discovery_findings(config_hash);
 CREATE INDEX IF NOT EXISTS idx_df_service ON discovery_findings(service, region);
 CREATE INDEX IF NOT EXISTS idx_df_lookup ON discovery_findings(discovery_id, tenant_id, hierarchy_id);

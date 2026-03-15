@@ -262,7 +262,8 @@ async def inventory_ui_data(
             """
             SELECT asset_id, inventory_scan_id, tenant_id, resource_uid,
                    resource_type, name, provider, account_id,
-                   region, tags, configuration, first_discovered_at
+                   region, tags, configuration, first_discovered_at,
+                   updated_at
             FROM inventory_findings
             WHERE inventory_scan_id = %s AND tenant_id = %s
             ORDER BY resource_type, name
@@ -292,6 +293,7 @@ async def inventory_ui_data(
                 "tags": tags_val,
                 "config": config_val,
                 "created_at": r["first_discovered_at"].isoformat() if r["first_discovered_at"] else None,
+                "last_scanned": r["updated_at"].isoformat() if r.get("updated_at") else None,
             })
 
         # Use report total_assets when available; otherwise fall back to

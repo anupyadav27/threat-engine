@@ -1,0 +1,194 @@
+# =============================================================================
+# Log Collector SQS Worker — Deployment + HPA
+# Task 0.2.11 [Seq 23 | DO]
+# =============================================================================
+# Long-running SQS consumer that processes S3 event notifications
+# for VPC flow logs and CloudTrail files.
+# Separate from the API deployment — scales independently.
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: log-collector-worker
+  namespace: threat-engine-engines
+  labels:
+    app: log-collector-worker
+    tier: collector
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: log-collector-worker
+  template:
+    metadata:
+      labels:
+        app: log-collector-worker
+        tier: collector
+    spec:
+      serviceAccountName: engine-sa
+      containers:
+      - name: log-collector-worker
+        image: yadavanup84/threat-engine-log-collector:latest
+        imagePullPolicy: Always
+        command: ["python", "-m", "shared.log_collector.sqs_worker"]
+        envFrom:
+        - configMapRef:
+            name: threat-engine-db-config
+        - secretRef:
+            name: threat-engine-db-passwords
+        env:
+        - name: PYTHONPATH
+          value: /app
+        - name: TH_SQS_QUEUE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: log-collector-config
+              key: SQS_QUEUE_URL
+        - name: LOG_COLLECTOR_DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: threat-engine-db-config
+              key: LOG_COLLECTOR_DB_HOST
+              optional: true
+        - name: LOG_COLLECTOR_DB_NAME
+          value: "threat_engine_logs"
+        - name: LOG_COLLECTOR_DB_USER
+          valueFrom:
+            configMapKeyRef:
+              name: threat-engine-db-config
+              key: LOG_COLLECTOR_DB_USER
+              optional: true
+        - name: LOG_COLLECTOR_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: LOG_COLLECTOR_DB_PASSWORD
+              optional: true
+        - name: LOG_LEVEL
+          value: "INFO"
+        # ── OpenTelemetry ──
+        - name: OTEL_SERVICE_NAME
+          value: "log-collector-worker"
+        - name: OTEL_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_ENABLED
+              optional: true
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_EXPORTER_OTLP_ENDPOINT
+              optional: true
+        # ── AWS IRSA ──
+        - name: AWS_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: s3-mount-config
+              key: s3-region
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+---
+# =============================================================================
+# Retention Manager — CronJob (daily at 02:00 UTC)
+# =============================================================================
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: log-collector-retention
+  namespace: threat-engine-engines
+  labels:
+    app: log-collector-retention
+    tier: collector
+spec:
+  schedule: "0 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          serviceAccountName: engine-sa
+          restartPolicy: Never
+          containers:
+          - name: retention-manager
+            image: yadavanup84/threat-engine-log-collector:latest
+            command: ["python", "-m", "shared.log_collector.retention_manager"]
+            envFrom:
+            - configMapRef:
+                name: threat-engine-db-config
+            - secretRef:
+                name: threat-engine-db-passwords
+            env:
+            - name: PYTHONPATH
+              value: /app
+            - name: LOG_COLLECTOR_DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: LOG_COLLECTOR_DB_HOST
+                  optional: true
+            - name: LOG_COLLECTOR_DB_NAME
+              value: "threat_engine_logs"
+            - name: LOG_COLLECTOR_DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: LOG_COLLECTOR_DB_USER
+                  optional: true
+            - name: LOG_COLLECTOR_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-db-passwords
+                  key: LOG_COLLECTOR_DB_PASSWORD
+                  optional: true
+            resources:
+              requests:
+                cpu: "100m"
+                memory: "128Mi"
+              limits:
+                cpu: "250m"
+                memory: "256Mi"
+---
+# =============================================================================
+# HPA for SQS Worker — scales 1-3 based on queue depth
+# =============================================================================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: log-collector-worker-hpa
+  namespace: threat-engine-engines
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: log-collector-worker
+  minReplicas: 1
+  maxReplicas: 3
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+  metrics:
+  - type: External
+    external:
+      metric:
+        name: sqs_queue_depth
+        selector:
+          matchLabels:
+            queue: log-collector-events
+      target:
+        type: AverageValue
+        averageValue: "100"

@@ -96,7 +96,7 @@ class DiscoveryReader:
                     # Primary path: look up by scan_id (most precise)
                     query = """
                         SELECT DISTINCT ON (resource_uid)
-                               resource_uid, resource_arn, resource_id,
+                               resource_uid, resource_id,
                                emitted_fields, service, region,
                                discovery_id, discovery_scan_id,
                                hierarchy_id, tenant_id, account_id
@@ -120,7 +120,7 @@ class DiscoveryReader:
                     )
                     query = """
                         SELECT DISTINCT ON (resource_uid)
-                               resource_uid, resource_arn, resource_id,
+                               resource_uid, resource_id,
                                emitted_fields, service, region,
                                discovery_id, discovery_scan_id,
                                hierarchy_id, tenant_id, account_id

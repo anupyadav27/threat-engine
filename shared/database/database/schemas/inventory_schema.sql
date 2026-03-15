@@ -286,6 +286,10 @@ CREATE INDEX IF NOT EXISTS idx_irel_to_uid ON inventory_relationships(to_uid);
 CREATE INDEX IF NOT EXISTS idx_irel_type ON inventory_relationships(relation_type);
 CREATE INDEX IF NOT EXISTS idx_irel_scan ON inventory_relationships(inventory_scan_id);
 CREATE INDEX IF NOT EXISTS idx_irel_tenant_scan ON inventory_relationships(tenant_id, inventory_scan_id);
+-- Composite index for BFS graph traversal: speeds up CTE joins
+CREATE INDEX IF NOT EXISTS idx_irel_tenant_scan_from_to ON inventory_relationships(tenant_id, inventory_scan_id, from_uid, to_uid);
+-- Index for relation_type filtering in BFS walk
+CREATE INDEX IF NOT EXISTS idx_irel_tenant_scan_reltype ON inventory_relationships(tenant_id, inventory_scan_id, relation_type);
 
 CREATE INDEX IF NOT EXISTS idx_itag_asset ON inventory_asset_tags_index(asset_id);
 CREATE INDEX IF NOT EXISTS idx_itag_key_value ON inventory_asset_tags_index(tag_key, tag_value);
@@ -390,6 +394,10 @@ CREATE TABLE IF NOT EXISTS resource_inventory_identifier (
                                                   --   ${Region}    → discovery_findings.region
                                                   --   ${Account}   → discovery_findings.hierarchy_id (account_id)
                                                   --   ${Partition} → "aws" (default)
+    canonical_type        VARCHAR(255),            -- Normalized resource_type as used by discovery/inventory engines
+                                                  -- e.g. "security-group", "instance", "vpc"
+                                                  -- Matches split_part(inventory_findings.resource_type, '.', 2)
+                                                  -- Lookup: WHERE csp='aws' AND service='ec2' AND canonical_type='security-group'
 
     -- Inventory classification flags
     can_inventory_from_roots  BOOLEAN NOT NULL DEFAULT TRUE,

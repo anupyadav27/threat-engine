@@ -3272,9 +3272,9 @@ def check_template_evaluation_secure_exposure(node):
             import json
             with open(current_file, 'r') as f:
                 template_data = json.load(f)
-        except:
+        except Exception:
             return False
-        
+
         # Get secure parameters from the template
         secure_params = _get_secure_parameters(template_data)
         if not secure_params:
@@ -3459,9 +3459,9 @@ def check_properties_recommended_order(node):
             import json
             with open(current_file, 'r') as f:
                 template_data = json.load(f)
-        except:
+        except Exception:
             return False
-        
+
         # Get the resource name to find it in raw template data
         resource_name = node.get('name')
         if not resource_name:

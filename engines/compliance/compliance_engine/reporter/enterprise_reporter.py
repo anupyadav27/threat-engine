@@ -6,7 +6,7 @@ import hashlib
 import uuid
 import os
 from typing import Dict, List, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from collections import defaultdict
 
 from ..schemas.enterprise_report_schema import (
@@ -114,7 +114,7 @@ class EnterpriseReporter:
                 if finding_id in findings_map:
                     # Update last_seen_at and merge affected assets
                     existing_finding = findings_map[finding_id]
-                    existing_finding.last_seen_at = datetime.utcnow().isoformat() + 'Z'
+                    existing_finding.last_seen_at = datetime.now(timezone.utc).isoformat() + 'Z'
                     
                     # Add new affected asset if different
                     new_asset = AffectedAsset(
@@ -137,7 +137,7 @@ class EnterpriseReporter:
                     continue
                 
                 # Create new finding
-                first_seen_at = datetime.utcnow().isoformat() + 'Z'
+                first_seen_at = datetime.now(timezone.utc).isoformat() + 'Z'
                 if finding_id in previous_map:
                     first_seen_at = previous_map[finding_id].first_seen_at
                 
@@ -409,7 +409,7 @@ class EnterpriseReporter:
             frameworks=frameworks,
             asset_snapshots=asset_snapshots,
             integrity=Integrity(
-                generated_at=datetime.utcnow().isoformat() + 'Z',
+                generated_at=datetime.now(timezone.utc).isoformat() + 'Z',
                 generator_version='1.0.0'
             )
         )

@@ -157,7 +157,9 @@ class DatabaseManager:
                           resource_id: str = None, resource_type: str = None,
                           status: str = 'FAIL', checked_fields: List[str] = None,
                           finding_data: Dict = None, hierarchy_id: str = None,
-                          hierarchy_type: str = None, resource_uid: str = None) -> None:
+                          hierarchy_type: str = None, resource_uid: str = None,
+                          service: str = None, discovery_id: str = None,
+                          resource_service: str = None) -> None:
         """Store check result in check_findings"""
         if not resource_uid:
             resource_uid = resource_arn
@@ -168,13 +170,16 @@ class DatabaseManager:
                 cur.execute("""
                     INSERT INTO check_findings
                     (check_scan_id, customer_id, tenant_id, provider, hierarchy_id, hierarchy_type,
-                     rule_id, resource_arn, resource_uid, resource_id, resource_type, status,
-                     checked_fields, finding_data)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                     rule_id, service, discovery_id,
+                     resource_arn, resource_uid, resource_id, resource_type, resource_service,
+                     status, checked_fields, finding_data)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
                     scan_id, customer_id, tenant_id, provider,
                     hierarchy_id, hierarchy_type, rule_id,
-                    resource_arn, resource_uid, resource_id, resource_type, status,
+                    service, discovery_id,
+                    resource_arn, resource_uid, resource_id, resource_type, resource_service,
+                    status,
                     json.dumps(checked_fields or []),
                     json.dumps(finding_data or {})
                 ))

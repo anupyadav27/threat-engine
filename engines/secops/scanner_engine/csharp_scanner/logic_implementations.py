@@ -9254,7 +9254,7 @@ def check_expressions_debugassert_produce_side(ast_tree: Dict, filename: str) ->
         try:
             with open(filename, 'r', encoding='utf-8') as f:
                 source = f.read()
-        except:
+        except Exception:
             return findings
     
     if not source:

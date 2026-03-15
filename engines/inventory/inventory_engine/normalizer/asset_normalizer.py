@@ -33,6 +33,12 @@ from ..schemas.relationship_schema import Relationship, RelationType
 from .resource_classifier import ResourceClassifier, InventoryDecision
 from ..metadata.service_metadata_loader import ServiceMetadataLoader
 
+# ARN normalizer — converts short-form UIDs to canonical ARN format
+try:
+    from shared.common.arn import normalize_resource_uid, is_arn
+except ImportError:
+    from engine_common.arn import normalize_resource_uid, is_arn
+
 logger = logging.getLogger(__name__)
 
 
@@ -253,9 +259,16 @@ class AssetNormalizer:
             if resource_name:
                 return f"arn:aws:iam::{account_id}:{resource_type}/{resource_name}"
 
-        # Final fallback: construct UID
+        # Final fallback: construct short UID, then try to normalize to ARN
         resource_id = resource.get("Id") or resource.get("ResourceId") or resource.get("Name")
-        return f"{service}:{region}:{account_id}:{resource_id}"
+        short_uid = f"{service}:{region}:{account_id}:{resource_id}"
+        return normalize_resource_uid(
+            resource_uid=short_uid,
+            resource_type=f"{service}.{resource_id}" if resource_id else "",
+            provider="aws",
+            region=region,
+            account_id=account_id,
+        )
 
     def _apply_identifier_pattern(
         self,
@@ -583,6 +596,7 @@ class AssetNormalizer:
 
         # --- Resource Type ---
         resource_type = self._extract_aws_resource_type_from_discovery(flat, service, resource_arn)
+        resource_type = self._correct_resource_type(resource_type, resource_arn or "")
 
         # --- Name (human-readable) ---
         name = (
@@ -658,6 +672,23 @@ class AssetNormalizer:
         if not resource_arn:
             resource_arn = self._generate_arn_from_fields(flat, service, account_id, region)
 
+        # --- Normalize resource_uid to canonical ARN ---
+        # Always prefer full ARN format as the canonical identifier.
+        # If resource_arn is already available, use it; otherwise attempt to
+        # construct the ARN from short-form components via the normalizer.
+        if resource_arn and is_arn(resource_arn):
+            canonical_uid = resource_arn
+        else:
+            short_uid = resource_arn or f"{service}:{region}:{account_id}:{resource_id}"
+            canonical_uid = normalize_resource_uid(
+                resource_uid=short_uid,
+                resource_type=resource_type,
+                provider="aws",
+                region=region or "global",
+                account_id=account_id,
+                resource_arn=resource_arn or "",
+            )
+
         # --- Create asset ---
         asset = Asset(
             tenant_id=self.tenant_id,
@@ -668,7 +699,7 @@ class AssetNormalizer:
             scope=scope,
             resource_type=resource_type,
             resource_id=resource_id or "",
-            resource_uid=resource_arn or f"{service}:{region}:{account_id}:{resource_id}",
+            resource_uid=canonical_uid,
             name=name,
             tags=tags,
             metadata=metadata,
@@ -789,6 +820,52 @@ class AssetNormalizer:
                 return f"{service}.{op_name}"
 
         return f"{service}.resource"
+
+    # ── Post-normalization type corrections ──────────────────────────────
+    # Maps known misclassified types to their correct values.
+    # None = junk resource that should be filtered / deprioritized.
+    _TYPE_CORRECTIONS: Dict[str, Optional[str]] = {
+        # VPC resources discovered via local gateway / block-access operations
+        # whose ARN contains vpc/ but extraction yields the wrong sub-resource
+        "ec2.local_gateway_route_table_vpc_association": "ec2.vpc",
+        "ec2.local_gateway_route_table_vpc_association_local_gateway_route_table": "ec2.vpc",
+        # Junk sub-resources that pollute the asset set
+        "ec2.vpc_block_public_access_exclusion_resource": None,
+        "ec2.vpc_block_public_access_exclusion": None,
+    }
+
+    def _correct_resource_type(self, resource_type: str, resource_arn: str) -> str:
+        """Post-normalization correction for known misclassified resource types.
+
+        Args:
+            resource_type: The type string produced by _extract_aws_resource_type_*
+            resource_arn:  Original ARN of the resource
+
+        Returns:
+            Corrected resource type, or original if no correction needed.
+            For junk types (mapped to None), returns original so the caller
+            can still create the asset — the UI/graph query will deprioritise it.
+        """
+        if resource_type in self._TYPE_CORRECTIONS:
+            corrected = self._TYPE_CORRECTIONS[resource_type]
+            if corrected:
+                logger.debug(
+                    "Type correction: %s → %s (arn=%s)",
+                    resource_type, corrected, resource_arn[:80] if resource_arn else ""
+                )
+                return corrected
+            # None → junk; return original (let graph query deprioritise)
+            return resource_type
+
+        # ARN-based fallback: arn contains :vpc/ but type is wrong
+        if resource_arn and ":vpc/" in resource_arn and not resource_type.startswith("ec2.vpc"):
+            logger.debug(
+                "ARN-based type correction: %s → ec2.vpc (arn=%s)",
+                resource_type, resource_arn[:80]
+            )
+            return "ec2.vpc"
+
+        return resource_type
 
     def _extract_aws_resource_type_from_discovery(
         self,

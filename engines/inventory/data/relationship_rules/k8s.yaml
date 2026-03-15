@@ -1,0 +1,507 @@
+csp: k8s
+description: "Kubernetes relationship rules - workloads, networking, RBAC, storage"
+rules:
+  # ── apps.deployment ───────────────────────────────────────────────────────
+  - from_resource_type: apps.deployment
+    relation_type: manages
+    to_resource_type: apps.replicaset
+    source_field: "metadata.name"
+    source_field_item: null
+    target_uid_pattern: "{metadata.namespace}/{metadata.name}"
+
+  - from_resource_type: apps.deployment
+    relation_type: uses
+    to_resource_type: core.serviceaccount
+    source_field: "spec.template.spec.serviceAccountName"
+    source_field_item: null
+    target_uid_pattern: "{metadata.namespace}/{spec.template.spec.serviceAccountName}"
+
+  - from_resource_type: apps.deployment
+    relation_type: uses
+    to_resource_type: core.configmap
+    source_field: "spec.template.spec.volumes"
+    source_field_item: "configMap.name"
+    target_uid_pattern: "{metadata.namespace}/{configMap.name}"
+
+  - from_resource_type: apps.deployment
+    relation_type: uses
+    to_resource_type: core.secret
+    source_field: "spec.template.spec.volumes"
+    source_field_item: "secret.secretName"
+    target_uid_pattern: "{metadata.namespace}/{secret.secretName}"
+
+  - from_resource_type: apps.deployment
+    relation_type: uses
+    to_resource_type: core.secret
+    source_field: "spec.template.spec.containers"
+    source_field_item: "envFrom[].secretRef.name"
+    target_uid_pattern: "{metadata.namespace}/{envFrom[].secretRef.name}"
+
+  - from_resource_type: apps.deployment
+    relation_type: uses
+    to_resource_type: core.configmap
+    source_field: "spec.template.spec.containers"
+    source_field_item: "envFrom[].configMapRef.name"
+    target_uid_pattern: "{metadata.namespace}/{envFrom[].configMapRef.name}"
+
+  # ── apps.statefulset ──────────────────────────────────────────────────────
+  - from_resource_type: apps.statefulset
+    relation_type: uses
+    to_resource_type: core.serviceaccount
+    source_field: "spec.template.spec.serviceAccountName"
+    source_field_item: null
+    target_uid_pattern: "{metadata.namespace}/{spec.template.spec.serviceAccountName}"
+
+  - from_resource_type: apps.statefulset
+    relation_type: uses
+    to_resource_type: core.secret
+    source_field: "spec.template.spec.volumes"
+    source_field_item: "secret.secretName"
+    target_uid_pattern: "{metadata.namespace}/{secret.secretName}"
+
+  - from_resource_type: apps.statefulset
+    relation_type: uses
+    to_resource_type: core.persistentvolumeclaim
+    source_field: "spec.volumeClaimTemplates"
+    source_field_item: "metadata.name"
+    target_uid_pattern: "{metadata.namespace}/{metadata.name}"
+
+  - from_resource_type: apps.statefulset
+    relation_type: uses
+    to_resource_type: core.configmap
+    source_field: "spec.template.spec.volumes"
+    source_field_item: "configMap.name"
+    target_uid_pattern: "{metadata.namespace}/{configMap.name}"
+
+  # ── apps.daemonset ────────────────────────────────────────────────────────
+  - from_resource_type: apps.daemonset
+    relation_type: uses
+    to_resource_type: core.serviceaccount
+    source_field: "spec.template.spec.serviceAccountName"
+    source_field_item: null
+    target_uid_pattern: "{metadata.namespace}/{spec.template.spec.serviceAccountName}"
+
+  - from_resource_type: apps.daemonset
+    relation_type: uses
+    to_resource_type: core.secret
+    source_field: "spec.template.spec.volumes"
+    source_field_item: "secret.secretName"
+    target_uid_pattern: "{metadata.namespace}/{secret.secretName}"
+
+  # ── core.pod ──────────────────────────────────────────────────────────────
+  - from_resource_type: core.pod
+    relation_type: uses
+    to_resource_type: core.serviceaccount
+    source_field: "spec.serviceAccountName"
+    source_field_item: null
+    target_uid_pattern: "{metadata.namespace}/{spec.serviceAccountName}"
+
+  - from_resource_type: core.pod
+    relation_type: uses
+    to_resource_type: core.secret
+    source_field: "spec.volumes"
+    source_field_item: "secret.secretName"
+    target_uid_pattern: "{metadata.namespace}/{secret.secretName}"
+
+  - from_resource_type: core.pod
+    relation_type: uses
+    to_resource_type: core.configmap
+    source_field: "spec.volumes"
+    source_field_item: "configMap.name"
+    target_uid_pattern: "{metadata.namespace}/{configMap.name}"
+
+  - from_resource_type: core.pod
+    relation_type: uses
+    to_resource_type: core.persistentvolumeclaim
+    source_field: "spec.volumes"
+    source_field_item: "persistentVolumeClaim.claimName"
+    target_uid_pattern: "{metadata.namespace}/{persistentVolumeClaim.claimName}"
+
+  - from_resource_type: core.pod
+    relation_type: contained_by
+    to_resource_type: core.node
+    source_field: "spec.nodeName"
+    source_field_item: null
+    target_uid_pattern: "{spec.nodeName}"
+
+  - from_resource_type: core.pod
+    relation_type: uses
+    to_resource_type: core.secret
+    source_field: "spec.imagePullSecrets"
+    source_field_item: "name"
+    target_uid_pattern: "{metadata.namespace}/{name}"
+
+  # ── core.service ──────────────────────────────────────────────────────────
+  - from_resource_type: core.service
+    relation_type: routes_to
+    to_resource_type: core.pod
+    source_field: "spec.selector"
+    source_field_item: null
+    target_uid_pattern: "selector:{spec.selector}"
+
+  - from_resource_type: core.service
+    relation_type: routes_to
+    to_resource_type: core.endpoints
+    source_field: "metadata.name"
+    source_field_item: null
+    target_uid_pattern: "{metadata.namespace}/{metadata.name}"
+
+  # ── networking.ingress ────────────────────────────────────────────────────
+  - from_resource_type: networking.ingress
+    relation_type: routes_to
+    to_resource_type: core.service
+    source_field: "spec.rules"
+    source_field_item: "http.paths[].backend.service.name"
+    target_uid_pattern: "{metadata.namespace}/{http.paths[].backend.service.name}"
+
+  - from_resource_type: networking.ingress
+    relation_type: uses
+    to_resource_type: core.secret
+    source_field: "spec.tls"
+    source_field_item: "secretName"
+    target_uid_pattern: "{metadata.namespace}/{secretName}"
+
+  - from_resource_type: networking.ingress
+    relation_type: routes_to
+    to_resource_type: core.service
+    source_field: "spec.defaultBackend.service.name"
+    source_field_item: null
+    target_uid_pattern: "{metadata.namespace}/{spec.defaultBackend.service.name}"
+
+  # ── rbac.rolebinding ──────────────────────────────────────────────────────
+  - from_resource_type: rbac.rolebinding
+    relation_type: grants_access_to
+    to_resource_type: core.serviceaccount
+    source_field: "subjects"
+    source_field_item: "name"
+    target_uid_pattern: "{namespace}/{name}"
+
+  - from_resource_type: rbac.rolebinding
+    relation_type: references
+    to_resource_type: rbac.role
+    source_field: "roleRef.name"
+    source_field_item: null
+    target_uid_pattern: "{metadata.namespace}/{roleRef.name}"
+
+  - from_resource_type: rbac.rolebinding
+    relation_type: references
+    to_resource_type: rbac.clusterrole
+    source_field: "roleRef.name"
+    source_field_item: null
+    target_uid_pattern: "{roleRef.name}"
+
+  # ── rbac.clusterrolebinding ───────────────────────────────────────────────
+  - from_resource_type: rbac.clusterrolebinding
+    relation_type: grants_access_to
+    to_resource_type: core.serviceaccount
+    source_field: "subjects"
+    source_field_item: "name"
+    target_uid_pattern: "{namespace}/{name}"
+
+  - from_resource_type: rbac.clusterrolebinding
+    relation_type: references
+    to_resource_type: rbac.clusterrole
+    source_field: "roleRef.name"
+    source_field_item: null
+    target_uid_pattern: "{roleRef.name}"
+
+  # ── networking.networkpolicy ──────────────────────────────────────────────
+  - from_resource_type: networking.networkpolicy
+    relation_type: applies_to
+    to_resource_type: core.pod
+    source_field: "spec.podSelector.matchLabels"
+    source_field_item: null
+    target_uid_pattern: "selector:{spec.podSelector.matchLabels}"
+
+  # ── core.persistentvolumeclaim ────────────────────────────────────────────
+  - from_resource_type: core.persistentvolumeclaim
+    relation_type: attached_to
+    to_resource_type: core.persistentvolume
+    source_field: "spec.volumeName"
+    source_field_item: null
+    target_uid_pattern: "{spec.volumeName}"
+
+  - from_resource_type: core.persistentvolumeclaim
+    relation_type: uses
+    to_resource_type: storage.storageclass
+    source_field: "spec.storageClassName"
+    source_field_item: null
+    target_uid_pattern: "{spec.storageClassName}"
+
+  # ── batch.job ─────────────────────────────────────────────────────────────
+  - from_resource_type: batch.job
+    relation_type: uses
+    to_resource_type: core.serviceaccount
+    source_field: "spec.template.spec.serviceAccountName"
+    source_field_item: null
+    target_uid_pattern: "{metadata.namespace}/{spec.template.spec.serviceAccountName}"
+
+  - from_resource_type: batch.job
+    relation_type: uses
+    to_resource_type: core.secret
+    source_field: "spec.template.spec.volumes"
+    source_field_item: "secret.secretName"
+    target_uid_pattern: "{metadata.namespace}/{secret.secretName}"
+
+  # ── batch.cronjob ─────────────────────────────────────────────────────────
+  - from_resource_type: batch.cronjob
+    relation_type: manages
+    to_resource_type: batch.job
+    source_field: "metadata.name"
+    source_field_item: null
+    target_uid_pattern: "{metadata.namespace}/{metadata.name}"
+
+  - from_resource_type: batch.cronjob
+    relation_type: uses
+    to_resource_type: core.serviceaccount
+    source_field: "spec.jobTemplate.spec.template.spec.serviceAccountName"
+    source_field_item: null
+    target_uid_pattern: "{metadata.namespace}/{spec.jobTemplate.spec.template.spec.serviceAccountName}"
+
+  # ── apps.replicaset ───────────────────────────────────────────────────────
+  - from_resource_type: apps.replicaset
+    relation_type: uses
+    to_resource_type: core.serviceaccount
+    source_field: "spec.template.spec.serviceAccountName"
+    source_field_item: null
+    target_uid_pattern: "{metadata.namespace}/{spec.template.spec.serviceAccountName}"
+
+  # ── core.namespace ────────────────────────────────────────────────────────
+  - from_resource_type: core.namespace
+    relation_type: uses
+    to_resource_type: core.resourcequota
+    source_field: "metadata.name"
+    source_field_item: null
+    target_uid_pattern: "{metadata.name}"
+
+  - from_resource_type: core.namespace
+    relation_type: uses
+    to_resource_type: core.limitrange
+    source_field: "metadata.name"
+    source_field_item: null
+    target_uid_pattern: "{metadata.name}"
+
+  # ── core.serviceaccount ───────────────────────────────────────────────────
+  - from_resource_type: core.serviceaccount
+    relation_type: uses
+    to_resource_type: core.secret
+    source_field: "secrets"
+    source_field_item: "name"
+    target_uid_pattern: "{metadata.namespace}/{name}"
+
+  - from_resource_type: core.serviceaccount
+    relation_type: uses
+    to_resource_type: core.secret
+    source_field: "imagePullSecrets"
+    source_field_item: "name"
+    target_uid_pattern: "{metadata.namespace}/{name}"
+
+  # ── namespace containment (all namespace-scoped resources) ────────────────
+  - from_resource_type: apps.deployment
+    relation_type: contained_by
+    to_resource_type: core.namespace
+    source_field: "metadata.namespace"
+    source_field_item: null
+    target_uid_pattern: "{metadata.namespace}"
+
+  - from_resource_type: apps.statefulset
+    relation_type: contained_by
+    to_resource_type: core.namespace
+    source_field: "metadata.namespace"
+    source_field_item: null
+    target_uid_pattern: "{metadata.namespace}"
+
+  - from_resource_type: apps.daemonset
+    relation_type: contained_by
+    to_resource_type: core.namespace
+    source_field: "metadata.namespace"
+    source_field_item: null
+    target_uid_pattern: "{metadata.namespace}"
+
+  - from_resource_type: apps.replicaset
+    relation_type: contained_by
+    to_resource_type: core.namespace
+    source_field: "metadata.namespace"
+    source_field_item: null
+    target_uid_pattern: "{metadata.namespace}"
+
+  - from_resource_type: core.pod
+    relation_type: contained_by
+    to_resource_type: core.namespace
+    source_field: "metadata.namespace"
+    source_field_item: null
+    target_uid_pattern: "{metadata.namespace}"
+
+  - from_resource_type: core.service
+    relation_type: contained_by
+    to_resource_type: core.namespace
+    source_field: "metadata.namespace"
+    source_field_item: null
+    target_uid_pattern: "{metadata.namespace}"
+
+  - from_resource_type: networking.ingress
+    relation_type: contained_by
+    to_resource_type: core.namespace
+    source_field: "metadata.namespace"
+    source_field_item: null
+    target_uid_pattern: "{metadata.namespace}"
+
+  - from_resource_type: networking.networkpolicy
+    relation_type: contained_by
+    to_resource_type: core.namespace
+    source_field: "metadata.namespace"
+    source_field_item: null
+    target_uid_pattern: "{metadata.namespace}"
+
+  - from_resource_type: core.serviceaccount
+    relation_type: contained_by
+    to_resource_type: core.namespace
+    source_field: "metadata.namespace"
+    source_field_item: null
+    target_uid_pattern: "{metadata.namespace}"
+
+  - from_resource_type: core.configmap
+    relation_type: contained_by
+    to_resource_type: core.namespace
+    source_field: "metadata.namespace"
+    source_field_item: null
+    target_uid_pattern: "{metadata.namespace}"
+
+  - from_resource_type: core.secret
+    relation_type: contained_by
+    to_resource_type: core.namespace
+    source_field: "metadata.namespace"
+    source_field_item: null
+    target_uid_pattern: "{metadata.namespace}"
+
+  - from_resource_type: core.persistentvolumeclaim
+    relation_type: contained_by
+    to_resource_type: core.namespace
+    source_field: "metadata.namespace"
+    source_field_item: null
+    target_uid_pattern: "{metadata.namespace}"
+
+  - from_resource_type: rbac.role
+    relation_type: contained_by
+    to_resource_type: core.namespace
+    source_field: "metadata.namespace"
+    source_field_item: null
+    target_uid_pattern: "{metadata.namespace}"
+
+  - from_resource_type: rbac.rolebinding
+    relation_type: contained_by
+    to_resource_type: core.namespace
+    source_field: "metadata.namespace"
+    source_field_item: null
+    target_uid_pattern: "{metadata.namespace}"
+
+  - from_resource_type: batch.job
+    relation_type: contained_by
+    to_resource_type: core.namespace
+    source_field: "metadata.namespace"
+    source_field_item: null
+    target_uid_pattern: "{metadata.namespace}"
+
+  - from_resource_type: batch.cronjob
+    relation_type: contained_by
+    to_resource_type: core.namespace
+    source_field: "metadata.namespace"
+    source_field_item: null
+    target_uid_pattern: "{metadata.namespace}"
+
+  # ── workload → pod management edges ──────────────────────────────────────
+  - from_resource_type: apps.replicaset
+    relation_type: manages
+    to_resource_type: core.pod
+    source_field: "spec.selector.matchLabels"
+    source_field_item: null
+    target_uid_pattern: "selector:{spec.selector.matchLabels}"
+
+  - from_resource_type: apps.statefulset
+    relation_type: manages
+    to_resource_type: core.pod
+    source_field: "spec.selector.matchLabels"
+    source_field_item: null
+    target_uid_pattern: "selector:{spec.selector.matchLabels}"
+
+  - from_resource_type: apps.daemonset
+    relation_type: manages
+    to_resource_type: core.pod
+    source_field: "spec.selector.matchLabels"
+    source_field_item: null
+    target_uid_pattern: "selector:{spec.selector.matchLabels}"
+
+  - from_resource_type: batch.job
+    relation_type: manages
+    to_resource_type: core.pod
+    source_field: "spec.selector.matchLabels"
+    source_field_item: null
+    target_uid_pattern: "selector:{spec.selector.matchLabels}"
+
+  # ── autoscaling.horizontalpodautoscaler ───────────────────────────────────
+  - from_resource_type: autoscaling.horizontalpodautoscaler
+    relation_type: scales_with
+    to_resource_type: apps.deployment
+    source_field: "spec.scaleTargetRef.name"
+    source_field_item: null
+    target_uid_pattern: "{metadata.namespace}/{spec.scaleTargetRef.name}"
+
+  - from_resource_type: autoscaling.horizontalpodautoscaler
+    relation_type: scales_with
+    to_resource_type: apps.statefulset
+    source_field: "spec.scaleTargetRef.name"
+    source_field_item: null
+    target_uid_pattern: "{metadata.namespace}/{spec.scaleTargetRef.name}"
+
+  - from_resource_type: autoscaling.horizontalpodautoscaler
+    relation_type: contained_by
+    to_resource_type: core.namespace
+    source_field: "metadata.namespace"
+    source_field_item: null
+    target_uid_pattern: "{metadata.namespace}"
+
+  # ── policy.poddisruptionbudget ────────────────────────────────────────────
+  - from_resource_type: policy.poddisruptionbudget
+    relation_type: applies_to
+    to_resource_type: core.pod
+    source_field: "spec.selector.matchLabels"
+    source_field_item: null
+    target_uid_pattern: "selector:{spec.selector.matchLabels}"
+
+  - from_resource_type: policy.poddisruptionbudget
+    relation_type: contained_by
+    to_resource_type: core.namespace
+    source_field: "metadata.namespace"
+    source_field_item: null
+    target_uid_pattern: "{metadata.namespace}"
+
+  # ── networking.ingress → ingressclass ─────────────────────────────────────
+  - from_resource_type: networking.ingress
+    relation_type: uses
+    to_resource_type: networking.ingressclass
+    source_field: "spec.ingressClassName"
+    source_field_item: null
+    target_uid_pattern: "{spec.ingressClassName}"
+
+  # ── workload → PVC (direct volume mounts) ────────────────────────────────
+  - from_resource_type: apps.deployment
+    relation_type: uses
+    to_resource_type: core.persistentvolumeclaim
+    source_field: "spec.template.spec.volumes"
+    source_field_item: "persistentVolumeClaim.claimName"
+    target_uid_pattern: "{metadata.namespace}/{persistentVolumeClaim.claimName}"
+
+  - from_resource_type: apps.daemonset
+    relation_type: uses
+    to_resource_type: core.persistentvolumeclaim
+    source_field: "spec.template.spec.volumes"
+    source_field_item: "persistentVolumeClaim.claimName"
+    target_uid_pattern: "{metadata.namespace}/{persistentVolumeClaim.claimName}"
+
+  # ── core.persistentvolume → storageclass ──────────────────────────────────
+  - from_resource_type: core.persistentvolume
+    relation_type: uses
+    to_resource_type: storage.storageclass
+    source_field: "spec.storageClassName"
+    source_field_item: null
+    target_uid_pattern: "{spec.storageClassName}"

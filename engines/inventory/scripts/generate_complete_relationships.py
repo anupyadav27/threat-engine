@@ -5,7 +5,7 @@ Generates comprehensive relationship definitions for ALL AWS services
 """
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 
 # This will generate the COMPLETE relationship database
 # Run this to create comprehensive_aws_relationships.json
@@ -126,7 +126,7 @@ def generate_all_relationships():
     
     return {
         "version": "2.0",
-        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "generated_at": datetime.now(timezone.utc).isoformat() + "Z",
         "description": "Comprehensive AWS Resource Relationships - ALL Services",
         "metadata": {
             "total_resource_types": len(relationships),

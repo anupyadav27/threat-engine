@@ -2,11 +2,12 @@ FROM python:3.9-slim
 
 WORKDIR /app
 
-COPY engine_iam/requirements.txt .
+COPY engines/iam/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY engine_iam/iam_engine/ ./iam_engine/
-COPY engine_common/ ./engine_common/
+# Copy application code (destination paths match Python imports)
+COPY engines/iam/iam_engine/ ./iam_engine/
+COPY shared/common/ ./engine_common/
 
 ENV PYTHONPATH=/app
 ENV PORT=8003

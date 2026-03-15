@@ -1,0 +1,563 @@
+csp: oci
+description: "OCI relationship rules - compute, networking, database, storage, security"
+rules:
+  # ── core.instance ─────────────────────────────────────────────────────────
+  - from_resource_type: core.instance
+    relation_type: contained_by
+    to_resource_type: core.subnet
+    source_field: "subnetId"
+    source_field_item: null
+    target_uid_pattern: "{subnetId}"
+
+  - from_resource_type: core.instance
+    relation_type: contained_by
+    to_resource_type: core.vcn
+    source_field: "primaryVnic.subnetId"
+    source_field_item: null
+    target_uid_pattern: "{primaryVnic.subnetId}"
+
+  - from_resource_type: core.instance
+    relation_type: attached_to
+    to_resource_type: core.volume
+    source_field: "bootVolumeId"
+    source_field_item: null
+    target_uid_pattern: "{bootVolumeId}"
+
+  - from_resource_type: core.instance
+    relation_type: attached_to
+    to_resource_type: core.networksecuritygroup
+    source_field: "networkSecurityGroupIds"
+    source_field_item: "."
+    target_uid_pattern: "{.}"
+
+  - from_resource_type: core.instance
+    relation_type: uses
+    to_resource_type: keymanagement.key
+    source_field: "sourceDetails.kmsKeyId"
+    source_field_item: null
+    target_uid_pattern: "{sourceDetails.kmsKeyId}"
+
+  # ── core.vcn ──────────────────────────────────────────────────────────────
+  - from_resource_type: core.vcn
+    relation_type: contains
+    to_resource_type: core.subnet
+    source_field: "subnetIds"
+    source_field_item: "."
+    target_uid_pattern: "{.}"
+
+  - from_resource_type: core.vcn
+    relation_type: grants_access_to
+    to_resource_type: core.internetgateway
+    source_field: "internetGatewayId"
+    source_field_item: null
+    target_uid_pattern: "{internetGatewayId}"
+
+  - from_resource_type: core.vcn
+    relation_type: peers_with
+    to_resource_type: core.vcn
+    source_field: "peeringConnections"
+    source_field_item: "peeredVcnId"
+    target_uid_pattern: "{peeredVcnId}"
+
+  # ── core.subnet ───────────────────────────────────────────────────────────
+  - from_resource_type: core.subnet
+    relation_type: contained_by
+    to_resource_type: core.vcn
+    source_field: "vcnId"
+    source_field_item: null
+    target_uid_pattern: "{vcnId}"
+
+  - from_resource_type: core.subnet
+    relation_type: attached_to
+    to_resource_type: core.routetable
+    source_field: "routeTableId"
+    source_field_item: null
+    target_uid_pattern: "{routeTableId}"
+
+  - from_resource_type: core.subnet
+    relation_type: attached_to
+    to_resource_type: core.securitylist
+    source_field: "securityListIds"
+    source_field_item: "."
+    target_uid_pattern: "{.}"
+
+  - from_resource_type: core.subnet
+    relation_type: attached_to
+    to_resource_type: core.dhcpoptions
+    source_field: "dhcpOptionsId"
+    source_field_item: null
+    target_uid_pattern: "{dhcpOptionsId}"
+
+  # ── core.networksecuritygroup ─────────────────────────────────────────────
+  - from_resource_type: core.networksecuritygroup
+    relation_type: contained_by
+    to_resource_type: core.vcn
+    source_field: "vcnId"
+    source_field_item: null
+    target_uid_pattern: "{vcnId}"
+
+  # ── core.routetable ───────────────────────────────────────────────────────
+  - from_resource_type: core.routetable
+    relation_type: contained_by
+    to_resource_type: core.vcn
+    source_field: "vcnId"
+    source_field_item: null
+    target_uid_pattern: "{vcnId}"
+
+  - from_resource_type: core.routetable
+    relation_type: routes_to
+    to_resource_type: core.internetgateway
+    source_field: "routeRules"
+    source_field_item: "networkEntityId"
+    target_uid_pattern: "{networkEntityId}"
+
+  # ── core.securitylist ─────────────────────────────────────────────────────
+  - from_resource_type: core.securitylist
+    relation_type: contained_by
+    to_resource_type: core.vcn
+    source_field: "vcnId"
+    source_field_item: null
+    target_uid_pattern: "{vcnId}"
+
+  # ── core.volume ───────────────────────────────────────────────────────────
+  - from_resource_type: core.volume
+    relation_type: uses
+    to_resource_type: keymanagement.key
+    source_field: "kmsKeyId"
+    source_field_item: null
+    target_uid_pattern: "{kmsKeyId}"
+
+  # ── database.dbsystem ────────────────────────────────────────────────────
+  - from_resource_type: database.dbsystem
+    relation_type: contained_by
+    to_resource_type: core.subnet
+    source_field: "subnetId"
+    source_field_item: null
+    target_uid_pattern: "{subnetId}"
+
+  - from_resource_type: database.dbsystem
+    relation_type: attached_to
+    to_resource_type: core.networksecuritygroup
+    source_field: "nsgIds"
+    source_field_item: "."
+    target_uid_pattern: "{.}"
+
+  - from_resource_type: database.dbsystem
+    relation_type: uses
+    to_resource_type: keymanagement.key
+    source_field: "dbHome.database.kmsKeyId"
+    source_field_item: null
+    target_uid_pattern: "{dbHome.database.kmsKeyId}"
+
+  # ── objectstorage.bucket ──────────────────────────────────────────────────
+  - from_resource_type: objectstorage.bucket
+    relation_type: uses
+    to_resource_type: keymanagement.key
+    source_field: "kmsKeyId"
+    source_field_item: null
+    target_uid_pattern: "{kmsKeyId}"
+
+  # ── keymanagement.key ─────────────────────────────────────────────────────
+  - from_resource_type: keymanagement.key
+    relation_type: contained_by
+    to_resource_type: keymanagement.vault
+    source_field: "vaultId"
+    source_field_item: null
+    target_uid_pattern: "{vaultId}"
+
+  # ── loadbalancer.loadbalancer ─────────────────────────────────────────────
+  - from_resource_type: loadbalancer.loadbalancer
+    relation_type: contained_by
+    to_resource_type: core.subnet
+    source_field: "subnetIds"
+    source_field_item: "."
+    target_uid_pattern: "{.}"
+
+  - from_resource_type: loadbalancer.loadbalancer
+    relation_type: attached_to
+    to_resource_type: core.networksecuritygroup
+    source_field: "networkSecurityGroupIds"
+    source_field_item: "."
+    target_uid_pattern: "{.}"
+
+  - from_resource_type: loadbalancer.loadbalancer
+    relation_type: routes_to
+    to_resource_type: core.instance
+    source_field: "backendSets"
+    source_field_item: "backends[].ipAddress"
+    target_uid_pattern: "ip:{backends[].ipAddress}"
+
+  # ── containerengine.cluster (OKE) ─────────────────────────────────────────
+  - from_resource_type: containerengine.cluster
+    relation_type: contained_by
+    to_resource_type: core.vcn
+    source_field: "options.kubernetesNetworkConfig.podsCidr"
+    source_field_item: null
+    target_uid_pattern: "{vcnId}"
+
+  - from_resource_type: containerengine.cluster
+    relation_type: attached_to
+    to_resource_type: core.networksecuritygroup
+    source_field: "endpointConfig.nsgIds"
+    source_field_item: "."
+    target_uid_pattern: "{.}"
+
+  # ── analyticscloud.instance ───────────────────────────────────────────────
+  - from_resource_type: analyticscloud.instance
+    relation_type: contained_by
+    to_resource_type: core.vcn
+    source_field: "networkEndpointDetails.vcnId"
+    source_field_item: null
+    target_uid_pattern: "{networkEndpointDetails.vcnId}"
+
+  # ── functions.application ─────────────────────────────────────────────────
+  - from_resource_type: functions.application
+    relation_type: contained_by
+    to_resource_type: core.subnet
+    source_field: "subnetIds"
+    source_field_item: "."
+    target_uid_pattern: "{.}"
+
+  - from_resource_type: functions.application
+    relation_type: attached_to
+    to_resource_type: core.networksecuritygroup
+    source_field: "networkSecurityGroupIds"
+    source_field_item: "."
+    target_uid_pattern: "{.}"
+
+  # ── functions.function ────────────────────────────────────────────────────
+  - from_resource_type: functions.function
+    relation_type: contained_by
+    to_resource_type: functions.application
+    source_field: "applicationId"
+    source_field_item: null
+    target_uid_pattern: "{applicationId}"
+
+  # ── core.internetgateway ──────────────────────────────────────────────────
+  - from_resource_type: core.internetgateway
+    relation_type: contained_by
+    to_resource_type: core.vcn
+    source_field: "vcnId"
+    source_field_item: null
+    target_uid_pattern: "{vcnId}"
+
+  # ── core.natgateway ───────────────────────────────────────────────────────
+  - from_resource_type: core.natgateway
+    relation_type: contained_by
+    to_resource_type: core.vcn
+    source_field: "vcnId"
+    source_field_item: null
+    target_uid_pattern: "{vcnId}"
+
+  # ── core.localpeering_gateway ─────────────────────────────────────────────
+  - from_resource_type: core.localpeeringgateway
+    relation_type: contained_by
+    to_resource_type: core.vcn
+    source_field: "vcnId"
+    source_field_item: null
+    target_uid_pattern: "{vcnId}"
+
+  - from_resource_type: core.localpeeringgateway
+    relation_type: peers_with
+    to_resource_type: core.localpeeringgateway
+    source_field: "peerId"
+    source_field_item: null
+    target_uid_pattern: "{peerId}"
+
+  # ── core.drg (Dynamic Routing Gateway) ────────────────────────────────────
+  - from_resource_type: core.drgattachment
+    relation_type: attached_to
+    to_resource_type: core.vcn
+    source_field: "vcnId"
+    source_field_item: null
+    target_uid_pattern: "{vcnId}"
+
+  - from_resource_type: core.drgattachment
+    relation_type: contained_by
+    to_resource_type: core.drg
+    source_field: "drgId"
+    source_field_item: null
+    target_uid_pattern: "{drgId}"
+
+  # ── core.vnic ─────────────────────────────────────────────────────────────
+  - from_resource_type: core.vnicattachment
+    relation_type: contained_by
+    to_resource_type: core.instance
+    source_field: "instanceId"
+    source_field_item: null
+    target_uid_pattern: "{instanceId}"
+
+  # ── core.volume_backup ────────────────────────────────────────────────────
+  - from_resource_type: core.volumebackup
+    relation_type: contained_by
+    to_resource_type: core.volume
+    source_field: "volumeId"
+    source_field_item: null
+    target_uid_pattern: "{volumeId}"
+
+  - from_resource_type: core.volumebackup
+    relation_type: uses
+    to_resource_type: keymanagement.key
+    source_field: "kmsKeyId"
+    source_field_item: null
+    target_uid_pattern: "{kmsKeyId}"
+
+  # ── core.boot_volume ──────────────────────────────────────────────────────
+  - from_resource_type: core.bootvolume
+    relation_type: uses
+    to_resource_type: keymanagement.key
+    source_field: "kmsKeyId"
+    source_field_item: null
+    target_uid_pattern: "{kmsKeyId}"
+
+  # ── database.autonomousdatabase ───────────────────────────────────────────
+  - from_resource_type: database.autonomousdatabase
+    relation_type: contained_by
+    to_resource_type: core.subnet
+    source_field: "subnetId"
+    source_field_item: null
+    target_uid_pattern: "{subnetId}"
+
+  - from_resource_type: database.autonomousdatabase
+    relation_type: attached_to
+    to_resource_type: core.networksecuritygroup
+    source_field: "nsgIds"
+    source_field_item: "."
+    target_uid_pattern: "{.}"
+
+  - from_resource_type: database.autonomousdatabase
+    relation_type: uses
+    to_resource_type: keymanagement.key
+    source_field: "kmsKeyId"
+    source_field_item: null
+    target_uid_pattern: "{kmsKeyId}"
+
+  # ── database.dbhome ───────────────────────────────────────────────────────
+  - from_resource_type: database.dbhome
+    relation_type: contained_by
+    to_resource_type: database.dbsystem
+    source_field: "dbSystemId"
+    source_field_item: null
+    target_uid_pattern: "{dbSystemId}"
+
+  # ── database.database ─────────────────────────────────────────────────────
+  - from_resource_type: database.database
+    relation_type: contained_by
+    to_resource_type: database.dbhome
+    source_field: "dbHomeId"
+    source_field_item: null
+    target_uid_pattern: "{dbHomeId}"
+
+  # ── containerengine.nodepool ──────────────────────────────────────────────
+  - from_resource_type: containerengine.nodepool
+    relation_type: contained_by
+    to_resource_type: containerengine.cluster
+    source_field: "clusterId"
+    source_field_item: null
+    target_uid_pattern: "{clusterId}"
+
+  - from_resource_type: containerengine.nodepool
+    relation_type: contained_by
+    to_resource_type: core.subnet
+    source_field: "subnetIds"
+    source_field_item: "."
+    target_uid_pattern: "{.}"
+
+  # ── network_load_balancer.networkloadbalancer ──────────────────────────────
+  - from_resource_type: network_load_balancer.networkloadbalancer
+    relation_type: contained_by
+    to_resource_type: core.subnet
+    source_field: "subnetId"
+    source_field_item: null
+    target_uid_pattern: "{subnetId}"
+
+  - from_resource_type: network_load_balancer.networkloadbalancer
+    relation_type: attached_to
+    to_resource_type: core.networksecuritygroup
+    source_field: "networkSecurityGroupIds"
+    source_field_item: "."
+    target_uid_pattern: "{.}"
+
+  # ── streaming.stream ──────────────────────────────────────────────────────
+  - from_resource_type: streaming.stream
+    relation_type: contained_by
+    to_resource_type: streaming.streampool
+    source_field: "streamPoolId"
+    source_field_item: null
+    target_uid_pattern: "{streamPoolId}"
+
+  - from_resource_type: streaming.streampool
+    relation_type: uses
+    to_resource_type: keymanagement.key
+    source_field: "customEncryptionKey.kmsKeyId"
+    source_field_item: null
+    target_uid_pattern: "{customEncryptionKey.kmsKeyId}"
+
+  # ── events.rule ───────────────────────────────────────────────────────────
+  - from_resource_type: events.rule
+    relation_type: routes_to
+    to_resource_type: streaming.stream
+    source_field: "actions.actions"
+    source_field_item: "streamId"
+    target_uid_pattern: "{streamId}"
+
+  # ── monitoring.alarm ──────────────────────────────────────────────────────
+  - from_resource_type: monitoring.alarm
+    relation_type: routes_to
+    to_resource_type: ons.topic
+    source_field: "destinations"
+    source_field_item: "."
+    target_uid_pattern: "{.}"
+
+  # ── ons.subscription ──────────────────────────────────────────────────────
+  - from_resource_type: ons.subscription
+    relation_type: contained_by
+    to_resource_type: ons.topic
+    source_field: "topicId"
+    source_field_item: null
+    target_uid_pattern: "{topicId}"
+
+  # ── analytics.analyticsinstance ───────────────────────────────────────────
+  - from_resource_type: analytics.analyticsinstance
+    relation_type: contained_by
+    to_resource_type: core.vcn
+    source_field: "networkEndpointDetails.vcnId"
+    source_field_item: null
+    target_uid_pattern: "{networkEndpointDetails.vcnId}"
+
+  - from_resource_type: analytics.analyticsinstance
+    relation_type: contained_by
+    to_resource_type: core.subnet
+    source_field: "networkEndpointDetails.subnetId"
+    source_field_item: null
+    target_uid_pattern: "{networkEndpointDetails.subnetId}"
+
+  # ── apigateway.gateway ────────────────────────────────────────────────────
+  - from_resource_type: apigateway.gateway
+    relation_type: contained_by
+    to_resource_type: core.subnet
+    source_field: "subnetId"
+    source_field_item: null
+    target_uid_pattern: "{subnetId}"
+
+  - from_resource_type: apigateway.deployment
+    relation_type: contained_by
+    to_resource_type: apigateway.gateway
+    source_field: "gatewayId"
+    source_field_item: null
+    target_uid_pattern: "{gatewayId}"
+
+  # ── bastion.bastion ───────────────────────────────────────────────────────
+  - from_resource_type: bastion.bastion
+    relation_type: contained_by
+    to_resource_type: core.subnet
+    source_field: "targetSubnetId"
+    source_field_item: null
+    target_uid_pattern: "{targetSubnetId}"
+
+  - from_resource_type: bastion.session
+    relation_type: contained_by
+    to_resource_type: bastion.bastion
+    source_field: "bastionId"
+    source_field_item: null
+    target_uid_pattern: "{bastionId}"
+
+  # ── data_science.project ──────────────────────────────────────────────────
+  - from_resource_type: data_science.notebooksession
+    relation_type: contained_by
+    to_resource_type: data_science.project
+    source_field: "projectId"
+    source_field_item: null
+    target_uid_pattern: "{projectId}"
+
+  - from_resource_type: data_science.notebooksession
+    relation_type: contained_by
+    to_resource_type: core.subnet
+    source_field: "notebookSessionConfigurationDetails.subnetId"
+    source_field_item: null
+    target_uid_pattern: "{notebookSessionConfigurationDetails.subnetId}"
+
+  - from_resource_type: data_science.model
+    relation_type: contained_by
+    to_resource_type: data_science.project
+    source_field: "projectId"
+    source_field_item: null
+    target_uid_pattern: "{projectId}"
+
+  - from_resource_type: data_science.modelprovenance
+    relation_type: contained_by
+    to_resource_type: data_science.model
+    source_field: "modelId"
+    source_field_item: null
+    target_uid_pattern: "{modelId}"
+
+  # ── logging.loggroup ──────────────────────────────────────────────────────
+  - from_resource_type: logging.log
+    relation_type: contained_by
+    to_resource_type: logging.loggroup
+    source_field: "logGroupId"
+    source_field_item: null
+    target_uid_pattern: "{logGroupId}"
+
+  # ── identity.compartment / policy ─────────────────────────────────────────
+  - from_resource_type: identity.policy
+    relation_type: contained_by
+    to_resource_type: identity.compartment
+    source_field: "compartmentId"
+    source_field_item: null
+    target_uid_pattern: "{compartmentId}"
+
+  # ── vss (Vulnerability Scanning Service) ──────────────────────────────────
+  - from_resource_type: vss.hoststcanrecipe
+    relation_type: uses
+    to_resource_type: core.instance
+    source_field: "targetIds"
+    source_field_item: "."
+    target_uid_pattern: "{.}"
+
+  # ── big_data_service.bdsinstance ──────────────────────────────────────────
+  - from_resource_type: bds.bdsinstance
+    relation_type: contained_by
+    to_resource_type: core.subnet
+    source_field: "nodes"
+    source_field_item: "subnetId"
+    target_uid_pattern: "{subnetId}"
+
+  # ── objectstorage.objectlifecyclepolicy ───────────────────────────────────
+  - from_resource_type: objectstorage.objectlifecyclepolicy
+    relation_type: contained_by
+    to_resource_type: objectstorage.bucket
+    source_field: "bucketName"
+    source_field_item: null
+    target_uid_pattern: "{namespace}/{bucketName}"
+
+  # ── vault.secret ──────────────────────────────────────────────────────────
+  - from_resource_type: vault.secret
+    relation_type: contained_by
+    to_resource_type: keymanagement.vault
+    source_field: "vaultId"
+    source_field_item: null
+    target_uid_pattern: "{vaultId}"
+
+  - from_resource_type: vault.secret
+    relation_type: uses
+    to_resource_type: keymanagement.key
+    source_field: "keyId"
+    source_field_item: null
+    target_uid_pattern: "{keyId}"
+
+  # ── integration.integrationinstance ───────────────────────────────────────
+  - from_resource_type: integration.integrationinstance
+    relation_type: contained_by
+    to_resource_type: core.subnet
+    source_field: "networkEndpointDetails.subnetId"
+    source_field_item: null
+    target_uid_pattern: "{networkEndpointDetails.subnetId}"
+
+  # ── serviceconnector.serviceconnector ─────────────────────────────────────
+  - from_resource_type: serviceconnector.serviceconnector
+    relation_type: routes_to
+    to_resource_type: streaming.stream
+    source_field: "target.streamId"
+    source_field_item: null
+    target_uid_pattern: "{target.streamId}"

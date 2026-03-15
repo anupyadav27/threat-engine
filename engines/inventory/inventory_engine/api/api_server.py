@@ -4,7 +4,7 @@ Inventory Engine API Server
 FastAPI server for inventory scanning and querying.
 
 === DATABASE & TABLE MAP ===
-This module connects to THREE databases:
+This module connects to TWO databases:
 
 1. threat_engine_inventory (INVENTORY DB) — via get_database_config("inventory")
    Env: INVENTORY_DB_HOST / INVENTORY_DB_PORT / INVENTORY_DB_NAME / INVENTORY_DB_USER / INVENTORY_DB_PASSWORD
@@ -12,6 +12,7 @@ This module connects to THREE databases:
      - inventory_report      : Scan-level summaries (get_scan_summary, get_latest_scan_id)
      - inventory_findings     : Asset records (list_assets, get_asset)
      - inventory_relationships: Resource edges (list_relationships, get_asset_relationships)
+     - inventory_drift        : Drift history per asset
    Tables WRITTEN (via orchestrator → PostgresIndexWriter):
      - inventory_report       : INSERT on scan completion
      - inventory_findings     : UPSERT per asset
@@ -23,12 +24,10 @@ This module connects to THREE databases:
      - discovery_report   : List scans, get latest scan ID
      - discovery_findings  : Read discovery records for normalization
 
-3. threat_engine_check (CHECK DB) — via CheckDBReader (optional enrichment)
-   Env: CHECK_DB_HOST / CHECK_DB_PORT / CHECK_DB_NAME / CHECK_DB_USER / CHECK_DB_PASSWORD
-   Tables READ:
-     - check_findings : Aggregate posture (PASS/FAIL/ERROR counts per resource_uid)
+NOTE: Cross-engine enrichment (check, threat, compliance findings) has been moved
+to the BFF layer at shared/api_gateway/bff/inventory.py to avoid tight coupling.
 
-4. LOCAL FILES (legacy, for drift/graph/summary endpoints that haven't been migrated to DB)
+3. LOCAL FILES (legacy, for drift/graph/summary endpoints that haven't been migrated to DB)
    Path: INVENTORY_OUTPUT_DIR or engine_output/engine_inventory/output/{tenant_id}/{scan_run_id}/normalized/
    Files: assets.ndjson, relationships.ndjson, drift.ndjson, summary.json
 ===
@@ -47,7 +46,7 @@ from fastapi import FastAPI, HTTPException, Query, Body
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Add common to path for logger import
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
@@ -100,6 +99,44 @@ app.add_middleware(
 
 # Rules admin router — DB-driven rule management (single source of truth for multi-CSP)
 app.include_router(rules_router)
+
+
+@app.on_event("startup")
+async def _preload_arn_patterns():
+    """Pre-load identifier patterns from resource_inventory_identifier table.
+
+    Warms the in-memory cache used by shared.common.arn.normalize_resource_uid()
+    so that every scan run can validate/generate ARNs without per-request DB hits.
+    """
+    try:
+        import psycopg2
+        from engine_common.arn import preload_identifier_patterns
+
+        db_cfg = get_database_config("inventory")
+        conn = psycopg2.connect(
+            host=db_cfg.host,
+            port=db_cfg.port,
+            dbname=db_cfg.database,
+            user=db_cfg.username,
+            password=db_cfg.password,
+            connect_timeout=5,
+        )
+        try:
+            total = 0
+            for csp in ("aws", "azure", "gcp", "oci", "ibm", "alicloud"):
+                count = preload_identifier_patterns(conn, csp)
+                total += count
+            logger.info(
+                "ARN identifier patterns preloaded",
+                extra={"extra_fields": {"total_patterns": total}},
+            )
+        finally:
+            conn.close()
+    except Exception as exc:
+        logger.warning(
+            "Failed to preload ARN patterns (non-fatal)",
+            extra={"extra_fields": {"error": str(exc)}},
+        )
 
 # Include unified UI data router
 try:
@@ -396,7 +433,7 @@ async def run_inventory_scan_async(request: ScanRequest):
         "tenant_id": request.tenant_id,
         "discovery_scan_id": request.discovery_scan_id,
         "check_scan_id": request.check_scan_id,
-        "started_at": datetime.utcnow().isoformat(),
+        "started_at": datetime.now(timezone.utc).isoformat(),
         "error": None,
         "result": None,
     }
@@ -422,11 +459,11 @@ async def run_inventory_scan_async(request: ScanRequest):
                 previous_scan_id=request.previous_scan_id,
             )
             inventory_jobs[job_id]["status"] = "completed"
-            inventory_jobs[job_id]["completed_at"] = datetime.utcnow().isoformat()
+            inventory_jobs[job_id]["completed_at"] = datetime.now(timezone.utc).isoformat()
             inventory_jobs[job_id]["result"] = result
         except Exception as e:
             inventory_jobs[job_id]["status"] = "failed"
-            inventory_jobs[job_id]["completed_at"] = datetime.utcnow().isoformat()
+            inventory_jobs[job_id]["completed_at"] = datetime.now(timezone.utc).isoformat()
             inventory_jobs[job_id]["error"] = str(e)
 
     threading.Thread(target=_worker, daemon=True).start()
@@ -599,7 +636,7 @@ async def run_discovery_scan_async(request: DiscoveryScanRequest):
     Returns immediately with a job_id so callers can poll `/api/v1/inventory/jobs/{job_id}`.
     """
     import time
-    started_at = datetime.utcnow().isoformat()
+    started_at = datetime.now(timezone.utc).isoformat()
     job_id = f"invjob_{int(time.time()*1000)}_{random.randint(1000,9999)}"
     inventory_jobs[job_id] = {
         "job_id": job_id,
@@ -634,12 +671,12 @@ async def run_discovery_scan_async(request: DiscoveryScanRequest):
                 previous_scan_id=request.previous_scan_id,
             )
             inventory_jobs[job_id]["status"] = "completed"
-            inventory_jobs[job_id]["completed_at"] = datetime.utcnow().isoformat()
+            inventory_jobs[job_id]["completed_at"] = datetime.now(timezone.utc).isoformat()
             inventory_jobs[job_id]["result"] = result
             inventory_jobs[job_id]["duration_ms"] = int((time.time() - t0) * 1000)
         except Exception as e:
             inventory_jobs[job_id]["status"] = "failed"
-            inventory_jobs[job_id]["completed_at"] = datetime.utcnow().isoformat()
+            inventory_jobs[job_id]["completed_at"] = datetime.now(timezone.utc).isoformat()
             inventory_jobs[job_id]["error"] = str(e)
             inventory_jobs[job_id]["duration_ms"] = int((time.time() - t0) * 1000)
     threading.Thread(target=_run, daemon=True).start()
@@ -827,15 +864,14 @@ async def get_asset(
     tenant_id: str = Query(...),
     scan_run_id: Optional[str] = Query(None),
 ):
-    """Get asset details by resource_uid (DB-first) with cross-engine enrichment.
+    """Get asset details by resource_uid (DB-first) — inventory data only.
 
-    Enriches the base inventory asset with:
-    - findings: severity counts from check_findings (critical/high/medium/low)
-    - findings_detail: detailed findings list from check_findings + rule_metadata
-    - compliance: compliance controls from compliance_findings
-    - drift_info: drift history from inventory_drift
-    - threats: threat findings with MITRE ATT&CK techniques from threat_findings
-    - threat_severity: threat severity counts (critical/high/medium/low)
+    Returns inventory-owned data:
+    - Base asset from inventory_findings
+    - drift_info from inventory_drift
+
+    Cross-engine enrichment (check, threat, compliance findings) is handled
+    at the BFF layer via GET /api/v1/views/inventory/asset/{resource_uid}.
     """
     # The :path converter is greedy and swallows sub-route suffixes.
     # Dispatch to the correct handler when a known suffix is detected.
@@ -899,40 +935,6 @@ async def get_asset(
             asset["drift_info"] = {"last_check": None, "has_drift": False, "changes": [], "total": 0}
 
         loader.close()
-
-        # 2. Check findings enrichment (severity counts + detailed findings)
-        try:
-            from ..connectors.check_db_reader import CheckDBReader
-            check_reader = CheckDBReader()
-            asset["findings"] = check_reader.get_severity_counts_for_resource(resource_uid, tenant_id)
-            asset["findings_detail"] = check_reader.get_findings_for_resource(resource_uid, tenant_id)
-            check_reader.close()
-        except Exception as e:
-            logger.warning(f"Check findings enrichment failed for {resource_uid}: {e}")
-            asset["findings"] = {"critical": 0, "high": 0, "medium": 0, "low": 0}
-            asset["findings_detail"] = []
-
-        # 3. Compliance findings enrichment
-        try:
-            from ..connectors.compliance_db_reader import ComplianceDBReader
-            compliance_reader = ComplianceDBReader()
-            asset["compliance"] = compliance_reader.get_compliance_for_resource(resource_uid, tenant_id)
-            compliance_reader.close()
-        except Exception as e:
-            logger.warning(f"Compliance enrichment failed for {resource_uid}: {e}")
-            asset["compliance"] = []
-
-        # 4. Threat findings enrichment (MITRE ATT&CK techniques, severity)
-        try:
-            from ..connectors.threat_db_reader import ThreatDBReader
-            threat_reader = ThreatDBReader()
-            asset["threats"] = threat_reader.get_threat_findings_for_resource(resource_uid, tenant_id)
-            asset["threat_severity"] = threat_reader.get_threat_severity_counts(resource_uid, tenant_id)
-            threat_reader.close()
-        except Exception as e:
-            logger.warning(f"Threat findings enrichment failed for {resource_uid}: {e}")
-            asset["threats"] = []
-            asset["threat_severity"] = {"critical": 0, "high": 0, "medium": 0, "low": 0}
 
         return asset
 
@@ -1180,10 +1182,15 @@ async def get_graph(
     tenant_id: str = Query(...),
     scan_run_id: Optional[str] = Query(None),
     resource_uid: Optional[str] = Query(None),
-    depth: int = Query(2, ge=1, le=3),
-    limit: int = Query(100, ge=1, le=500)
+    depth: int = Query(5, ge=1, le=10),
+    limit: int = Query(2000, ge=1, le=5000)
 ):
-    """Get graph visualization data (nodes and edges) — DB-first"""
+    """Get graph visualization data using recursive BFS traversal.
+
+    When resource_uid is provided, loads that asset + neighbors.
+    Otherwise, seeds from VPC/VNet root containers and walks structural
+    edges up to `depth` hops, discovering all contained resources.
+    """
     try:
         db_config = get_database_config("inventory")
         db_url = db_config.connection_string
@@ -1193,27 +1200,28 @@ async def get_graph(
 
         loader = InventoryDBLoader(db_url)
 
-        # Auto-resolve "latest" scan_run_id
-        if not scan_run_id or scan_run_id == "latest":
-            scan_run_id = loader.get_latest_scan_id(tenant_id)
+        if resource_uid:
+            # Single-asset mode: load asset + direct neighbors
+            if not scan_run_id or scan_run_id == "latest":
+                scan_run_id = loader.get_latest_scan_id(tenant_id)
             if not scan_run_id:
                 loader.close()
-                return {"nodes": [], "edges": [], "depth": depth, "total_nodes": 0, "total_edges": 0}
+                return {"nodes": [], "edges": [], "depth": depth,
+                        "total_nodes": 0, "total_edges": 0}
 
-        if resource_uid:
-            # Get specific asset and its relationships
             asset = loader.load_asset_by_uid(tenant_id, resource_uid, scan_run_id)
             nodes = [asset] if asset else []
 
             rels_from, _ = loader.load_relationships(
-                tenant_id=tenant_id, scan_run_id=scan_run_id, from_uid=resource_uid, limit=500
+                tenant_id=tenant_id, scan_run_id=scan_run_id,
+                from_uid=resource_uid, limit=500
             )
             rels_to, _ = loader.load_relationships(
-                tenant_id=tenant_id, scan_run_id=scan_run_id, to_uid=resource_uid, limit=500
+                tenant_id=tenant_id, scan_run_id=scan_run_id,
+                to_uid=resource_uid, limit=500
             )
             relationships = rels_from + rels_to
 
-            # Collect related asset UIDs
             related_uids = set()
             for rel in relationships:
                 if rel.get("from_uid") != resource_uid:
@@ -1225,19 +1233,33 @@ async def get_graph(
                 related_asset = loader.load_asset_by_uid(tenant_id, uid, scan_run_id)
                 if related_asset:
                     nodes.append(related_asset)
+
+            loader.close()
+            return {
+                "nodes": nodes,
+                "edges": relationships,
+                "exposure": [],
+                "depth": depth,
+                "total_nodes": len(nodes),
+                "total_edges": len(relationships)
+            }
         else:
-            nodes, _ = loader.load_assets(tenant_id=tenant_id, scan_run_id=scan_run_id, limit=limit)
-            relationships, _ = loader.load_relationships(tenant_id=tenant_id, scan_run_id=scan_run_id, limit=limit)
-
-        loader.close()
-
-        return {
-            "nodes": nodes,
-            "edges": relationships,
-            "depth": depth,
-            "total_nodes": len(nodes),
-            "total_edges": len(relationships)
-        }
+            # Full graph mode: BFS traversal from VPC roots
+            result = loader.load_graph_bfs(
+                tenant_id=tenant_id,
+                scan_run_id=scan_run_id,
+                max_depth=depth,
+                max_nodes=limit,
+            )
+            loader.close()
+            return {
+                "nodes": result["nodes"],
+                "edges": result["relationships"],
+                "exposure": result["exposure"],
+                "depth": depth,
+                "total_nodes": len(result["nodes"]),
+                "total_edges": len(result["relationships"])
+            }
 
     except Exception as e:
         raise HTTPException(
@@ -1252,28 +1274,44 @@ _PROVIDER_COLORS = {
 }
 
 
+_RELATION_FAMILY_MAP = {
+    "contained_by": "structural", "contains": "structural", "member_of": "structural",
+    "attached_to": "structural", "associated_with": "structural", "references": "structural",
+    "peers_with": "network", "connected_to": "network", "routes_to": "network",
+    "forwards_to": "network", "serves_traffic_for": "network", "resolves_to": "network",
+    "allows_traffic_from": "security", "allows_traffic_to": "security",
+    "restricted_to": "security", "exposed_through": "security",
+    "internet_connected": "security", "protected_by": "security",
+    "uses": "identity", "assumes": "identity", "has_policy": "identity",
+    "grants_access_to": "identity", "controlled_by": "identity", "authenticated_by": "identity",
+    "encrypted_by": "data", "stores_data_in": "data", "backs_up_to": "data", "replicates_to": "data",
+    "runs_on": "execution", "invokes": "execution", "triggers": "execution",
+    "triggered_by": "execution", "publishes_to": "execution", "subscribes_to": "execution",
+    "scales_with": "execution", "cached_by": "execution", "depends_on": "execution",
+    "manages": "governance", "deployed_by": "governance", "applies_to": "governance",
+    "complies_with": "governance", "logging_enabled_to": "governance",
+    "monitored_by": "governance", "scanned_by": "governance",
+}
+
+
 def _classify_link_type(relation_type: str) -> str:
-    """Classify a relation_type into a visual link category for graph rendering."""
-    rt = (relation_type or "").lower()
-    if any(k in rt for k in ("permission", "role", "policy", "assume", "iam", "access")):
-        return "permission"
-    if any(k in rt for k in ("data", "flow", "log", "encrypt", "storage", "read", "write")):
-        return "data_flow"
-    if any(k in rt for k in ("security", "firewall", "rule", "nacl", "waf", "guard")):
-        return "security"
-    return "default"
+    """Classify a relation_type into a taxonomy family for graph rendering."""
+    return _RELATION_FAMILY_MAP.get(relation_type, "default")
 
 
 @app.get("/api/v1/inventory/runs/latest/graph")
 async def get_graph_ui(
     tenant_id: str = Query(...),
     resource_uid: Optional[str] = Query(None),
-    depth: int = Query(2, ge=1, le=3),
-    limit: int = Query(100, ge=1, le=500),
+    depth: int = Query(5, ge=1, le=10),
+    limit: int = Query(2000, ge=1, le=5000),
     service: Optional[str] = Query(None),
     provider: Optional[str] = Query(None),
 ):
     """UI-friendly graph endpoint — returns nodes/links with field names matching the frontend.
+
+    Uses BFS traversal from VPC root containers to discover the full
+    containment hierarchy (VPC → AZ → Subnet → Resource → Attachments).
 
     Field mapping:
       nodes[].id            ← resource_uid
@@ -1286,6 +1324,7 @@ async def get_graph_ui(
       links[].target        ← to_uid
       links[].label         ← relation_type
       links[].type          ← classified from relation_type
+      exposure[]            ← internet_connected / exposed_through relationships
     """
     # Delegate to the core graph endpoint for data fetching
     raw = await get_graph(
@@ -1320,29 +1359,133 @@ async def get_graph_ui(
             "account_id": node.get("account_id"),
         })
 
-    # Build set of visible node IDs for link filtering
+    # Build set of visible node IDs
     visible_ids = {n["id"] for n in ui_nodes}
 
-    # Transform edges to UI links schema
+    # Transform edges to UI links — and create synthetic nodes for
+    # relationship endpoints missing from the initial asset set.
     ui_links = []
+    synthetic_nodes = {}
     for edge in raw.get("edges") or []:
         src = edge.get("from_uid")
         tgt = edge.get("to_uid")
-        if src not in visible_ids or tgt not in visible_ids:
+        if not src or not tgt:
             continue
         rel_type = edge.get("relation_type") or ""
-        ui_links.append({
-            "source": src,
-            "target": tgt,
-            "label": rel_type,
-            "type": _classify_link_type(rel_type),
+
+        # Create synthetic nodes for endpoints not in the visible set
+        for uid, rtype_key in ((src, "from_resource_type"), (tgt, "to_resource_type")):
+            if uid not in visible_ids and uid not in synthetic_nodes:
+                rt = edge.get(rtype_key) or ""
+                svc = rt.split(".")[0] if "." in rt else rt
+                if service and svc.lower() != service.lower():
+                    continue
+                if provider:
+                    continue
+                name = uid.rsplit("/", 1)[-1] if "/" in uid else uid.rsplit(":", 1)[-1]
+                synthetic_nodes[uid] = {
+                    "id": uid,
+                    "name": name,
+                    "type": rt,
+                    "service": svc,
+                    "provider": edge.get("provider", "aws"),
+                    "color": _PROVIDER_COLORS.get(edge.get("provider", "aws").lower(), "#6b7280"),
+                    "region": edge.get("region"),
+                    "account_id": edge.get("account_id"),
+                    "synthetic": True,
+                }
+
+        # Include link if both endpoints are now visible (original + synthetic)
+        all_ids = visible_ids | set(synthetic_nodes.keys())
+        if src in all_ids and tgt in all_ids:
+            ui_links.append({
+                "source": src,
+                "target": tgt,
+                "label": rel_type,
+                "type": _classify_link_type(rel_type),
+            })
+
+    # Merge synthetic nodes into output
+    all_nodes = ui_nodes + list(synthetic_nodes.values())
+
+    # ── VPC Endpoint → Service target synthetic nodes ──────────────────
+    # For VPC endpoints (ec2.vpc-endpoint, network.private-endpoint, etc.),
+    # parse the target service name and create synthetic service nodes + edges.
+    _VPC_ENDPOINT_TYPES = {
+        "ec2.vpc-endpoint", "network.private-endpoint",
+        "compute.service-attachment", "core.service-gateway",
+        "is.endpoint-gateway",
+    }
+    vpc_endpoint_links = []
+    vpc_endpoint_service_nodes = {}
+    for node in all_nodes:
+        if node.get("type") not in _VPC_ENDPOINT_TYPES:
+            continue
+        node_id = node.get("id", "")
+        node_name = node.get("name", "")
+        # Try to parse service name from VPC endpoint name/id
+        # AWS format: com.amazonaws.us-east-1.s3 → s3
+        # Also: vpce-xxx-s3, vpce-xxx-dynamodb etc.
+        target_svc = None
+        # Check for AWS ServiceName pattern in name/id
+        parts = node_name.split(".")
+        if len(parts) >= 4 and parts[0] == "com" and parts[1] == "amazonaws":
+            target_svc = parts[-1]  # last segment = service name
+        elif "vpce-" in node_name.lower():
+            # Try to extract from vpce name
+            segments = node_name.lower().replace("vpce-", "").split("-")
+            if segments:
+                target_svc = segments[-1]
+        # Fallback: try the node id
+        if not target_svc and "." in node_id:
+            id_parts = node_id.split(".")
+            if len(id_parts) >= 4 and id_parts[0] == "com":
+                target_svc = id_parts[-1]
+
+        if target_svc:
+            svc_key = f"__svc__{target_svc}"
+            if svc_key not in vpc_endpoint_service_nodes:
+                vpc_endpoint_service_nodes[svc_key] = {
+                    "id": svc_key,
+                    "name": target_svc.upper(),
+                    "type": f"{target_svc}.service",
+                    "service": target_svc,
+                    "provider": node.get("provider", "aws"),
+                    "color": _PROVIDER_COLORS.get(
+                        node.get("provider", "aws").lower(), "#6b7280"
+                    ),
+                    "region": "global",
+                    "account_id": node.get("account_id"),
+                    "synthetic": True,
+                }
+            vpc_endpoint_links.append({
+                "source": node_id,
+                "target": svc_key,
+                "label": "connected_to",
+                "type": "network",
+            })
+
+    if vpc_endpoint_service_nodes:
+        all_nodes.extend(vpc_endpoint_service_nodes.values())
+        ui_links.extend(vpc_endpoint_links)
+
+    # Pass through exposure data for public-facing detection
+    exposure = raw.get("exposure") or []
+    ui_exposure = []
+    for exp in exposure:
+        ui_exposure.append({
+            "source": exp.get("from_uid"),
+            "target": exp.get("to_uid"),
+            "type": exp.get("relation_type"),
+            "properties": exp.get("properties") or {},
         })
 
     return {
-        "nodes": ui_nodes,
+        "nodes": all_nodes,
         "links": ui_links,
+        "exposure": ui_exposure,
         "depth": depth,
-        "total_nodes": len(ui_nodes),
+        "total_nodes": len(all_nodes),
         "total_links": len(ui_links),
     }
 
@@ -1400,7 +1543,7 @@ async def get_drift(
                             "provider": asset.get("provider"),
                             "account_id": asset.get("account_id"),
                             "region": asset.get("region"),
-                            "detected_at": datetime.utcnow().isoformat() + "Z"
+                            "detected_at": datetime.now(timezone.utc).isoformat() + "Z"
                         })
                 
                 # Removed assets
@@ -1413,7 +1556,7 @@ async def get_drift(
                             "provider": asset.get("provider"),
                             "account_id": asset.get("account_id"),
                             "region": asset.get("region"),
-                            "detected_at": datetime.utcnow().isoformat() + "Z"
+                            "detected_at": datetime.now(timezone.utc).isoformat() + "Z"
                         })
                 
                 # Changed assets
@@ -1442,7 +1585,7 @@ async def get_drift(
                                 "account_id": compare.get("account_id"),
                                 "region": compare.get("region"),
                                 "diff": diff,
-                                "detected_at": datetime.utcnow().isoformat() + "Z"
+                                "detected_at": datetime.now(timezone.utc).isoformat() + "Z"
                             })
             else:
                 # No baseline/compare → load pre-computed drift from inventory_drift table.

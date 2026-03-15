@@ -38,12 +38,30 @@ def _connection_string() -> str:
 
 
 def _ensure_tenant(conn, tenant_id: str):
-    """No-op — tenants table removed from threat DB.
+    """Upsert tenant row in the local threat DB tenants table.
 
-    Tenant master lives in shared DB (threat_engine_shared).
-    tenant_id is now a plain VARCHAR column, no local FK.
+    The threat DB has FK constraints from threat_intelligence (and other tables)
+    referencing tenants(tenant_id). This must be called before writing any
+    tenant-scoped data to avoid FK violations.
     """
-    pass
+    import psycopg2
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO tenants (tenant_id, tenant_name)
+                VALUES (%s, %s)
+                ON CONFLICT (tenant_id) DO NOTHING
+                """,
+                (tenant_id, tenant_id),
+            )
+        conn.commit()
+    except Exception as e:
+        logger.warning("Failed to upsert tenant %s: %s", tenant_id, e)
+        try:
+            conn.rollback()
+        except Exception:
+            pass
 
 
 def _ts_now():
@@ -190,7 +208,7 @@ def correlate_intel_with_threats(
             cur.execute("""
                 SELECT
                     d.detection_id,
-                    d.resource_arn,
+                    d.resource_uid,
                     d.severity AS detection_severity,
                     d.mitre_techniques AS detection_techniques,
                     i.intel_id,

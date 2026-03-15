@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS datasec_findings (
     status VARCHAR(20) NOT NULL,
     resource_type VARCHAR(100),
     resource_id VARCHAR(255),
-    resource_arn TEXT,
+    resource_uid TEXT,                -- Canonical identifier (ARN for AWS, ARM ID for Azure, etc.)
     account_id VARCHAR(50),
     region VARCHAR(50),
     data_classification TEXT[],
@@ -67,7 +67,6 @@ CREATE TABLE IF NOT EXISTS datasec_findings (
     first_seen_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     customer_id VARCHAR(255),
-    resource_uid TEXT,
 
     CONSTRAINT fk_tenant_finding FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE
 );
@@ -86,7 +85,6 @@ CREATE INDEX IF NOT EXISTS idx_datasec_findings_datasec_scan ON datasec_findings
 CREATE INDEX IF NOT EXISTS idx_datasec_findings_tenant ON datasec_findings(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_datasec_findings_rule ON datasec_findings(rule_id);
 CREATE INDEX IF NOT EXISTS idx_datasec_findings_severity ON datasec_findings(severity, status);
-CREATE INDEX IF NOT EXISTS idx_datasec_findings_resource ON datasec_findings(resource_arn);
 CREATE INDEX IF NOT EXISTS idx_datasec_findings_resource_uid ON datasec_findings(resource_uid);
 CREATE INDEX IF NOT EXISTS idx_datasec_findings_classification ON datasec_findings USING gin(data_classification);
 

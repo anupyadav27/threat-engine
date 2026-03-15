@@ -1,0 +1,254 @@
+csp: alicloud
+description: "Alibaba Cloud relationship rules - ECS, VPC, RDS, OSS, KMS, RAM, SLB, CS"
+rules:
+  # ── ecs.instance ──────────────────────────────────────────────────────────
+  - from_resource_type: ecs.instance
+    relation_type: contained_by
+    to_resource_type: vpc.vswitch
+    source_field: "VSwitchId"
+    source_field_item: null
+    target_uid_pattern: "{VSwitchId}"
+
+  - from_resource_type: ecs.instance
+    relation_type: contained_by
+    to_resource_type: vpc.vpc
+    source_field: "VpcId"
+    source_field_item: null
+    target_uid_pattern: "{VpcId}"
+
+  - from_resource_type: ecs.instance
+    relation_type: attached_to
+    to_resource_type: ecs.security-group
+    source_field: "SecurityGroupIds.SecurityGroupId"
+    source_field_item: "."
+    target_uid_pattern: "{.}"
+
+  - from_resource_type: ecs.instance
+    relation_type: attached_to
+    to_resource_type: ecs.disk
+    source_field: "DiskIds.DiskId"
+    source_field_item: "."
+    target_uid_pattern: "{.}"
+
+  - from_resource_type: ecs.instance
+    relation_type: uses
+    to_resource_type: kms.key
+    source_field: "DataDisks.DataDisk"
+    source_field_item: "KMSKeyId"
+    target_uid_pattern: "{KMSKeyId}"
+
+  - from_resource_type: ecs.instance
+    relation_type: uses
+    to_resource_type: ram.role
+    source_field: "RamRoleName"
+    source_field_item: null
+    target_uid_pattern: "acs:ram:{region}:{account_id}:role/{RamRoleName}"
+
+  - from_resource_type: ecs.instance
+    relation_type: grants_access_to
+    to_resource_type: ecs.eip
+    source_field: "EipAddress.AllocationId"
+    source_field_item: null
+    target_uid_pattern: "{EipAddress.AllocationId}"
+
+  # ── ecs.disk ──────────────────────────────────────────────────────────────
+  - from_resource_type: ecs.disk
+    relation_type: uses
+    to_resource_type: kms.key
+    source_field: "KMSKeyId"
+    source_field_item: null
+    target_uid_pattern: "{KMSKeyId}"
+
+  - from_resource_type: ecs.disk
+    relation_type: contained_by
+    to_resource_type: vpc.vswitch
+    source_field: "InstanceId"
+    source_field_item: null
+    target_uid_pattern: "instance:{InstanceId}"
+
+  # ── ecs.security-group ────────────────────────────────────────────────────
+  - from_resource_type: ecs.security-group
+    relation_type: contained_by
+    to_resource_type: vpc.vpc
+    source_field: "VpcId"
+    source_field_item: null
+    target_uid_pattern: "{VpcId}"
+
+  # ── vpc.vpc ───────────────────────────────────────────────────────────────
+  - from_resource_type: vpc.vpc
+    relation_type: contains
+    to_resource_type: vpc.vswitch
+    source_field: "VSwitchIds.VSwitchId"
+    source_field_item: "."
+    target_uid_pattern: "{.}"
+
+  - from_resource_type: vpc.vpc
+    relation_type: peers_with
+    to_resource_type: vpc.vpc
+    source_field: "VpcPeeringConnections.VpcPeeringConnection"
+    source_field_item: "PeerVpcId"
+    target_uid_pattern: "{PeerVpcId}"
+
+  # ── vpc.vswitch ───────────────────────────────────────────────────────────
+  - from_resource_type: vpc.vswitch
+    relation_type: contained_by
+    to_resource_type: vpc.vpc
+    source_field: "VpcId"
+    source_field_item: null
+    target_uid_pattern: "{VpcId}"
+
+  - from_resource_type: vpc.vswitch
+    relation_type: uses
+    to_resource_type: vpc.routetable
+    source_field: "RouteTableId"
+    source_field_item: null
+    target_uid_pattern: "{RouteTableId}"
+
+  # ── slb.loadbalancer ──────────────────────────────────────────────────────
+  - from_resource_type: slb.loadbalancer
+    relation_type: contained_by
+    to_resource_type: vpc.vpc
+    source_field: "VpcId"
+    source_field_item: null
+    target_uid_pattern: "{VpcId}"
+
+  - from_resource_type: slb.loadbalancer
+    relation_type: contained_by
+    to_resource_type: vpc.vswitch
+    source_field: "VSwitchId"
+    source_field_item: null
+    target_uid_pattern: "{VSwitchId}"
+
+  - from_resource_type: slb.loadbalancer
+    relation_type: routes_to
+    to_resource_type: ecs.instance
+    source_field: "BackendServers.BackendServer"
+    source_field_item: "ServerId"
+    target_uid_pattern: "{ServerId}"
+
+  # ── rds.dbinstance ────────────────────────────────────────────────────────
+  - from_resource_type: rds.dbinstance
+    relation_type: contained_by
+    to_resource_type: vpc.vpc
+    source_field: "VpcId"
+    source_field_item: null
+    target_uid_pattern: "{VpcId}"
+
+  - from_resource_type: rds.dbinstance
+    relation_type: contained_by
+    to_resource_type: vpc.vswitch
+    source_field: "VSwitchId"
+    source_field_item: null
+    target_uid_pattern: "{VSwitchId}"
+
+  - from_resource_type: rds.dbinstance
+    relation_type: uses
+    to_resource_type: kms.key
+    source_field: "TDEInfo.TDEKeyId"
+    source_field_item: null
+    target_uid_pattern: "{TDEInfo.TDEKeyId}"
+
+  # ── oss.bucket ────────────────────────────────────────────────────────────
+  - from_resource_type: oss.bucket
+    relation_type: uses
+    to_resource_type: kms.key
+    source_field: "ServerSideEncryptionRule.KMSMasterKeyID"
+    source_field_item: null
+    target_uid_pattern: "{ServerSideEncryptionRule.KMSMasterKeyID}"
+
+  # ── cs.cluster (Container Service - ACK/ASK) ──────────────────────────────
+  - from_resource_type: cs.cluster
+    relation_type: contained_by
+    to_resource_type: vpc.vpc
+    source_field: "vpc_id"
+    source_field_item: null
+    target_uid_pattern: "{vpc_id}"
+
+  - from_resource_type: cs.cluster
+    relation_type: contained_by
+    to_resource_type: vpc.vswitch
+    source_field: "vswitch_id"
+    source_field_item: null
+    target_uid_pattern: "{vswitch_id}"
+
+  - from_resource_type: cs.cluster
+    relation_type: attached_to
+    to_resource_type: ecs.security-group
+    source_field: "security_group_id"
+    source_field_item: null
+    target_uid_pattern: "{security_group_id}"
+
+  # ── ram.role ──────────────────────────────────────────────────────────────
+  - from_resource_type: ram.role
+    relation_type: assumes
+    to_resource_type: ram.role
+    source_field: "AssumeRolePolicyDocument.Statement"
+    source_field_item: "Principal.RAM"
+    target_uid_pattern: "{Principal.RAM}"
+
+  # ── kms.key ───────────────────────────────────────────────────────────────
+  - from_resource_type: kms.key
+    relation_type: contained_by
+    to_resource_type: kms.keystore
+    source_field: "KeyId"
+    source_field_item: null
+    target_uid_pattern: "acs:kms:{region}:{account_id}:key"
+
+  # ── polardb.dbcluster ─────────────────────────────────────────────────────
+  - from_resource_type: polardb.dbcluster
+    relation_type: contained_by
+    to_resource_type: vpc.vpc
+    source_field: "VpcId"
+    source_field_item: null
+    target_uid_pattern: "{VpcId}"
+
+  - from_resource_type: polardb.dbcluster
+    relation_type: contained_by
+    to_resource_type: vpc.vswitch
+    source_field: "VSwitchId"
+    source_field_item: null
+    target_uid_pattern: "{VSwitchId}"
+
+  - from_resource_type: polardb.dbcluster
+    relation_type: uses
+    to_resource_type: kms.key
+    source_field: "TDEStatus"
+    source_field_item: null
+    target_uid_pattern: "acs:kms:{region}:{account_id}:key/{DBClusterId}"
+
+  # ── nas.filesystem ────────────────────────────────────────────────────────
+  - from_resource_type: nas.filesystem
+    relation_type: contained_by
+    to_resource_type: vpc.vpc
+    source_field: "VpcId"
+    source_field_item: null
+    target_uid_pattern: "{VpcId}"
+
+  - from_resource_type: nas.filesystem
+    relation_type: uses
+    to_resource_type: kms.key
+    source_field: "EncryptType"
+    source_field_item: null
+    target_uid_pattern: "acs:kms:{region}:{account_id}:key"
+
+  # ── fc.service (Function Compute) ─────────────────────────────────────────
+  - from_resource_type: fc.service
+    relation_type: contained_by
+    to_resource_type: vpc.vpc
+    source_field: "vpcConfig.vpcId"
+    source_field_item: null
+    target_uid_pattern: "{vpcConfig.vpcId}"
+
+  - from_resource_type: fc.service
+    relation_type: contained_by
+    to_resource_type: vpc.vswitch
+    source_field: "vpcConfig.vSwitchIds"
+    source_field_item: "."
+    target_uid_pattern: "{.}"
+
+  - from_resource_type: fc.service
+    relation_type: uses
+    to_resource_type: ram.role
+    source_field: "role"
+    source_field_item: null
+    target_uid_pattern: "{role}"

@@ -109,9 +109,9 @@ class DiscoveryReader:
                 if scan_id:
                     # PREFERRED: Filter by discovery_scan_id (most precise)
                     query = """
-                        SELECT DISTINCT ON (COALESCE(resource_uid, resource_arn))
-                            COALESCE(resource_uid, resource_arn) as resource_uid,
-                            resource_arn,
+                        SELECT DISTINCT ON (resource_uid)
+                            resource_uid as resource_uid,
+
                             resource_id,
                             emitted_fields,
                             service,
@@ -129,9 +129,9 @@ class DiscoveryReader:
                     # FALLBACK: Filter by tenant_id + hierarchy_id (gets latest across all scans)
                     logger.warning(f"No scan_id provided for discovery_id={discovery_id}, using tenant_id + hierarchy_id filter (may return stale data)")
                     query = """
-                        SELECT DISTINCT ON (COALESCE(resource_uid, resource_arn))
-                            COALESCE(resource_uid, resource_arn) as resource_uid,
-                            resource_arn,
+                        SELECT DISTINCT ON (resource_uid)
+                            resource_uid as resource_uid,
+
                             resource_id,
                             emitted_fields,
                             service,
@@ -151,7 +151,7 @@ class DiscoveryReader:
                     query += " AND service = %s"
                     params.append(service)
 
-                query += " ORDER BY COALESCE(resource_uid, resource_arn), scan_timestamp DESC"
+                query += " ORDER BY resource_uid, scan_timestamp DESC"
 
                 cur.execute(query, params)
                 rows = cur.fetchall()

@@ -17,7 +17,7 @@ import logging
 import os
 import time
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
@@ -143,7 +143,7 @@ async def run_scan(request: ScanRequest):
     global _scan_count, _scan_errors, _last_scan_duration_ms
 
     scan_id = str(uuid4())
-    started_at = datetime.utcnow()
+    started_at = datetime.now(timezone.utc)
     start_time = time.time()
 
     try:
@@ -212,7 +212,7 @@ async def run_scan(request: ScanRequest):
                 "status": "failed",
                 "error_message": str(exc),
                 "started_at": started_at,
-                "completed_at": datetime.utcnow(),
+                "completed_at": datetime.now(timezone.utc),
             })
         except Exception:
             pass

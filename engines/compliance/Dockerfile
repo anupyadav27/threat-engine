@@ -8,18 +8,16 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install
-COPY engine_compliance/requirements.txt .
+COPY engines/compliance/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy compliance engine code
-COPY engine_compliance/compliance_engine/ ./compliance_engine/
-COPY engine_compliance/data/ ./data/
+# Copy compliance engine code (destination paths match Python imports)
+COPY engines/compliance/compliance_engine/ ./compliance_engine/
+COPY engines/compliance/data/ ./data/
 
-# Copy engine_common
-COPY engine_common/ ./engine_common/
-
-# Copy consolidated_services
-COPY consolidated_services/ ./consolidated_services/
+# Copy shared utilities
+COPY shared/common/ ./engine_common/
+COPY shared/database/ ./consolidated_services/
 
 ENV PYTHONPATH=/app
 

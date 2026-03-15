@@ -1,0 +1,933 @@
+'use client';
+
+import { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import { Play, Plus } from 'lucide-react';
+import { getFromEngine, postToEngine } from '@/lib/api';
+import { useToast } from '@/lib/toast-context';
+import { useGlobalFilter } from '@/lib/global-filter-context';
+import MetricStrip from '@/components/shared/MetricStrip';
+import DataTable from '@/components/shared/DataTable';
+import FilterBar from '@/components/shared/FilterBar';
+import StatusIndicator from '@/components/shared/StatusIndicator';
+
+// Mock scan data for fallback
+const MOCK_SCANS = [
+  {
+    scan_id: 'scan-2026-001-a1b2c3',
+    scan_name: 'Daily Full Scan - AWS Prod',
+    scan_type: 'full',
+    provider: 'aws',
+    account_id: '123456789012',
+    account_name: 'prod-1',
+    status: 'completed',
+    started_at: '2026-03-05T10:30:00Z',
+    completed_at: '2026-03-05T10:53:00Z',
+    duration: '23m 00s',
+    resources_scanned: 1247,
+    total_findings: 156,
+    critical_findings: 3,
+    high_findings: 18,
+    triggered_by: 'scheduler',
+  },
+  {
+    scan_id: 'scan-2026-002-d4e5f6',
+    scan_name: 'Incremental Scan - Azure',
+    scan_type: 'incremental',
+    provider: 'azure',
+    account_id: 'sub-123',
+    account_name: 'azure-prod',
+    status: 'running',
+    started_at: '2026-03-05T14:15:00Z',
+    completed_at: null,
+    duration: '8m 42s',
+    resources_scanned: 342,
+    total_findings: 0,
+    critical_findings: 0,
+    high_findings: 0,
+    triggered_by: 'manual',
+  },
+  {
+    scan_id: 'scan-2026-003-g7h8i9',
+    scan_name: 'Compliance Scan - GCP',
+    scan_type: 'compliance',
+    provider: 'gcp',
+    account_id: 'gcp-project-001',
+    account_name: 'gcp-prod',
+    status: 'completed',
+    started_at: '2026-03-04T08:00:00Z',
+    completed_at: '2026-03-04T08:22:15Z',
+    duration: '22m 15s',
+    resources_scanned: 892,
+    total_findings: 124,
+    critical_findings: 2,
+    high_findings: 12,
+    triggered_by: 'scheduler',
+  },
+  {
+    scan_id: 'scan-2026-004-j0k1l2',
+    scan_name: 'Vulnerability Scan - AWS',
+    scan_type: 'vulnerability',
+    provider: 'aws',
+    account_id: '987654321098',
+    account_name: 'staging-1',
+    status: 'failed',
+    started_at: '2026-03-03T16:45:00Z',
+    completed_at: '2026-03-03T16:50:30Z',
+    duration: '5m 30s',
+    resources_scanned: 0,
+    total_findings: 0,
+    critical_findings: 0,
+    high_findings: 0,
+    triggered_by: 'manual',
+  },
+  {
+    scan_id: 'scan-2026-005-m3n4o5',
+    scan_name: 'IaC Scan - AWS',
+    scan_type: 'iac',
+    provider: 'aws',
+    account_id: '123456789012',
+    account_name: 'prod-1',
+    status: 'completed',
+    started_at: '2026-03-02T12:00:00Z',
+    completed_at: '2026-03-02T12:18:45Z',
+    duration: '18m 45s',
+    resources_scanned: 156,
+    total_findings: 89,
+    critical_findings: 1,
+    high_findings: 8,
+    triggered_by: 'scheduler',
+  },
+  {
+    scan_id: 'scan-2026-006-p6q7r8',
+    scan_name: 'Full Scan - Azure',
+    scan_type: 'full',
+    provider: 'azure',
+    account_id: 'sub-456',
+    account_name: 'azure-staging',
+    status: 'pending',
+    started_at: '2026-03-05T15:00:00Z',
+    completed_at: null,
+    duration: '0m 0s',
+    resources_scanned: 0,
+    total_findings: 0,
+    critical_findings: 0,
+    high_findings: 0,
+    triggered_by: 'manual',
+  },
+  {
+    scan_id: 'scan-2026-007-s9t0u1',
+    scan_name: 'Daily Compliance - GCP',
+    scan_type: 'compliance',
+    provider: 'gcp',
+    account_id: 'gcp-project-002',
+    account_name: 'gcp-staging',
+    status: 'completed',
+    started_at: '2026-02-28T09:30:00Z',
+    completed_at: '2026-02-28T09:47:20Z',
+    duration: '17m 20s',
+    resources_scanned: 567,
+    total_findings: 102,
+    critical_findings: 0,
+    high_findings: 7,
+    triggered_by: 'scheduler',
+  },
+  {
+    scan_id: 'scan-2026-008-v2w3x4',
+    scan_name: 'Incremental - All Clouds',
+    scan_type: 'incremental',
+    provider: 'multi',
+    account_id: 'all',
+    account_name: 'all-accounts',
+    status: 'running',
+    started_at: '2026-03-05T13:45:00Z',
+    completed_at: null,
+    duration: '25m 10s',
+    resources_scanned: 2150,
+    total_findings: 0,
+    critical_findings: 0,
+    high_findings: 0,
+    triggered_by: 'scheduler',
+  },
+  {
+    scan_id: 'scan-2026-009-y5z6a7',
+    scan_name: 'Quick Check - AWS',
+    scan_type: 'full',
+    provider: 'aws',
+    account_id: '555666777888',
+    account_name: 'dev-1',
+    status: 'completed',
+    started_at: '2026-02-27T11:15:00Z',
+    completed_at: '2026-02-27T11:33:50Z',
+    duration: '18m 50s',
+    resources_scanned: 234,
+    total_findings: 67,
+    critical_findings: 0,
+    high_findings: 5,
+    triggered_by: 'manual',
+  },
+  {
+    scan_id: 'scan-2026-010-b8c9d0',
+    scan_name: 'Weekly Full - All',
+    scan_type: 'full',
+    provider: 'multi',
+    account_id: 'all',
+    account_name: 'all-accounts',
+    status: 'completed',
+    started_at: '2026-02-26T14:20:00Z',
+    completed_at: '2026-02-26T14:39:25Z',
+    duration: '19m 25s',
+    resources_scanned: 3421,
+    total_findings: 287,
+    critical_findings: 5,
+    high_findings: 31,
+    triggered_by: 'scheduler',
+  },
+];
+
+// Mock scheduled scans
+const MOCK_SCHEDULED_SCANS = [
+  {
+    id: 'schedule-1',
+    name: 'Daily Full Scan - AWS Prod',
+    type: 'full',
+    frequency: 'Every 24h',
+    next_run: '2026-03-06T02:00:00Z',
+    providers: ['aws'],
+    accounts: ['prod-1', 'prod-2'],
+    enabled: true,
+  },
+  {
+    id: 'schedule-2',
+    name: 'Hourly Incremental - AWS',
+    type: 'incremental',
+    frequency: 'Every 1h',
+    next_run: '2026-03-05T15:00:00Z',
+    providers: ['aws'],
+    accounts: ['prod-1', 'staging-1'],
+    enabled: true,
+  },
+  {
+    id: 'schedule-3',
+    name: 'Daily Compliance - All Clouds',
+    type: 'compliance',
+    frequency: 'Every 24h',
+    next_run: '2026-03-06T03:00:00Z',
+    providers: ['aws', 'azure', 'gcp'],
+    accounts: ['all-accounts'],
+    enabled: true,
+  },
+  {
+    id: 'schedule-4',
+    name: 'Weekly IaC Scan',
+    type: 'iac',
+    frequency: 'Every 7d',
+    next_run: '2026-03-12T10:00:00Z',
+    providers: ['aws'],
+    accounts: ['all-accounts'],
+    enabled: true,
+  },
+];
+
+export default function ScansPage() {
+  const router = useRouter();
+  const toast = useToast();
+  const [scans, setScans] = useState(MOCK_SCANS);
+  const [scheduledScans, setScheduledScans] = useState(MOCK_SCHEDULED_SCANS);
+  const [loading, setLoading] = useState(false);
+  const [showRunModal, setShowRunModal] = useState(false);
+  const [selectedAccount, setSelectedAccount] = useState('');
+  const [selectedType, setSelectedType] = useState('full');
+  const [filters, setFilters] = useState({
+    type: '',
+    status: '',
+  });
+
+  const { provider, account, filterSummary } = useGlobalFilter();
+
+  // Scope-filter scans by global provider/account selection
+  const scopeFiltered = useMemo(() => {
+    let d = scans;
+    if (provider) d = d.filter(r => r.provider?.toLowerCase() === provider.toLowerCase());
+    if (account)  d = d.filter(r => !r.account_id || r.account_id === account);
+    return d;
+  }, [scans, provider, account]);
+
+  // Fetch scan history on mount
+  useEffect(() => {
+    const loadScans = async () => {
+      setLoading(true);
+      try {
+        const result = await getFromEngine('gateway', '/api/v1/gateway/scans');
+        if (result.error) {
+          console.warn('Failed to load scans:', result.error);
+        } else if (result.scans) {
+          setScans(result.scans);
+        }
+      } catch (err) {
+        console.warn('Error loading scans:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadScans();
+  }, []);
+
+  const handleRunScan = async () => {
+    if (!selectedAccount || !selectedType) return;
+
+    try {
+      const result = await postToEngine('gateway', '/api/v1/gateway/orchestrate', {
+        account_id: selectedAccount,
+        scan_type: selectedType,
+      });
+
+      if (result.error) {
+        toast.error(`Error: ${result.error}`);
+      } else {
+        const newScan = {
+          scan_id: result.scan_id || `scan-new-${Date.now()}`,
+          scan_name: `${selectedType.charAt(0).toUpperCase() + selectedType.slice(1)} Scan`,
+          scan_type: selectedType,
+          account_id: selectedAccount,
+          account_name: selectedAccount,
+          status: 'pending',
+          started_at: new Date().toISOString(),
+          completed_at: null,
+          duration: '0m 0s',
+          resources_scanned: 0,
+          total_findings: 0,
+          critical_findings: 0,
+          high_findings: 0,
+          triggered_by: 'manual',
+        };
+        setScans([newScan, ...scans]);
+        setShowRunModal(false);
+        setSelectedAccount('');
+        setSelectedType('full');
+      }
+    } catch (err) {
+      toast.error(`Error triggering scan: ${err.message}`);
+    }
+  };
+
+  // Filter scans (local type/status filters applied on top of scopeFiltered)
+  const filteredScans = useMemo(() => {
+    return scopeFiltered.filter((scan) => {
+      if (filters.type && scan.scan_type !== filters.type) return false;
+      if (filters.status && scan.status !== filters.status) return false;
+      return true;
+    });
+  }, [scopeFiltered, filters]);
+
+  // Calculate KPI metrics from scopeFiltered
+  const activeScans = scopeFiltered.filter((s) => s.status === 'running').length;
+  const activeScanCount = scopeFiltered.filter((s) => s.status === 'running' || s.status === 'pending').length;
+  const totalScansCompleted = scopeFiltered.filter((s) => s.status === 'completed').length;
+  const failedScans = scopeFiltered.filter((s) => s.status === 'failed').length;
+  const coverage = scopeFiltered.length > 0
+    ? ((totalScansCompleted / scopeFiltered.length) * 100).toFixed(1)
+    : '0.0';
+  const totalFindings = scopeFiltered.reduce((sum, s) => sum + (s.total_findings || 0), 0);
+  const criticalAssets = scopeFiltered.reduce((sum, s) => sum + (s.critical_findings || 0), 0);
+  const avgDuration = totalScansCompleted > 0
+    ? (
+        scopeFiltered
+          .filter((s) => s.status === 'completed')
+          .reduce((sum, s) => {
+            const match = s.duration.match(/(\d+)m (\d+)s/);
+            if (match) {
+              return sum + parseInt(match[1]) * 60 + parseInt(match[2]);
+            }
+            return sum;
+          }, 0) / totalScansCompleted / 60
+      ).toFixed(0)
+    : 0;
+
+  const types = [
+    { value: 'full', label: 'Full Scan' },
+    { value: 'incremental', label: 'Incremental' },
+    { value: 'compliance', label: 'Compliance' },
+    { value: 'vulnerability', label: 'Vulnerability' },
+    { value: 'iac', label: 'IaC Scan' },
+  ];
+
+  const statuses = [
+    { value: 'completed', label: 'Completed' },
+    { value: 'running', label: 'Running' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'failed', label: 'Failed' },
+  ];
+
+  // Table columns
+  const columns = [
+    {
+      accessorKey: 'scan_name',
+      header: 'Scan Name',
+      cell: (info) => (
+        <span className="font-medium" style={{ color: 'var(--text-primary)' }}>
+          {info.getValue()}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'scan_type',
+      header: 'Type',
+      cell: (info) => (
+        <span
+          className="inline-block px-2 py-1 rounded text-xs font-medium"
+          style={{ color: 'var(--text-secondary)', backgroundColor: 'var(--bg-tertiary)' }}
+        >
+          {(info.getValue() || '').toUpperCase()}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'provider',
+      header: 'Provider',
+      cell: (info) => {
+        const providers = { aws: '🟠', azure: '🔵', gcp: '🔴', multi: '🌐' };
+        return (
+          <span className="font-medium text-sm" style={{ color: 'var(--text-secondary)' }}>
+            {providers[info.getValue()] || ''} {info.getValue().toUpperCase()}
+          </span>
+        );
+      },
+    },
+    {
+      accessorKey: 'account_name',
+      header: 'Account',
+      cell: (info) => (
+        <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+          {info.getValue()}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: (info) => <StatusIndicator status={info.getValue()} />,
+    },
+    {
+      accessorKey: 'started_at',
+      header: 'Started',
+      cell: (info) => {
+        const date = new Date(info.getValue());
+        return (
+          <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+            {date.toLocaleDateString()} {date.toLocaleTimeString()}
+          </span>
+        );
+      },
+    },
+    {
+      accessorKey: 'duration',
+      header: 'Duration',
+      cell: (info) => (
+        <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+          {info.getValue()}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'resources_scanned',
+      header: 'Resources',
+      cell: (info) => (
+        <span className="font-medium" style={{ color: 'var(--text-primary)' }}>
+          {info.getValue()}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'total_findings',
+      header: 'Findings',
+      cell: (info) => {
+        const total = info.getValue();
+        return (
+          <div className="flex items-center gap-1">
+            <span style={{ color: 'var(--text-primary)' }} className="font-semibold">
+              {total}
+            </span>
+            {total > 0 && (
+              <span style={{ color: 'var(--text-tertiary)' }} className="text-xs">
+                (
+                {info.row.original.critical_findings > 0 && `${info.row.original.critical_findings}C `}
+                {info.row.original.high_findings > 0 && `${info.row.original.high_findings}H`})
+              </span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: 'triggered_by',
+      header: 'Triggered By',
+      cell: (info) => (
+        <span
+          className="text-xs px-2 py-1 rounded"
+          style={{
+            backgroundColor: (info.getValue() || '') === 'scheduler' ? 'var(--bg-tertiary)' : 'var(--accent-primary)',
+            color: (info.getValue() || '') === 'scheduler' ? 'var(--text-secondary)' : 'white',
+          }}
+        >
+          {((info.getValue() || '').charAt(0).toUpperCase() + (info.getValue() || '').slice(1))}
+        </span>
+      ),
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold" style={{ color: 'var(--text-primary)' }}>
+            Scan Management
+          </h1>
+          {filterSummary && (
+            <p className="text-xs mt-0.5 mb-2" style={{ color: 'var(--text-tertiary)' }}>
+              <span style={{ color: 'var(--accent-primary)' }}>Filtered to:</span>{' '}
+              <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{filterSummary}</span>
+            </p>
+          )}
+          <p className="mt-1" style={{ color: 'var(--text-tertiary)' }}>
+            Monitor and manage cloud discovery and compliance scans
+          </p>
+        </div>
+        <button
+          onClick={() => setShowRunModal(true)}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors text-white"
+          style={{ backgroundColor: 'var(--accent-primary)' }}
+        >
+          <Play className="w-4 h-4" />
+          Run New Scan
+        </button>
+      </div>
+
+      {/* Metric Strip */}
+      <MetricStrip groups={[
+        {
+          label: '🔵 SCAN HEALTH',
+          color: 'var(--accent-primary)',
+          cells: [
+            { label: 'ACTIVE SCANS', value: activeScans, context: 'currently running' },
+            { label: 'COVERAGE', value: coverage + '%', valueColor: 'var(--accent-success)', context: 'assets covered' },
+            { label: 'FAILED SCANS', value: failedScans, valueColor: 'var(--accent-danger)', deltaGoodDown: true, context: 'last 30 days' },
+          ],
+        },
+        {
+          label: '🔴 FINDINGS',
+          color: 'var(--accent-danger)',
+          cells: [
+            { label: 'TOTAL FOUND', value: totalFindings, delta: +34, deltaGoodDown: true, context: 'vs prev scan' },
+            { label: 'CRITICAL ASSETS', value: criticalAssets, valueColor: 'var(--severity-critical)', noTrend: true, context: 'from last scan' },
+            { label: 'AVG DURATION', value: avgDuration + 'm', noTrend: true, context: 'last 30 scans' },
+          ],
+        },
+      ]} />
+
+      {/* Scan Pipeline Stepper */}
+      <div className="rounded-xl p-6 border transition-colors duration-200" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+        <h2 className="text-lg font-semibold mb-5" style={{ color: 'var(--text-primary)' }}>Scan Pipeline</h2>
+        <div className="flex items-start gap-0 overflow-x-auto">
+          {[
+            { name: 'Discovery', desc: 'Enumerate cloud resources', time: '4m 12s', status: 'done',    color: '#22c55e' },
+            { name: 'Check',     desc: 'Evaluate compliance rules', time: '6m 45s', status: 'done',    color: '#22c55e' },
+            { name: 'Inventory', desc: 'Normalize & relate assets',  time: '2m 08s', status: 'done',    color: '#22c55e' },
+            { name: 'Threat',    desc: 'Detect threats & map MITRE', time: '3m 31s', status: 'running', color: '#f97316' },
+            { name: 'Compliance',desc: 'Build framework reports',    time: '—',      status: 'queued',  color: '#6b7280' },
+          ].map((step, idx, arr) => (
+            <div key={step.name} className="flex items-start flex-shrink-0" style={{ minWidth: 160 }}>
+              <div className="flex flex-col items-center" style={{ width: 160 }}>
+                <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border-2 flex-shrink-0"
+                  style={{ backgroundColor: step.color + '20', borderColor: step.color, color: step.color }}>
+                  {step.status === 'done' ? '✓' : step.status === 'running' ? '⟳' : idx + 1}
+                </div>
+                <p className="text-xs font-bold mt-2 text-center" style={{ color: 'var(--text-primary)' }}>{step.name}</p>
+                <p className="text-xs mt-0.5 text-center" style={{ color: 'var(--text-tertiary)' }}>{step.desc}</p>
+                <span className="text-xs mt-1 px-2 py-0.5 rounded-full"
+                  style={{ backgroundColor: step.color + '20', color: step.color }}>{step.time}</span>
+              </div>
+              {idx < arr.length - 1 && (
+                <div className="flex-1 h-0.5 mt-5 mx-1 flex-shrink-0" style={{ backgroundColor: arr[idx + 1].status === 'queued' ? 'var(--bg-tertiary)' : '#22c55e', minWidth: 20 }} />
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Coverage Heatmap by Provider × Service */}
+      <div className="rounded-xl p-6 border transition-colors duration-200" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+        <h2 className="text-lg font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>Coverage Heatmap</h2>
+        <p className="text-sm mb-5" style={{ color: 'var(--text-tertiary)' }}>Scan coverage % by provider × service (green ≥80%, amber 50-79%, red &lt;50%)</p>
+        {(() => {
+          const services  = ['Compute', 'Storage', 'Database', 'IAM', 'Network'];
+          const providers = [
+            { name: 'AWS',   scores: [95, 92, 88, 97, 85] },
+            { name: 'Azure', scores: [82, 79, 74, 88, 71] },
+            { name: 'GCP',   scores: [0,  0,  0,  0,  0], expired: true },
+            { name: 'OCI',   scores: [68, 55, 61, 72, 58] },
+          ];
+          const cellBg = (s, exp) => {
+            if (exp) return '#3f3f4620';
+            if (s >= 80) return '#22c55e20';
+            if (s >= 50) return '#eab30820';
+            return '#ef444420';
+          };
+          const cellText = (s, exp) => {
+            if (exp) return '#6b7280';
+            if (s >= 80) return '#22c55e';
+            if (s >= 50) return '#eab308';
+            return '#ef4444';
+          };
+          return (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr>
+                    <th className="text-left py-2 px-3 text-xs font-semibold" style={{ color: 'var(--text-tertiary)' }}>Provider</th>
+                    {services.map(s => (
+                      <th key={s} className="py-2 px-3 text-center text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>{s}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {providers.map(p => (
+                    <tr key={p.name}>
+                      <td className="py-2 px-3 font-semibold text-xs" style={{ color: 'var(--text-primary)' }}>{p.name}</td>
+                      {p.scores.map((score, si) => (
+                        <td key={si} className="py-2 px-3 text-center">
+                          {p.expired ? (
+                            <span className="text-xs px-2 py-1 rounded" style={{ backgroundColor: cellBg(score, true), color: cellText(score, true) }}>
+                              N/A
+                            </span>
+                          ) : (
+                            <span className="text-xs font-bold px-2 py-1 rounded" style={{ backgroundColor: cellBg(score), color: cellText(score) }}>
+                              {score}%
+                            </span>
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="text-xs mt-2" style={{ color: 'var(--text-tertiary)' }}>* GCP: No Data — credentials expired. Reconnect in Cloud Accounts settings.</p>
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* Scheduled Scans */}
+      <div
+        className="rounded-lg p-6 border"
+        style={{
+          backgroundColor: 'var(--bg-card)',
+          borderColor: 'var(--border-primary)',
+        }}
+      >
+        <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
+          Scheduled Scans
+        </h2>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr style={{ borderBottomColor: 'var(--border-primary)' }} className="border-b">
+                <th
+                  className="text-left py-3 px-4 font-semibold"
+                  style={{ color: 'var(--text-secondary)' }}
+                >
+                  Scan Name
+                </th>
+                <th
+                  className="text-left py-3 px-4 font-semibold"
+                  style={{ color: 'var(--text-secondary)' }}
+                >
+                  Type
+                </th>
+                <th
+                  className="text-left py-3 px-4 font-semibold"
+                  style={{ color: 'var(--text-secondary)' }}
+                >
+                  Frequency
+                </th>
+                <th
+                  className="text-left py-3 px-4 font-semibold"
+                  style={{ color: 'var(--text-secondary)' }}
+                >
+                  Next Run
+                </th>
+                <th
+                  className="text-left py-3 px-4 font-semibold"
+                  style={{ color: 'var(--text-secondary)' }}
+                >
+                  Providers
+                </th>
+                <th
+                  className="text-left py-3 px-4 font-semibold"
+                  style={{ color: 'var(--text-secondary)' }}
+                >
+                  Status
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {scheduledScans.map((schedule) => (
+                <tr
+                  key={schedule.id}
+                  style={{ borderBottomColor: 'var(--border-primary)' }}
+                  className="border-b"
+                >
+                  <td className="py-3 px-4" style={{ color: 'var(--text-secondary)' }}>
+                    {schedule.name}
+                  </td>
+                  <td
+                    className="py-3 px-4 text-xs px-2 py-1 rounded font-medium inline-block"
+                    style={{
+                      backgroundColor: 'var(--bg-tertiary)',
+                      color: 'var(--text-secondary)',
+                    }}
+                  >
+                    {(schedule.type || '').toUpperCase()}
+                  </td>
+                  <td className="py-3 px-4" style={{ color: 'var(--text-tertiary)' }}>
+                    {schedule.frequency}
+                  </td>
+                  <td className="py-3 px-4" style={{ color: 'var(--text-secondary)' }}>
+                    {schedule.next_run ? new Date(schedule.next_run).toLocaleString() : 'N/A'}
+                  </td>
+                  <td className="py-3 px-4">
+                    <div className="flex gap-1">
+                      {(schedule.providers || []).map((p) => (
+                        <span
+                          key={p}
+                          className="px-2 py-1 rounded text-xs font-medium"
+                          style={{
+                            backgroundColor: 'var(--bg-tertiary)',
+                            color: 'var(--text-secondary)',
+                          }}
+                        >
+                          {p.toUpperCase()}
+                        </span>
+                      ))}
+                    </div>
+                  </td>
+                  <td className="py-3 px-4">
+                    <input
+                      type="checkbox"
+                      checked={schedule.enabled}
+                      readOnly
+                      className="rounded"
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Active Scans */}
+      {activeScanCount > 0 && (
+        <div
+          className="rounded-lg p-6 border"
+          style={{
+            backgroundColor: 'var(--bg-card)',
+            borderColor: 'var(--border-primary)',
+          }}
+        >
+          <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
+            Active Scans
+          </h2>
+          <div className="space-y-4">
+            {scans
+              .filter((s) => s.status === 'running' || s.status === 'pending')
+              .map((scan) => (
+                <div
+                  key={scan.scan_id}
+                  className="rounded-lg p-4 border"
+                  style={{
+                    backgroundColor: 'var(--bg-tertiary)',
+                    borderColor: 'var(--border-primary)',
+                  }}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <h3 className="font-semibold" style={{ color: 'var(--text-primary)' }}>
+                        {scan.scan_name}
+                      </h3>
+                      <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
+                        Started {scan.started_at ? new Date(scan.started_at).toLocaleString() : 'N/A'}
+                      </p>
+                    </div>
+                    <StatusIndicator status={scan.status} />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span style={{ color: 'var(--text-secondary)' }}>
+                        {scan.resources_scanned} / ~{Math.floor(scan.resources_scanned * 1.3)} resources
+                      </span>
+                      <span style={{ color: 'var(--text-tertiary)' }}>{scan.duration}</span>
+                    </div>
+                    <div
+                      className="w-full h-2 rounded-full overflow-hidden"
+                      style={{ backgroundColor: 'var(--bg-secondary)' }}
+                    >
+                      <div
+                        className="h-full bg-blue-500"
+                        style={{
+                          width: `${(scan.resources_scanned / (scan.resources_scanned * 1.3)) * 100}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
+      {/* Filters */}
+      <FilterBar
+        filters={[
+          { key: 'type', label: 'Scan Type', options: types },
+          { key: 'status', label: 'Status', options: statuses },
+        ]}
+        onFilterChange={(key, value) => {
+          setFilters({ ...filters, [key]: value });
+        }}
+        activeFilters={filters}
+      />
+
+      {/* Scan History Table */}
+      <div
+        className="rounded-lg p-6 border"
+        style={{
+          backgroundColor: 'var(--bg-card)',
+          borderColor: 'var(--border-primary)',
+        }}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+            Scan History
+          </h2>
+          <span style={{ color: 'var(--text-tertiary)' }} className="text-sm">
+            {filteredScans.length} of {scans.length} scans
+          </span>
+        </div>
+        <DataTable
+          data={filteredScans}
+          columns={columns}
+          pageSize={15}
+          onRowClick={(scan) => router.push(`/scans/${scan.scan_id}`)}
+          loading={loading}
+          emptyMessage="No scans found matching your filters"
+        />
+      </div>
+
+      {/* Run Scan Modal */}
+      {showRunModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div
+            className="rounded-lg border p-6 max-w-md w-full mx-4"
+            style={{
+              backgroundColor: 'var(--bg-card)',
+              borderColor: 'var(--border-primary)',
+            }}
+          >
+            <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
+              Run New Scan
+            </h3>
+
+            <div className="space-y-4">
+              <div>
+                <label
+                  className="block text-sm font-medium mb-2"
+                  style={{ color: 'var(--text-secondary)' }}
+                >
+                  Scan Type
+                </label>
+                <select
+                  value={selectedType}
+                  onChange={(e) => setSelectedType(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
+                  style={{
+                    backgroundColor: 'var(--bg-tertiary)',
+                    borderColor: 'var(--border-primary)',
+                    color: 'var(--text-primary)',
+                  }}
+                >
+                  <option value="full">Full Scan</option>
+                  <option value="incremental">Incremental Scan</option>
+                  <option value="compliance">Compliance Scan</option>
+                  <option value="vulnerability">Vulnerability Scan</option>
+                  <option value="iac">IaC Scan</option>
+                </select>
+              </div>
+
+              <div>
+                <label
+                  className="block text-sm font-medium mb-2"
+                  style={{ color: 'var(--text-secondary)' }}
+                >
+                  Select Account
+                </label>
+                <select
+                  value={selectedAccount}
+                  onChange={(e) => setSelectedAccount(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
+                  style={{
+                    backgroundColor: 'var(--bg-tertiary)',
+                    borderColor: 'var(--border-primary)',
+                    color: 'var(--text-primary)',
+                  }}
+                >
+                  <option value="">Choose an account...</option>
+                  {Array.from(new Set(scans.map((s) => s.account_id).filter(Boolean)))
+                    .filter((a) => a && a !== 'all')
+                    .map((account) => (
+                      <option key={account} value={account}>
+                        {account}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div>
+                <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                  This will trigger discovery, checks, inventory, threat detection, and compliance evaluation across all selected accounts and resources.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowRunModal(false)}
+                className="flex-1 px-4 py-2 rounded-lg font-medium transition-colors"
+                style={{
+                  backgroundColor: 'var(--bg-tertiary)',
+                  color: 'var(--text-primary)',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRunScan}
+                disabled={!selectedAccount}
+                className="flex-1 px-4 py-2 text-white rounded-lg font-medium transition-colors"
+                style={{
+                  backgroundColor: !selectedAccount ? 'var(--text-tertiary)' : 'var(--accent-primary)',
+                  opacity: !selectedAccount ? 0.5 : 1,
+                  cursor: !selectedAccount ? 'not-allowed' : 'pointer',
+                }}
+              >
+                Start Scan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -9,29 +9,29 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install dependencies
-COPY engine_check/requirements.txt ./requirements.txt
+COPY engines/check/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # ── Common layer (CSP-agnostic) ───────────────────────────────────────────────
-COPY engine_check/common/ ./common/
+COPY engines/check/common/ ./common/
 
 # ── Providers layer (CSP-specific evaluators) ─────────────────────────────────
-COPY engine_check/providers/ ./providers/
+COPY engines/check/providers/ ./providers/
 
 # ── Legacy engine_check_aws (YAML rule files, utils, config) ──────────────────
 # The check engine loads YAML check/discovery definitions from:
 #   engine_check/engine_check_aws/services/<service>/checks/
 #   engine_check/engine_check_aws/services/<service>/discoveries/
 # Keep these available so the engine can merge YAML base rules with DB rules.
-COPY engine_check/engine_check_aws/services/ ./engine_check/engine_check_aws/services/
-COPY engine_check/engine_check_aws/utils/    ./engine_check/engine_check_aws/utils/
-COPY engine_check/engine_check_aws/config/   ./engine_check/engine_check_aws/config/
+COPY engines/check/engine_check_aws/services/ ./engine_check/engine_check_aws/services/
+COPY engines/check/engine_check_aws/utils/    ./engine_check/engine_check_aws/utils/
+COPY engines/check/engine_check_aws/config/   ./engine_check/engine_check_aws/config/
 
-# ── Shared utilities ──────────────────────────────────────────────────────────
-COPY engine_common/ ./engine_common/
+# ── Shared utilities (destination matches Python imports: engine_common.*) ────
+COPY shared/common/ ./engine_common/
 
 # ── Consolidated services (orchestration_client) ──────────────────────────────
-COPY consolidated_services/database/ ./consolidated_services/database/
+COPY shared/database/ ./consolidated_services/database/
 RUN echo "# consolidated_services package" > ./consolidated_services/__init__.py
 
 # ── Python path ───────────────────────────────────────────────────────────────

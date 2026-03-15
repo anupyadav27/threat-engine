@@ -1,0 +1,50 @@
+# ── Frontend ingress — NO rewrite, pass /ui/... as-is to Next.js ──────────────
+# Next.js basePath='/ui' requires the full /ui prefix to reach the server
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cspm-frontend-ingress
+  namespace: threat-engine-engines
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
+spec:
+  ingressClassName: nginx
+  rules:
+  - http:
+      paths:
+      - path: /ui
+        pathType: Prefix
+        backend:
+          service:
+            name: cspm-frontend
+            port:
+              number: 80
+---
+# ── Backend ingress — strip /cspm prefix before forwarding to Django ──────────
+# Django URL patterns are at root level (/health, /api/..., /auth/...)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cspm-backend-ingress
+  namespace: threat-engine-engines
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
+spec:
+  ingressClassName: nginx
+  rules:
+  - http:
+      paths:
+      - path: /cspm(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: cspm-backend
+            port:
+              number: 80

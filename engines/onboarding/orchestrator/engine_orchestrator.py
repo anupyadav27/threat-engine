@@ -16,7 +16,7 @@ import httpx
 import sys
 import os
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Add common to path for logger import
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -155,7 +155,7 @@ class EngineOrchestrator:
                 "tenant_id": tenant_id,
                 "account_id": account_id,
                 "provider_type": provider_type,
-                "orchestration_started_at": datetime.utcnow().isoformat(),
+                "orchestration_started_at": datetime.now(timezone.utc).isoformat(),
                 "mode": "sqs",
                 "status": "queued",
                 "message": "Pipeline handed off to SQS worker — poll scan_orchestration for status.",
@@ -170,7 +170,7 @@ class EngineOrchestrator:
             "tenant_id": tenant_id,
             "account_id": account_id,
             "provider_type": provider_type,
-            "orchestration_started_at": datetime.utcnow().isoformat(),
+            "orchestration_started_at": datetime.now(timezone.utc).isoformat(),
             "engines": {}
         }
 
@@ -328,7 +328,7 @@ class EngineOrchestrator:
         except Exception as e:
             logger.error(f"Failed to mark orchestration complete: {e}")
 
-        results["orchestration_completed_at"] = datetime.utcnow().isoformat()
+        results["orchestration_completed_at"] = datetime.now(timezone.utc).isoformat()
         results["orchestration_status"] = overall_status
         return results
 
@@ -362,7 +362,7 @@ class EngineOrchestrator:
         except Exception as e:
             with LogContext(tenant_id=tenant_id, scan_run_id=orchestration_id):
                 logger.error("Failed to trigger check engine", exc_info=True, extra={
-                    "extra_fields": {"error": str(e), "engine": "check", "discovery_scan_id": discovery_scan_id}
+                    "extra_fields": {"error": str(e), "engine": "check", "orchestration_id": orchestration_id}
                 })
             update_orchestration_status(orchestration_id, "check", "failed", error=str(e))
             raise
@@ -391,8 +391,8 @@ class EngineOrchestrator:
                         "accounts": [],
                         "regions": [],
                         "services": [],
-                        "started_at": datetime.utcnow().isoformat(),
-                        "completed_at": datetime.utcnow().isoformat()
+                        "started_at": datetime.now(timezone.utc).isoformat(),
+                        "completed_at": datetime.now(timezone.utc).isoformat()
                     }
                 )
                 response.raise_for_status()

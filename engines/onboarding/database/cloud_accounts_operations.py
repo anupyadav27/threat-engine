@@ -3,7 +3,7 @@ Database operations for cloud_accounts table
 """
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 import json
 
@@ -55,8 +55,8 @@ def create_cloud_account(account_data: Dict[str, Any]) -> Dict[str, Any]:
             account_status,
             account_onboarding_status,
             'pending',
-            datetime.utcnow(),
-            datetime.utcnow()
+            datetime.now(timezone.utc),
+            datetime.now(timezone.utc)
         ))
 
         account = dict(cur.fetchone())
@@ -148,7 +148,7 @@ def update_cloud_account(account_id: str, updates: Dict[str, Any]) -> Optional[D
         # Add updated_at
         if 'updated_at' not in updates:
             set_clauses.append("updated_at = %s")
-            params.append(datetime.utcnow())
+            params.append(datetime.now(timezone.utc))
 
         params.append(account_id)
 

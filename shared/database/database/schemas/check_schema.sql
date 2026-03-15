@@ -47,10 +47,10 @@ CREATE TABLE IF NOT EXISTS check_findings (
     rule_id VARCHAR(255) NOT NULL,
     service VARCHAR(100),
     discovery_id VARCHAR(255),
-    resource_uid TEXT,
-    resource_arn TEXT,
+    resource_uid TEXT,                -- Canonical identifier (ARN for AWS, ARM ID for Azure, etc.)
     resource_id VARCHAR(255),
     resource_type VARCHAR(100),
+    resource_service VARCHAR(100),
     region VARCHAR(50),
     status VARCHAR(50) NOT NULL,
     checked_fields JSONB,
@@ -89,6 +89,7 @@ CREATE TABLE IF NOT EXISTS rule_metadata (
     service VARCHAR(100) NOT NULL,
     provider VARCHAR(50) NOT NULL DEFAULT 'aws',
     resource VARCHAR(100),
+    resource_service VARCHAR(100),
     severity VARCHAR(20) NOT NULL DEFAULT 'medium',
     title TEXT NOT NULL,
     description TEXT,
@@ -165,7 +166,6 @@ CREATE INDEX IF NOT EXISTS idx_cf_tenant ON check_findings(tenant_id, hierarchy_
 CREATE INDEX IF NOT EXISTS idx_cf_status ON check_findings(status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_cf_rule_id ON check_findings(rule_id, status);
 CREATE INDEX IF NOT EXISTS idx_cf_resource_uid ON check_findings(resource_uid);
-CREATE INDEX IF NOT EXISTS idx_cf_resource_arn ON check_findings(resource_arn);
 CREATE INDEX IF NOT EXISTS idx_cf_tenant_uid ON check_findings(tenant_id, resource_uid);
 
 CREATE INDEX IF NOT EXISTS idx_rc_service ON rule_checks(service, provider, check_type);
@@ -180,6 +180,8 @@ CREATE INDEX IF NOT EXISTS idx_rule_metadata_threat_category ON rule_metadata(th
 CREATE INDEX IF NOT EXISTS idx_rule_metadata_risk_score ON rule_metadata(risk_score DESC);
 
 CREATE INDEX IF NOT EXISTS idx_cf_finding_data_gin ON check_findings USING gin(finding_data);
+CREATE INDEX IF NOT EXISTS idx_cf_resource_service ON check_findings(resource_service);
+CREATE INDEX IF NOT EXISTS idx_rm_resource_service ON rule_metadata(resource_service);
 
 -- ============================================================================
 -- COMMENTS

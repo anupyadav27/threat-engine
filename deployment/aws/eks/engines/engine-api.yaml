@@ -1,0 +1,100 @@
+## ============================================================
+## API Security Engine — Kubernetes Manifest — Task 4.8
+## Port: 8021 | Layer: 1 (post-discoveries)
+## ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: engine-api
+  namespace: threat-engine-engines
+  labels:
+    app: engine-api
+    tier: layer-1
+    engine: api-security
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: engine-api
+  template:
+    metadata:
+      labels:
+        app: engine-api
+        tier: layer-1
+        engine: api-security
+    spec:
+      containers:
+        - name: engine-api
+          image: yadavanup84/engine-api:v1.0
+          ports:
+            - containerPort: 8021
+              protocol: TCP
+          env:
+            - name: API_DB_NAME
+              value: "threat_engine_api"
+            - name: DISCOVERY_DB_NAME
+              value: "threat_engine_discoveries"
+            - name: LOG_DB_NAME
+              value: "threat_engine_logs"
+            - name: ONBOARDING_DB_NAME
+              value: "threat_engine_onboarding"
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: db-host
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: db-port
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: external-secret-db-passwords
+                  key: db-user
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: external-secret-db-passwords
+                  key: db-password
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health/live
+              port: 8021
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health/ready
+              port: 8021
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+      restartPolicy: Always
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: engine-api
+  namespace: threat-engine-engines
+  labels:
+    app: engine-api
+spec:
+  type: ClusterIP
+  selector:
+    app: engine-api
+  ports:
+    - port: 8021
+      targetPort: 8021
+      protocol: TCP
+      name: http

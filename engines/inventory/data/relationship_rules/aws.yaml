@@ -1,0 +1,869 @@
+# AWS relationship rules — single source of truth (no hardcoding in Python)
+# Run load_relationship_rules_to_db.py to sync to resource_relationship_rules table
+
+csp: aws
+
+rules:
+  - from_resource_type: ec2.instance
+    relation_type: attached_to
+    to_resource_type: ec2.security-group
+    source_field: "SecurityGroups"
+    source_field_item: "GroupId"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:security-group/{GroupId}"
+
+  - from_resource_type: ec2.instance
+    relation_type: contained_by
+    to_resource_type: ec2.subnet
+    source_field: "SubnetId"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:subnet/{SubnetId}"
+
+  - from_resource_type: ec2.instance
+    relation_type: contained_by
+    to_resource_type: ec2.vpc
+    source_field: "VpcId"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:vpc/{VpcId}"
+
+  - from_resource_type: ec2.instance
+    relation_type: uses
+    to_resource_type: iam.instance-profile
+    source_field: "IamInstanceProfile.Arn"
+    target_uid_pattern: "{IamInstanceProfile.Arn}"
+
+  - from_resource_type: ec2.instance
+    relation_type: attached_to
+    to_resource_type: ec2.network-interface
+    source_field: "NetworkInterfaces"
+    source_field_item: "NetworkInterfaceId"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:network-interface/{NetworkInterfaceId}"
+
+  - from_resource_type: ec2.instance
+    relation_type: attached_to
+    to_resource_type: ec2.volume
+    source_field: "BlockDeviceMappings"
+    source_field_item: "Ebs.VolumeId"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:volume/{VolumeId}"
+
+  - from_resource_type: ec2.instance
+    relation_type: encrypted_by
+    to_resource_type: kms.key
+    source_field: "BlockDeviceMappings"
+    source_field_item: "Ebs.KmsKeyId"
+    target_uid_pattern: "{KmsKeyId}"
+
+  - from_resource_type: ec2.instance
+    relation_type: runs_on
+    to_resource_type: ec2.image
+    source_field: "ImageId"
+    target_uid_pattern: "arn:aws:ec2:{region}::image/{ImageId}"
+
+  - from_resource_type: ec2.instance
+    relation_type: member_of
+    to_resource_type: ec2.placement-group
+    source_field: "Placement.GroupName"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:placement-group/{GroupName}"
+
+  - from_resource_type: ec2.volume
+    relation_type: encrypted_by
+    to_resource_type: kms.key
+    source_field: "KmsKeyId"
+    target_uid_pattern: "{KmsKeyId}"
+
+  - from_resource_type: ec2.volume
+    relation_type: contained_by
+    to_resource_type: ec2.snapshot
+    source_field: "SnapshotId"
+    target_uid_pattern: "arn:aws:ec2:{region}::snapshot/{SnapshotId}"
+
+  - from_resource_type: ec2.subnet
+    relation_type: contained_by
+    to_resource_type: ec2.vpc
+    source_field: "VpcId"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:vpc/{VpcId}"
+
+  - from_resource_type: ec2.subnet
+    relation_type: routes_to
+    to_resource_type: ec2.route-table
+    source_field: "RouteTableId"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:route-table/{RouteTableId}"
+
+  - from_resource_type: ec2.subnet
+    relation_type: attached_to
+    to_resource_type: ec2.network-acl
+    source_field: "NetworkAclId"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:network-acl/{NetworkAclId}"
+
+  - from_resource_type: ec2.vpc
+    relation_type: attached_to
+    to_resource_type: ec2.internet-gateway
+    source_field: "InternetGatewayId"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:internet-gateway/{InternetGatewayId}"
+
+  - from_resource_type: ec2.vpc
+    relation_type: attached_to
+    to_resource_type: ec2.dhcp-options
+    source_field: "DhcpOptionsId"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:dhcp-options/{DhcpOptionsId}"
+
+  - from_resource_type: ec2.vpc-peering-connection
+    relation_type: connected_to
+    to_resource_type: ec2.vpc
+    source_field: "RequesterVpcInfo.VpcId"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:vpc/{VpcId}"
+
+  - from_resource_type: ec2.vpc-peering-connection
+    relation_type: connected_to
+    to_resource_type: ec2.vpc
+    source_field: "AccepterVpcInfo.VpcId"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:vpc/{VpcId}"
+
+  - from_resource_type: ec2.transit-gateway-attachment
+    relation_type: connected_to
+    to_resource_type: ec2.vpc
+    source_field: "VpcId"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:vpc/{VpcId}"
+
+  - from_resource_type: ec2.transit-gateway-attachment
+    relation_type: attached_to
+    to_resource_type: ec2.transit-gateway
+    source_field: "TransitGatewayId"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:transit-gateway/{TransitGatewayId}"
+
+  - from_resource_type: ec2.security-group
+    relation_type: contained_by
+    to_resource_type: ec2.vpc
+    source_field: "VpcId"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:vpc/{VpcId}"
+
+  - from_resource_type: ec2.network-acl
+    relation_type: contained_by
+    to_resource_type: ec2.vpc
+    source_field: "VpcId"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:vpc/{VpcId}"
+
+  - from_resource_type: ec2.network-acl
+    relation_type: associated_with
+    to_resource_type: ec2.subnet
+    source_field: "Associations"
+    source_field_item: "SubnetId"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:subnet/{SubnetId}"
+
+  - from_resource_type: ec2.load-balancer
+    relation_type: contained_by
+    to_resource_type: ec2.vpc
+    source_field: "VpcId"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:vpc/{VpcId}"
+
+  - from_resource_type: ec2.load-balancer
+    relation_type: attached_to
+    to_resource_type: ec2.security-group
+    source_field: "SecurityGroups"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:security-group/{item}"
+
+  - from_resource_type: ec2.load-balancer
+    relation_type: attached_to
+    to_resource_type: ec2.subnet
+    source_field: "AvailabilityZones"
+    source_field_item: "SubnetId"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:subnet/{SubnetId}"
+
+  - from_resource_type: lambda.function
+    relation_type: uses
+    to_resource_type: iam.role
+    source_field: "Role"
+    target_uid_pattern: "{Role}"
+
+  - from_resource_type: lambda.function
+    relation_type: contained_by
+    to_resource_type: ec2.vpc
+    source_field: "VpcConfig.VpcId"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:vpc/{VpcId}"
+
+  - from_resource_type: lambda.function
+    relation_type: attached_to
+    to_resource_type: ec2.subnet
+    source_field: "VpcConfig.SubnetIds"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:subnet/{item}"
+
+  - from_resource_type: lambda.function
+    relation_type: attached_to
+    to_resource_type: ec2.security-group
+    source_field: "VpcConfig.SecurityGroupIds"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:security-group/{item}"
+
+  - from_resource_type: lambda.function
+    relation_type: encrypted_by
+    to_resource_type: kms.key
+    source_field: "KMSKeyArn"
+    target_uid_pattern: "{KMSKeyArn}"
+
+  - from_resource_type: lambda.function
+    relation_type: logging_enabled_to
+    to_resource_type: logs.log-group
+    source_field: "FunctionName"
+    target_uid_pattern: "arn:aws:logs:{region}:{account_id}:log-group:/aws/lambda/{FunctionName}"
+
+  - from_resource_type: lambda.function
+    relation_type: uses
+    to_resource_type: efs.file-system
+    source_field: "FileSystemConfigs"
+    source_field_item: "Arn"
+    target_uid_pattern: "{Arn}"
+
+  - from_resource_type: lambda.function
+    relation_type: uses
+    to_resource_type: lambda.layer-version
+    source_field: "Layers"
+    source_field_item: "Arn"
+    target_uid_pattern: "{Arn}"
+
+  - from_resource_type: rds.db-instance
+    relation_type: contained_by
+    to_resource_type: ec2.vpc
+    source_field: "DBSubnetGroup.VpcId"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:vpc/{VpcId}"
+
+  - from_resource_type: rds.db-instance
+    relation_type: attached_to
+    to_resource_type: ec2.security-group
+    source_field: "VpcSecurityGroups"
+    source_field_item: "VpcSecurityGroupId"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:security-group/{VpcSecurityGroupId}"
+
+  - from_resource_type: rds.db-instance
+    relation_type: encrypted_by
+    to_resource_type: kms.key
+    source_field: "KmsKeyId"
+    target_uid_pattern: "{KmsKeyId}"
+
+  - from_resource_type: rds.db-instance
+    relation_type: member_of
+    to_resource_type: rds.db-cluster
+    source_field: "DBClusterIdentifier"
+    target_uid_pattern: "arn:aws:rds:{region}:{account_id}:cluster:{DBClusterIdentifier}"
+
+  - from_resource_type: rds.db-instance
+    relation_type: uses
+    to_resource_type: iam.role
+    source_field: "AssociatedRoles"
+    source_field_item: "RoleArn"
+    target_uid_pattern: "{RoleArn}"
+
+  - from_resource_type: rds.db-cluster
+    relation_type: contained_by
+    to_resource_type: ec2.vpc
+    source_field: "DBSubnetGroup.VpcId"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:vpc/{VpcId}"
+
+  - from_resource_type: rds.db-cluster
+    relation_type: attached_to
+    to_resource_type: ec2.security-group
+    source_field: "VpcSecurityGroups"
+    source_field_item: "VpcSecurityGroupId"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:security-group/{VpcSecurityGroupId}"
+
+  - from_resource_type: rds.db-cluster
+    relation_type: encrypted_by
+    to_resource_type: kms.key
+    source_field: "KmsKeyId"
+    target_uid_pattern: "{KmsKeyId}"
+
+  - from_resource_type: s3.bucket
+    relation_type: encrypted_by
+    to_resource_type: kms.key
+    source_field: "ServerSideEncryptionConfiguration.Rules.ApplyServerSideEncryptionByDefault.KMSMasterKeyID"
+    target_uid_pattern: "{KMSMasterKeyID}"
+
+  - from_resource_type: s3.bucket
+    relation_type: logging_enabled_to
+    to_resource_type: s3.bucket
+    source_field: "LoggingEnabled.TargetBucket"
+    target_uid_pattern: "arn:aws:s3:::{TargetBucket}"
+
+  - from_resource_type: s3.bucket
+    relation_type: replicates_to
+    to_resource_type: s3.bucket
+    source_field: "ReplicationConfiguration.Rules.Destination.Bucket"
+    target_uid_pattern: "{Bucket}"
+
+  - from_resource_type: iam.role
+    relation_type: member_of
+    to_resource_type: iam.instance-profile
+    source_field: "InstanceProfileArns"
+    target_uid_pattern: "{item}"
+
+  - from_resource_type: iam.instance-profile
+    relation_type: uses
+    to_resource_type: iam.role
+    source_field: "Roles"
+    source_field_item: "Arn"
+    target_uid_pattern: "{Arn}"
+
+  - from_resource_type: iam.user
+    relation_type: member_of
+    to_resource_type: iam.group
+    source_field: "Groups"
+    source_field_item: "Arn"
+    target_uid_pattern: "{Arn}"
+
+  - from_resource_type: iam.role
+    relation_type: has_policy
+    to_resource_type: iam.policy
+    source_field: "AttachedPolicies"
+    source_field_item: "PolicyArn"
+    target_uid_pattern: "{PolicyArn}"
+
+  - from_resource_type: iam.user
+    relation_type: has_policy
+    to_resource_type: iam.policy
+    source_field: "AttachedPolicies"
+    source_field_item: "PolicyArn"
+    target_uid_pattern: "{PolicyArn}"
+
+  - from_resource_type: iam.group
+    relation_type: has_policy
+    to_resource_type: iam.policy
+    source_field: "AttachedPolicies"
+    source_field_item: "PolicyArn"
+    target_uid_pattern: "{PolicyArn}"
+
+  - from_resource_type: kms.key
+    relation_type: contained_by
+    to_resource_type: kms.custom-key-store
+    source_field: "CustomKeyStoreId"
+    target_uid_pattern: "arn:aws:kms:{region}:{account_id}:custom-key-store/{CustomKeyStoreId}"
+
+  - from_resource_type: ecs.task
+    relation_type: uses
+    to_resource_type: iam.role
+    source_field: "taskRoleArn"
+    target_uid_pattern: "{taskRoleArn}"
+
+  - from_resource_type: ecs.task
+    relation_type: uses
+    to_resource_type: iam.role
+    source_field: "executionRoleArn"
+    target_uid_pattern: "{executionRoleArn}"
+
+  - from_resource_type: ecs.task
+    relation_type: runs_on
+    to_resource_type: ec2.instance
+    source_field: "containerInstanceArn"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:instance/{containerInstanceId}"
+
+  - from_resource_type: ecs.service
+    relation_type: contained_by
+    to_resource_type: ec2.vpc
+    source_field: "networkConfiguration.awsvpcConfiguration.subnets"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:subnet/{item}"
+
+  - from_resource_type: ecs.service
+    relation_type: attached_to
+    to_resource_type: ec2.security-group
+    source_field: "networkConfiguration.awsvpcConfiguration.securityGroups"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:security-group/{item}"
+
+  - from_resource_type: ecs.container
+    relation_type: encrypted_by
+    to_resource_type: kms.key
+    source_field: "KmsKeyId"
+    target_uid_pattern: "{KmsKeyId}"
+
+  - from_resource_type: ecs.definition
+    relation_type: uses
+    to_resource_type: iam.role
+    source_field: "taskRoleArn"
+    target_uid_pattern: "{taskRoleArn}"
+
+  - from_resource_type: ecs.definition
+    relation_type: uses
+    to_resource_type: iam.role
+    source_field: "executionRoleArn"
+    target_uid_pattern: "{executionRoleArn}"
+
+  - from_resource_type: eks.cluster
+    relation_type: contained_by
+    to_resource_type: ec2.vpc
+    source_field: "resourcesVpcConfig.vpcId"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:vpc/{vpcId}"
+
+  - from_resource_type: eks.cluster
+    relation_type: attached_to
+    to_resource_type: ec2.security-group
+    source_field: "resourcesVpcConfig.securityGroupIds"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:security-group/{item}"
+
+  - from_resource_type: eks.cluster
+    relation_type: uses
+    to_resource_type: iam.role
+    source_field: "roleArn"
+    target_uid_pattern: "{roleArn}"
+
+  - from_resource_type: eks.cluster
+    relation_type: encrypted_by
+    to_resource_type: kms.key
+    source_field: "encryptionConfig.provider.keyArn"
+    target_uid_pattern: "{keyArn}"
+
+  - from_resource_type: elasticache.replication-group
+    relation_type: contained_by
+    to_resource_type: ec2.vpc
+    source_field: "MemberClusters"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:vpc/{VpcId}"
+
+  - from_resource_type: elasticache.replication-group
+    relation_type: encrypted_by
+    to_resource_type: kms.key
+    source_field: "KmsKeyId"
+    target_uid_pattern: "{KmsKeyId}"
+
+  - from_resource_type: elasticache.cluster
+    relation_type: attached_to
+    to_resource_type: ec2.security-group
+    source_field: "SecurityGroups"
+    source_field_item: "SecurityGroupId"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:security-group/{SecurityGroupId}"
+
+  - from_resource_type: es.domain
+    relation_type: contained_by
+    to_resource_type: ec2.vpc
+    source_field: "VPCOptions.VPCId"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:vpc/{VPCId}"
+
+  - from_resource_type: es.domain
+    relation_type: attached_to
+    to_resource_type: ec2.security-group
+    source_field: "VPCOptions.SecurityGroupIds"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:security-group/{item}"
+
+  - from_resource_type: es.domain
+    relation_type: encrypted_by
+    to_resource_type: kms.key
+    source_field: "EncryptionAtRestOptions.KmsKeyId"
+    target_uid_pattern: "{KmsKeyId}"
+
+  - from_resource_type: sqs.queue
+    relation_type: encrypted_by
+    to_resource_type: kms.key
+    source_field: "KmsMasterKeyId"
+    target_uid_pattern: "{KmsMasterKeyId}"
+
+  - from_resource_type: sqs.queue
+    relation_type: subscribes_to
+    to_resource_type: sns.topic
+    source_field: "Policy"
+    target_uid_pattern: "{TopicArn}"
+
+  - from_resource_type: sqs.queue
+    relation_type: depends_on
+    to_resource_type: sqs.queue
+    source_field: "RedrivePolicy.deadLetterTargetArn"
+    target_uid_pattern: "{deadLetterTargetArn}"
+
+  - from_resource_type: sns.topic
+    relation_type: encrypted_by
+    to_resource_type: kms.key
+    source_field: "KmsMasterKeyId"
+    target_uid_pattern: "{KmsMasterKeyId}"
+
+  - from_resource_type: sns.topic
+    relation_type: routes_to
+    to_resource_type: lambda.function
+    source_field: "Subscriptions"
+    source_field_item: "Endpoint"
+    target_uid_pattern: "{Endpoint}"
+
+  - from_resource_type: events.rule
+    relation_type: routes_to
+    to_resource_type: lambda.function
+    source_field: "Targets"
+    source_field_item: "Arn"
+    target_uid_pattern: "{Arn}"
+
+  - from_resource_type: events.rule
+    relation_type: routes_to
+    to_resource_type: sns.topic
+    source_field: "Targets"
+    source_field_item: "Arn"
+    target_uid_pattern: "{Arn}"
+
+  - from_resource_type: events.rule
+    relation_type: routes_to
+    to_resource_type: sqs.queue
+    source_field: "Targets"
+    source_field_item: "Arn"
+    target_uid_pattern: "{Arn}"
+
+  - from_resource_type: events.rule
+    relation_type: attached_to
+    to_resource_type: events.event-bus
+    source_field: "EventBusName"
+    target_uid_pattern: "arn:aws:events:{region}:{account_id}:event-bus/{EventBusName}"
+
+  - from_resource_type: kms.alias
+    relation_type: resolves_to
+    to_resource_type: kms.key
+    source_field: "TargetKeyId"
+    target_uid_pattern: "{TargetKeyId}"
+
+  - from_resource_type: secretsmanager.secret
+    relation_type: encrypted_by
+    to_resource_type: kms.key
+    source_field: "KmsKeyId"
+    target_uid_pattern: "{KmsKeyId}"
+
+  - from_resource_type: logs.log-group
+    relation_type: encrypted_by
+    to_resource_type: kms.key
+    source_field: "kmsKeyId"
+    target_uid_pattern: "{kmsKeyId}"
+
+  - from_resource_type: cloudtrail.trail
+    relation_type: logging_enabled_to
+    to_resource_type: s3.bucket
+    source_field: "S3BucketName"
+    target_uid_pattern: "arn:aws:s3:::{S3BucketName}"
+
+  - from_resource_type: cloudtrail.trail
+    relation_type: logging_enabled_to
+    to_resource_type: logs.log-group
+    source_field: "CloudWatchLogsLogGroupArn"
+    target_uid_pattern: "{CloudWatchLogsLogGroupArn}"
+
+  - from_resource_type: cloudtrail.trail
+    relation_type: encrypted_by
+    to_resource_type: kms.key
+    source_field: "KMSKeyId"
+    target_uid_pattern: "{KMSKeyId}"
+
+  - from_resource_type: kinesis.stream
+    relation_type: encrypted_by
+    to_resource_type: kms.key
+    source_field: "KeyId"
+    target_uid_pattern: "{KeyId}"
+
+  - from_resource_type: kinesis.firehose
+    relation_type: stores_data_in
+    to_resource_type: s3.bucket
+    source_field: "S3DestinationDescription.BucketARN"
+    target_uid_pattern: "{BucketARN}"
+
+  - from_resource_type: kinesis.firehose
+    relation_type: encrypted_by
+    to_resource_type: kms.key
+    source_field: "DeliveryStreamEncryptionConfiguration.KeyARN"
+    target_uid_pattern: "{KeyARN}"
+
+  - from_resource_type: dynamodb.table
+    relation_type: encrypted_by
+    to_resource_type: kms.key
+    source_field: "SSEDescription.KMSMasterKeyArn"
+    target_uid_pattern: "{KMSMasterKeyArn}"
+
+  - from_resource_type: dynamodb.table
+    relation_type: replicates_to
+    to_resource_type: dynamodb.table
+    source_field: "Replicas"
+    source_field_item: "RegionName"
+    target_uid_pattern: "arn:aws:dynamodb:{RegionName}:{account_id}:table/{TableName}"
+
+  - from_resource_type: glue.database
+    relation_type: uses
+    to_resource_type: s3.bucket
+    source_field: "LocationUri"
+    target_uid_pattern: "arn:aws:s3:::{LocationUri}"
+
+  - from_resource_type: glue.job
+    relation_type: uses
+    to_resource_type: iam.role
+    source_field: "Role"
+    target_uid_pattern: "arn:aws:iam::{account_id}:role/{Role}"
+
+  - from_resource_type: states.state-machine
+    relation_type: uses
+    to_resource_type: iam.role
+    source_field: "roleArn"
+    target_uid_pattern: "{roleArn}"
+
+  - from_resource_type: states.state-machine
+    relation_type: logging_enabled_to
+    to_resource_type: logs.log-group
+    source_field: "loggingConfiguration.destinations"
+    source_field_item: "cloudWatchLogsLogGroup.logGroupArn"
+    target_uid_pattern: "{cloudWatchLogsLogGroup.logGroupArn}"
+
+  - from_resource_type: apigateway.rest-api
+    relation_type: logging_enabled_to
+    to_resource_type: logs.log-group
+    source_field: "stages.accessLogSettings.destinationArn"
+    target_uid_pattern: "{destinationArn}"
+
+  - from_resource_type: apigateway.rest-api
+    relation_type: protected_by
+    to_resource_type: waf.web-acl
+    source_field: "stages.webAclArn"
+    target_uid_pattern: "{webAclArn}"
+
+  - from_resource_type: cloudfront.distribution
+    relation_type: serves_traffic_for
+    to_resource_type: s3.bucket
+    source_field: "Origins.Items.DomainName"
+    target_uid_pattern: "{DomainName}"
+
+  - from_resource_type: cloudfront.distribution
+    relation_type: protected_by
+    to_resource_type: waf.web-acl
+    source_field: "WebACLId"
+    target_uid_pattern: "{WebACLId}"
+
+  - from_resource_type: cloudfront.distribution
+    relation_type: encrypted_by
+    to_resource_type: kms.key
+    source_field: "ViewerCertificate.ACMCertificateArn"
+    target_uid_pattern: "{ACMCertificateArn}"
+
+  - from_resource_type: elasticloadbalancing.load-balancer
+    relation_type: contained_by
+    to_resource_type: ec2.vpc
+    source_field: "VpcId"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:vpc/{VpcId}"
+
+  - from_resource_type: elasticloadbalancing.load-balancer
+    relation_type: attached_to
+    to_resource_type: ec2.security-group
+    source_field: "SecurityGroups"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:security-group/{item}"
+
+  - from_resource_type: elbv2.balancer
+    relation_type: contained_by
+    to_resource_type: ec2.vpc
+    source_field: "VpcId"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:vpc/{VpcId}"
+
+  - from_resource_type: elbv2.balancer
+    relation_type: attached_to
+    to_resource_type: ec2.security-group
+    source_field: "SecurityGroups"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:security-group/{item}"
+
+  - from_resource_type: elbv2.listener
+    relation_type: forwards_to
+    to_resource_type: elbv2.target-group
+    source_field: "DefaultActions"
+    source_field_item: "TargetGroupArn"
+    target_uid_pattern: "{TargetGroupArn}"
+
+  - from_resource_type: elbv2.listener
+    relation_type: attached_to
+    to_resource_type: elbv2.balancer
+    source_field: "LoadBalancerArn"
+    target_uid_pattern: "{LoadBalancerArn}"
+
+  - from_resource_type: elbv2.target-group
+    relation_type: serves_traffic_for
+    to_resource_type: ec2.instance
+    source_field: "TargetHealthDescriptions"
+    source_field_item: "Target.Id"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:instance/{Target.Id}"
+
+  - from_resource_type: elbv2.target-group
+    relation_type: serves_traffic_for
+    to_resource_type: lambda.function
+    source_field: "TargetHealthDescriptions"
+    source_field_item: "Target.Id"
+    target_uid_pattern: "{Target.Id}"
+
+  - from_resource_type: acm.certificate
+    relation_type: resolves_to
+    to_resource_type: acm.certificate
+    source_field: "InUseBy"
+    target_uid_pattern: "{item}"
+
+  - from_resource_type: codebuild.project
+    relation_type: uses
+    to_resource_type: iam.role
+    source_field: "serviceRole"
+    target_uid_pattern: "{serviceRole}"
+
+  - from_resource_type: codebuild.project
+    relation_type: encrypted_by
+    to_resource_type: kms.key
+    source_field: "encryptionKey"
+    target_uid_pattern: "{encryptionKey}"
+
+  - from_resource_type: codebuild.project
+    relation_type: contained_by
+    to_resource_type: ec2.vpc
+    source_field: "vpcConfig.vpcId"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:vpc/{vpcId}"
+
+  - from_resource_type: codepipeline.pipeline
+    relation_type: uses
+    to_resource_type: iam.role
+    source_field: "roleArn"
+    target_uid_pattern: "{roleArn}"
+
+  - from_resource_type: codepipeline.pipeline
+    relation_type: uses
+    to_resource_type: s3.bucket
+    source_field: "artifactStore.location"
+    target_uid_pattern: "arn:aws:s3:::{location}"
+
+  - from_resource_type: batch.compute-environment
+    relation_type: contained_by
+    to_resource_type: ec2.vpc
+    source_field: "computeResources.subnets"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:subnet/{item}"
+
+  - from_resource_type: batch.compute-environment
+    relation_type: attached_to
+    to_resource_type: ec2.security-group
+    source_field: "computeResources.securityGroupIds"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:security-group/{item}"
+
+  - from_resource_type: batch.compute-environment
+    relation_type: uses
+    to_resource_type: iam.role
+    source_field: "serviceRole"
+    target_uid_pattern: "{serviceRole}"
+
+  - from_resource_type: backup.backup-vault
+    relation_type: encrypted_by
+    to_resource_type: kms.key
+    source_field: "EncryptionKeyArn"
+    target_uid_pattern: "{EncryptionKeyArn}"
+
+  - from_resource_type: kafka.cluster
+    relation_type: contained_by
+    to_resource_type: ec2.vpc
+    source_field: "BrokerNodeGroupInfo.ClientSubnets"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:subnet/{item}"
+
+  - from_resource_type: kafka.cluster
+    relation_type: attached_to
+    to_resource_type: ec2.security-group
+    source_field: "BrokerNodeGroupInfo.SecurityGroups"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:security-group/{item}"
+
+  - from_resource_type: kafka.cluster
+    relation_type: encrypted_by
+    to_resource_type: kms.key
+    source_field: "EncryptionInfo.EncryptionAtRest.DataVolumeKMSKeyId"
+    target_uid_pattern: "{DataVolumeKMSKeyId}"
+
+  - from_resource_type: redshift.cluster
+    relation_type: contained_by
+    to_resource_type: ec2.vpc
+    source_field: "VpcId"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:vpc/{VpcId}"
+
+  - from_resource_type: redshift.cluster
+    relation_type: attached_to
+    to_resource_type: ec2.security-group
+    source_field: "VpcSecurityGroups"
+    source_field_item: "VpcSecurityGroupId"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:security-group/{VpcSecurityGroupId}"
+
+  - from_resource_type: redshift.cluster
+    relation_type: encrypted_by
+    to_resource_type: kms.key
+    source_field: "KmsKeyId"
+    target_uid_pattern: "{KmsKeyId}"
+
+  - from_resource_type: athena.workgroup
+    relation_type: encrypted_by
+    to_resource_type: kms.key
+    source_field: "Configuration.ResultConfiguration.EncryptionConfiguration.KmsKey"
+    target_uid_pattern: "{KmsKey}"
+
+  - from_resource_type: athena.workgroup
+    relation_type: stores_data_in
+    to_resource_type: s3.bucket
+    source_field: "Configuration.ResultConfiguration.OutputLocation"
+    target_uid_pattern: "arn:aws:s3:::{OutputLocation}"
+
+  - from_resource_type: ssm.parameter
+    relation_type: encrypted_by
+    to_resource_type: kms.key
+    source_field: "KeyId"
+    target_uid_pattern: "{KeyId}"
+
+  - from_resource_type: waf.web-acl
+    relation_type: protected_by
+    to_resource_type: cloudfront.distribution
+    source_field: "ARN"
+    target_uid_pattern: "{ARN}"
+
+  # ── Network Interface (ENI) chain ─────────────────────────────────
+  - from_resource_type: ec2.network-interface
+    relation_type: contained_by
+    to_resource_type: ec2.vpc
+    source_field: "VpcId"
+    source_field_item: null
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:vpc/{VpcId}"
+
+  - from_resource_type: ec2.network-interface
+    relation_type: contained_by
+    to_resource_type: ec2.subnet
+    source_field: "SubnetId"
+    source_field_item: null
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:subnet/{SubnetId}"
+
+  - from_resource_type: ec2.network-interface
+    relation_type: attached_to
+    to_resource_type: ec2.security-group
+    source_field: "Groups"
+    source_field_item: "GroupId"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:security-group/{GroupId}"
+
+  # ── VPC Endpoint chain ────────────────────────────────────────────
+  - from_resource_type: ec2.vpc-endpoint
+    relation_type: contained_by
+    to_resource_type: ec2.vpc
+    source_field: "VpcId"
+    source_field_item: null
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:vpc/{VpcId}"
+
+  - from_resource_type: ec2.vpc-endpoint
+    relation_type: attached_to
+    to_resource_type: ec2.subnet
+    source_field: "SubnetIds"
+    source_field_item: null
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:subnet/{SubnetId}"
+
+  - from_resource_type: ec2.vpc-endpoint
+    relation_type: attached_to
+    to_resource_type: ec2.network-interface
+    source_field: "NetworkInterfaceIds"
+    source_field_item: null
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:network-interface/{NetworkInterfaceId}"
+
+  - from_resource_type: ec2.vpc-endpoint
+    relation_type: attached_to
+    to_resource_type: ec2.security-group
+    source_field: "Groups"
+    source_field_item: "GroupId"
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:security-group/{GroupId}"
+
+  - from_resource_type: ec2.vpc-endpoint
+    relation_type: associated_with
+    to_resource_type: ec2.route-table
+    source_field: "RouteTableIds"
+    source_field_item: null
+    target_uid_pattern: "arn:aws:ec2:{region}:{account_id}:route-table/{RouteTableId}"
+
+  # ── API Gateway → Lambda invocation ───────────────────────────────
+  - from_resource_type: apigateway.rest-api
+    relation_type: invokes
+    to_resource_type: lambda.function
+    source_field: "integrations"
+    source_field_item: "uri"
+    target_uid_pattern: "{uri}"
+
+  # ── CloudFront → ALB/NLB origins ──────────────────────────────────
+  - from_resource_type: cloudfront.distribution
+    relation_type: serves_traffic_for
+    to_resource_type: elasticloadbalancingv2.loadbalancer
+    source_field: "Origins.Items"
+    source_field_item: "DomainName"
+    target_uid_pattern: "{DomainName}"
+

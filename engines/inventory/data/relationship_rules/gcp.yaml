@@ -1,0 +1,507 @@
+csp: gcp
+description: "GCP relationship rules - compute, container, serverless, data, security"
+rules:
+  # ── compute.instance ─────────────────────────────────────────────────────
+  - from_resource_type: compute.instance
+    relation_type: attached_to
+    to_resource_type: compute.network
+    source_field: "networkInterfaces"
+    source_field_item: "network"
+    target_uid_pattern: "{network}"
+
+  - from_resource_type: compute.instance
+    relation_type: contained_by
+    to_resource_type: compute.subnetwork
+    source_field: "networkInterfaces"
+    source_field_item: "subnetwork"
+    target_uid_pattern: "{subnetwork}"
+
+  - from_resource_type: compute.instance
+    relation_type: uses
+    to_resource_type: iam.serviceaccount
+    source_field: "serviceAccounts"
+    source_field_item: "email"
+    target_uid_pattern: "//iam.googleapis.com/projects/{project}/serviceAccounts/{email}"
+
+  - from_resource_type: compute.instance
+    relation_type: attached_to
+    to_resource_type: compute.disk
+    source_field: "disks"
+    source_field_item: "source"
+    target_uid_pattern: "{source}"
+
+  - from_resource_type: compute.instance
+    relation_type: grants_access_to
+    to_resource_type: storage.bucket
+    source_field: "serviceAccounts"
+    source_field_item: "scopes"
+    target_uid_pattern: "storage_scope:{scopes}"
+
+  - from_resource_type: compute.instance
+    relation_type: attached_to
+    to_resource_type: compute.firewall
+    source_field: "tags.items"
+    source_field_item: "."
+    target_uid_pattern: "tag:{.}"
+
+  # ── compute.network ───────────────────────────────────────────────────────
+  - from_resource_type: compute.network
+    relation_type: contains
+    to_resource_type: compute.subnetwork
+    source_field: "subnetworks"
+    source_field_item: "."
+    target_uid_pattern: "{.}"
+
+  - from_resource_type: compute.network
+    relation_type: peers_with
+    to_resource_type: compute.network
+    source_field: "peerings"
+    source_field_item: "network"
+    target_uid_pattern: "{network}"
+
+  - from_resource_type: compute.network
+    relation_type: grants_access_to
+    to_resource_type: compute.router
+    source_field: "routerConfig.selfLink"
+    source_field_item: null
+    target_uid_pattern: "{routerConfig.selfLink}"
+
+  # ── compute.subnetwork ────────────────────────────────────────────────────
+  - from_resource_type: compute.subnetwork
+    relation_type: contained_by
+    to_resource_type: compute.network
+    source_field: "network"
+    source_field_item: null
+    target_uid_pattern: "{network}"
+
+  # ── compute.firewall ──────────────────────────────────────────────────────
+  - from_resource_type: compute.firewall
+    relation_type: contained_by
+    to_resource_type: compute.network
+    source_field: "network"
+    source_field_item: null
+    target_uid_pattern: "{network}"
+
+  # ── compute.forwardingrule ────────────────────────────────────────────────
+  - from_resource_type: compute.forwardingrule
+    relation_type: routes_to
+    to_resource_type: compute.backendservice
+    source_field: "backendService"
+    source_field_item: null
+    target_uid_pattern: "{backendService}"
+
+  - from_resource_type: compute.forwardingrule
+    relation_type: routes_to
+    to_resource_type: compute.targetpool
+    source_field: "target"
+    source_field_item: null
+    target_uid_pattern: "{target}"
+
+  # ── compute.backendservice ────────────────────────────────────────────────
+  - from_resource_type: compute.backendservice
+    relation_type: routes_to
+    to_resource_type: compute.instancegroup
+    source_field: "backends"
+    source_field_item: "group"
+    target_uid_pattern: "{group}"
+
+  # ── container.cluster (GKE) ───────────────────────────────────────────────
+  - from_resource_type: container.cluster
+    relation_type: attached_to
+    to_resource_type: compute.network
+    source_field: "network"
+    source_field_item: null
+    target_uid_pattern: "//compute.googleapis.com/projects/{project}/global/networks/{network}"
+
+  - from_resource_type: container.cluster
+    relation_type: contained_by
+    to_resource_type: compute.subnetwork
+    source_field: "subnetwork"
+    source_field_item: null
+    target_uid_pattern: "//compute.googleapis.com/projects/{project}/regions/{region}/subnetworks/{subnetwork}"
+
+  - from_resource_type: container.cluster
+    relation_type: uses
+    to_resource_type: iam.serviceaccount
+    source_field: "nodeConfig.serviceAccount"
+    source_field_item: null
+    target_uid_pattern: "//iam.googleapis.com/projects/{project}/serviceAccounts/{nodeConfig.serviceAccount}"
+
+  - from_resource_type: container.cluster
+    relation_type: uses
+    to_resource_type: cloudkms.cryptokey
+    source_field: "databaseEncryption.keyName"
+    source_field_item: null
+    target_uid_pattern: "{databaseEncryption.keyName}"
+
+  - from_resource_type: container.cluster
+    relation_type: contained_by
+    to_resource_type: compute.network
+    source_field: "networkConfig.network"
+    source_field_item: null
+    target_uid_pattern: "{networkConfig.network}"
+
+  # ── cloudfunctions.function ───────────────────────────────────────────────
+  - from_resource_type: cloudfunctions.function
+    relation_type: uses
+    to_resource_type: iam.serviceaccount
+    source_field: "serviceAccountEmail"
+    source_field_item: null
+    target_uid_pattern: "//iam.googleapis.com/projects/{project}/serviceAccounts/{serviceAccountEmail}"
+
+  - from_resource_type: cloudfunctions.function
+    relation_type: triggered_by
+    to_resource_type: pubsub.topic
+    source_field: "eventTrigger.resource"
+    source_field_item: null
+    target_uid_pattern: "{eventTrigger.resource}"
+
+  - from_resource_type: cloudfunctions.function
+    relation_type: triggered_by
+    to_resource_type: storage.bucket
+    source_field: "eventTrigger.resource"
+    source_field_item: null
+    target_uid_pattern: "{eventTrigger.resource}"
+
+  - from_resource_type: cloudfunctions.function
+    relation_type: contained_by
+    to_resource_type: compute.network
+    source_field: "vpcConnector"
+    source_field_item: null
+    target_uid_pattern: "{vpcConnector}"
+
+  # ── run.service (Cloud Run) ───────────────────────────────────────────────
+  - from_resource_type: run.service
+    relation_type: uses
+    to_resource_type: iam.serviceaccount
+    source_field: "spec.template.spec.serviceAccountName"
+    source_field_item: null
+    target_uid_pattern: "//iam.googleapis.com/projects/{project}/serviceAccounts/{spec.template.spec.serviceAccountName}"
+
+  - from_resource_type: run.service
+    relation_type: routes_to
+    to_resource_type: pubsub.topic
+    source_field: "metadata.annotations.run.googleapis.com/ingress"
+    source_field_item: null
+    target_uid_pattern: "{metadata.annotations.run.googleapis.com/ingress}"
+
+  - from_resource_type: run.service
+    relation_type: contained_by
+    to_resource_type: compute.network
+    source_field: "spec.template.metadata.annotations.run.googleapis.com/vpc-access-connector"
+    source_field_item: null
+    target_uid_pattern: "{spec.template.metadata.annotations.run.googleapis.com/vpc-access-connector}"
+
+  # ── sqladmin.instance ─────────────────────────────────────────────────────
+  - from_resource_type: sqladmin.instance
+    relation_type: contained_by
+    to_resource_type: compute.network
+    source_field: "settings.ipConfiguration.privateNetwork"
+    source_field_item: null
+    target_uid_pattern: "{settings.ipConfiguration.privateNetwork}"
+
+  - from_resource_type: sqladmin.instance
+    relation_type: uses
+    to_resource_type: cloudkms.cryptokey
+    source_field: "diskEncryptionConfiguration.kmsKeyName"
+    source_field_item: null
+    target_uid_pattern: "{diskEncryptionConfiguration.kmsKeyName}"
+
+  - from_resource_type: sqladmin.instance
+    relation_type: replicates_to
+    to_resource_type: sqladmin.instance
+    source_field: "replicaNames"
+    source_field_item: "."
+    target_uid_pattern: "//sqladmin.googleapis.com/projects/{project}/instances/{.}"
+
+  # ── storage.bucket ────────────────────────────────────────────────────────
+  - from_resource_type: storage.bucket
+    relation_type: uses
+    to_resource_type: cloudkms.cryptokey
+    source_field: "encryption.defaultKmsKeyName"
+    source_field_item: null
+    target_uid_pattern: "{encryption.defaultKmsKeyName}"
+
+  # ── bigquery.dataset ──────────────────────────────────────────────────────
+  - from_resource_type: bigquery.dataset
+    relation_type: uses
+    to_resource_type: cloudkms.cryptokey
+    source_field: "defaultEncryptionConfiguration.kmsKeyName"
+    source_field_item: null
+    target_uid_pattern: "{defaultEncryptionConfiguration.kmsKeyName}"
+
+  # ── pubsub.subscription ───────────────────────────────────────────────────
+  - from_resource_type: pubsub.subscription
+    relation_type: attached_to
+    to_resource_type: pubsub.topic
+    source_field: "topic"
+    source_field_item: null
+    target_uid_pattern: "{topic}"
+
+  - from_resource_type: pubsub.subscription
+    relation_type: routes_to
+    to_resource_type: run.service
+    source_field: "pushConfig.pushEndpoint"
+    source_field_item: null
+    target_uid_pattern: "{pushConfig.pushEndpoint}"
+
+  - from_resource_type: pubsub.subscription
+    relation_type: routes_to
+    to_resource_type: cloudfunctions.function
+    source_field: "pushConfig.pushEndpoint"
+    source_field_item: null
+    target_uid_pattern: "{pushConfig.pushEndpoint}"
+
+  # ── cloudkms.cryptokey ────────────────────────────────────────────────────
+  - from_resource_type: cloudkms.cryptokey
+    relation_type: contained_by
+    to_resource_type: cloudkms.keyring
+    source_field: "parent"
+    source_field_item: null
+    target_uid_pattern: "{parent}"
+
+  # ── iam.serviceaccount ────────────────────────────────────────────────────
+  - from_resource_type: iam.serviceaccount
+    relation_type: assumes
+    to_resource_type: iam.serviceaccount
+    source_field: "policy.bindings"
+    source_field_item: "members"
+    target_uid_pattern: "serviceAccount:{members}"
+
+  # ── artifactregistry.repository ───────────────────────────────────────────
+  - from_resource_type: artifactregistry.repository
+    relation_type: uses
+    to_resource_type: cloudkms.cryptokey
+    source_field: "kmsKeyName"
+    source_field_item: null
+    target_uid_pattern: "{kmsKeyName}"
+
+  # ── secretmanager.secret ──────────────────────────────────────────────────
+  - from_resource_type: secretmanager.secret
+    relation_type: uses
+    to_resource_type: cloudkms.cryptokey
+    source_field: "replication.userManaged.replicas[].customerManagedEncryption.kmsKeyName"
+    source_field_item: null
+    target_uid_pattern: "{replication.userManaged.replicas[].customerManagedEncryption.kmsKeyName}"
+
+  # ── compute.instancegroup ─────────────────────────────────────────────────
+  - from_resource_type: compute.instancegroup
+    relation_type: contained_by
+    to_resource_type: compute.network
+    source_field: "network"
+    source_field_item: null
+    target_uid_pattern: "{network}"
+
+  - from_resource_type: compute.instancegroup
+    relation_type: contained_by
+    to_resource_type: compute.subnetwork
+    source_field: "subnetwork"
+    source_field_item: null
+    target_uid_pattern: "{subnetwork}"
+
+  # ── dataproc.cluster ──────────────────────────────────────────────────────
+  - from_resource_type: dataproc.cluster
+    relation_type: contained_by
+    to_resource_type: compute.network
+    source_field: "config.gceClusterConfig.networkUri"
+    source_field_item: null
+    target_uid_pattern: "{config.gceClusterConfig.networkUri}"
+
+  - from_resource_type: dataproc.cluster
+    relation_type: uses
+    to_resource_type: iam.serviceaccount
+    source_field: "config.gceClusterConfig.serviceAccount"
+    source_field_item: null
+    target_uid_pattern: "//iam.googleapis.com/projects/{project}/serviceAccounts/{config.gceClusterConfig.serviceAccount}"
+
+  # ── compute.disk ──────────────────────────────────────────────────────────
+  - from_resource_type: compute.disk
+    relation_type: encrypted_by
+    to_resource_type: cloudkms.cryptokey
+    source_field: "diskEncryptionKey.kmsKeyName"
+    source_field_item: null
+    target_uid_pattern: "{diskEncryptionKey.kmsKeyName}"
+
+  # ── compute.snapshot ──────────────────────────────────────────────────────
+  - from_resource_type: compute.snapshot
+    relation_type: depends_on
+    to_resource_type: compute.disk
+    source_field: "sourceDisk"
+    source_field_item: null
+    target_uid_pattern: "{sourceDisk}"
+
+  - from_resource_type: compute.snapshot
+    relation_type: encrypted_by
+    to_resource_type: cloudkms.cryptokey
+    source_field: "snapshotEncryptionKey.kmsKeyName"
+    source_field_item: null
+    target_uid_pattern: "{snapshotEncryptionKey.kmsKeyName}"
+
+  # ── compute.router ────────────────────────────────────────────────────────
+  - from_resource_type: compute.router
+    relation_type: contained_by
+    to_resource_type: compute.network
+    source_field: "network"
+    source_field_item: null
+    target_uid_pattern: "{network}"
+
+  # ── compute.vpntunnel ─────────────────────────────────────────────────────
+  - from_resource_type: compute.vpntunnel
+    relation_type: uses
+    to_resource_type: compute.router
+    source_field: "router"
+    source_field_item: null
+    target_uid_pattern: "{router}"
+
+  # ── compute.securitypolicy (Cloud Armor) ──────────────────────────────────
+  - from_resource_type: compute.backendservice
+    relation_type: protected_by
+    to_resource_type: compute.securitypolicy
+    source_field: "securityPolicy"
+    source_field_item: null
+    target_uid_pattern: "{securityPolicy}"
+
+  # ── compute.instancetemplate ──────────────────────────────────────────────
+  - from_resource_type: compute.instancetemplate
+    relation_type: uses
+    to_resource_type: iam.serviceaccount
+    source_field: "properties.serviceAccounts"
+    source_field_item: "email"
+    target_uid_pattern: "//iam.googleapis.com/projects/{project}/serviceAccounts/{email}"
+
+  - from_resource_type: compute.instancetemplate
+    relation_type: attached_to
+    to_resource_type: compute.network
+    source_field: "properties.networkInterfaces"
+    source_field_item: "network"
+    target_uid_pattern: "{network}"
+
+  # ── container.nodepool ────────────────────────────────────────────────────
+  - from_resource_type: container.nodepool
+    relation_type: uses
+    to_resource_type: iam.serviceaccount
+    source_field: "config.serviceAccount"
+    source_field_item: null
+    target_uid_pattern: "//iam.googleapis.com/projects/{project}/serviceAccounts/{config.serviceAccount}"
+
+  # ── pubsub.topic ──────────────────────────────────────────────────────────
+  - from_resource_type: pubsub.topic
+    relation_type: encrypted_by
+    to_resource_type: cloudkms.cryptokey
+    source_field: "kmsKeyName"
+    source_field_item: null
+    target_uid_pattern: "{kmsKeyName}"
+
+  # ── spanner.instance ──────────────────────────────────────────────────────
+  - from_resource_type: spanner.instance
+    relation_type: uses
+    to_resource_type: cloudkms.cryptokey
+    source_field: "encryptionConfig.kmsKeyName"
+    source_field_item: null
+    target_uid_pattern: "{encryptionConfig.kmsKeyName}"
+
+  # ── bigquery.table ────────────────────────────────────────────────────────
+  - from_resource_type: bigquery.table
+    relation_type: encrypted_by
+    to_resource_type: cloudkms.cryptokey
+    source_field: "encryptionConfiguration.kmsKeyName"
+    source_field_item: null
+    target_uid_pattern: "{encryptionConfiguration.kmsKeyName}"
+
+  # ── logging.logsink (Cloud Logging export sinks) ──────────────────────────
+  - from_resource_type: logging.logsink
+    relation_type: routes_to
+    to_resource_type: storage.bucket
+    source_field: "destination"
+    source_field_item: null
+    target_uid_pattern: "{destination}"
+
+  - from_resource_type: logging.logsink
+    relation_type: routes_to
+    to_resource_type: pubsub.topic
+    source_field: "destination"
+    source_field_item: null
+    target_uid_pattern: "{destination}"
+
+  - from_resource_type: logging.logsink
+    relation_type: routes_to
+    to_resource_type: bigquery.dataset
+    source_field: "destination"
+    source_field_item: null
+    target_uid_pattern: "{destination}"
+
+  # ── dns.managedzone ───────────────────────────────────────────────────────
+  - from_resource_type: dns.managedzone
+    relation_type: restricted_to
+    to_resource_type: compute.network
+    source_field: "privateVisibilityConfig.networks"
+    source_field_item: "networkUrl"
+    target_uid_pattern: "{networkUrl}"
+
+  # ── run.job (Cloud Run Jobs) ──────────────────────────────────────────────
+  - from_resource_type: run.job
+    relation_type: uses
+    to_resource_type: iam.serviceaccount
+    source_field: "template.template.serviceAccount"
+    source_field_item: null
+    target_uid_pattern: "//iam.googleapis.com/projects/{project}/serviceAccounts/{template.template.serviceAccount}"
+
+  # ── dataflow.job ──────────────────────────────────────────────────────────
+  - from_resource_type: dataflow.job
+    relation_type: uses
+    to_resource_type: iam.serviceaccount
+    source_field: "environment.serviceAccountEmail"
+    source_field_item: null
+    target_uid_pattern: "//iam.googleapis.com/projects/{project}/serviceAccounts/{environment.serviceAccountEmail}"
+
+  - from_resource_type: dataflow.job
+    relation_type: contained_by
+    to_resource_type: compute.network
+    source_field: "environment.network"
+    source_field_item: null
+    target_uid_pattern: "{environment.network}"
+
+  # ── bigtable.instance ─────────────────────────────────────────────────────
+  - from_resource_type: bigtable.instance
+    relation_type: encrypted_by
+    to_resource_type: cloudkms.cryptokey
+    source_field: "clusters"
+    source_field_item: "encryptionConfig.kmsKeyName"
+    target_uid_pattern: "{encryptionConfig.kmsKeyName}"
+
+  # ── filestore.instance ────────────────────────────────────────────────────
+  - from_resource_type: filestore.instance
+    relation_type: contained_by
+    to_resource_type: compute.network
+    source_field: "networks"
+    source_field_item: "network"
+    target_uid_pattern: "//compute.googleapis.com/projects/{project}/global/networks/{network}"
+
+  - from_resource_type: filestore.instance
+    relation_type: encrypted_by
+    to_resource_type: cloudkms.cryptokey
+    source_field: "kmsKeyName"
+    source_field_item: null
+    target_uid_pattern: "{kmsKeyName}"
+
+  # ── composer.environment ──────────────────────────────────────────────────
+  - from_resource_type: composer.environment
+    relation_type: contained_by
+    to_resource_type: compute.network
+    source_field: "config.nodeConfig.network"
+    source_field_item: null
+    target_uid_pattern: "{config.nodeConfig.network}"
+
+  - from_resource_type: composer.environment
+    relation_type: uses
+    to_resource_type: iam.serviceaccount
+    source_field: "config.nodeConfig.serviceAccount"
+    source_field_item: null
+    target_uid_pattern: "//iam.googleapis.com/projects/{project}/serviceAccounts/{config.nodeConfig.serviceAccount}"
+
+  - from_resource_type: composer.environment
+    relation_type: encrypted_by
+    to_resource_type: cloudkms.cryptokey
+    source_field: "config.encryptionConfig.kmsKeyName"
+    source_field_item: null
+    target_uid_pattern: "{config.encryptionConfig.kmsKeyName}"

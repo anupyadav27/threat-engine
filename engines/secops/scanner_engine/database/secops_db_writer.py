@@ -4,7 +4,7 @@ SecOps DB Writer — persist scan reports and findings to threat_engine_secops.
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from .db_config import get_connection
@@ -68,7 +68,7 @@ def persist_scan_report(
                 repo_url,
                 branch,
                 status,
-                scan_timestamp or datetime.utcnow(),
+                scan_timestamp or datetime.now(timezone.utc),
                 json.dumps(metadata or {}, default=str),
             ))
         conn.commit()
@@ -102,7 +102,7 @@ def complete_scan_report(
                 WHERE secops_scan_id = %s
             """, (
                 status,
-                datetime.utcnow(),
+                datetime.now(timezone.utc),
                 files_scanned,
                 total_findings,
                 total_errors,

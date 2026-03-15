@@ -289,10 +289,18 @@ class Step5CatalogLoader:
 
         for resource_info in catalog.get("resources", {}).values():
             for op in resource_info.get("inventory", {}).get("ops", []):
+                if isinstance(op, str):
+                    if self._match_op(operation, op, ""):
+                        return True
+                    continue
                 if self._match_op(operation, op.get("operation", ""), op.get("python_method", "")):
                     return op.get("independent", True)
 
             for op in resource_info.get("inventory_enrich", {}).get("ops", []):
+                if isinstance(op, str):
+                    if self._match_op(operation, op, ""):
+                        return False
+                    continue
                 if self._match_op(operation, op.get("operation", ""), op.get("python_method", "")):
                     return op.get("independent", False)
 
@@ -316,6 +324,10 @@ class Step5CatalogLoader:
                 continue
             for section in ("inventory", "inventory_enrich"):
                 for op in resource_info.get(section, {}).get("ops", []):
+                    if isinstance(op, str):
+                        if self._match_op(operation, op, ""):
+                            return resource_type
+                        continue
                     if self._match_op(
                         operation, op.get("operation", ""), op.get("python_method", "")
                     ):

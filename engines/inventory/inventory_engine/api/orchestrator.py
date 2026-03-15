@@ -11,10 +11,6 @@ READS FROM:
      Tables: discovery_report   → get_latest_scan_id()
              discovery_findings  → read_discovery_records(scan_id) — yields one dict per resource
 
-  2. threat_engine_check (CHECK DB) — via CheckDBReader() [optional]
-     Tables: check_findings      → get_posture_by_resource(scan_id, tenant_id)
-             Returns {resource_uid: {total, passed, failed, errors}}
-
 WRITES TO:
   3. threat_engine_inventory (INVENTORY DB) — via PostgresIndexWriter(db_url)
      Tables: inventory_report        → write_scan_summary(ScanSummary)
@@ -47,7 +43,7 @@ import os
 import json
 import uuid as _uuid
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 logger = logging.getLogger(__name__)
@@ -57,7 +53,6 @@ from ..schemas.relationship_schema import Relationship
 from ..schemas.summary_schema import ScanSummary
 from ..schemas.drift_schema import DriftRecord
 from ..connectors.discovery_reader_factory import get_discovery_reader
-from ..connectors.check_db_reader import CheckDBReader
 from ..connectors.step5_catalog_loader import Step5CatalogLoader
 from ..normalizer.asset_normalizer import AssetNormalizer
 from ..normalizer.relationship_builder import RelationshipBuilder
@@ -492,7 +487,7 @@ class ScanOrchestrator:
         from ..normalizer.resource_classifier import InventoryDecision
 
         scan_run_id = str(_uuid.uuid4())
-        started_at = datetime.utcnow()
+        started_at = datetime.now(timezone.utc)
 
         # Step 1: Read ALL discovery records and split into root vs dependent
         #
@@ -700,24 +695,9 @@ class ScanOrchestrator:
                 f"Check that the discovery engine called parent ops before dependent ops."
             )
 
-        # ── Optional: enrich assets with check posture from Check DB ──
-        if check_scan_id:
-            try:
-                posture = CheckDBReader().get_posture_by_resource(
-                    scan_id=check_scan_id,
-                    tenant_id=self.tenant_id,
-                )
-                posture_count = 0
-                for asset in all_assets:
-                    uid = asset.resource_uid
-                    if uid and uid in posture:
-                        asset.metadata = asset.metadata or {}
-                        asset.metadata["check_posture"] = posture[uid]
-                        posture_count += 1
-                logger.info(f"[{scan_run_id}] Enriched {posture_count} assets with check posture "
-                           f"(check_scan_id={check_scan_id})")
-            except Exception as e:
-                logger.warning(f"[{scan_run_id}] Failed to enrich with check posture: {e}")
+        # NOTE: Check posture enrichment was removed — it was dead code in
+        # pipeline flow (inventory = Stage 2, check = Stage 3) and has been
+        # moved to the BFF layer where it runs at query time via HTTP fan-out.
 
         # Step 2: Build relationships per CSP using DB-driven rules from
         # resource_relationship_rules (inventory DB). One shared connection is
@@ -791,7 +771,7 @@ class ScanOrchestrator:
             )
 
         # Step 4: Save normalized artifacts
-        completed_at = datetime.utcnow()
+        completed_at = datetime.now(timezone.utc)
         artifact_paths = self._save_artifacts(
             scan_run_id, all_assets, all_relationships, drift_records, raw_refs, started_at, completed_at
         )
@@ -806,7 +786,13 @@ class ScanOrchestrator:
             index_writer.write_asset_index(all_assets)
             index_writer.write_relationship_index(all_relationships)
 
-            # Step 5b: Write drift records to inventory_drift table
+            # Step 5b: Write scan snapshot (historical retention — keeps 5 scans)
+            try:
+                index_writer.write_scan_snapshot(all_assets)
+            except Exception as exc:
+                logger.warning(f"Failed to write scan snapshot: {exc}")
+
+            # Step 5c: Write drift records to inventory_drift table
             if drift_records and effective_prev_scan:
                 try:
                     index_writer.write_drift_index(
@@ -814,6 +800,12 @@ class ScanOrchestrator:
                     )
                 except Exception as exc:
                     logger.warning(f"Failed to write drift index: {exc}")
+
+            # Step 5d: Purge old scan data (keep only 5 most recent)
+            try:
+                index_writer.purge_old_scans(self.tenant_id, keep_count=5)
+            except Exception as exc:
+                logger.warning(f"Failed to purge old scans: {exc}")
 
         return {
             "scan_run_id": scan_run_id,

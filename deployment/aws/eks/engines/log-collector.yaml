@@ -1,0 +1,155 @@
+# =============================================================================
+# Log Collector API — Deployment + Service
+# Task 0.2.11 [Seq 23 | DO]
+# =============================================================================
+# Tier 2 log/event collection service (Port 8030)
+# Accepts on-demand collection requests from pipeline_worker
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: log-collector
+  namespace: threat-engine-engines
+  labels:
+    app: log-collector
+    tier: collector
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: log-collector
+  template:
+    metadata:
+      labels:
+        app: log-collector
+        tier: collector
+    spec:
+      serviceAccountName: engine-sa
+      containers:
+      - name: log-collector
+        image: yadavanup84/threat-engine-log-collector:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8030
+          name: http
+        envFrom:
+        - configMapRef:
+            name: threat-engine-db-config
+        - secretRef:
+            name: threat-engine-db-passwords
+        env:
+        - name: PYTHONPATH
+          value: /app
+        - name: TH_LOG_COLLECTOR_PORT
+          value: "8030"
+        - name: LOG_COLLECTOR_DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: threat-engine-db-config
+              key: LOG_COLLECTOR_DB_HOST
+              optional: true
+        - name: LOG_COLLECTOR_DB_NAME
+          value: "threat_engine_logs"
+        - name: LOG_COLLECTOR_DB_USER
+          valueFrom:
+            configMapKeyRef:
+              name: threat-engine-db-config
+              key: LOG_COLLECTOR_DB_USER
+              optional: true
+        - name: LOG_COLLECTOR_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: LOG_COLLECTOR_DB_PASSWORD
+              optional: true
+        - name: LOG_LEVEL
+          value: "INFO"
+        # ── Log source bootstrap env vars ──
+        - name: LOG_SOURCE_VPC_FLOW_BUCKET
+          valueFrom:
+            configMapKeyRef:
+              name: log-collector-config
+              key: VPC_FLOW_BUCKET
+              optional: true
+        - name: LOG_SOURCE_CLOUDTRAIL_BUCKET
+          valueFrom:
+            configMapKeyRef:
+              name: log-collector-config
+              key: CLOUDTRAIL_BUCKET
+              optional: true
+        - name: LOG_SOURCE_API_ACCESS_LOG_GROUP
+          valueFrom:
+            configMapKeyRef:
+              name: log-collector-config
+              key: API_ACCESS_LOG_GROUP
+              optional: true
+        - name: LOG_SOURCE_K8S_AUDIT_LOG_GROUP
+          valueFrom:
+            configMapKeyRef:
+              name: log-collector-config
+              key: K8S_AUDIT_LOG_GROUP
+              optional: true
+        # ── OpenTelemetry ──
+        - name: OTEL_SERVICE_NAME
+          value: "log-collector"
+        - name: OTEL_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_ENABLED
+              optional: true
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_EXPORTER_OTLP_ENDPOINT
+              optional: true
+        # ── AWS IRSA ──
+        - name: AWS_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: s3-mount-config
+              key: s3-region
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health/live
+            port: 8030
+          initialDelaySeconds: 15
+          periodSeconds: 30
+          failureThreshold: 5
+        readinessProbe:
+          httpGet:
+            path: /api/v1/health/ready
+            port: 8030
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: log-collector
+  namespace: threat-engine-engines
+  labels:
+    app: log-collector
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8030
+    targetPort: 8030
+    protocol: TCP
+    name: http
+  selector:
+    app: log-collector

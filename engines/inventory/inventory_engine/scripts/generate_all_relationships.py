@@ -7,7 +7,7 @@ Run this to populate relationships for all services
 import json
 import sys
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 # Add parent directory to path
@@ -399,7 +399,7 @@ class ComprehensiveRelationshipGenerator:
             'resource_types_with_relations': types_with_rels,
             'total_relationship_definitions': total_rels,
             'auto_generated': True,
-            'generation_date': datetime.utcnow().isoformat() + 'Z',
+            'generation_date': datetime.now(timezone.utc).isoformat() + 'Z',
             'generator_version': '2.0'
         })
         

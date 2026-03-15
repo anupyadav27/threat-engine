@@ -6,7 +6,7 @@ Exports compliance reports as PDF (audit-ready).
 
 from typing import Dict, Any, Optional
 from io import BytesIO
-from datetime import datetime
+from datetime import datetime, timezone
 
 try:
     from reportlab.lib import colors
@@ -59,7 +59,7 @@ class PDFExporter:
         scan_id = report.get('scan_id', 'N/A')
         csp = report.get('csp', 'N/A')
         scanned_at = report.get('scanned_at', 'N/A')
-        generated_at = report.get('generated_at', datetime.utcnow().isoformat())
+        generated_at = report.get('generated_at', datetime.now(timezone.utc).isoformat())
         
         story.append(Paragraph(f"<b>Scan ID:</b> {scan_id}", meta_style))
         story.append(Paragraph(f"<b>Cloud Provider:</b> {csp.upper()}", meta_style))

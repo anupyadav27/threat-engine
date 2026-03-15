@@ -110,7 +110,7 @@ class ThreatDBReader:
     The threat_findings table stores individual misconfig findings with columns:
         finding_id, threat_scan_id, tenant_id, customer_id, scan_run_id,
         rule_id, threat_category, severity, status, resource_type,
-        resource_id, resource_arn, resource_uid, account_id, region,
+        resource_id, resource_uid, account_id, region,
         mitre_tactics (jsonb), mitre_techniques (jsonb),
         evidence (jsonb), finding_data (jsonb),
         first_seen_at, last_seen_at, created_at
@@ -258,7 +258,7 @@ class ThreatDBReader:
                     SELECT finding_id, threat_scan_id, tenant_id, customer_id,
                            scan_run_id, rule_id, threat_category,
                            severity, status,
-                           resource_type, resource_id, resource_arn, resource_uid,
+                           resource_type, resource_id, resource_uid,
                            account_id, region,
                            mitre_tactics, mitre_techniques,
                            evidence, finding_data,
@@ -275,7 +275,7 @@ class ThreatDBReader:
                     SELECT finding_id, threat_scan_id, tenant_id, customer_id,
                            scan_run_id, rule_id, threat_category,
                            severity, status,
-                           resource_type, resource_id, resource_arn, resource_uid,
+                           resource_type, resource_id, resource_uid,
                            account_id, region,
                            mitre_tactics, mitre_techniques,
                            evidence, finding_data,
@@ -308,7 +308,6 @@ class ThreatDBReader:
                     'service': (row['resource_type'] or ''),
                     'resource_type': row['resource_type'] or '',
                     'resource_id': row['resource_id'] or '',
-                    'resource_arn': row['resource_arn'] or '',
                     'resource_uid': row['resource_uid'] or '',
                     'resource': fd.get('resource', {}),
                     'title': fd.get('title', ''),
@@ -369,16 +368,16 @@ class ThreatDBReader:
                 SELECT finding_id, threat_scan_id, tenant_id, customer_id,
                        scan_run_id, rule_id, threat_category,
                        severity, status,
-                       resource_type, resource_id, resource_arn, resource_uid,
+                       resource_type, resource_id, resource_uid,
                        account_id, region,
                        mitre_tactics, mitre_techniques,
                        evidence, finding_data,
                        first_seen_at, last_seen_at, created_at
                 FROM threat_findings
                 WHERE tenant_id = %s AND threat_scan_id = %s
-                  AND (resource_uid = %s OR resource_arn = %s)
+                  AND resource_uid = %s
             """
-            params = [tenant_id, threat_scan_id, resource_uid, resource_uid]
+            params = [tenant_id, threat_scan_id, resource_uid]
 
             if data_security_rule_ids:
                 placeholders = ','.join(['%s'] * len(data_security_rule_ids))
@@ -408,7 +407,6 @@ class ThreatDBReader:
                     'service': (row['resource_type'] or ''),
                     'resource_type': row['resource_type'] or '',
                     'resource_uid': row['resource_uid'] or '',
-                    'resource_arn': row['resource_arn'] or '',
                     'resource': fd.get('resource', {}),
                     'title': fd.get('title', ''),
                     'description': fd.get('description', ''),
@@ -459,7 +457,7 @@ class ThreatDBReader:
             placeholders = ','.join(['%s'] * len(ds_types))
             query = f"""
                 SELECT DISTINCT ON (resource_uid)
-                       resource_uid, resource_arn, resource_id, resource_type,
+                       resource_uid, resource_id, resource_type,
                        account_id, region
                 FROM threat_findings
                 WHERE tenant_id = %s AND threat_scan_id = %s
@@ -475,7 +473,7 @@ class ThreatDBReader:
             data_stores = []
             for row in rows:
                 data_stores.append({
-                    'resource_arn': row['resource_arn'] or row['resource_uid'] or '',
+                    'resource_uid': row['resource_uid'] or '',
                     'resource_id': row['resource_id'],
                     'resource_type': row['resource_type'],
                     'service': row['resource_type'],

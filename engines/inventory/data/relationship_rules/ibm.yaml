@@ -1,0 +1,456 @@
+csp: ibm
+description: "IBM Cloud relationship rules - VPC compute, networking, managed databases, containers"
+rules:
+  # ── is.instance (VPC Instance) ────────────────────────────────────────────
+  - from_resource_type: is.instance
+    relation_type: contained_by
+    to_resource_type: is.subnet
+    source_field: "primary_network_interface.subnet.id"
+    source_field_item: null
+    target_uid_pattern: "{primary_network_interface.subnet.id}"
+
+  - from_resource_type: is.instance
+    relation_type: contained_by
+    to_resource_type: is.vpc
+    source_field: "vpc.id"
+    source_field_item: null
+    target_uid_pattern: "{vpc.id}"
+
+  - from_resource_type: is.instance
+    relation_type: attached_to
+    to_resource_type: is.security-group
+    source_field: "network_interfaces"
+    source_field_item: "security_groups[].id"
+    target_uid_pattern: "{security_groups[].id}"
+
+  - from_resource_type: is.instance
+    relation_type: attached_to
+    to_resource_type: is.volume
+    source_field: "volume_attachments"
+    source_field_item: "volume.id"
+    target_uid_pattern: "{volume.id}"
+
+  - from_resource_type: is.instance
+    relation_type: grants_access_to
+    to_resource_type: is.floating-ip
+    source_field: "network_interfaces"
+    source_field_item: "floating_ips[].id"
+    target_uid_pattern: "{floating_ips[].id}"
+
+  - from_resource_type: is.instance
+    relation_type: uses
+    to_resource_type: is.ssh-key
+    source_field: "keys"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: is.instance
+    relation_type: uses
+    to_resource_type: iam.profile
+    source_field: "profile.name"
+    source_field_item: null
+    target_uid_pattern: "{profile.name}"
+
+  # ── is.subnet ─────────────────────────────────────────────────────────────
+  - from_resource_type: is.subnet
+    relation_type: contained_by
+    to_resource_type: is.vpc
+    source_field: "vpc.id"
+    source_field_item: null
+    target_uid_pattern: "{vpc.id}"
+
+  - from_resource_type: is.subnet
+    relation_type: uses
+    to_resource_type: is.public-gateway
+    source_field: "public_gateway.id"
+    source_field_item: null
+    target_uid_pattern: "{public_gateway.id}"
+
+  - from_resource_type: is.subnet
+    relation_type: uses
+    to_resource_type: is.routing-table
+    source_field: "routing_table.id"
+    source_field_item: null
+    target_uid_pattern: "{routing_table.id}"
+
+  - from_resource_type: is.subnet
+    relation_type: uses
+    to_resource_type: is.network-acl
+    source_field: "network_acl.id"
+    source_field_item: null
+    target_uid_pattern: "{network_acl.id}"
+
+  # ── is.vpc ────────────────────────────────────────────────────────────────
+  - from_resource_type: is.vpc
+    relation_type: grants_access_to
+    to_resource_type: is.routing-table
+    source_field: "default_routing_table.id"
+    source_field_item: null
+    target_uid_pattern: "{default_routing_table.id}"
+
+  - from_resource_type: is.vpc
+    relation_type: grants_access_to
+    to_resource_type: is.network-acl
+    source_field: "default_network_acl.id"
+    source_field_item: null
+    target_uid_pattern: "{default_network_acl.id}"
+
+  # ── is.security-group ─────────────────────────────────────────────────────
+  - from_resource_type: is.security-group
+    relation_type: contained_by
+    to_resource_type: is.vpc
+    source_field: "vpc.id"
+    source_field_item: null
+    target_uid_pattern: "{vpc.id}"
+
+  - from_resource_type: is.security-group
+    relation_type: references
+    to_resource_type: is.security-group
+    source_field: "rules"
+    source_field_item: "remote.id"
+    target_uid_pattern: "{remote.id}"
+
+  # ── is.load-balancer ─────────────────────────────────────────────────────
+  - from_resource_type: is.load-balancer
+    relation_type: contained_by
+    to_resource_type: is.subnet
+    source_field: "subnets"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: is.load-balancer
+    relation_type: attached_to
+    to_resource_type: is.security-group
+    source_field: "security_groups"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: is.load-balancer
+    relation_type: routes_to
+    to_resource_type: is.instance
+    source_field: "pools"
+    source_field_item: "members[].target.id"
+    target_uid_pattern: "{members[].target.id}"
+
+  # ── is.volume ─────────────────────────────────────────────────────────────
+  - from_resource_type: is.volume
+    relation_type: uses
+    to_resource_type: kms.key
+    source_field: "encryption_key.crn"
+    source_field_item: null
+    target_uid_pattern: "{encryption_key.crn}"
+
+  # ── is.vpn-gateway ────────────────────────────────────────────────────────
+  - from_resource_type: is.vpn-gateway
+    relation_type: contained_by
+    to_resource_type: is.subnet
+    source_field: "subnet.id"
+    source_field_item: null
+    target_uid_pattern: "{subnet.id}"
+
+  - from_resource_type: is.vpn-gateway
+    relation_type: contained_by
+    to_resource_type: is.vpc
+    source_field: "vpc.id"
+    source_field_item: null
+    target_uid_pattern: "{vpc.id}"
+
+  # ── databases.postgresql / databases.redis / databases.mongodb ────────────
+  - from_resource_type: databases.postgresql
+    relation_type: contained_by
+    to_resource_type: is.subnet
+    source_field: "private_endpoint.networks"
+    source_field_item: "subnet_id"
+    target_uid_pattern: "{subnet_id}"
+
+  - from_resource_type: databases.postgresql
+    relation_type: uses
+    to_resource_type: kms.key
+    source_field: "encryption.disk_encryption_key_id"
+    source_field_item: null
+    target_uid_pattern: "{encryption.disk_encryption_key_id}"
+
+  - from_resource_type: databases.redis
+    relation_type: uses
+    to_resource_type: kms.key
+    source_field: "encryption.disk_encryption_key_id"
+    source_field_item: null
+    target_uid_pattern: "{encryption.disk_encryption_key_id}"
+
+  # ── containers.cluster (IKS) ──────────────────────────────────────────────
+  - from_resource_type: containers.cluster
+    relation_type: contained_by
+    to_resource_type: is.vpc
+    source_field: "vpcs"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: containers.cluster
+    relation_type: contained_by
+    to_resource_type: is.subnet
+    source_field: "workerPools"
+    source_field_item: "subnetIDs[].id"
+    target_uid_pattern: "{subnetIDs[].id}"
+
+  - from_resource_type: containers.cluster
+    relation_type: uses
+    to_resource_type: kms.key
+    source_field: "masterKubeVersion"
+    source_field_item: null
+    target_uid_pattern: "{encryption.keyID}"
+
+  # ── resource.instances (Cloud Functions, App Connect, etc.) ───────────────
+  - from_resource_type: resource.instances
+    relation_type: uses
+    to_resource_type: kms.key
+    source_field: "extensions.encryption_key"
+    source_field_item: null
+    target_uid_pattern: "{extensions.encryption_key}"
+
+  # ── kms.key ───────────────────────────────────────────────────────────────
+  - from_resource_type: kms.key
+    relation_type: contained_by
+    to_resource_type: kms.instance
+    source_field: "instanceID"
+    source_field_item: null
+    target_uid_pattern: "{instanceID}"
+
+  # ── is.flow-log-collector ─────────────────────────────────────────────────
+  - from_resource_type: is.flow-log-collector
+    relation_type: monitors
+    to_resource_type: is.vpc
+    source_field: "target.id"
+    source_field_item: null
+    target_uid_pattern: "{target.id}"
+
+  - from_resource_type: is.flow-log-collector
+    relation_type: stores_data_in
+    to_resource_type: cos.bucket
+    source_field: "storage_bucket.name"
+    source_field_item: null
+    target_uid_pattern: "{storage_bucket.name}"
+
+  # ── is.bare-metal-server ──────────────────────────────────────────────────
+  - from_resource_type: is.bare-metal-server
+    relation_type: contained_by
+    to_resource_type: is.vpc
+    source_field: "vpc.id"
+    source_field_item: null
+    target_uid_pattern: "{vpc.id}"
+
+  - from_resource_type: is.bare-metal-server
+    relation_type: contained_by
+    to_resource_type: is.subnet
+    source_field: "primary_network_interface.subnet.id"
+    source_field_item: null
+    target_uid_pattern: "{primary_network_interface.subnet.id}"
+
+  - from_resource_type: is.bare-metal-server
+    relation_type: attached_to
+    to_resource_type: is.security-group
+    source_field: "network_interfaces"
+    source_field_item: "security_groups[].id"
+    target_uid_pattern: "{security_groups[].id}"
+
+  # ── is.dedicated-host ─────────────────────────────────────────────────────
+  - from_resource_type: is.dedicated-host
+    relation_type: contained_by
+    to_resource_type: is.dedicated-host-group
+    source_field: "group.id"
+    source_field_item: null
+    target_uid_pattern: "{group.id}"
+
+  # ── is.network-acl ────────────────────────────────────────────────────────
+  - from_resource_type: is.network-acl
+    relation_type: contained_by
+    to_resource_type: is.vpc
+    source_field: "vpc.id"
+    source_field_item: null
+    target_uid_pattern: "{vpc.id}"
+
+  # ── is.public-gateway ─────────────────────────────────────────────────────
+  - from_resource_type: is.public-gateway
+    relation_type: contained_by
+    to_resource_type: is.vpc
+    source_field: "vpc.id"
+    source_field_item: null
+    target_uid_pattern: "{vpc.id}"
+
+  - from_resource_type: is.public-gateway
+    relation_type: attached_to
+    to_resource_type: is.floating-ip
+    source_field: "floating_ip.id"
+    source_field_item: null
+    target_uid_pattern: "{floating_ip.id}"
+
+  # ── is.endpoint-gateway (VPE) ─────────────────────────────────────────────
+  - from_resource_type: is.endpoint-gateway
+    relation_type: contained_by
+    to_resource_type: is.vpc
+    source_field: "vpc.id"
+    source_field_item: null
+    target_uid_pattern: "{vpc.id}"
+
+  - from_resource_type: is.endpoint-gateway
+    relation_type: contained_by
+    to_resource_type: is.subnet
+    source_field: "ips"
+    source_field_item: "subnet.id"
+    target_uid_pattern: "{subnet.id}"
+
+  # ── is.routing-table ──────────────────────────────────────────────────────
+  - from_resource_type: is.routing-table
+    relation_type: contained_by
+    to_resource_type: is.vpc
+    source_field: "vpc.id"
+    source_field_item: null
+    target_uid_pattern: "{vpc.id}"
+
+  # ── cos.bucket ────────────────────────────────────────────────────────────
+  - from_resource_type: cos.bucket
+    relation_type: uses
+    to_resource_type: kms.key
+    source_field: "key_protection.key.id"
+    source_field_item: null
+    target_uid_pattern: "{key_protection.key.id}"
+
+  # ── databases.elasticsearch / etcd / rabbitmq / mysql / mongodb ────────────
+  - from_resource_type: databases.elasticsearch
+    relation_type: contained_by
+    to_resource_type: is.subnet
+    source_field: "private_endpoint.networks"
+    source_field_item: "subnet_id"
+    target_uid_pattern: "{subnet_id}"
+
+  - from_resource_type: databases.elasticsearch
+    relation_type: uses
+    to_resource_type: kms.key
+    source_field: "encryption.disk_encryption_key_id"
+    source_field_item: null
+    target_uid_pattern: "{encryption.disk_encryption_key_id}"
+
+  - from_resource_type: databases.etcd
+    relation_type: uses
+    to_resource_type: kms.key
+    source_field: "encryption.disk_encryption_key_id"
+    source_field_item: null
+    target_uid_pattern: "{encryption.disk_encryption_key_id}"
+
+  - from_resource_type: databases.rabbitmq
+    relation_type: uses
+    to_resource_type: kms.key
+    source_field: "encryption.disk_encryption_key_id"
+    source_field_item: null
+    target_uid_pattern: "{encryption.disk_encryption_key_id}"
+
+  - from_resource_type: databases.mysql
+    relation_type: contained_by
+    to_resource_type: is.subnet
+    source_field: "private_endpoint.networks"
+    source_field_item: "subnet_id"
+    target_uid_pattern: "{subnet_id}"
+
+  - from_resource_type: databases.mysql
+    relation_type: uses
+    to_resource_type: kms.key
+    source_field: "encryption.disk_encryption_key_id"
+    source_field_item: null
+    target_uid_pattern: "{encryption.disk_encryption_key_id}"
+
+  - from_resource_type: databases.mongodb
+    relation_type: contained_by
+    to_resource_type: is.subnet
+    source_field: "private_endpoint.networks"
+    source_field_item: "subnet_id"
+    target_uid_pattern: "{subnet_id}"
+
+  - from_resource_type: databases.mongodb
+    relation_type: uses
+    to_resource_type: kms.key
+    source_field: "encryption.disk_encryption_key_id"
+    source_field_item: null
+    target_uid_pattern: "{encryption.disk_encryption_key_id}"
+
+  # ── messagehub (Event Streams) ────────────────────────────────────────────
+  - from_resource_type: messagehub.instance
+    relation_type: contained_by
+    to_resource_type: is.subnet
+    source_field: "network_endpoints"
+    source_field_item: "subnet_id"
+    target_uid_pattern: "{subnet_id}"
+
+  - from_resource_type: messagehub.instance
+    relation_type: uses
+    to_resource_type: kms.key
+    source_field: "disk_encryption_key_crn"
+    source_field_item: null
+    target_uid_pattern: "{disk_encryption_key_crn}"
+
+  # ── containers.worker (IKS node) ──────────────────────────────────────────
+  - from_resource_type: containers.worker
+    relation_type: contained_by
+    to_resource_type: containers.cluster
+    source_field: "clusterID"
+    source_field_item: null
+    target_uid_pattern: "{clusterID}"
+
+  - from_resource_type: containers.worker
+    relation_type: contained_by
+    to_resource_type: is.subnet
+    source_field: "networkInterfaces"
+    source_field_item: "subnetID"
+    target_uid_pattern: "{subnetID}"
+
+  # ── satellite.host ────────────────────────────────────────────────────────
+  - from_resource_type: satellite.host
+    relation_type: contained_by
+    to_resource_type: satellite.location
+    source_field: "location"
+    source_field_item: null
+    target_uid_pattern: "{location}"
+
+  # ── satellite.cluster ─────────────────────────────────────────────────────
+  - from_resource_type: satellite.cluster
+    relation_type: contained_by
+    to_resource_type: satellite.location
+    source_field: "satellite_location"
+    source_field_item: null
+    target_uid_pattern: "{satellite_location}"
+
+  # ── sysdig.monitor (IBM Cloud Monitoring) ─────────────────────────────────
+  - from_resource_type: sysdig.monitor
+    relation_type: monitors
+    to_resource_type: is.instance
+    source_field: "target_crn"
+    source_field_item: null
+    target_uid_pattern: "{target_crn}"
+
+  # ── logdna.instance (IBM Log Analysis) ───────────────────────────────────
+  - from_resource_type: logdna.instance
+    relation_type: stores_data_in
+    to_resource_type: cos.bucket
+    source_field: "archive_bucket"
+    source_field_item: null
+    target_uid_pattern: "{archive_bucket}"
+
+  # ── is.vpn-server ─────────────────────────────────────────────────────────
+  - from_resource_type: is.vpn-server
+    relation_type: contained_by
+    to_resource_type: is.subnet
+    source_field: "subnets"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: is.vpn-server
+    relation_type: contained_by
+    to_resource_type: is.vpc
+    source_field: "vpc.id"
+    source_field_item: null
+    target_uid_pattern: "{vpc.id}"
+
+  - from_resource_type: is.vpn-server
+    relation_type: attached_to
+    to_resource_type: is.security-group
+    source_field: "security_groups"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"

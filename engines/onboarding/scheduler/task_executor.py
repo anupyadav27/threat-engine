@@ -5,7 +5,7 @@ import asyncio
 import sys
 import os
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
 
 # Add common to path for logger import
@@ -182,7 +182,7 @@ class TaskExecutor:
             )
             
             # Calculate execution time
-            completed_at = datetime.utcnow()
+            completed_at = datetime.now(timezone.utc)
             execution_time = int((completed_at - started_at.replace(tzinfo=None)).total_seconds())
             
             # Update execution
@@ -218,7 +218,7 @@ class TaskExecutor:
                 # Send webhook notification after orchestration completes
                 asyncio.create_task(
                     self._send_notification_after_orchestration(
-                        orchestration_task, scan_run_id, tenant_id, account_id, provider_type, status, scan_id
+                        orchestration_task, scan_run_id, tenant_id, account_id, provider_type, "completed", scan_id
                     )
                 )
             except Exception as e:
@@ -241,7 +241,7 @@ class TaskExecutor:
             }
             
         except Exception as e:
-            completed_at = datetime.utcnow()
+            completed_at = datetime.now(timezone.utc)
             execution_time = int((completed_at - started_at.replace(tzinfo=None)).total_seconds())
             
             with LogContext(tenant_id=tenant_id, scan_run_id=scan_run_id, execution_id=execution_id):
@@ -328,7 +328,7 @@ class TaskExecutor:
                     scan_run_id=scan_run_id,
                     status='completed',
                     scan_id=scan_id,
-                    completed_at=datetime.utcnow().isoformat()
+                    completed_at=datetime.now(timezone.utc).isoformat()
                 )
             
             # Trigger downstream engines (non-blocking)
@@ -359,7 +359,7 @@ class TaskExecutor:
                 update_scan_metadata(
                     scan_run_id=scan_run_id,
                     status='failed',
-                    completed_at=datetime.utcnow().isoformat(),
+                    completed_at=datetime.now(timezone.utc).isoformat(),
                     metadata={"error": str(e)}
                 )
             

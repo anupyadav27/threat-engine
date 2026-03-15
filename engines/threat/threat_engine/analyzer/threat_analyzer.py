@@ -608,7 +608,7 @@ class ThreatAnalyzer:
                     SELECT
                         detection_id, tenant_id, scan_id,
                         detection_type, rule_id, rule_name,
-                        resource_arn, resource_id, resource_type,
+                        resource_uid, resource_id, resource_type,
                         account_id, region, provider,
                         severity, confidence, status,
                         threat_category,

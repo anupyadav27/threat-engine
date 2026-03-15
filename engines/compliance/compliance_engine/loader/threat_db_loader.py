@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 import os
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 try:
@@ -134,12 +134,12 @@ class ThreatDBLoader:
                 "scan_id": scan_run_id,
                 "csp": csp,
                 "account_id": account_id,
-                "scanned_at": scanned_at or datetime.utcnow().isoformat() + "Z",
+                "scanned_at": scanned_at or datetime.now(timezone.utc).isoformat() + "Z",
                 "results": [],
             }
 
         acc = account_id or (findings[0].get("account", "") if findings else "")
-        at = scanned_at or datetime.utcnow().isoformat() + "Z"
+        at = scanned_at or datetime.now(timezone.utc).isoformat() + "Z"
         service_region: Dict[str, Dict[str, List[Dict[str, Any]]]] = defaultdict(lambda: defaultdict(list))
 
         for f in findings:

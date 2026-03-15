@@ -353,7 +353,7 @@ class SecurityGraphBuilder:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute("""
                     SELECT detection_id, scan_id, detection_type,
-                           rule_id, rule_name, resource_arn, resource_id,
+                           rule_id, rule_name, resource_uid, resource_id,
                            resource_type, account_id, region, provider,
                            severity, confidence, status, threat_category,
                            mitre_tactics, mitre_techniques

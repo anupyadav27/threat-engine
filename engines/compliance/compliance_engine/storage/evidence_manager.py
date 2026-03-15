@@ -6,7 +6,7 @@ import json
 import uuid
 import os
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from ..schemas.enterprise_report_schema import Evidence, EvidenceType
 
 
@@ -60,7 +60,7 @@ class EvidenceManager:
             Evidence object with data_ref
         """
         evidence_id = str(uuid.uuid4())
-        collected_at = collected_at or datetime.utcnow().isoformat() + 'Z'
+        collected_at = collected_at or datetime.now(timezone.utc).isoformat() + 'Z'
         
         if self.use_local:
             # Local storage for testing

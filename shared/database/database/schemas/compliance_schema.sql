@@ -64,12 +64,11 @@ CREATE TABLE IF NOT EXISTS compliance_findings (
     last_seen_at TIMESTAMP WITH TIME ZONE NOT NULL,
     resource_type VARCHAR(100),
     resource_id VARCHAR(255),
-    resource_arn TEXT,
+    resource_uid TEXT,                -- Canonical identifier (ARN for AWS, ARM ID for Azure, etc.)
     region VARCHAR(50),
     finding_data JSONB NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     customer_id VARCHAR(255),
-    resource_uid TEXT,
     compliance_framework VARCHAR(255),
     control_id VARCHAR(255),
     control_name VARCHAR(500),
@@ -281,7 +280,7 @@ CREATE INDEX IF NOT EXISTS idx_cf_rule_status ON compliance_findings(rule_id, st
 CREATE INDEX IF NOT EXISTS idx_cf_tenant_severity ON compliance_findings(tenant_id, severity, last_seen_at DESC);
 
 -- Full-text search indexes
-CREATE INDEX IF NOT EXISTS idx_cf_resource_arn_trgm ON compliance_findings USING gin(resource_arn gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_cf_resource_uid_trgm ON compliance_findings USING gin(resource_uid gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_control_name_trgm ON compliance_controls USING gin(control_name gin_trgm_ops);
 
 -- Triggers for updated_at

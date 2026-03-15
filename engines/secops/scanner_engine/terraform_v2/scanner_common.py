@@ -45,8 +45,7 @@ def load_rule_metadata(folder="terraform_docs1"):
     script_dir = os.path.dirname(os.path.abspath(__file__))
     folder_path = os.path.join(script_dir, folder)
     if not os.path.isdir(folder_path):
-    # print(f"Metadata folder '{folder}' not found in {script_dir}.")
-        sys.exit(1)
+        raise RuntimeError(f"Metadata folder '{folder}' not found in {script_dir}")
     rules_meta = {}
     for filename in os.listdir(folder_path):
         if filename.endswith(".json"):
@@ -77,20 +76,17 @@ def get_tf_files_from_path(path):
         if path.endswith('.tf') or path.endswith('.tfvars'):
             return [os.path.abspath(path)]
         else:
-            # print(f"File '{path}' is not a .tf or .tfvars file.")
-            sys.exit(1)
+            raise RuntimeError(f"File '{path}' is not a .tf or .tfvars file")
     elif os.path.isdir(path):
         tf_files = []
         for fname in os.listdir(path):
             if fname.endswith('.tf') or fname.endswith('.tfvars'):
                 tf_files.append(os.path.join(path, fname))
         if not tf_files:
-            # print(f"No .tf or .tfvars files found in folder '{path}'.")
-            sys.exit(1)
+            raise RuntimeError(f"No .tf or .tfvars files found in folder '{path}'")
         return tf_files
     else:
-        # print(f"Path '{path}' does not exist.")
-        sys.exit(1)
+        raise RuntimeError(f"Path '{path}' does not exist")
 
 
 # API entry point for plugin system

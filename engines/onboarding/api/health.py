@@ -3,6 +3,7 @@ Health check endpoints
 """
 import os
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional
 from sqlalchemy import text
@@ -83,9 +84,15 @@ async def readiness_check():
         if check_connection():
             return {"status": "ready", "database": "connected", "using": "local_database_config"}
         else:
-            return {"status": "not_ready", "database": "disconnected"}, 503
+            return JSONResponse(
+                status_code=503,
+                content={"status": "not_ready", "database": "disconnected"}
+            )
     except Exception as e:
-        return {"status": "not_ready", "error": str(e)}, 503
+        return JSONResponse(
+            status_code=503,
+            content={"status": "not_ready", "error": str(e)}
+        )
 
 
 @router.get("/live")

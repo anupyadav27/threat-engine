@@ -7,7 +7,7 @@ Converts NDJSON scan output to normalized misconfig findings with stable IDs.
 import json
 import hashlib
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from .threat_report_schema import MisconfigFinding, Severity, Cloud
 
 
@@ -161,8 +161,8 @@ def normalize_ndjson_to_findings(
                 resource=resource,
                 evidence_refs=evidence_refs,
                 checked_fields=checked_fields,
-                first_seen_at=datetime.utcnow(),
-                last_seen_at=datetime.utcnow()
+                first_seen_at=datetime.now(timezone.utc),
+                last_seen_at=datetime.now(timezone.utc)
             )
             
             findings.append(finding)
@@ -330,9 +330,9 @@ def normalize_db_check_results_to_findings(
             try:
                 created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
             except Exception:
-                created_at = datetime.utcnow()
+                created_at = datetime.now(timezone.utc)
         elif created_at is None:
-            created_at = datetime.utcnow()
+            created_at = datetime.now(timezone.utc)
 
         # Extract MITRE ATT&CK enrichment from rule_metadata JOIN
         threat_category = check.get("threat_category")

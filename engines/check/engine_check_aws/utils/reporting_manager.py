@@ -3,7 +3,7 @@ import json
 import fnmatch
 import logging
 import hashlib
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Tuple
 from pathlib import Path
 import yaml
@@ -321,7 +321,7 @@ def is_global_service(service: str) -> bool:
 
 def _timestamp() -> str:
     """Generate timestamp for scan ID"""
-    return datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    return datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
 
 
 def create_scan_folder(scan_id: str = None) -> tuple:
@@ -457,7 +457,7 @@ def setup_scan_logging(scan_folder: str, scan_id: str):
 
 
 def _meta(account_id: str | None, folder: str) -> Dict[str, Any]:
-    return {"account_id": account_id, "generated_at": datetime.utcnow().isoformat() + "Z", "report_folder": os.path.abspath(folder)}
+    return {"account_id": account_id, "generated_at": datetime.now(timezone.utc).isoformat() + "Z", "report_folder": os.path.abspath(folder)}
 
 
 # NOTE: Exception reading functions removed - now using exception_manager.py
@@ -490,7 +490,7 @@ def _iso_not_expired(expires_at: str | None) -> bool:
         return True
     try:
         dt = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
-        return datetime.utcnow() <= dt
+        return datetime.now(timezone.utc) <= dt
     except Exception:
         return True
 
@@ -578,7 +578,7 @@ def save_chunked_resources(scan_folder: str, account_id: str, region: str,
             "region": region,
             "service": service,
             "scan_id": os.path.basename(scan_folder),
-            "generated_at": datetime.utcnow().isoformat() + "Z",
+            "generated_at": datetime.now(timezone.utc).isoformat() + "Z",
             "resource_count": len(chunk),
             "resources": chunk
         }
@@ -623,7 +623,7 @@ def save_chunked_resources(scan_folder: str, account_id: str, region: str,
         "region": region,
         "service": service,
         "scan_id": os.path.basename(scan_folder),
-        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "generated_at": datetime.now(timezone.utc).isoformat() + "Z",
         "total_resources": total_resources,
         "total_chunks": len(chunks_metadata),
         "chunk_size": chunk_size,
@@ -669,7 +669,7 @@ def save_reporting_bundle(results: List[Dict[str, Any]], account_id: str | None 
     # Hierarchical structure
     hierarchical_data = {
         "metadata": {
-            "generated_at": datetime.utcnow().isoformat() + "Z",
+            "generated_at": datetime.now(timezone.utc).isoformat() + "Z",
             "total_accounts": 0,
             "total_resources": 0,
             "total_checks": 0
@@ -1047,7 +1047,7 @@ def extract_inventory_assets(
                     elif "tags" in item and isinstance(item["tags"], str):
                         try:
                             tags = json.loads(item["tags"]) if item["tags"] else {}
-                        except:
+                        except Exception:
                             tags = {}
                     
                     # Extract name
@@ -1062,7 +1062,7 @@ def extract_inventory_assets(
                         # Convert datetime to ISO string
                         try:
                             created_at = created_at.isoformat() + "Z" if hasattr(created_at, 'isoformat') else str(created_at)
-                        except:
+                        except Exception:
                             created_at = None
                     
                     # Extract updated_at (for UI: updated_at)
@@ -1072,7 +1072,7 @@ def extract_inventory_assets(
                     elif updated_at:
                         try:
                             updated_at = updated_at.isoformat() + "Z" if hasattr(updated_at, 'isoformat') else str(updated_at)
-                        except:
+                        except Exception:
                             updated_at = None
                     
                     # Extract environment from tags (for UI: environment)

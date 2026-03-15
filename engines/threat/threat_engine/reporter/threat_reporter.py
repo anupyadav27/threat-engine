@@ -5,7 +5,7 @@ Generates threat reports from normalized findings and detected threats.
 """
 
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from ..schemas.threat_report_schema import (
     ThreatReport,
     Threat,
@@ -64,7 +64,7 @@ class ThreatReporter:
             misconfig_findings=misconfig_findings,
             asset_snapshots=asset_snapshots,
             evidence=evidence,
-            generated_at=datetime.utcnow()
+            generated_at=datetime.now(timezone.utc)
         )
         
         return report

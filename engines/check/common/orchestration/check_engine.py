@@ -22,7 +22,7 @@ import logging
 import os
 import uuid
 import yaml
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -297,6 +297,15 @@ class CheckEngine:
                     continue
                 self.phase_logger.info("  %d rules (merged YAML+DB)", len(checks))
 
+                # Pre-load rule metadata for resource_service resolution
+                _meta_map: Dict[str, Dict] = {}
+                if self.rule_reader:
+                    try:
+                        _rule_ids = [c.get("rule_id") for c in checks if c.get("rule_id")]
+                        _meta_map = self.rule_reader.read_metadata_for_rules(_rule_ids)
+                    except Exception:
+                        pass
+
                 # Pre-load all discovery data for this service
                 disc_cache: Dict[str, List[Dict]] = {}
                 for ch in checks:
@@ -317,6 +326,10 @@ class CheckEngine:
                     conditions = check.get("conditions")
                     if not rule_id or not for_each or not conditions:
                         continue
+
+                    # Resolve resource_service from metadata (cross-service fix)
+                    _rmeta = _meta_map.get(rule_id, {})
+                    resource_service = _rmeta.get("resource_service") or service
 
                     items = disc_cache.get(for_each, [])
                     if not items:
@@ -377,6 +390,7 @@ class CheckEngine:
                                         "hierarchy_type": hierarchy_type,
                                         "rule_id": rule_id,
                                         "service": service,
+                                        "resource_service": resource_service,
                                         "discovery_id": for_each,
                                         "region": region,
                                         "resource_arn": resource_arn,
@@ -387,7 +401,7 @@ class CheckEngine:
                                         "checked_fields": checked_fields,
                                         "actual_values": actual_values,
                                         "finding_data": finding_data,
-                                        "scan_timestamp": datetime.utcnow().isoformat(),
+                                        "scan_timestamp": datetime.now(timezone.utc).isoformat(),
                                     }
                                 )
                             elif self.db:
@@ -406,6 +420,7 @@ class CheckEngine:
                                     resource_uid=resource_uid,
                                     resource_id=resource_id,
                                     resource_type=resource_type,
+                                    resource_service=resource_service,
                                     status=status,
                                     checked_fields=checked_fields,
                                     actual_values=actual_values,

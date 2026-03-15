@@ -8,7 +8,7 @@ to the format expected by the compliance engine.
 import json
 from pathlib import Path
 from typing import Dict, List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from collections import defaultdict
 
 
@@ -139,7 +139,7 @@ class ThreatEngineLoader:
                 'scan_id': '',
                 'csp': csp,
                 'account_id': '',
-                'scanned_at': datetime.utcnow().isoformat() + 'Z',
+                'scanned_at': datetime.now(timezone.utc).isoformat() + 'Z',
                 'results': []
             }
         
@@ -150,7 +150,7 @@ class ThreatEngineLoader:
         first_record = check_results[0]
         scan_id = first_record.get('scan_id', '')
         account_id = first_record.get('hierarchy_id', '')  # hierarchy_id is typically account_id
-        scanned_at = first_record.get('scan_timestamp', datetime.utcnow().isoformat() + 'Z')
+        scanned_at = first_record.get('scan_timestamp', datetime.now(timezone.utc).isoformat() + 'Z')
         
         # Convert timestamp if it's a string
         if isinstance(scanned_at, str):
@@ -158,8 +158,8 @@ class ThreatEngineLoader:
                 # Try to parse and reformat
                 dt = datetime.fromisoformat(scanned_at.replace('Z', '+00:00'))
                 scanned_at = dt.isoformat() + 'Z'
-            except:
-                scanned_at = datetime.utcnow().isoformat() + 'Z'
+            except Exception:
+                scanned_at = datetime.now(timezone.utc).isoformat() + 'Z'
         
         for record in check_results:
             rule_id = record.get('rule_id', '')

@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import uuid
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 import sys
 import os
@@ -171,7 +171,7 @@ async def create_check(request: CheckRequest, background_tasks: BackgroundTasks)
         "discovery_scan_id": discovery_query_scan_id,  # Use resolved discovery_scan_id
         "results": None,
         "error": None,
-        "started_at": datetime.utcnow(),
+        "started_at": datetime.now(timezone.utc),
         "progress": {
             "services_completed": 0,
             "services_total": 0,
@@ -235,7 +235,7 @@ def _run_check_sync(check_scan_id: str, request: CheckRequest):
             scans[check_scan_id]["status"] = "completed"
             scans[check_scan_id]["check_scan_id"] = check_results.get('check_scan_id', check_scan_id)
             scans[check_scan_id]["results"] = check_results
-            scans[check_scan_id]["completed_at"] = datetime.utcnow()
+            scans[check_scan_id]["completed_at"] = datetime.now(timezone.utc)
             metrics["successful_scans"] += 1
 
             logger.info("Check scan completed", extra={
@@ -251,7 +251,7 @@ def _run_check_sync(check_scan_id: str, request: CheckRequest):
             })
             scans[check_scan_id]["status"] = "failed"
             scans[check_scan_id]["error"] = str(e)
-            scans[check_scan_id]["completed_at"] = datetime.utcnow()
+            scans[check_scan_id]["completed_at"] = datetime.now(timezone.utc)
             metrics["failed_scans"] += 1
 
 

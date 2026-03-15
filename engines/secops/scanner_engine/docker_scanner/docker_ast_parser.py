@@ -629,7 +629,7 @@ class DockerParser:
                     raw=value
                 )
                 instruction.form = 'exec'
-            except:
+            except Exception:
                 # Malformed JSON, treat as shell
                 command_node = CommandNode(
                     form='shell',

@@ -11,16 +11,10 @@ Env: INVENTORY_DB_HOST / INVENTORY_DB_PORT / INVENTORY_DB_NAME / INVENTORY_DB_US
 Tables WRITTEN:
   - inventory_report        : write_scan_summary(ScanSummary)
                               — INSERT ... ON CONFLICT (inventory_scan_id) DO UPDATE
-                              Columns: inventory_scan_id, tenant_id, started_at, completed_at,
-                                       status, total_assets, total_relationships,
-                                       assets_by_provider, assets_by_resource_type, assets_by_region,
-                                       providers_scanned, accounts_scanned, regions_scanned, errors_count
   - inventory_findings      : write_asset_index(assets)
-                              — INSERT ... ON CONFLICT (asset_id) DO UPDATE
-                              Columns: asset_id, tenant_id, resource_uid, provider, account_id,
-                                       region, resource_type, resource_id, name, tags, labels,
-                                       properties, configuration (enrichment data),
-                                       inventory_scan_id, latest_scan_run_id, updated_at
+                              — INSERT ... ON CONFLICT (asset_id) DO UPDATE (latest state only)
+  - inventory_scan_data     : write_scan_snapshot(assets)
+                              — INSERT per asset per scan (historical snapshots, 5 retained)
   - inventory_relationships : write_relationship_index(relationships)
                               — INSERT per relationship edge
 
@@ -32,7 +26,7 @@ import json
 import uuid
 import logging
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from ..schemas.asset_schema import Asset, generate_asset_id
 from ..schemas.relationship_schema import Relationship
 from ..schemas.summary_schema import ScanSummary
@@ -174,7 +168,7 @@ class PostgresIndexWriter(IndexWriter):
                 json.dumps(asset.tags), json.dumps(labels),
                 json.dumps(properties), json.dumps(configuration),
                 asset.scan_run_id, asset.scan_run_id,
-                datetime.utcnow()
+                datetime.now(timezone.utc)
             ))
 
         self.conn.commit()
@@ -202,6 +196,95 @@ class PostgresIndexWriter(IndexWriter):
             ))
 
         self.conn.commit()
+
+    def write_scan_snapshot(self, assets: List[Asset]):
+        """Write full scan snapshot to inventory_scan_data for historical retention.
+
+        Each scan gets its own set of rows. Old scans beyond the retention limit
+        are purged by purge_old_scans().
+        """
+        if not assets:
+            return
+
+        cursor = self.conn.cursor()
+
+        def _serialize_value(obj):
+            if isinstance(obj, datetime):
+                return obj.isoformat()
+            elif isinstance(obj, dict):
+                return {k: _serialize_value(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [_serialize_value(item) for item in obj]
+            return obj
+
+        for asset in assets:
+            asset_id = generate_asset_id(asset)
+            configuration = asset.metadata.get('configuration', {}) if asset.metadata else {}
+            labels = asset.metadata.get('labels', {}) if asset.metadata else {}
+            properties = {k: v for k, v in asset.metadata.items() if k not in ['configuration', 'labels', 'raw_refs']} if asset.metadata else {}
+            configuration = _serialize_value(configuration)
+            labels = _serialize_value(labels)
+            properties = _serialize_value(properties)
+
+            cursor.execute("""
+                INSERT INTO inventory_scan_data (
+                    inventory_scan_id, tenant_id, asset_id, resource_uid,
+                    provider, account_id, region, resource_type, resource_id,
+                    name, tags, labels, properties, configuration
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                asset.scan_run_id, asset.tenant_id, asset_id, asset.resource_uid,
+                asset.provider.value, asset.account_id, asset.region,
+                asset.resource_type, asset.resource_id, asset.name,
+                json.dumps(asset.tags), json.dumps(labels),
+                json.dumps(properties), json.dumps(configuration),
+            ))
+
+        self.conn.commit()
+        logger.info(f"Wrote {len(assets)} asset snapshots to inventory_scan_data")
+
+    def purge_old_scans(self, tenant_id: str, keep_count: int = 5):
+        """Delete scan snapshots and relationships older than the N most recent.
+
+        Keeps inventory_findings (latest state) intact. Purges:
+          - inventory_scan_data rows from old scans
+          - inventory_relationships rows from old scans
+          - inventory_drift rows from old scans
+        """
+        cursor = self.conn.cursor()
+        # Get the scan IDs to keep (most recent N)
+        cursor.execute("""
+            SELECT inventory_scan_id FROM inventory_report
+            WHERE tenant_id = %s
+            ORDER BY created_at DESC
+            LIMIT %s
+        """, (tenant_id, keep_count))
+        keep_ids = [r[0] for r in cursor.fetchall()]
+
+        if not keep_ids:
+            return 0
+
+        total_deleted = 0
+        for table in ['inventory_scan_data', 'inventory_relationships', 'inventory_drift']:
+            try:
+                cursor.execute(f"""
+                    DELETE FROM {table}
+                    WHERE tenant_id = %s
+                      AND inventory_scan_id IS NOT NULL
+                      AND inventory_scan_id != ALL(%s)
+                """, (tenant_id, keep_ids))
+                deleted = cursor.rowcount
+                if deleted > 0:
+                    logger.info(f"Purged {deleted} old rows from {table}")
+                    total_deleted += deleted
+            except Exception as e:
+                logger.warning(f"Failed to purge {table}: {e}")
+                self.conn.rollback()
+                cursor = self.conn.cursor()
+
+        self.conn.commit()
+        logger.info(f"Scan retention: kept {len(keep_ids)} scans, purged {total_deleted} old rows")
+        return total_deleted
 
     def write_drift_index(self, drift_records, scan_run_id: str, previous_scan_id: str, tenant_id: str):
         """Write drift records to inventory_drift table.
@@ -235,12 +318,10 @@ class PostgresIndexWriter(IndexWriter):
                 else:
                     severity = "low"
 
-                # Extract resource metadata
+                # Extract resource metadata (populated by DriftDetector)
                 resource_uid = dr.resource_uid if hasattr(dr, 'resource_uid') else ""
-                provider = ""
-                resource_type = ""
-                if hasattr(dr, 'resource_type'):
-                    resource_type = dr.resource_type or ""
+                provider = getattr(dr, 'provider', "") or ""
+                resource_type = getattr(dr, 'resource_type', "") or ""
 
                 cursor.execute("""
                     INSERT INTO inventory_drift (
@@ -254,7 +335,7 @@ class PostgresIndexWriter(IndexWriter):
                     resource_uid, provider, resource_type, change_type,
                     json.dumps({}), json.dumps({}), json.dumps(changes_summary),
                     severity,
-                    dr.detected_at if hasattr(dr, 'detected_at') else datetime.utcnow()
+                    dr.detected_at if hasattr(dr, 'detected_at') else datetime.now(timezone.utc)
                 ))
                 inserted += 1
             except Exception as e:
