@@ -1,0 +1,274 @@
+# ============================================================
+# Discovery YAML — vault (v1)
+# Generated: 2026-02-21T03:06:41Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 11 | independent: 1 | dependent: 10
+# ops with fields: 11/11 | dep ops with chain: 9/10
+# ============================================================
+version: '1.0'
+provider: gcp
+service: vault
+
+services:
+  client: vault
+  module: "googleapiclient.discovery.build('vault', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists matters the requestor has access to.
+  # ── gcp.vault.matters.list ──
+  - discovery_id: gcp.vault.matters.list
+    # python: svc.matters().list(**params).execute()
+    calls:
+      - action: matters.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.matters }}'
+      item:
+        description: '{{ item.description }}'
+        matterId: '{{ item.matterId }}'
+        matterPermissions: '{{ item.matterPermissions }}'
+        matterRegion: '{{ item.matterRegion }}'
+        name: '{{ item.name }}'
+        state: '{{ item.state }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets an export.
+  # ── gcp.vault.matters.exports.get [dependent] ──
+  - discovery_id: gcp.vault.matters.exports.get
+    for_each: gcp.vault.matters.exports.list
+    # python: svc.matters().exports().get(**params).execute()
+    calls:
+      - action: matters.exports.get
+        params:
+          exportId: '{{ item.name }}'
+          matterId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        cloudStorageSink: '{{ response.cloudStorageSink }}'
+        createTime: '{{ response.createTime }}'
+        exportOptions: '{{ response.exportOptions }}'
+        id: '{{ response.id }}'
+        matterId: '{{ response.matterId }}'
+        name: '{{ response.name }}'
+        parentExportId: '{{ response.parentExportId }}'
+        query: '{{ response.query }}'
+        requester: '{{ response.requester }}'
+        stats: '{{ response.stats }}'
+        status: '{{ response.status }}'
+    # required_params: ['matterId', 'exportId']
+  # Lists details about the exports in the specified matter.
+  # ── gcp.vault.matters.exports.list [dependent] ──
+  - discovery_id: gcp.vault.matters.exports.list
+    for_each: gcp.vault.matters.list
+    # python: svc.matters().exports().list(**params).execute()
+    calls:
+      - action: matters.exports.list
+        params:
+          matterId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.exports }}'
+      item:
+        cloudStorageSink: '{{ item.cloudStorageSink }}'
+        createTime: '{{ item.createTime }}'
+        exportOptions: '{{ item.exportOptions }}'
+        id: '{{ item.id }}'
+        matterId: '{{ item.matterId }}'
+        name: '{{ item.name }}'
+        parentExportId: '{{ item.parentExportId }}'
+        query: '{{ item.query }}'
+        requester: '{{ item.requester }}'
+        stats: '{{ item.stats }}'
+        status: '{{ item.status }}'
+    # required_params: ['matterId']
+  # Gets the specified matter.
+  # ── gcp.vault.matters.get [dependent] ──
+  - discovery_id: gcp.vault.matters.get
+    for_each: gcp.vault.matters.list
+    # python: svc.matters().get(**params).execute()
+    calls:
+      - action: matters.get
+        params:
+          matterId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        description: '{{ response.description }}'
+        matterId: '{{ response.matterId }}'
+        matterPermissions: '{{ response.matterPermissions }}'
+        matterRegion: '{{ response.matterRegion }}'
+        name: '{{ response.name }}'
+        state: '{{ response.state }}'
+    # required_params: ['matterId']
+  # Lists the accounts covered by a hold. This can list only individually-specified accounts covered by 
+  # ── gcp.vault.matters.holds.accounts.list [dependent] ──
+  - discovery_id: gcp.vault.matters.holds.accounts.list
+    for_each: gcp.vault.matters.holds.list
+    # python: svc.matters().holds().accounts().list(**params).execute()
+    calls:
+      - action: matters.holds.accounts.list
+        params:
+          holdId: '{{ item.name }}'
+          matterId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.accounts }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        email: '{{ item.email }}'
+        firstName: '{{ item.firstName }}'
+        holdTime: '{{ item.holdTime }}'
+        lastName: '{{ item.lastName }}'
+    # required_params: ['holdId', 'matterId']
+  # Gets the specified hold.
+  # ── gcp.vault.matters.holds.get [dependent] ──
+  - discovery_id: gcp.vault.matters.holds.get
+    for_each: gcp.vault.matters.holds.list
+    # python: svc.matters().holds().get(**params).execute()
+    calls:
+      - action: matters.holds.get
+        params:
+          holdId: '{{ item.name }}'
+          matterId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accounts: '{{ response.accounts }}'
+        corpus: '{{ response.corpus }}'
+        holdId: '{{ response.holdId }}'
+        name: '{{ response.name }}'
+        orgUnit: '{{ response.orgUnit }}'
+        query: '{{ response.query }}'
+        updateTime: '{{ response.updateTime }}'
+    # required_params: ['matterId', 'holdId']
+  # Lists the holds in a matter.
+  # ── gcp.vault.matters.holds.list [dependent] ──
+  - discovery_id: gcp.vault.matters.holds.list
+    for_each: gcp.vault.matters.list
+    # python: svc.matters().holds().list(**params).execute()
+    calls:
+      - action: matters.holds.list
+        params:
+          matterId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.holds }}'
+      item:
+        accounts: '{{ item.accounts }}'
+        corpus: '{{ item.corpus }}'
+        holdId: '{{ item.holdId }}'
+        name: '{{ item.name }}'
+        orgUnit: '{{ item.orgUnit }}'
+        query: '{{ item.query }}'
+        updateTime: '{{ item.updateTime }}'
+    # required_params: ['matterId']
+  # Retrieves the specified saved query.
+  # ── gcp.vault.matters.savedQueries.get [dependent] ──
+  - discovery_id: gcp.vault.matters.savedQueries.get
+    for_each: gcp.vault.matters.savedQueries.list
+    # python: svc.matters().savedQueries().get(**params).execute()
+    calls:
+      - action: matters.savedQueries.get
+        params:
+          matterId: '{{ item.name }}'
+          savedQueryId: '{{ item.query }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        createTime: '{{ response.createTime }}'
+        displayName: '{{ response.displayName }}'
+        matterId: '{{ response.matterId }}'
+        query: '{{ response.query }}'
+        savedQueryId: '{{ response.savedQueryId }}'
+    # required_params: ['matterId', 'savedQueryId']
+  # Lists the saved queries in a matter.
+  # ── gcp.vault.matters.savedQueries.list [dependent] ──
+  - discovery_id: gcp.vault.matters.savedQueries.list
+    for_each: gcp.vault.matters.list
+    # python: svc.matters().savedQueries().list(**params).execute()
+    calls:
+      - action: matters.savedQueries.list
+        params:
+          matterId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.savedQueries }}'
+      item:
+        createTime: '{{ item.createTime }}'
+        displayName: '{{ item.displayName }}'
+        matterId: '{{ item.matterId }}'
+        query: '{{ item.query }}'
+        savedQueryId: '{{ item.savedQueryId }}'
+    # required_params: ['matterId']
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.vault.operations.get [dependent] ──
+  - discovery_id: gcp.vault.operations.get
+    for_each: gcp.vault.operations.list
+    # python: svc.operations().get(**params).execute()
+    calls:
+      - action: operations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']
+  # Lists operations that match the specified filter in the request. If the server doesn't support this 
+  # ── gcp.vault.operations.list [dependent] ──
+  - discovery_id: gcp.vault.operations.list
+    # python: svc.operations().list(**params).execute()
+    calls:
+      - action: operations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.operations }}'
+      item:
+        done: '{{ item.done }}'
+        error: '{{ item.error }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+        response: '{{ item.response }}'
+    # required_params: ['name']

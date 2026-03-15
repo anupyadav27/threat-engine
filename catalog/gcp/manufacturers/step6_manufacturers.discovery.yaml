@@ -1,0 +1,123 @@
+# ============================================================
+# Discovery YAML — manufacturers (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 4 | independent: 2 | dependent: 2
+# ops with fields: 4/4 | dep ops with chain: 1/2
+# ============================================================
+version: '1.0'
+provider: gcp
+service: manufacturers
+
+services:
+  client: manufacturers
+  module: "googleapiclient.discovery.build('manufacturers', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists product certifications from a specified certification body. This method can only be called by 
+  # ── gcp.manufacturers.accounts.languages.productCertifications.list ──
+  - discovery_id: gcp.manufacturers.accounts.languages.productCertifications.list
+    # python: svc.accounts().languages().productCertifications().list(**params).execute()
+    calls:
+      - action: accounts.languages.productCertifications.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.productCertifications }}'
+      item:
+        brand: '{{ item.brand }}'
+        certification: '{{ item.certification }}'
+        countryCode: '{{ item.countryCode }}'
+        destinationStatuses: '{{ item.destinationStatuses }}'
+        issues: '{{ item.issues }}'
+        mpn: '{{ item.mpn }}'
+        name: '{{ item.name }}'
+        productCode: '{{ item.productCode }}'
+        productType: '{{ item.productType }}'
+        title: '{{ item.title }}'
+  # Lists all the products in a Manufacturer Center account.
+  # ── gcp.manufacturers.accounts.products.list ──
+  - discovery_id: gcp.manufacturers.accounts.products.list
+    # python: svc.accounts().products().list(**params).execute()
+    calls:
+      - action: accounts.products.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.products }}'
+      item:
+        attributes: '{{ item.attributes }}'
+        contentLanguage: '{{ item.contentLanguage }}'
+        destinationStatuses: '{{ item.destinationStatuses }}'
+        feedLabel: '{{ item.feedLabel }}'
+        issues: '{{ item.issues }}'
+        name: '{{ item.name }}'
+        parent: '{{ item.parent }}'
+        productId: '{{ item.productId }}'
+        targetCountry: '{{ item.targetCountry }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets a product certification by its name. This method can only be called by certification bodies.
+  # ── gcp.manufacturers.accounts.languages.productCertifications.get [dependent] ──
+  - discovery_id: gcp.manufacturers.accounts.languages.productCertifications.get
+    for_each: gcp.manufacturers.accounts.languages.productCertifications.list
+    # python: svc.accounts().languages().productCertifications().get(**params).execute()
+    calls:
+      - action: accounts.languages.productCertifications.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        brand: '{{ response.brand }}'
+        certification: '{{ response.certification }}'
+        countryCode: '{{ response.countryCode }}'
+        destinationStatuses: '{{ response.destinationStatuses }}'
+        issues: '{{ response.issues }}'
+        mpn: '{{ response.mpn }}'
+        name: '{{ response.name }}'
+        productCode: '{{ response.productCode }}'
+        productType: '{{ response.productType }}'
+        title: '{{ response.title }}'
+    # required_params: ['name']
+  # Gets the product from a Manufacturer Center account, including product issues. A recently updated pr
+  # ── gcp.manufacturers.accounts.products.get [dependent] ──
+  - discovery_id: gcp.manufacturers.accounts.products.get
+    # python: svc.accounts().products().get(**params).execute()
+    calls:
+      - action: accounts.products.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        attributes: '{{ response.attributes }}'
+        contentLanguage: '{{ response.contentLanguage }}'
+        destinationStatuses: '{{ response.destinationStatuses }}'
+        feedLabel: '{{ response.feedLabel }}'
+        issues: '{{ response.issues }}'
+        name: '{{ response.name }}'
+        parent: '{{ response.parent }}'
+        productId: '{{ response.productId }}'
+        targetCountry: '{{ response.targetCountry }}'
+    # required_params: ['parent', 'name']

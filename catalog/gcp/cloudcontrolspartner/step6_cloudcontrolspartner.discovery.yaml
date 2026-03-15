@@ -1,0 +1,230 @@
+# ============================================================
+# Discovery YAML — cloudcontrolspartner (v1)
+# Generated: 2026-02-21T03:06:39Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 10 | independent: 6 | dependent: 4
+# ops with fields: 10/10 | dep ops with chain: 4/4
+# ============================================================
+version: '1.0'
+provider: gcp
+service: cloudcontrolspartner
+
+services:
+  client: cloudcontrolspartner
+  module: "googleapiclient.discovery.build('cloudcontrolspartner', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Gets details of a single customer
+  # ── gcp.cloudcontrolspartner.organizations.locations.customers.get ──
+  - discovery_id: gcp.cloudcontrolspartner.organizations.locations.customers.get
+    # python: svc.organizations().locations().customers().get(**params).execute()
+    calls:
+      - action: organizations.locations.customers.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        customerOnboardingState: '{{ response.customerOnboardingState }}'
+        displayName: '{{ response.displayName }}'
+        isOnboarded: '{{ response.isOnboarded }}'
+        name: '{{ response.name }}'
+        organizationDomain: '{{ response.organizationDomain }}'
+  # Lists customers of a partner identified by its Google Cloud organization ID
+  # ── gcp.cloudcontrolspartner.organizations.locations.customers.list ──
+  - discovery_id: gcp.cloudcontrolspartner.organizations.locations.customers.list
+    # python: svc.organizations().locations().customers().list(**params).execute()
+    calls:
+      - action: organizations.locations.customers.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.customers }}'
+      item:
+        customerOnboardingState: '{{ item.customerOnboardingState }}'
+        displayName: '{{ item.displayName }}'
+        isOnboarded: '{{ item.isOnboarded }}'
+        name: '{{ item.name }}'
+        organizationDomain: '{{ item.organizationDomain }}'
+  # Deprecated: Only returns access approval requests directly associated with an assured workload folde
+  # ── gcp.cloudcontrolspartner.organizations.locations.customers.workloads.accessApprovalRequests.list ──
+  - discovery_id: gcp.cloudcontrolspartner.organizations.locations.customers.workloads.accessApprovalRequests.list
+    # python: svc.organizations().locations().customers().workloads().accessApprovalRequests().list(**params).execute()
+    calls:
+      - action: organizations.locations.customers.workloads.accessApprovalRequests.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.accessApprovalRequests }}'
+      item:
+        name: '{{ item.name }}'
+        requestTime: '{{ item.requestTime }}'
+        requestedExpirationTime: '{{ item.requestedExpirationTime }}'
+        requestedReason: '{{ item.requestedReason }}'
+  # Lists customer workloads for a given customer org id
+  # ── gcp.cloudcontrolspartner.organizations.locations.customers.workloads.list ──
+  - discovery_id: gcp.cloudcontrolspartner.organizations.locations.customers.workloads.list
+    # python: svc.organizations().locations().customers().workloads().list(**params).execute()
+    calls:
+      - action: organizations.locations.customers.workloads.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.workloads }}'
+      item:
+        createTime: '{{ item.createTime }}'
+        folder: '{{ item.folder }}'
+        folderId: '{{ item.folderId }}'
+        isOnboarded: '{{ item.isOnboarded }}'
+        keyManagementProjectId: '{{ item.keyManagementProjectId }}'
+        location: '{{ item.location }}'
+        name: '{{ item.name }}'
+        partner: '{{ item.partner }}'
+        workloadOnboardingState: '{{ item.workloadOnboardingState }}'
+  # Lists Violations for a workload Callers may also choose to read across multiple Customers or for a s
+  # ── gcp.cloudcontrolspartner.organizations.locations.customers.workloads.violations.list ──
+  - discovery_id: gcp.cloudcontrolspartner.organizations.locations.customers.workloads.violations.list
+    # python: svc.organizations().locations().customers().workloads().violations().list(**params).execute()
+    calls:
+      - action: organizations.locations.customers.workloads.violations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.violations }}'
+      item:
+        beginTime: '{{ item.beginTime }}'
+        category: '{{ item.category }}'
+        description: '{{ item.description }}'
+        folderId: '{{ item.folderId }}'
+        name: '{{ item.name }}'
+        nonCompliantOrgPolicy: '{{ item.nonCompliantOrgPolicy }}'
+        remediation: '{{ item.remediation }}'
+        resolveTime: '{{ item.resolveTime }}'
+        state: '{{ item.state }}'
+        updateTime: '{{ item.updateTime }}'
+  # Get details of a Partner.
+  # ── gcp.cloudcontrolspartner.organizations.locations.getPartner ──
+  - discovery_id: gcp.cloudcontrolspartner.organizations.locations.getPartner
+    # python: svc.organizations().locations().getPartner(**params).execute()
+    calls:
+      - action: organizations.locations.getPartner
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        createTime: '{{ response.createTime }}'
+        ekmSolutions: '{{ response.ekmSolutions }}'
+        name: '{{ response.name }}'
+        operatedCloudRegions: '{{ response.operatedCloudRegions }}'
+        partnerProjectId: '{{ response.partnerProjectId }}'
+        skus: '{{ response.skus }}'
+        updateTime: '{{ response.updateTime }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets details of a single workload
+  # ── gcp.cloudcontrolspartner.organizations.locations.customers.workloads.get [dependent] ──
+  - discovery_id: gcp.cloudcontrolspartner.organizations.locations.customers.workloads.get
+    for_each: gcp.cloudcontrolspartner.organizations.locations.customers.workloads.list
+    # python: svc.organizations().locations().customers().workloads().get(**params).execute()
+    calls:
+      - action: organizations.locations.customers.workloads.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        createTime: '{{ response.createTime }}'
+        folder: '{{ response.folder }}'
+        folderId: '{{ response.folderId }}'
+        isOnboarded: '{{ response.isOnboarded }}'
+        keyManagementProjectId: '{{ response.keyManagementProjectId }}'
+        location: '{{ response.location }}'
+        name: '{{ response.name }}'
+        partner: '{{ response.partner }}'
+        workloadOnboardingState: '{{ response.workloadOnboardingState }}'
+    # required_params: ['name']
+  # Gets the EKM connections associated with a workload
+  # ── gcp.cloudcontrolspartner.organizations.locations.customers.workloads.getEkmConnections [dependent] ──
+  - discovery_id: gcp.cloudcontrolspartner.organizations.locations.customers.workloads.getEkmConnections
+    for_each: gcp.cloudcontrolspartner.organizations.locations.customers.workloads.list
+    # python: svc.organizations().locations().customers().workloads().getEkmConnections(**params).execute()
+    calls:
+      - action: organizations.locations.customers.workloads.getEkmConnections
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        ekmConnections: '{{ response.ekmConnections }}'
+        name: '{{ response.name }}'
+    # required_params: ['name']
+  # Gets the partner permissions granted for a workload
+  # ── gcp.cloudcontrolspartner.organizations.locations.customers.workloads.getPartnerPermissions [dependent] ──
+  - discovery_id: gcp.cloudcontrolspartner.organizations.locations.customers.workloads.getPartnerPermissions
+    for_each: gcp.cloudcontrolspartner.organizations.locations.customers.workloads.list
+    # python: svc.organizations().locations().customers().workloads().getPartnerPermissions(**params).execute()
+    calls:
+      - action: organizations.locations.customers.workloads.getPartnerPermissions
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        name: '{{ response.name }}'
+        partnerPermissions: '{{ response.partnerPermissions }}'
+    # required_params: ['name']
+  # Gets details of a single Violation.
+  # ── gcp.cloudcontrolspartner.organizations.locations.customers.workloads.violations.get [dependent] ──
+  - discovery_id: gcp.cloudcontrolspartner.organizations.locations.customers.workloads.violations.get
+    for_each: gcp.cloudcontrolspartner.organizations.locations.customers.workloads.violations.list
+    # python: svc.organizations().locations().customers().workloads().violations().get(**params).execute()
+    calls:
+      - action: organizations.locations.customers.workloads.violations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        beginTime: '{{ response.beginTime }}'
+        category: '{{ response.category }}'
+        description: '{{ response.description }}'
+        folderId: '{{ response.folderId }}'
+        name: '{{ response.name }}'
+        nonCompliantOrgPolicy: '{{ response.nonCompliantOrgPolicy }}'
+        remediation: '{{ response.remediation }}'
+        resolveTime: '{{ response.resolveTime }}'
+        state: '{{ response.state }}'
+        updateTime: '{{ response.updateTime }}'
+    # required_params: ['name']

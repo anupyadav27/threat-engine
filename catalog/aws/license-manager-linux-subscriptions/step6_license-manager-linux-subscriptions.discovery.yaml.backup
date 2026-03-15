@@ -1,0 +1,91 @@
+version: '1.0'
+provider: aws
+service: license-manager-linux-subscriptions
+services:
+  client: license-manager-linux-subscriptions
+  module: boto3.client
+discovery:
+- discovery_id: aws.license-manager-linux-subscriptions.getServiceSettings
+  calls:
+  - action: getServiceSettings
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.HomeRegions }}'
+- discovery_id: aws.license-manager-linux-subscriptions.listLinuxSubscriptionInstances
+  calls:
+  - action: listLinuxSubscriptionInstances
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Instances }}'
+    item:
+      AccountID: '{{ item.AccountID }}'
+      AmiId: '{{ item.AmiId }}'
+      DualSubscription: '{{ item.DualSubscription }}'
+      InstanceID: '{{ item.InstanceID }}'
+      InstanceType: '{{ item.InstanceType }}'
+      LastUpdatedTime: '{{ item.LastUpdatedTime }}'
+      OsVersion: '{{ item.OsVersion }}'
+      ProductCode: '{{ item.ProductCode }}'
+      Region: '{{ item.Region }}'
+      RegisteredWithSubscriptionProvider: '{{ item.RegisteredWithSubscriptionProvider
+        }}'
+      Status: '{{ item.Status }}'
+      SubscriptionName: '{{ item.SubscriptionName }}'
+      SubscriptionProviderCreateTime: '{{ item.SubscriptionProviderCreateTime }}'
+      SubscriptionProviderUpdateTime: '{{ item.SubscriptionProviderUpdateTime }}'
+      UsageOperation: '{{ item.UsageOperation }}'
+- discovery_id: aws.license-manager-linux-subscriptions.listLinuxSubscriptions
+  calls:
+  - action: listLinuxSubscriptions
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Subscriptions }}'
+    item:
+      InstanceCount: '{{ item.InstanceCount }}'
+      Name: '{{ item.Name }}'
+      Type: '{{ item.Type }}'
+- discovery_id: aws.license-manager-linux-subscriptions.listRegisteredSubscriptionProviders
+  calls:
+  - action: listRegisteredSubscriptionProviders
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.RegisteredSubscriptionProviders }}'
+    item:
+      LastSuccessfulDataRetrievalTime: '{{ item.LastSuccessfulDataRetrievalTime }}'
+      SecretArn: '{{ item.SecretArn }}'
+      SubscriptionProviderArn: '{{ item.SubscriptionProviderArn }}'
+      SubscriptionProviderSource: '{{ item.SubscriptionProviderSource }}'
+      SubscriptionProviderStatus: '{{ item.SubscriptionProviderStatus }}'
+      SubscriptionProviderStatusMessage: '{{ item.SubscriptionProviderStatusMessage
+        }}'
+- discovery_id: aws.license-manager-linux-subscriptions.getRegisteredSubscriptionProvider
+  calls:
+  - action: getRegisteredSubscriptionProvider
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.LastSuccessfulDataRetrievalTime }}'
+- discovery_id: aws.license-manager-linux-subscriptions.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.tags }}'
+checks: []

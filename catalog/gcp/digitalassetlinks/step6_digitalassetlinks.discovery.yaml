@@ -1,0 +1,63 @@
+# ============================================================
+# Discovery YAML — digitalassetlinks (v1)
+# Generated: 2026-02-21T03:06:39Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 2 | independent: 2 | dependent: 0
+# ops with fields: 2/2 | dep ops with chain: 0/0
+# ============================================================
+version: '1.0'
+provider: gcp
+service: digitalassetlinks
+
+services:
+  client: digitalassetlinks
+  module: "googleapiclient.discovery.build('digitalassetlinks', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Determines whether the specified (directional) relationship exists between the specified source and 
+  # ── gcp.digitalassetlinks.assetlinks.check ──
+  - discovery_id: gcp.digitalassetlinks.assetlinks.check
+    # python: svc.assetlinks().check(**params).execute()
+    calls:
+      - action: assetlinks.check
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        debugString: '{{ response.debugString }}'
+        errorCode: '{{ response.errorCode }}'
+        linked: '{{ response.linked }}'
+        maxAge: '{{ response.maxAge }}'
+        relationExtensions: '{{ response.relationExtensions }}'
+  # Retrieves a list of all statements from a given source that match the specified target and statement
+  # ── gcp.digitalassetlinks.statements.list ──
+  - discovery_id: gcp.digitalassetlinks.statements.list
+    # python: svc.statements().list(**params).execute()
+    calls:
+      - action: statements.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.statements }}'
+      item:
+        relation: '{{ item.relation }}'
+        relationExtensions: '{{ item.relationExtensions }}'
+        source: '{{ item.source }}'
+        target: '{{ item.target }}'

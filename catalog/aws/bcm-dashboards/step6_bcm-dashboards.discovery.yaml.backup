@@ -1,0 +1,57 @@
+version: '1.0'
+provider: aws
+service: bcm-dashboards
+services:
+  client: bcm-dashboards
+  module: boto3.client
+discovery:
+- discovery_id: aws.bcm-dashboards.listDashboards
+  calls:
+  - action: listDashboards
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.dashboards }}'
+    item:
+      arn: '{{ item.arn }}'
+      name: '{{ item.name }}'
+      description: '{{ item.description }}'
+      type: '{{ item.type }}'
+      createdAt: '{{ item.createdAt }}'
+      updatedAt: '{{ item.updatedAt }}'
+- discovery_id: aws.bcm-dashboards.getDashboard
+  calls:
+  - action: getDashboard
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.widgets }}'
+    item:
+      title: '{{ item.title }}'
+      description: '{{ item.description }}'
+      width: '{{ item.width }}'
+      height: '{{ item.height }}'
+      horizontalOffset: '{{ item.horizontalOffset }}'
+      configs: '{{ item.configs }}'
+- discovery_id: aws.bcm-dashboards.getResourcePolicy
+  calls:
+  - action: getResourcePolicy
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.resourceArn }}'
+- discovery_id: aws.bcm-dashboards.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.resourceTags }}'
+    item:
+      key: '{{ item.key }}'
+      value: '{{ item.value }}'
+checks: []

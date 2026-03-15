@@ -1,0 +1,64 @@
+# ============================================================
+# Discovery YAML — identitycenter (AWS)
+# Generated: 2026-02-21T04:56:58Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: identitycenter
+services:
+  client: identitycenter
+  module: boto3.client
+discovery:
+  # ── Dependent read operations (require identifiers) ──
+  # ── GetRoleCredentials ──
+  - discovery_id: aws.identitycenter.get_role_credentials
+    for_each: aws.identitycenter.list_accounts
+    calls:
+      - action: get_role_credentials
+        params:
+          roleName: '{{ item.roleName }}'
+          accountId: '{{ item.accountId }}'
+          accessToken: '{{ item.accessToken }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.roleCredentials }}'
+      item:
+        accessKeyId: '{{ item.accessKeyId }}'
+        expiration: '{{ item.expiration }}'
+        roleCredentials: '{{ item.roleCredentials }}'
+        secretAccessKey: '{{ item.secretAccessKey }}'
+        sessionToken: '{{ item.sessionToken }}'
+  # ── ListAccountRoles ──
+  - discovery_id: aws.identitycenter.list_account_roles
+    for_each: aws.identitycenter.list_accounts
+    calls:
+      - action: list_account_roles
+        params:
+          accessToken: '{{ item.accessToken }}'
+          accountId: '{{ item.accountId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.roleList }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        roleCredentials: '{{ item.roleCredentials }}'
+        roleName: '{{ item.roleName }}'
+  # ── ListAccounts ──
+  - discovery_id: aws.identitycenter.list_accounts
+    calls:
+      - action: list_accounts
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.roleList }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        accountName: '{{ item.accountName }}'
+        emailAddress: '{{ item.emailAddress }}'
+        roleCredentials: '{{ item.roleCredentials }}'

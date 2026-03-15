@@ -1,0 +1,127 @@
+# ============================================================
+# Discovery YAML — apikeys (v2)
+# Generated: 2026-02-21T03:06:38Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 5 | independent: 2 | dependent: 3
+# ops with fields: 5/5 | dep ops with chain: 2/3
+# ============================================================
+version: '1.0'
+provider: gcp
+service: apikeys
+
+services:
+  client: apikeys
+  module: "googleapiclient.discovery.build('apikeys', 'v2')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Find the parent project and resource name of the API key that matches the key string in the request.
+  # ── gcp.apikeys.keys.lookupKey ──
+  - discovery_id: gcp.apikeys.keys.lookupKey
+    # python: svc.keys().lookupKey(**params).execute()
+    calls:
+      - action: keys.lookupKey
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        name: '{{ response.name }}'
+        parent: '{{ response.parent }}'
+  # Lists the API keys owned by a project. The key string of the API key isn't included in the response.
+  # ── gcp.apikeys.projects.locations.keys.list ──
+  - discovery_id: gcp.apikeys.projects.locations.keys.list
+    # python: svc.projects().locations().keys().list(**params).execute()
+    calls:
+      - action: projects.locations.keys.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.keys }}'
+      item:
+        annotations: '{{ item.annotations }}'
+        createTime: '{{ item.createTime }}'
+        deleteTime: '{{ item.deleteTime }}'
+        displayName: '{{ item.displayName }}'
+        keyString: '{{ item.keyString }}'
+        name: '{{ item.name }}'
+        restrictions: '{{ item.restrictions }}'
+        serviceAccountEmail: '{{ item.serviceAccountEmail }}'
+        uid: '{{ item.uid }}'
+        updateTime: '{{ item.updateTime }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.apikeys.operations.get [dependent] ──
+  - discovery_id: gcp.apikeys.operations.get
+    # python: svc.operations().get(**params).execute()
+    calls:
+      - action: operations.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']
+  # Gets the metadata for an API key. The key string of the API key isn't included in the response. NOTE
+  # ── gcp.apikeys.projects.locations.keys.get [dependent] ──
+  - discovery_id: gcp.apikeys.projects.locations.keys.get
+    for_each: gcp.apikeys.projects.locations.keys.list
+    # python: svc.projects().locations().keys().get(**params).execute()
+    calls:
+      - action: projects.locations.keys.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        annotations: '{{ response.annotations }}'
+        createTime: '{{ response.createTime }}'
+        deleteTime: '{{ response.deleteTime }}'
+        displayName: '{{ response.displayName }}'
+        keyString: '{{ response.keyString }}'
+        name: '{{ response.name }}'
+        restrictions: '{{ response.restrictions }}'
+        serviceAccountEmail: '{{ response.serviceAccountEmail }}'
+        uid: '{{ response.uid }}'
+        updateTime: '{{ response.updateTime }}'
+    # required_params: ['name']
+  # Get the key string for an API key. NOTE: Key is a global resource; hence the only supported value fo
+  # ── gcp.apikeys.projects.locations.keys.getKeyString [dependent] ──
+  - discovery_id: gcp.apikeys.projects.locations.keys.getKeyString
+    for_each: gcp.apikeys.projects.locations.keys.list
+    # python: svc.projects().locations().keys().getKeyString(**params).execute()
+    calls:
+      - action: projects.locations.keys.getKeyString
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        keyString: '{{ response.keyString }}'
+    # required_params: ['name']

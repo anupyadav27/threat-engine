@@ -1,0 +1,29 @@
+version: '1.0'
+provider: aws
+service: migrationhub-config
+services:
+  client: migrationhub-config
+  module: boto3.client
+discovery:
+- discovery_id: aws.migrationhub-config.describeHomeRegionControls
+  calls:
+  - action: describeHomeRegionControls
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.HomeRegionControls }}'
+    item:
+      ControlId: '{{ item.ControlId }}'
+      HomeRegion: '{{ item.HomeRegion }}'
+      Target: '{{ item.Target }}'
+      RequestedTime: '{{ item.RequestedTime }}'
+- discovery_id: aws.migrationhub-config.getHomeRegion
+  calls:
+  - action: getHomeRegion
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.HomeRegion }}'
+checks: []

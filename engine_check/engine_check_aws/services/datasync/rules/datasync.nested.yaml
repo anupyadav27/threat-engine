@@ -1,0 +1,33 @@
+version: '1.0'
+provider: aws
+service: datasync
+services:
+  client: datasync
+  module: boto3.client
+discovery:
+- discovery_id: aws.datasync.list_tasks
+  calls:
+  - action: list_tasks
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.TaskList }}'
+    as: item
+- discovery_id: aws.datasync.describe_task
+  for_each: '{{ aws.datasync.list_tasks }}'
+  calls:
+  - action: describe_task
+    params:
+      TaskArn: '{{ item.TaskArn }}'
+      MaxResults: 1000
+    on_error: continue
+    save_as: response
+  emit: {}
+checks:
+- rule_id: aws.datasync.resource.task_logging_enabled
+  for_each: aws.datasync.describe_task
+  conditions:
+    var: item.CloudWatchLogGroupArn
+    op: exists
+    value: null

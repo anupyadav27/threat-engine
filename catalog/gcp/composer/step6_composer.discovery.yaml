@@ -1,0 +1,234 @@
+# ============================================================
+# Discovery YAML — composer (v1)
+# Generated: 2026-02-21T03:06:39Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 11 | independent: 6 | dependent: 5
+# ops with fields: 11/11 | dep ops with chain: 5/5
+# ============================================================
+version: '1.0'
+provider: gcp
+service: composer
+
+services:
+  client: composer
+  module: "googleapiclient.discovery.build('composer', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # List environments.
+  # ── gcp.composer.projects.locations.environments.list ──
+  - discovery_id: gcp.composer.projects.locations.environments.list
+    # python: svc.projects().locations().environments().list(**params).execute()
+    calls:
+      - action: projects.locations.environments.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.environments }}'
+      item:
+        config: '{{ item.config }}'
+        createTime: '{{ item.createTime }}'
+        labels: '{{ item.labels }}'
+        name: '{{ item.name }}'
+        satisfiesPzi: '{{ item.satisfiesPzi }}'
+        satisfiesPzs: '{{ item.satisfiesPzs }}'
+        state: '{{ item.state }}'
+        storageConfig: '{{ item.storageConfig }}'
+        updateTime: '{{ item.updateTime }}'
+        uuid: '{{ item.uuid }}'
+  # Lists user workloads ConfigMaps. This method is supported for Cloud Composer environments in version
+  # ── gcp.composer.projects.locations.environments.userWorkloadsConfigMaps.list ──
+  - discovery_id: gcp.composer.projects.locations.environments.userWorkloadsConfigMaps.list
+    # python: svc.projects().locations().environments().userWorkloadsConfigMaps().list(**params).execute()
+    calls:
+      - action: projects.locations.environments.userWorkloadsConfigMaps.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.userWorkloadsConfigMaps }}'
+      item:
+        data: '{{ item.data }}'
+        name: '{{ item.name }}'
+  # Lists user workloads Secrets. This method is supported for Cloud Composer environments in versions c
+  # ── gcp.composer.projects.locations.environments.userWorkloadsSecrets.list ──
+  - discovery_id: gcp.composer.projects.locations.environments.userWorkloadsSecrets.list
+    # python: svc.projects().locations().environments().userWorkloadsSecrets().list(**params).execute()
+    calls:
+      - action: projects.locations.environments.userWorkloadsSecrets.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.userWorkloadsSecrets }}'
+      item:
+        data: '{{ item.data }}'
+        name: '{{ item.name }}'
+  # Lists workloads in a Cloud Composer environment. Workload is a unit that runs a single Composer comp
+  # ── gcp.composer.projects.locations.environments.workloads.list ──
+  - discovery_id: gcp.composer.projects.locations.environments.workloads.list
+    # python: svc.projects().locations().environments().workloads().list(**params).execute()
+    calls:
+      - action: projects.locations.environments.workloads.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.workloads }}'
+      item:
+        name: '{{ item.name }}'
+        status: '{{ item.status }}'
+        type: '{{ item.type }}'
+  # List ImageVersions for provided location.
+  # ── gcp.composer.projects.locations.imageVersions.list ──
+  - discovery_id: gcp.composer.projects.locations.imageVersions.list
+    # python: svc.projects().locations().imageVersions().list(**params).execute()
+    calls:
+      - action: projects.locations.imageVersions.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.imageVersions }}'
+      item:
+        creationDisabled: '{{ item.creationDisabled }}'
+        imageVersionId: '{{ item.imageVersionId }}'
+        isDefault: '{{ item.isDefault }}'
+        releaseDate: '{{ item.releaseDate }}'
+        supportedPythonVersions: '{{ item.supportedPythonVersions }}'
+        upgradeDisabled: '{{ item.upgradeDisabled }}'
+  # Lists operations that match the specified filter in the request. If the server doesn't support this 
+  # ── gcp.composer.projects.locations.operations.list ──
+  - discovery_id: gcp.composer.projects.locations.operations.list
+    # python: svc.projects().locations().operations().list(**params).execute()
+    calls:
+      - action: projects.locations.operations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.operations }}'
+      item:
+        done: '{{ item.done }}'
+        error: '{{ item.error }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+        response: '{{ item.response }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Fetches database properties.
+  # ── gcp.composer.projects.locations.environments.fetchDatabaseProperties [dependent] ──
+  - discovery_id: gcp.composer.projects.locations.environments.fetchDatabaseProperties
+    for_each: gcp.composer.projects.locations.environments.list
+    # python: svc.projects().locations().environments().fetchDatabaseProperties(**params).execute()
+    calls:
+      - action: projects.locations.environments.fetchDatabaseProperties
+        params:
+          environment: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        isFailoverReplicaAvailable: '{{ response.isFailoverReplicaAvailable }}'
+        primaryGceZone: '{{ response.primaryGceZone }}'
+        secondaryGceZone: '{{ response.secondaryGceZone }}'
+    # required_params: ['environment']
+  # Get an existing environment.
+  # ── gcp.composer.projects.locations.environments.get [dependent] ──
+  - discovery_id: gcp.composer.projects.locations.environments.get
+    for_each: gcp.composer.projects.locations.environments.list
+    # python: svc.projects().locations().environments().get(**params).execute()
+    calls:
+      - action: projects.locations.environments.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        config: '{{ response.config }}'
+        createTime: '{{ response.createTime }}'
+        labels: '{{ response.labels }}'
+        name: '{{ response.name }}'
+        satisfiesPzi: '{{ response.satisfiesPzi }}'
+        satisfiesPzs: '{{ response.satisfiesPzs }}'
+        state: '{{ response.state }}'
+        storageConfig: '{{ response.storageConfig }}'
+        updateTime: '{{ response.updateTime }}'
+        uuid: '{{ response.uuid }}'
+    # required_params: ['name']
+  # Gets an existing user workloads ConfigMap. This method is supported for Cloud Composer environments 
+  # ── gcp.composer.projects.locations.environments.userWorkloadsConfigMaps.get [dependent] ──
+  - discovery_id: gcp.composer.projects.locations.environments.userWorkloadsConfigMaps.get
+    for_each: gcp.composer.projects.locations.environments.userWorkloadsConfigMaps.list
+    # python: svc.projects().locations().environments().userWorkloadsConfigMaps().get(**params).execute()
+    calls:
+      - action: projects.locations.environments.userWorkloadsConfigMaps.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        data: '{{ response.data }}'
+        name: '{{ response.name }}'
+    # required_params: ['name']
+  # Gets an existing user workloads Secret. Values of the "data" field in the response are cleared. This
+  # ── gcp.composer.projects.locations.environments.userWorkloadsSecrets.get [dependent] ──
+  - discovery_id: gcp.composer.projects.locations.environments.userWorkloadsSecrets.get
+    for_each: gcp.composer.projects.locations.environments.userWorkloadsSecrets.list
+    # python: svc.projects().locations().environments().userWorkloadsSecrets().get(**params).execute()
+    calls:
+      - action: projects.locations.environments.userWorkloadsSecrets.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        data: '{{ response.data }}'
+        name: '{{ response.name }}'
+    # required_params: ['name']
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.composer.projects.locations.operations.get [dependent] ──
+  - discovery_id: gcp.composer.projects.locations.operations.get
+    for_each: gcp.composer.projects.locations.operations.list
+    # python: svc.projects().locations().operations().get(**params).execute()
+    calls:
+      - action: projects.locations.operations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']

@@ -1,0 +1,284 @@
+version: '1.0'
+provider: aws
+service: ssm
+checks:
+- rule_id: aws.ssm.managed.ssm_compliant_patching_configured
+  for_each: aws.ssm.describe_patch_groups
+  conditions:
+    all:
+    - var: item.PatchGroup
+      op: exists
+      value: null
+    - var: item.BaselineIdentity.BaselineId
+      op: exists
+      value: null
+- rule_id: aws.ssm.patchbaseline.ssm_required_controls_present
+  for_each: aws.ssm.describe_patch_baselines
+  conditions:
+    all:
+    - var: item.OperatingSystem
+      op: equals
+      value: WINDOWS
+    - var: item.DefaultBaseline
+      op: equals
+      value: 'true'
+- rule_id: aws.ssm.patchbaseline.ssm_approval_rules_configured
+  for_each: aws.ssm.describe_patch_baselines
+  conditions:
+    all:
+    - var: item.BaselineId
+      op: exists
+      value: null
+    - var: item.DefaultBaseline
+      op: equals
+      value: 'true'
+- rule_id: aws.ssm.patchbaseline.ssm_baseline_defined_for_os_families_configured
+  for_each: aws.ssm.describe_patch_baselines
+  conditions:
+    all:
+    - var: item.OperatingSystem
+      op: exists
+      value: null
+    - var: item.OperatingSystem
+      op: in
+      value:
+      - WINDOWS
+      - AMAZON_LINUX
+      - AMAZON_LINUX_2
+      - UBUNTU
+      - REDHAT_ENTERPRISE_LINUX
+      - SUSE
+      - CENTOS
+      - DEBIAN
+      - ORACLE_LINUX
+      - MACOS
+- rule_id: aws.ssm.maintenance_window.ssm_window_configured
+  for_each: aws.ssm.describe_maintenance_windows
+  conditions:
+    all:
+    - var: item.Enabled
+      op: equals
+      value: 'true'
+    - var: item.Schedule
+      op: exists
+      value: null
+    - var: item.Duration
+      op: greater_than
+      value: '1'
+    - var: item.Cutoff
+      op: greater_than
+      value: '0'
+- rule_id: aws.ssm.patchgroup.ssm_approval_rules_configured
+  for_each: aws.ssm.describe_patch_groups
+  conditions:
+    all:
+    - var: item.PatchGroup
+      op: exists
+      value: null
+    - var: item.BaselineIdentity
+      op: exists
+      value: null
+- rule_id: aws.ssm.restapi.public_access_restricted
+  for_each: aws.ssm.describe_maintenance_windows
+  conditions:
+    var: item.Enabled
+    op: equals
+    value: 'true'
+- rule_id: aws.ssm.patchbaseline.ssm_exemptions_have_expiry_and_owner_configured
+  for_each: aws.ssm.describe_patch_baselines
+  conditions:
+    all:
+    - var: item.BaselineId
+      op: exists
+      value: null
+    - var: item.BaselineName
+      op: exists
+      value: null
+- rule_id: aws.ssm.maintenance_window.execution_roles_least_privilege
+  for_each: aws.ssm.describe_maintenance_window_schedule
+  conditions:
+    all:
+    - var: item.WindowId
+      op: exists
+      value: null
+    - var: item.Name
+      op: exists
+      value: null
+- rule_id: aws.ssm.baseline.ssm_conformance_pack_deployed_configured
+  for_each: aws.ssm.list_resource_compliance_summaries
+  conditions:
+    all:
+    - var: item.ComplianceType
+      op: equals
+      value: ConformancePackCompliance
+    - var: item.Status
+      op: equals
+      value: COMPLIANT
+- rule_id: aws.ssm.automation.ssm_storage_encrypted_and_private
+  for_each: aws.ssm.list_commands
+  conditions:
+    all:
+    - var: item.DocumentName
+      op: exists
+      value: null
+    - var: item.DocumentVersion
+      op: exists
+      value: null
+    - var: item.AutomationExecutionStatus
+      op: in
+      value:
+      - Success
+      - InProgress
+- rule_id: aws.ssm.document.ssm_storage_encrypted_and_private
+  for_each: aws.ssm.list_nodes
+  conditions:
+    var: item.Owner
+    op: equals
+    value: Self
+- rule_id: aws.ssm.automation.remediation_roles_least_privilege
+  for_each: aws.ssm.describe_automation_executions
+  conditions:
+    all:
+    - var: item.AutomationExecutionStatus
+      op: equals
+      value: Success
+    - var: item.DocumentName
+      op: exists
+      value: null
+    - var: item.ExecutedBy
+      op: exists
+      value: null
+- rule_id: aws.ssm.automation.ssm_artifacts_encrypted_and_private
+  for_each: aws.ssm.list_commands
+  conditions:
+    all:
+    - var: item.DocumentName
+      op: exists
+      value: null
+    - var: item.DocumentVersion
+      op: exists
+      value: null
+    - var: item.AutomationExecutionStatus
+      op: in
+      value:
+      - Success
+      - InProgress
+      - Pending
+- rule_id: aws.ssm.automation.change_audit_logging_enabled
+  for_each: aws.ssm.describe_automation_executions
+  conditions:
+    all:
+    - var: item.AutomationExecutionStatus
+      op: equals
+      value: Success
+    - var: item.DocumentName
+      op: equals
+      value: AWS-EnableSSMLogging
+- rule_id: aws.ssm.document.change_audit_logging_enabled
+  for_each: aws.ssm.list_documents
+  conditions:
+    all:
+    - var: item.DocumentType
+      op: equals
+      value: Command
+    - var: item.ReviewStatus
+      op: equals
+      value: Approved
+- rule_id: aws.ssm.patchbaseline.ssm_maintenance_windows_configured
+  for_each: aws.ssm.describe_maintenance_window_schedule
+  conditions:
+    all:
+    - var: item.WindowId
+      op: exists
+      value: null
+    - var: item.Name
+      op: exists
+      value: null
+- rule_id: aws.ssm.automation.execution_roles_least_privilege
+  for_each: aws.ssm.describe_automation_executions
+  conditions:
+    all:
+    - var: item.AutomationExecutionId
+      op: exists
+      value: null
+    - var: item.AutomationExecutionStatus
+      op: equals
+      value: Success
+- rule_id: aws.ssm.document.rbac_least_privilege
+  for_each: aws.ssm.list_nodes
+  conditions:
+    all:
+    - var: item.Owner
+      op: equals
+      value: Self
+    - var: item.Tags
+      op: equals
+      value: []
+- rule_id: aws.ssm.automation.versioning_and_immutability_enabled
+  for_each: aws.ssm.list_document_versions
+  conditions:
+    all:
+    - var: item.DocumentVersion
+      op: exists
+      value: null
+    - var: item.DocumentVersion
+      op: not_equals
+      value: default
+- rule_id: aws.ssm.automation.rbac_least_privilege
+  for_each: aws.ssm.list_commands
+  conditions:
+    all:
+    - var: item.DocumentName
+      op: exists
+      value: null
+    - var: item.AutomationExecutionStatus
+      op: in
+      value:
+      - Success
+      - InProgress
+      - Pending
+    - var: item.ExecutedBy
+      op: exists
+      value: null
+- rule_id: aws.ssm.patchgroup.ssm_baseline_defined_for_os_families_configured
+  for_each: aws.ssm.describe_patch_groups
+  conditions:
+    all:
+    - var: item.PatchGroup
+      op: exists
+      value: null
+    - var: item.BaselineIdentity
+      op: exists
+      value: null
+- rule_id: aws.ssm.patchgroup.ssm_maintenance_windows_configured
+  for_each: aws.ssm.describe_maintenance_window_schedule
+  conditions:
+    var: item.WindowId
+    op: exists
+    value: null
+- rule_id: aws.ssm.baseline.ssm_parameters_configured
+  for_each: aws.ssm.describe_patch_baselines
+  conditions:
+    all:
+    - var: item.BaselineId
+      op: exists
+      value: null
+    - var: item.BaselineName
+      op: exists
+      value: null
+    - var: item.OperatingSystem
+      op: exists
+      value: null
+- rule_id: aws.ssm.document.ssm_secrets_encrypted
+  for_each: aws.ssm.list_document_versions
+  conditions:
+    all:
+    - var: item.DocumentFormat
+      op: equals
+      value: JSON
+    - var: item.DocumentType
+      op: equals
+      value: Command
+    - var: item.Name
+      op: equals
+      value: AWS-RunDocument

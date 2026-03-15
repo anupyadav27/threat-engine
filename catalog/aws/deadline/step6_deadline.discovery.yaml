@@ -1,0 +1,898 @@
+# ============================================================
+# Discovery YAML — deadline (AWS)
+# Generated: 2026-02-21T04:56:58Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: deadline
+services:
+  client: deadline
+  module: boto3.client
+discovery:
+  # ── ListAvailableMeteredProducts ──
+  - discovery_id: aws.deadline.list_available_metered_products
+    calls:
+      - action: list_available_metered_products
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.meteredProducts }}'
+      item:
+        family: '{{ item.family }}'
+        port: '{{ item.port }}'
+        productId: '{{ item.productId }}'
+        vendor: '{{ item.vendor }}'
+  # ── ListFarms ──
+  - discovery_id: aws.deadline.list_farms
+    calls:
+      - action: list_farms
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.farms }}'
+      item:
+        displayName: '{{ item.displayName }}'
+        farmId: '{{ item.farmId }}'
+        kmsKeyArn: '{{ item.kmsKeyArn }}'
+  # ── ListLicenseEndpoints ──
+  - discovery_id: aws.deadline.list_license_endpoints
+    calls:
+      - action: list_license_endpoints
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.licenseEndpoints }}'
+      item:
+        licenseEndpointId: '{{ item.licenseEndpointId }}'
+        statusMessage: '{{ item.statusMessage }}'
+        vpcId: '{{ item.vpcId }}'
+  # ── ListMonitors ──
+  - discovery_id: aws.deadline.list_monitors
+    calls:
+      - action: list_monitors
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.monitors }}'
+      item:
+        displayName: '{{ item.displayName }}'
+        identityCenterApplicationArn: '{{ item.identityCenterApplicationArn }}'
+        identityCenterInstanceArn: '{{ item.identityCenterInstanceArn }}'
+        monitorId: '{{ item.monitorId }}'
+        roleArn: '{{ item.roleArn }}'
+        subdomain: '{{ item.subdomain }}'
+        url: '{{ item.url }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── GetBudget ──
+  - discovery_id: aws.deadline.get_budget
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: get_budget
+        params:
+          farmId: '{{ item.farmId }}'
+          budgetId: '{{ item.budgetId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.actions }}'
+      item:
+        description: '{{ item.description }}'
+        schedule: '{{ item.schedule }}'
+        thresholdPercentage: '{{ item.thresholdPercentage }}'
+        type: '{{ item.type }}'
+  # ── GetFarm ──
+  - discovery_id: aws.deadline.get_farm
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: get_farm
+        params:
+          farmId: '{{ item.farmId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        createdAt: '{{ response.createdAt }}'
+        createdBy: '{{ response.createdBy }}'
+        description: '{{ response.description }}'
+        displayName: '{{ response.displayName }}'
+        farmId: '{{ response.farmId }}'
+        kmsKeyArn: '{{ response.kmsKeyArn }}'
+        updatedAt: '{{ response.updatedAt }}'
+        updatedBy: '{{ response.updatedBy }}'
+  # ── GetFleet ──
+  - discovery_id: aws.deadline.get_fleet
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: get_fleet
+        params:
+          farmId: '{{ item.farmId }}'
+          fleetId: '{{ item.fleetId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.members }}'
+      item:
+        Status: '{{ item.Status }}'
+        Enabled: '{{ item.Enabled }}'
+        capabilities: '{{ item.capabilities }}'
+        customerManaged: '{{ item.customerManaged }}'
+        serviceManagedEc2: '{{ item.serviceManagedEc2 }}'
+  # ── GetJob ──
+  - discovery_id: aws.deadline.get_job
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: get_job
+        params:
+          farmId: '{{ item.farmId }}'
+          queueId: '{{ item.queueId }}'
+          jobId: '{{ item.jobId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.members }}'
+      item:
+        attachments: '{{ item.attachments }}'
+        fileSystem: '{{ item.fileSystem }}'
+        manifests: '{{ item.manifests }}'
+  # ── GetLicenseEndpoint ──
+  - discovery_id: aws.deadline.get_license_endpoint
+    for_each: aws.deadline.list_license_endpoints
+    calls:
+      - action: get_license_endpoint
+        params:
+          licenseEndpointId: '{{ item.licenseEndpointId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.subnetIds }}'
+  # ── GetLimit ──
+  - discovery_id: aws.deadline.get_limit
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: get_limit
+        params:
+          farmId: '{{ item.farmId }}'
+          limitId: '{{ item.limitId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        amountRequirementName: '{{ response.amountRequirementName }}'
+        createdAt: '{{ response.createdAt }}'
+        createdBy: '{{ response.createdBy }}'
+        currentCount: '{{ response.currentCount }}'
+        description: '{{ response.description }}'
+        displayName: '{{ response.displayName }}'
+        farmId: '{{ response.farmId }}'
+        limitId: '{{ response.limitId }}'
+        maxCount: '{{ response.maxCount }}'
+        updatedAt: '{{ response.updatedAt }}'
+        updatedBy: '{{ response.updatedBy }}'
+  # ── GetMonitor ──
+  - discovery_id: aws.deadline.get_monitor
+    for_each: aws.deadline.list_monitors
+    calls:
+      - action: get_monitor
+        params:
+          monitorId: '{{ item.monitorId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        createdAt: '{{ response.createdAt }}'
+        createdBy: '{{ response.createdBy }}'
+        displayName: '{{ response.displayName }}'
+        identityCenterApplicationArn: '{{ response.identityCenterApplicationArn }}'
+        identityCenterInstanceArn: '{{ response.identityCenterInstanceArn }}'
+        monitorId: '{{ response.monitorId }}'
+        roleArn: '{{ response.roleArn }}'
+        subdomain: '{{ response.subdomain }}'
+        updatedAt: '{{ response.updatedAt }}'
+        updatedBy: '{{ response.updatedBy }}'
+        url: '{{ response.url }}'
+  # ── GetQueue ──
+  - discovery_id: aws.deadline.get_queue
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: get_queue
+        params:
+          farmId: '{{ item.farmId }}'
+          queueId: '{{ item.queueId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.requiredFileSystemLocationNames }}'
+      item:
+        DestinationArn: '{{ item.DestinationArn }}'
+        Format: '{{ item.Format }}'
+        Level: '{{ item.Level }}'
+  # ── GetQueueEnvironment ──
+  - discovery_id: aws.deadline.get_queue_environment
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: get_queue_environment
+        params:
+          farmId: '{{ item.farmId }}'
+          queueId: '{{ item.queueId }}'
+          queueEnvironmentId: '{{ item.queueEnvironmentId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        createdAt: '{{ response.createdAt }}'
+        createdBy: '{{ response.createdBy }}'
+        name: '{{ response.name }}'
+        priority: '{{ response.priority }}'
+        queueEnvironmentId: '{{ response.queueEnvironmentId }}'
+        template: '{{ response.template }}'
+        templateType: '{{ response.templateType }}'
+        updatedAt: '{{ response.updatedAt }}'
+        updatedBy: '{{ response.updatedBy }}'
+  # ── GetQueueFleetAssociation ──
+  - discovery_id: aws.deadline.get_queue_fleet_association
+    calls:
+      - action: get_queue_fleet_association
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        createdAt: '{{ response.createdAt }}'
+        createdBy: '{{ response.createdBy }}'
+        fleetId: '{{ response.fleetId }}'
+        queueId: '{{ response.queueId }}'
+        status: '{{ response.status }}'
+        updatedAt: '{{ response.updatedAt }}'
+        updatedBy: '{{ response.updatedBy }}'
+  # ── GetQueueLimitAssociation ──
+  - discovery_id: aws.deadline.get_queue_limit_association
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: get_queue_limit_association
+        params:
+          farmId: '{{ item.farmId }}'
+          queueId: '{{ item.queueId }}'
+          limitId: '{{ item.limitId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        createdAt: '{{ response.createdAt }}'
+        createdBy: '{{ response.createdBy }}'
+        limitId: '{{ response.limitId }}'
+        queueId: '{{ response.queueId }}'
+        status: '{{ response.status }}'
+        updatedAt: '{{ response.updatedAt }}'
+        updatedBy: '{{ response.updatedBy }}'
+  # ── GetSession ──
+  - discovery_id: aws.deadline.get_session
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: get_session
+        params:
+          farmId: '{{ item.farmId }}'
+          queueId: '{{ item.queueId }}'
+          jobId: '{{ item.jobId }}'
+          sessionId: '{{ item.sessionId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.log }}'
+      item:
+        error: '{{ item.error }}'
+        logDriver: '{{ item.logDriver }}'
+        options: '{{ item.options }}'
+        workerLog: '{{ item.workerLog }}'
+  # ── GetSessionAction ──
+  - discovery_id: aws.deadline.get_session_action
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: get_session_action
+        params:
+          farmId: '{{ item.farmId }}'
+          queueId: '{{ item.queueId }}'
+          jobId: '{{ item.jobId }}'
+          sessionActionId: '{{ item.sessionActionId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.acquiredLimits }}'
+      item:
+        count: '{{ item.count }}'
+        limitId: '{{ item.limitId }}'
+  # ── GetSessionsStatisticsAggregation ──
+  - discovery_id: aws.deadline.get_sessions_statistics_aggregation
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: get_sessions_statistics_aggregation
+        params:
+          farmId: '{{ item.farmId }}'
+          aggregationId: '{{ item.aggregationId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.statistics }}'
+      item:
+        aggregationEndTime: '{{ item.aggregationEndTime }}'
+        aggregationStartTime: '{{ item.aggregationStartTime }}'
+        costInUsd: '{{ item.costInUsd }}'
+        count: '{{ item.count }}'
+        instanceType: '{{ item.instanceType }}'
+        jobName: '{{ item.jobName }}'
+        licenseProduct: '{{ item.licenseProduct }}'
+        runtimeInSeconds: '{{ item.runtimeInSeconds }}'
+        statistics: '{{ item.statistics }}'
+        usageType: '{{ item.usageType }}'
+        userId: '{{ item.userId }}'
+  # ── GetStep ──
+  - discovery_id: aws.deadline.get_step
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: get_step
+        params:
+          farmId: '{{ item.farmId }}'
+          queueId: '{{ item.queueId }}'
+          jobId: '{{ item.jobId }}'
+          stepId: '{{ item.stepId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.dependencyCounts }}'
+      item:
+        consumersResolved: '{{ item.consumersResolved }}'
+        consumersUnresolved: '{{ item.consumersUnresolved }}'
+        dependenciesResolved: '{{ item.dependenciesResolved }}'
+        dependenciesUnresolved: '{{ item.dependenciesUnresolved }}'
+  # ── GetStorageProfile ──
+  - discovery_id: aws.deadline.get_storage_profile
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: get_storage_profile
+        params:
+          farmId: '{{ item.farmId }}'
+          storageProfileId: '{{ item.storageProfileId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.fileSystemLocations }}'
+      item:
+        path: '{{ item.path }}'
+        type: '{{ item.type }}'
+  # ── GetStorageProfileForQueue ──
+  - discovery_id: aws.deadline.get_storage_profile_for_queue
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: get_storage_profile_for_queue
+        params:
+          farmId: '{{ item.farmId }}'
+          queueId: '{{ item.queueId }}'
+          storageProfileId: '{{ item.storageProfileId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.fileSystemLocations }}'
+      item:
+        path: '{{ item.path }}'
+        type: '{{ item.type }}'
+  # ── GetTask ──
+  - discovery_id: aws.deadline.get_task
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: get_task
+        params:
+          farmId: '{{ item.farmId }}'
+          queueId: '{{ item.queueId }}'
+          jobId: '{{ item.jobId }}'
+          stepId: '{{ item.stepId }}'
+          taskId: '{{ item.taskId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        createdAt: '{{ response.createdAt }}'
+        createdBy: '{{ response.createdBy }}'
+        endedAt: '{{ response.endedAt }}'
+        failureRetryCount: '{{ response.failureRetryCount }}'
+        latestSessionActionId: '{{ response.latestSessionActionId }}'
+        parameters: '{{ response.parameters }}'
+        runStatus: '{{ response.runStatus }}'
+        startedAt: '{{ response.startedAt }}'
+        targetRunStatus: '{{ response.targetRunStatus }}'
+        taskId: '{{ response.taskId }}'
+        updatedAt: '{{ response.updatedAt }}'
+        updatedBy: '{{ response.updatedBy }}'
+  # ── GetWorker ──
+  - discovery_id: aws.deadline.get_worker
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: get_worker
+        params:
+          farmId: '{{ item.farmId }}'
+          fleetId: '{{ item.fleetId }}'
+          workerId: '{{ item.workerId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.hostProperties }}'
+      item:
+        ec2InstanceArn: '{{ item.ec2InstanceArn }}'
+        ec2InstanceType: '{{ item.ec2InstanceType }}'
+        hostName: '{{ item.hostName }}'
+        ipAddresses: '{{ item.ipAddresses }}'
+  # ── ListBudgets ──
+  - discovery_id: aws.deadline.list_budgets
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: list_budgets
+        params:
+          farmId: '{{ item.farmId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.budgets }}'
+      item:
+        approximateDollarLimit: '{{ item.approximateDollarLimit }}'
+        budgetId: '{{ item.budgetId }}'
+        description: '{{ item.description }}'
+        displayName: '{{ item.displayName }}'
+        schedule: '{{ item.schedule }}'
+        usageTrackingResource: '{{ item.usageTrackingResource }}'
+        usages: '{{ item.usages }}'
+  # ── ListFarmMembers ──
+  - discovery_id: aws.deadline.list_farm_members
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: list_farm_members
+        params:
+          farmId: '{{ item.farmId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.members }}'
+      item:
+        farmId: '{{ item.farmId }}'
+        identityStoreId: '{{ item.identityStoreId }}'
+        membershipLevel: '{{ item.membershipLevel }}'
+        principalId: '{{ item.principalId }}'
+        principalType: '{{ item.principalType }}'
+  # ── ListFleetMembers ──
+  - discovery_id: aws.deadline.list_fleet_members
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: list_fleet_members
+        params:
+          farmId: '{{ item.farmId }}'
+          fleetId: '{{ item.fleetId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.members }}'
+      item:
+        capabilities: '{{ item.capabilities }}'
+        farmId: '{{ item.farmId }}'
+        identityStoreId: '{{ item.identityStoreId }}'
+        membershipLevel: '{{ item.membershipLevel }}'
+        principalId: '{{ item.principalId }}'
+        principalType: '{{ item.principalType }}'
+  # ── ListFleets ──
+  - discovery_id: aws.deadline.list_fleets
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: list_fleets
+        params:
+          farmId: '{{ item.farmId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.fleets }}'
+      item:
+        autoScalingStatus: '{{ item.autoScalingStatus }}'
+        configuration: '{{ item.configuration }}'
+        displayName: '{{ item.displayName }}'
+        farmId: '{{ item.farmId }}'
+        minWorkerCount: '{{ item.minWorkerCount }}'
+        statusMessage: '{{ item.statusMessage }}'
+        targetWorkerCount: '{{ item.targetWorkerCount }}'
+        workerCount: '{{ item.workerCount }}'
+  # ── ListJobMembers ──
+  - discovery_id: aws.deadline.list_job_members
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: list_job_members
+        params:
+          farmId: '{{ item.farmId }}'
+          queueId: '{{ item.queueId }}'
+          jobId: '{{ item.jobId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.members }}'
+      item:
+        attachments: '{{ item.attachments }}'
+        farmId: '{{ item.farmId }}'
+        identityStoreId: '{{ item.identityStoreId }}'
+        membershipLevel: '{{ item.membershipLevel }}'
+        principalId: '{{ item.principalId }}'
+        principalType: '{{ item.principalType }}'
+  # ── ListJobParameterDefinitions ──
+  - discovery_id: aws.deadline.list_job_parameter_definitions
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: list_job_parameter_definitions
+        params:
+          farmId: '{{ item.farmId }}'
+          jobId: '{{ item.jobId }}'
+          queueId: '{{ item.queueId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.jobParameterDefinitions }}'
+  # ── ListJobs ──
+  - discovery_id: aws.deadline.list_jobs
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: list_jobs
+        params:
+          farmId: '{{ item.farmId }}'
+          queueId: '{{ item.queueId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.jobs }}'
+  # ── ListLimits ──
+  - discovery_id: aws.deadline.list_limits
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: list_limits
+        params:
+          farmId: '{{ item.farmId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.limits }}'
+      item:
+        amountRequirementName: '{{ item.amountRequirementName }}'
+        currentCount: '{{ item.currentCount }}'
+        displayName: '{{ item.displayName }}'
+        farmId: '{{ item.farmId }}'
+        limitId: '{{ item.limitId }}'
+        maxCount: '{{ item.maxCount }}'
+  # ── ListMeteredProducts ──
+  - discovery_id: aws.deadline.list_metered_products
+    for_each: aws.deadline.list_license_endpoints
+    calls:
+      - action: list_metered_products
+        params:
+          licenseEndpointId: '{{ item.licenseEndpointId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.meteredProducts }}'
+      item:
+        family: '{{ item.family }}'
+        port: '{{ item.port }}'
+        productId: '{{ item.productId }}'
+        vendor: '{{ item.vendor }}'
+  # ── ListQueueEnvironments ──
+  - discovery_id: aws.deadline.list_queue_environments
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: list_queue_environments
+        params:
+          farmId: '{{ item.farmId }}'
+          queueId: '{{ item.queueId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.environments }}'
+      item:
+        queueEnvironmentId: '{{ item.queueEnvironmentId }}'
+  # ── ListQueueFleetAssociations ──
+  - discovery_id: aws.deadline.list_queue_fleet_associations
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: list_queue_fleet_associations
+        params:
+          farmId: '{{ item.farmId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.queueFleetAssociations }}'
+  # ── ListQueueLimitAssociations ──
+  - discovery_id: aws.deadline.list_queue_limit_associations
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: list_queue_limit_associations
+        params:
+          farmId: '{{ item.farmId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.queueLimitAssociations }}'
+      item:
+        limitId: '{{ item.limitId }}'
+  # ── ListQueueMembers ──
+  - discovery_id: aws.deadline.list_queue_members
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: list_queue_members
+        params:
+          farmId: '{{ item.farmId }}'
+          queueId: '{{ item.queueId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.members }}'
+      item:
+        farmId: '{{ item.farmId }}'
+        identityStoreId: '{{ item.identityStoreId }}'
+        membershipLevel: '{{ item.membershipLevel }}'
+        principalId: '{{ item.principalId }}'
+        principalType: '{{ item.principalType }}'
+  # ── ListQueues ──
+  - discovery_id: aws.deadline.list_queues
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: list_queues
+        params:
+          farmId: '{{ item.farmId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.queues }}'
+      item:
+        blockedReason: '{{ item.blockedReason }}'
+        defaultBudgetAction: '{{ item.defaultBudgetAction }}'
+        displayName: '{{ item.displayName }}'
+        farmId: '{{ item.farmId }}'
+  # ── ListSessionActions ──
+  - discovery_id: aws.deadline.list_session_actions
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: list_session_actions
+        params:
+          farmId: '{{ item.farmId }}'
+          queueId: '{{ item.queueId }}'
+          jobId: '{{ item.jobId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.sessionActions }}'
+      item:
+        definition: '{{ item.definition }}'
+        manifests: '{{ item.manifests }}'
+        progressPercent: '{{ item.progressPercent }}'
+        sessionActionId: '{{ item.sessionActionId }}'
+        workerLog: '{{ item.workerLog }}'
+        workerUpdatedAt: '{{ item.workerUpdatedAt }}'
+  # ── ListSessions ──
+  - discovery_id: aws.deadline.list_sessions
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: list_sessions
+        params:
+          farmId: '{{ item.farmId }}'
+          queueId: '{{ item.queueId }}'
+          jobId: '{{ item.jobId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.sessions }}'
+      item:
+        sessionId: '{{ item.sessionId }}'
+        targetLifecycleStatus: '{{ item.targetLifecycleStatus }}'
+  # ── ListSessionsForWorker ──
+  - discovery_id: aws.deadline.list_sessions_for_worker
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: list_sessions_for_worker
+        params:
+          farmId: '{{ item.farmId }}'
+          fleetId: '{{ item.fleetId }}'
+          workerId: '{{ item.workerId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.sessions }}'
+      item:
+        sessionId: '{{ item.sessionId }}'
+        targetLifecycleStatus: '{{ item.targetLifecycleStatus }}'
+  # ── ListStepConsumers ──
+  - discovery_id: aws.deadline.list_step_consumers
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: list_step_consumers
+        params:
+          farmId: '{{ item.farmId }}'
+          queueId: '{{ item.queueId }}'
+          jobId: '{{ item.jobId }}'
+          stepId: '{{ item.stepId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.consumers }}'
+  # ── ListStepDependencies ──
+  - discovery_id: aws.deadline.list_step_dependencies
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: list_step_dependencies
+        params:
+          farmId: '{{ item.farmId }}'
+          queueId: '{{ item.queueId }}'
+          jobId: '{{ item.jobId }}'
+          stepId: '{{ item.stepId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.dependencies }}'
+  # ── ListSteps ──
+  - discovery_id: aws.deadline.list_steps
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: list_steps
+        params:
+          farmId: '{{ item.farmId }}'
+          queueId: '{{ item.queueId }}'
+          jobId: '{{ item.jobId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.steps }}'
+      item:
+        dependencyCounts: '{{ item.dependencyCounts }}'
+  # ── ListStorageProfiles ──
+  - discovery_id: aws.deadline.list_storage_profiles
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: list_storage_profiles
+        params:
+          farmId: '{{ item.farmId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.storageProfiles }}'
+      item:
+        displayName: '{{ item.displayName }}'
+        osFamily: '{{ item.osFamily }}'
+        storageProfileId: '{{ item.storageProfileId }}'
+  # ── ListStorageProfilesForQueue ──
+  - discovery_id: aws.deadline.list_storage_profiles_for_queue
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: list_storage_profiles_for_queue
+        params:
+          farmId: '{{ item.farmId }}'
+          queueId: '{{ item.queueId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.storageProfiles }}'
+      item:
+        displayName: '{{ item.displayName }}'
+        osFamily: '{{ item.osFamily }}'
+        storageProfileId: '{{ item.storageProfileId }}'
+  # ── ListTagsForResource ──
+  - discovery_id: aws.deadline.list_tags_for_resource
+    calls:
+      - action: list_tags_for_resource
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        tags: '{{ response.tags }}'
+  # ── ListTasks ──
+  - discovery_id: aws.deadline.list_tasks
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: list_tasks
+        params:
+          farmId: '{{ item.farmId }}'
+          queueId: '{{ item.queueId }}'
+          jobId: '{{ item.jobId }}'
+          stepId: '{{ item.stepId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.tasks }}'
+      item:
+        latestSessionActionId: '{{ item.latestSessionActionId }}'
+  # ── ListWorkers ──
+  - discovery_id: aws.deadline.list_workers
+    for_each: aws.deadline.list_farms
+    calls:
+      - action: list_workers
+        params:
+          farmId: '{{ item.farmId }}'
+          fleetId: '{{ item.fleetId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.workers }}'
+      item:
+        farmId: '{{ item.farmId }}'
+        log: '{{ item.log }}'
+        workerLog: '{{ item.workerLog }}'
+  # ── SearchJobs ──
+  - discovery_id: aws.deadline.search_jobs
+    calls:
+      - action: search_jobs
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.jobs }}'
+  # ── SearchSteps ──
+  - discovery_id: aws.deadline.search_steps
+    calls:
+      - action: search_steps
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.steps }}'
+  # ── SearchTasks ──
+  - discovery_id: aws.deadline.search_tasks
+    calls:
+      - action: search_tasks
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.tasks }}'
+  # ── SearchWorkers ──
+  - discovery_id: aws.deadline.search_workers
+    calls:
+      - action: search_workers
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.workers }}'

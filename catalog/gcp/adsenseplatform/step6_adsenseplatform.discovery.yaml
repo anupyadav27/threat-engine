@@ -1,0 +1,118 @@
+# ============================================================
+# Discovery YAML — adsenseplatform (v1)
+# Generated: 2026-02-21T03:06:38Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 5 | independent: 3 | dependent: 2
+# ops with fields: 5/5 | dep ops with chain: 1/2
+# ============================================================
+version: '1.0'
+provider: gcp
+service: adsenseplatform
+
+services:
+  client: adsenseplatform
+  module: "googleapiclient.discovery.build('adsenseplatform', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists a partial view of sub-accounts for a specific parent account.
+  # ── gcp.adsenseplatform.platforms.accounts.list ──
+  - discovery_id: gcp.adsenseplatform.platforms.accounts.list
+    # python: svc.platforms().accounts().list(**params).execute()
+    calls:
+      - action: platforms.accounts.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.accounts }}'
+      item:
+        createTime: '{{ item.createTime }}'
+        creationRequestId: '{{ item.creationRequestId }}'
+        displayName: '{{ item.displayName }}'
+        name: '{{ item.name }}'
+        regionCode: '{{ item.regionCode }}'
+        state: '{{ item.state }}'
+        timeZone: '{{ item.timeZone }}'
+  # Looks up information about a sub-account for a specified creation_request_id. If no account exists f
+  # ── gcp.adsenseplatform.platforms.accounts.lookup ──
+  - discovery_id: gcp.adsenseplatform.platforms.accounts.lookup
+    # python: svc.platforms().accounts().lookup(**params).execute()
+    calls:
+      - action: platforms.accounts.lookup
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        name: '{{ response.name }}'
+  # Lists sites for a specific account.
+  # ── gcp.adsenseplatform.platforms.accounts.sites.list ──
+  - discovery_id: gcp.adsenseplatform.platforms.accounts.sites.list
+    # python: svc.platforms().accounts().sites().list(**params).execute()
+    calls:
+      - action: platforms.accounts.sites.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.sites }}'
+      item:
+        domain: '{{ item.domain }}'
+        name: '{{ item.name }}'
+        state: '{{ item.state }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets information about the selected sub-account.
+  # ── gcp.adsenseplatform.platforms.accounts.get [dependent] ──
+  - discovery_id: gcp.adsenseplatform.platforms.accounts.get
+    # python: svc.platforms().accounts().get(**params).execute()
+    calls:
+      - action: platforms.accounts.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        createTime: '{{ response.createTime }}'
+        creationRequestId: '{{ response.creationRequestId }}'
+        displayName: '{{ response.displayName }}'
+        name: '{{ response.name }}'
+        regionCode: '{{ response.regionCode }}'
+        state: '{{ response.state }}'
+        timeZone: '{{ response.timeZone }}'
+    # required_params: ['name']
+  # Gets a site from a specified sub-account.
+  # ── gcp.adsenseplatform.platforms.accounts.sites.get [dependent] ──
+  - discovery_id: gcp.adsenseplatform.platforms.accounts.sites.get
+    for_each: gcp.adsenseplatform.platforms.accounts.sites.list
+    # python: svc.platforms().accounts().sites().get(**params).execute()
+    calls:
+      - action: platforms.accounts.sites.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        domain: '{{ response.domain }}'
+        name: '{{ response.name }}'
+        state: '{{ response.state }}'
+    # required_params: ['name']

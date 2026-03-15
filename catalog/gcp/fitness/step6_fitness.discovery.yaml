@@ -1,0 +1,135 @@
+# ============================================================
+# Discovery YAML — fitness (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 5 | independent: 0 | dependent: 5
+# ops with fields: 5/5 | dep ops with chain: 0/5
+# ============================================================
+version: '1.0'
+provider: gcp
+service: fitness
+
+services:
+  client: fitness
+  module: "googleapiclient.discovery.build('fitness', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Queries for user's data point changes for a particular data source.
+  # ── gcp.fitness.users.dataSources.dataPointChanges.list [dependent] ──
+  - discovery_id: gcp.fitness.users.dataSources.dataPointChanges.list
+    # python: svc.users().dataSources().dataPointChanges().list(**params).execute()
+    calls:
+      - action: users.dataSources.dataPointChanges.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.dataPointChanges }}'
+      item:
+        computationTimeMillis: '{{ item.computationTimeMillis }}'
+        dataTypeName: '{{ item.dataTypeName }}'
+        endTimeNanos: '{{ item.endTimeNanos }}'
+        modifiedTimeMillis: '{{ item.modifiedTimeMillis }}'
+        originDataSourceId: '{{ item.originDataSourceId }}'
+        rawTimestampNanos: '{{ item.rawTimestampNanos }}'
+        startTimeNanos: '{{ item.startTimeNanos }}'
+        value: '{{ item.value }}'
+    # required_params: ['userId', 'dataSourceId']
+  # Returns a dataset containing all data points whose start and end times overlap with the specified ra
+  # ── gcp.fitness.users.dataSources.datasets.get [dependent] ──
+  - discovery_id: gcp.fitness.users.dataSources.datasets.get
+    # python: svc.users().dataSources().datasets().get(**params).execute()
+    calls:
+      - action: users.dataSources.datasets.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        dataSourceId: '{{ response.dataSourceId }}'
+        maxEndTimeNs: '{{ response.maxEndTimeNs }}'
+        minStartTimeNs: '{{ response.minStartTimeNs }}'
+        point: '{{ response.point }}'
+    # required_params: ['userId', 'dataSourceId', 'datasetId']
+  # Returns the specified data source.
+  # ── gcp.fitness.users.dataSources.get [dependent] ──
+  - discovery_id: gcp.fitness.users.dataSources.get
+    # python: svc.users().dataSources().get(**params).execute()
+    calls:
+      - action: users.dataSources.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        application: '{{ response.application }}'
+        dataQualityStandard: '{{ response.dataQualityStandard }}'
+        dataStreamId: '{{ response.dataStreamId }}'
+        dataStreamName: '{{ response.dataStreamName }}'
+        dataType: '{{ response.dataType }}'
+        device: '{{ response.device }}'
+        name: '{{ response.name }}'
+        type: '{{ response.type }}'
+    # required_params: ['userId', 'dataSourceId']
+  # Lists all data sources that are visible to the developer, using the OAuth scopes provided. The list 
+  # ── gcp.fitness.users.dataSources.list [dependent] ──
+  - discovery_id: gcp.fitness.users.dataSources.list
+    # python: svc.users().dataSources().list(**params).execute()
+    calls:
+      - action: users.dataSources.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.dataSources }}'
+      item:
+        application: '{{ item.application }}'
+        dataQualityStandard: '{{ item.dataQualityStandard }}'
+        dataStreamId: '{{ item.dataStreamId }}'
+        dataStreamName: '{{ item.dataStreamName }}'
+        dataType: '{{ item.dataType }}'
+        device: '{{ item.device }}'
+        name: '{{ item.name }}'
+        type: '{{ item.type }}'
+    # required_params: ['userId']
+  # Lists sessions previously created.
+  # ── gcp.fitness.users.sessions.list [dependent] ──
+  - discovery_id: gcp.fitness.users.sessions.list
+    # python: svc.users().sessions().list(**params).execute()
+    calls:
+      - action: users.sessions.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.sessions }}'
+      item:
+        activeTimeMillis: '{{ item.activeTimeMillis }}'
+        activityType: '{{ item.activityType }}'
+        application: '{{ item.application }}'
+        description: '{{ item.description }}'
+        endTimeMillis: '{{ item.endTimeMillis }}'
+        id: '{{ item.id }}'
+        modifiedTimeMillis: '{{ item.modifiedTimeMillis }}'
+        name: '{{ item.name }}'
+        startTimeMillis: '{{ item.startTimeMillis }}'
+    # required_params: ['userId']

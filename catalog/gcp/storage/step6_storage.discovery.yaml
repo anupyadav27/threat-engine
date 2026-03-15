@@ -1,0 +1,786 @@
+# ============================================================
+# Discovery YAML — storage (v1)
+# Generated: 2026-02-21T03:06:41Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 30 | independent: 3 | dependent: 27
+# ops with fields: 30/30 | dep ops with chain: 24/27
+# ============================================================
+version: '1.0'
+provider: gcp
+service: storage
+
+services:
+  client: storage
+  module: "googleapiclient.discovery.build('storage', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Retrieves a list of buckets for a given project.
+  # ── gcp.storage.buckets.list ──
+  - discovery_id: gcp.storage.buckets.list
+    # python: svc.buckets().list(**params).execute()
+    calls:
+      - action: buckets.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.buckets }}'
+      item:
+        acl: '{{ item.acl }}'
+        autoclass: '{{ item.autoclass }}'
+        billing: '{{ item.billing }}'
+        cors: '{{ item.cors }}'
+        customPlacementConfig: '{{ item.customPlacementConfig }}'
+        defaultEventBasedHold: '{{ item.defaultEventBasedHold }}'
+        defaultObjectAcl: '{{ item.defaultObjectAcl }}'
+        encryption: '{{ item.encryption }}'
+        generation: '{{ item.generation }}'
+        hardDeleteTime: '{{ item.hardDeleteTime }}'
+        hierarchicalNamespace: '{{ item.hierarchicalNamespace }}'
+        iamConfiguration: '{{ item.iamConfiguration }}'
+        id: '{{ item.id }}'
+        ipFilter: '{{ item.ipFilter }}'
+        labels: '{{ item.labels }}'
+        lifecycle: '{{ item.lifecycle }}'
+        location: '{{ item.location }}'
+        locationType: '{{ item.locationType }}'
+        logging: '{{ item.logging }}'
+        metageneration: '{{ item.metageneration }}'
+        name: '{{ item.name }}'
+        objectRetention: '{{ item.objectRetention }}'
+        owner: '{{ item.owner }}'
+        projectNumber: '{{ item.projectNumber }}'
+        retentionPolicy: '{{ item.retentionPolicy }}'
+        rpo: '{{ item.rpo }}'
+        satisfiesPZI: '{{ item.satisfiesPZI }}'
+        satisfiesPZS: '{{ item.satisfiesPZS }}'
+        softDeletePolicy: '{{ item.softDeletePolicy }}'
+        softDeleteTime: '{{ item.softDeleteTime }}'
+        storageClass: '{{ item.storageClass }}'
+        timeCreated: '{{ item.timeCreated }}'
+        updated: '{{ item.updated }}'
+        versioning: '{{ item.versioning }}'
+        website: '{{ item.website }}'
+  # Retrieves a list of HMAC keys matching the criteria.
+  # ── gcp.storage.projects.hmacKeys.list ──
+  - discovery_id: gcp.storage.projects.hmacKeys.list
+    # python: svc.projects().hmacKeys().list(**params).execute()
+    calls:
+      - action: projects.hmacKeys.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.hmacKeys }}'
+      item:
+        accessId: '{{ item.accessId }}'
+        id: '{{ item.id }}'
+        projectId: '{{ item.projectId }}'
+        serviceAccountEmail: '{{ item.serviceAccountEmail }}'
+        state: '{{ item.state }}'
+        timeCreated: '{{ item.timeCreated }}'
+        updated: '{{ item.updated }}'
+  # Get the email address of this project's Google Cloud Storage service account.
+  # ── gcp.storage.projects.serviceAccount.get ──
+  - discovery_id: gcp.storage.projects.serviceAccount.get
+    # python: svc.projects().serviceAccount().get(**params).execute()
+    calls:
+      - action: projects.serviceAccount.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        email_address: '{{ response.email_address }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Returns the metadata of an Anywhere Cache instance.
+  # ── gcp.storage.anywhereCaches.get [dependent] ──
+  - discovery_id: gcp.storage.anywhereCaches.get
+    for_each: gcp.storage.anywhereCaches.list
+    # python: svc.anywhereCaches().get(**params).execute()
+    calls:
+      - action: anywhereCaches.get
+        params:
+          anywhereCacheId: '{{ item.selfLink }}'
+          bucket: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        admissionPolicy: '{{ response.admissionPolicy }}'
+        anywhereCacheId: '{{ response.anywhereCacheId }}'
+        bucket: '{{ response.bucket }}'
+        createTime: '{{ response.createTime }}'
+        id: '{{ response.id }}'
+        pendingUpdate: '{{ response.pendingUpdate }}'
+        state: '{{ response.state }}'
+        ttl: '{{ response.ttl }}'
+        updateTime: '{{ response.updateTime }}'
+        zone: '{{ response.zone }}'
+    # required_params: ['bucket', 'anywhereCacheId']
+  # Returns a list of Anywhere Cache instances of the bucket matching the criteria.
+  # ── gcp.storage.anywhereCaches.list [dependent] ──
+  - discovery_id: gcp.storage.anywhereCaches.list
+    for_each: gcp.storage.buckets.list
+    # python: svc.anywhereCaches().list(**params).execute()
+    calls:
+      - action: anywhereCaches.list
+        params:
+          bucket: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.anywhereCaches }}'
+      item:
+        admissionPolicy: '{{ item.admissionPolicy }}'
+        anywhereCacheId: '{{ item.anywhereCacheId }}'
+        bucket: '{{ item.bucket }}'
+        createTime: '{{ item.createTime }}'
+        id: '{{ item.id }}'
+        pendingUpdate: '{{ item.pendingUpdate }}'
+        state: '{{ item.state }}'
+        ttl: '{{ item.ttl }}'
+        updateTime: '{{ item.updateTime }}'
+        zone: '{{ item.zone }}'
+    # required_params: ['bucket']
+  # Returns the ACL entry for the specified entity on the specified bucket.
+  # ── gcp.storage.bucketAccessControls.get [dependent] ──
+  - discovery_id: gcp.storage.bucketAccessControls.get
+    for_each: gcp.storage.bucketAccessControls.list
+    # python: svc.bucketAccessControls().get(**params).execute()
+    calls:
+      - action: bucketAccessControls.get
+        params:
+          bucket: '{{ item.name }}'
+          entity: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        bucket: '{{ response.bucket }}'
+        domain: '{{ response.domain }}'
+        email: '{{ response.email }}'
+        entity: '{{ response.entity }}'
+        entityId: '{{ response.entityId }}'
+        id: '{{ response.id }}'
+        projectTeam: '{{ response.projectTeam }}'
+        role: '{{ response.role }}'
+    # required_params: ['bucket', 'entity']
+  # Retrieves ACL entries on the specified bucket.
+  # ── gcp.storage.bucketAccessControls.list [dependent] ──
+  - discovery_id: gcp.storage.bucketAccessControls.list
+    for_each: gcp.storage.buckets.list
+    # python: svc.bucketAccessControls().list(**params).execute()
+    calls:
+      - action: bucketAccessControls.list
+        params:
+          bucket: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.bucketAccessControls }}'
+      item:
+        bucket: '{{ item.bucket }}'
+        domain: '{{ item.domain }}'
+        email: '{{ item.email }}'
+        entity: '{{ item.entity }}'
+        entityId: '{{ item.entityId }}'
+        id: '{{ item.id }}'
+        projectTeam: '{{ item.projectTeam }}'
+        role: '{{ item.role }}'
+    # required_params: ['bucket']
+  # Returns metadata for the specified bucket.
+  # ── gcp.storage.buckets.get [dependent] ──
+  - discovery_id: gcp.storage.buckets.get
+    for_each: gcp.storage.buckets.list
+    # python: svc.buckets().get(**params).execute()
+    calls:
+      - action: buckets.get
+        params:
+          bucket: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        acl: '{{ response.acl }}'
+        autoclass: '{{ response.autoclass }}'
+        billing: '{{ response.billing }}'
+        cors: '{{ response.cors }}'
+        customPlacementConfig: '{{ response.customPlacementConfig }}'
+        defaultEventBasedHold: '{{ response.defaultEventBasedHold }}'
+        defaultObjectAcl: '{{ response.defaultObjectAcl }}'
+        encryption: '{{ response.encryption }}'
+        generation: '{{ response.generation }}'
+        hardDeleteTime: '{{ response.hardDeleteTime }}'
+        hierarchicalNamespace: '{{ response.hierarchicalNamespace }}'
+        iamConfiguration: '{{ response.iamConfiguration }}'
+        id: '{{ response.id }}'
+        ipFilter: '{{ response.ipFilter }}'
+        labels: '{{ response.labels }}'
+        lifecycle: '{{ response.lifecycle }}'
+        location: '{{ response.location }}'
+        locationType: '{{ response.locationType }}'
+        logging: '{{ response.logging }}'
+        metageneration: '{{ response.metageneration }}'
+        name: '{{ response.name }}'
+        objectRetention: '{{ response.objectRetention }}'
+        owner: '{{ response.owner }}'
+        projectNumber: '{{ response.projectNumber }}'
+        retentionPolicy: '{{ response.retentionPolicy }}'
+        rpo: '{{ response.rpo }}'
+        satisfiesPZI: '{{ response.satisfiesPZI }}'
+        satisfiesPZS: '{{ response.satisfiesPZS }}'
+        softDeletePolicy: '{{ response.softDeletePolicy }}'
+        softDeleteTime: '{{ response.softDeleteTime }}'
+        storageClass: '{{ response.storageClass }}'
+        timeCreated: '{{ response.timeCreated }}'
+        updated: '{{ response.updated }}'
+        versioning: '{{ response.versioning }}'
+        website: '{{ response.website }}'
+    # required_params: ['bucket']
+  # Returns an IAM policy for the specified bucket.
+  # ── gcp.storage.buckets.getIamPolicy [dependent] ──
+  - discovery_id: gcp.storage.buckets.getIamPolicy
+    for_each: gcp.storage.buckets.list
+    # python: svc.buckets().getIamPolicy(**params).execute()
+    calls:
+      - action: buckets.getIamPolicy
+        params:
+          bucket: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        bindings: '{{ response.bindings }}'
+        resourceId: '{{ response.resourceId }}'
+        version: '{{ response.version }}'
+    # required_params: ['bucket']
+  # Returns the storage layout configuration for the specified bucket. Note that this operation requires
+  # ── gcp.storage.buckets.getStorageLayout [dependent] ──
+  - discovery_id: gcp.storage.buckets.getStorageLayout
+    for_each: gcp.storage.buckets.list
+    # python: svc.buckets().getStorageLayout(**params).execute()
+    calls:
+      - action: buckets.getStorageLayout
+        params:
+          bucket: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        bucket: '{{ response.bucket }}'
+        customPlacementConfig: '{{ response.customPlacementConfig }}'
+        hierarchicalNamespace: '{{ response.hierarchicalNamespace }}'
+        location: '{{ response.location }}'
+        locationType: '{{ response.locationType }}'
+    # required_params: ['bucket']
+  # Tests a set of permissions on the given bucket to see which, if any, are held by the caller.
+  # ── gcp.storage.buckets.testIamPermissions [dependent] ──
+  - discovery_id: gcp.storage.buckets.testIamPermissions
+    # python: svc.buckets().testIamPermissions(**params).execute()
+    calls:
+      - action: buckets.testIamPermissions
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        permissions: '{{ response.permissions }}'
+    # required_params: ['bucket', 'permissions']
+  # Returns the default object ACL entry for the specified entity on the specified bucket.
+  # ── gcp.storage.defaultObjectAccessControls.get [dependent] ──
+  - discovery_id: gcp.storage.defaultObjectAccessControls.get
+    for_each: gcp.storage.bucketAccessControls.list
+    # python: svc.defaultObjectAccessControls().get(**params).execute()
+    calls:
+      - action: defaultObjectAccessControls.get
+        params:
+          bucket: '{{ item.name }}'
+          entity: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        bucket: '{{ response.bucket }}'
+        domain: '{{ response.domain }}'
+        email: '{{ response.email }}'
+        entity: '{{ response.entity }}'
+        entityId: '{{ response.entityId }}'
+        generation: '{{ response.generation }}'
+        id: '{{ response.id }}'
+        object: '{{ response.object }}'
+        projectTeam: '{{ response.projectTeam }}'
+        role: '{{ response.role }}'
+    # required_params: ['bucket', 'entity']
+  # Retrieves default object ACL entries on the specified bucket.
+  # ── gcp.storage.defaultObjectAccessControls.list [dependent] ──
+  - discovery_id: gcp.storage.defaultObjectAccessControls.list
+    for_each: gcp.storage.buckets.list
+    # python: svc.defaultObjectAccessControls().list(**params).execute()
+    calls:
+      - action: defaultObjectAccessControls.list
+        params:
+          bucket: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.defaultObjectAccessControls }}'
+      item:
+        bucket: '{{ item.bucket }}'
+        domain: '{{ item.domain }}'
+        email: '{{ item.email }}'
+        entity: '{{ item.entity }}'
+        entityId: '{{ item.entityId }}'
+        generation: '{{ item.generation }}'
+        id: '{{ item.id }}'
+        object: '{{ item.object }}'
+        projectTeam: '{{ item.projectTeam }}'
+        role: '{{ item.role }}'
+    # required_params: ['bucket']
+  # Returns metadata for the specified folder. Only applicable to buckets with hierarchical namespace en
+  # ── gcp.storage.folders.get [dependent] ──
+  - discovery_id: gcp.storage.folders.get
+    for_each: gcp.storage.folders.list
+    # python: svc.folders().get(**params).execute()
+    calls:
+      - action: folders.get
+        params:
+          bucket: '{{ item.name }}'
+          folder: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        bucket: '{{ response.bucket }}'
+        createTime: '{{ response.createTime }}'
+        id: '{{ response.id }}'
+        metageneration: '{{ response.metageneration }}'
+        name: '{{ response.name }}'
+        pendingRenameInfo: '{{ response.pendingRenameInfo }}'
+        updateTime: '{{ response.updateTime }}'
+    # required_params: ['bucket', 'folder']
+  # Retrieves a list of folders matching the criteria. Only applicable to buckets with hierarchical name
+  # ── gcp.storage.folders.list [dependent] ──
+  - discovery_id: gcp.storage.folders.list
+    for_each: gcp.storage.buckets.list
+    # python: svc.folders().list(**params).execute()
+    calls:
+      - action: folders.list
+        params:
+          bucket: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.folders }}'
+      item:
+        bucket: '{{ item.bucket }}'
+        createTime: '{{ item.createTime }}'
+        id: '{{ item.id }}'
+        metageneration: '{{ item.metageneration }}'
+        name: '{{ item.name }}'
+        pendingRenameInfo: '{{ item.pendingRenameInfo }}'
+        updateTime: '{{ item.updateTime }}'
+    # required_params: ['bucket']
+  # Returns metadata of the specified managed folder.
+  # ── gcp.storage.managedFolders.get [dependent] ──
+  - discovery_id: gcp.storage.managedFolders.get
+    for_each: gcp.storage.managedFolders.list
+    # python: svc.managedFolders().get(**params).execute()
+    calls:
+      - action: managedFolders.get
+        params:
+          bucket: '{{ item.name }}'
+          managedFolder: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        bucket: '{{ response.bucket }}'
+        createTime: '{{ response.createTime }}'
+        id: '{{ response.id }}'
+        metageneration: '{{ response.metageneration }}'
+        name: '{{ response.name }}'
+        updateTime: '{{ response.updateTime }}'
+    # required_params: ['bucket', 'managedFolder']
+  # Returns an IAM policy for the specified managed folder.
+  # ── gcp.storage.managedFolders.getIamPolicy [dependent] ──
+  - discovery_id: gcp.storage.managedFolders.getIamPolicy
+    for_each: gcp.storage.managedFolders.list
+    # python: svc.managedFolders().getIamPolicy(**params).execute()
+    calls:
+      - action: managedFolders.getIamPolicy
+        params:
+          bucket: '{{ item.name }}'
+          managedFolder: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        bindings: '{{ response.bindings }}'
+        resourceId: '{{ response.resourceId }}'
+        version: '{{ response.version }}'
+    # required_params: ['bucket', 'managedFolder']
+  # Lists managed folders in the given bucket.
+  # ── gcp.storage.managedFolders.list [dependent] ──
+  - discovery_id: gcp.storage.managedFolders.list
+    for_each: gcp.storage.buckets.list
+    # python: svc.managedFolders().list(**params).execute()
+    calls:
+      - action: managedFolders.list
+        params:
+          bucket: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.managedFolders }}'
+      item:
+        bucket: '{{ item.bucket }}'
+        createTime: '{{ item.createTime }}'
+        id: '{{ item.id }}'
+        metageneration: '{{ item.metageneration }}'
+        name: '{{ item.name }}'
+        updateTime: '{{ item.updateTime }}'
+    # required_params: ['bucket']
+  # Tests a set of permissions on the given managed folder to see which, if any, are held by the caller.
+  # ── gcp.storage.managedFolders.testIamPermissions [dependent] ──
+  - discovery_id: gcp.storage.managedFolders.testIamPermissions
+    # python: svc.managedFolders().testIamPermissions(**params).execute()
+    calls:
+      - action: managedFolders.testIamPermissions
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        permissions: '{{ response.permissions }}'
+    # required_params: ['bucket', 'managedFolder', 'permissions']
+  # View a notification configuration.
+  # ── gcp.storage.notifications.get [dependent] ──
+  - discovery_id: gcp.storage.notifications.get
+    for_each: gcp.storage.notifications.list
+    # python: svc.notifications().get(**params).execute()
+    calls:
+      - action: notifications.get
+        params:
+          bucket: '{{ item.name }}'
+          notification: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        custom_attributes: '{{ response.custom_attributes }}'
+        event_types: '{{ response.event_types }}'
+        id: '{{ response.id }}'
+        object_name_prefix: '{{ response.object_name_prefix }}'
+        payload_format: '{{ response.payload_format }}'
+        topic: '{{ response.topic }}'
+    # required_params: ['bucket', 'notification']
+  # Retrieves a list of notification subscriptions for a given bucket.
+  # ── gcp.storage.notifications.list [dependent] ──
+  - discovery_id: gcp.storage.notifications.list
+    for_each: gcp.storage.buckets.list
+    # python: svc.notifications().list(**params).execute()
+    calls:
+      - action: notifications.list
+        params:
+          bucket: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.notifications }}'
+      item:
+        custom_attributes: '{{ item.custom_attributes }}'
+        event_types: '{{ item.event_types }}'
+        id: '{{ item.id }}'
+        object_name_prefix: '{{ item.object_name_prefix }}'
+        payload_format: '{{ item.payload_format }}'
+        topic: '{{ item.topic }}'
+    # required_params: ['bucket']
+  # Returns the ACL entry for the specified entity on the specified object.
+  # ── gcp.storage.objectAccessControls.get [dependent] ──
+  - discovery_id: gcp.storage.objectAccessControls.get
+    for_each: gcp.storage.objects.list
+    # python: svc.objectAccessControls().get(**params).execute()
+    calls:
+      - action: objectAccessControls.get
+        params:
+          bucket: '{{ item.name }}'
+          entity: '{{ item.selfLink }}'
+          object: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        bucket: '{{ response.bucket }}'
+        domain: '{{ response.domain }}'
+        email: '{{ response.email }}'
+        entity: '{{ response.entity }}'
+        entityId: '{{ response.entityId }}'
+        generation: '{{ response.generation }}'
+        id: '{{ response.id }}'
+        object: '{{ response.object }}'
+        projectTeam: '{{ response.projectTeam }}'
+        role: '{{ response.role }}'
+    # required_params: ['bucket', 'entity', 'object']
+  # Retrieves ACL entries on the specified object.
+  # ── gcp.storage.objectAccessControls.list [dependent] ──
+  - discovery_id: gcp.storage.objectAccessControls.list
+    for_each: gcp.storage.objects.list
+    # python: svc.objectAccessControls().list(**params).execute()
+    calls:
+      - action: objectAccessControls.list
+        params:
+          bucket: '{{ item.name }}'
+          object: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.objectAccessControls }}'
+      item:
+        bucket: '{{ item.bucket }}'
+        domain: '{{ item.domain }}'
+        email: '{{ item.email }}'
+        entity: '{{ item.entity }}'
+        entityId: '{{ item.entityId }}'
+        generation: '{{ item.generation }}'
+        id: '{{ item.id }}'
+        object: '{{ item.object }}'
+        projectTeam: '{{ item.projectTeam }}'
+        role: '{{ item.role }}'
+    # required_params: ['bucket', 'object']
+  # Retrieves an object or its metadata.
+  # ── gcp.storage.objects.get [dependent] ──
+  - discovery_id: gcp.storage.objects.get
+    for_each: gcp.storage.objects.list
+    # python: svc.objects().get(**params).execute()
+    calls:
+      - action: objects.get
+        params:
+          bucket: '{{ item.name }}'
+          object: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        acl: '{{ response.acl }}'
+        bucket: '{{ response.bucket }}'
+        cacheControl: '{{ response.cacheControl }}'
+        componentCount: '{{ response.componentCount }}'
+        contentDisposition: '{{ response.contentDisposition }}'
+        contentEncoding: '{{ response.contentEncoding }}'
+        contentLanguage: '{{ response.contentLanguage }}'
+        contentType: '{{ response.contentType }}'
+        contexts: '{{ response.contexts }}'
+        crc32c: '{{ response.crc32c }}'
+        customTime: '{{ response.customTime }}'
+        customerEncryption: '{{ response.customerEncryption }}'
+        eventBasedHold: '{{ response.eventBasedHold }}'
+        generation: '{{ response.generation }}'
+        hardDeleteTime: '{{ response.hardDeleteTime }}'
+        id: '{{ response.id }}'
+        kmsKeyName: '{{ response.kmsKeyName }}'
+        md5Hash: '{{ response.md5Hash }}'
+        mediaLink: '{{ response.mediaLink }}'
+        metadata: '{{ response.metadata }}'
+        metageneration: '{{ response.metageneration }}'
+        name: '{{ response.name }}'
+        owner: '{{ response.owner }}'
+        restoreToken: '{{ response.restoreToken }}'
+        retention: '{{ response.retention }}'
+        retentionExpirationTime: '{{ response.retentionExpirationTime }}'
+        size: '{{ response.size }}'
+        softDeleteTime: '{{ response.softDeleteTime }}'
+        storageClass: '{{ response.storageClass }}'
+        temporaryHold: '{{ response.temporaryHold }}'
+        timeCreated: '{{ response.timeCreated }}'
+        timeDeleted: '{{ response.timeDeleted }}'
+        timeFinalized: '{{ response.timeFinalized }}'
+        timeStorageClassUpdated: '{{ response.timeStorageClassUpdated }}'
+        updated: '{{ response.updated }}'
+    # required_params: ['bucket', 'object']
+  # Returns an IAM policy for the specified object.
+  # ── gcp.storage.objects.getIamPolicy [dependent] ──
+  - discovery_id: gcp.storage.objects.getIamPolicy
+    for_each: gcp.storage.objects.list
+    # python: svc.objects().getIamPolicy(**params).execute()
+    calls:
+      - action: objects.getIamPolicy
+        params:
+          bucket: '{{ item.name }}'
+          object: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        bindings: '{{ response.bindings }}'
+        resourceId: '{{ response.resourceId }}'
+        version: '{{ response.version }}'
+    # required_params: ['bucket', 'object']
+  # Retrieves a list of objects matching the criteria.
+  # ── gcp.storage.objects.list [dependent] ──
+  - discovery_id: gcp.storage.objects.list
+    for_each: gcp.storage.buckets.list
+    # python: svc.objects().list(**params).execute()
+    calls:
+      - action: objects.list
+        params:
+          bucket: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.objects }}'
+      item:
+        acl: '{{ item.acl }}'
+        bucket: '{{ item.bucket }}'
+        cacheControl: '{{ item.cacheControl }}'
+        componentCount: '{{ item.componentCount }}'
+        contentDisposition: '{{ item.contentDisposition }}'
+        contentEncoding: '{{ item.contentEncoding }}'
+        contentLanguage: '{{ item.contentLanguage }}'
+        contentType: '{{ item.contentType }}'
+        contexts: '{{ item.contexts }}'
+        crc32c: '{{ item.crc32c }}'
+        customTime: '{{ item.customTime }}'
+        customerEncryption: '{{ item.customerEncryption }}'
+        eventBasedHold: '{{ item.eventBasedHold }}'
+        generation: '{{ item.generation }}'
+        hardDeleteTime: '{{ item.hardDeleteTime }}'
+        id: '{{ item.id }}'
+        kmsKeyName: '{{ item.kmsKeyName }}'
+        md5Hash: '{{ item.md5Hash }}'
+        mediaLink: '{{ item.mediaLink }}'
+        metadata: '{{ item.metadata }}'
+        metageneration: '{{ item.metageneration }}'
+        name: '{{ item.name }}'
+        owner: '{{ item.owner }}'
+        restoreToken: '{{ item.restoreToken }}'
+        retention: '{{ item.retention }}'
+        retentionExpirationTime: '{{ item.retentionExpirationTime }}'
+        size: '{{ item.size }}'
+        softDeleteTime: '{{ item.softDeleteTime }}'
+        storageClass: '{{ item.storageClass }}'
+        temporaryHold: '{{ item.temporaryHold }}'
+        timeCreated: '{{ item.timeCreated }}'
+        timeDeleted: '{{ item.timeDeleted }}'
+        timeFinalized: '{{ item.timeFinalized }}'
+        timeStorageClassUpdated: '{{ item.timeStorageClassUpdated }}'
+        updated: '{{ item.updated }}'
+    # required_params: ['bucket']
+  # Tests a set of permissions on the given object to see which, if any, are held by the caller.
+  # ── gcp.storage.objects.testIamPermissions [dependent] ──
+  - discovery_id: gcp.storage.objects.testIamPermissions
+    # python: svc.objects().testIamPermissions(**params).execute()
+    calls:
+      - action: objects.testIamPermissions
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        permissions: '{{ response.permissions }}'
+    # required_params: ['bucket', 'object', 'permissions']
+  # Gets the latest state of a long-running operation.
+  # ── gcp.storage.operations.get [dependent] ──
+  - discovery_id: gcp.storage.operations.get
+    for_each: gcp.storage.operations.list
+    # python: svc.operations().get(**params).execute()
+    calls:
+      - action: operations.get
+        params:
+          bucket: '{{ item.name }}'
+          operationId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['bucket', 'operationId']
+  # Lists operations that match the specified filter in the request.
+  # ── gcp.storage.operations.list [dependent] ──
+  - discovery_id: gcp.storage.operations.list
+    for_each: gcp.storage.buckets.list
+    # python: svc.operations().list(**params).execute()
+    calls:
+      - action: operations.list
+        params:
+          bucket: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.operations }}'
+      item:
+        done: '{{ item.done }}'
+        error: '{{ item.error }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+        response: '{{ item.response }}'
+    # required_params: ['bucket']
+  # Retrieves an HMAC key's metadata
+  # ── gcp.storage.projects.hmacKeys.get [dependent] ──
+  - discovery_id: gcp.storage.projects.hmacKeys.get
+    for_each: gcp.storage.projects.hmacKeys.list
+    # python: svc.projects().hmacKeys().get(**params).execute()
+    calls:
+      - action: projects.hmacKeys.get
+        params:
+          accessId: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accessId: '{{ response.accessId }}'
+        id: '{{ response.id }}'
+        projectId: '{{ response.projectId }}'
+        serviceAccountEmail: '{{ response.serviceAccountEmail }}'
+        state: '{{ response.state }}'
+        timeCreated: '{{ response.timeCreated }}'
+        updated: '{{ response.updated }}'
+    # required_params: ['accessId', 'projectId']

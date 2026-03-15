@@ -1,0 +1,131 @@
+version: '1.0'
+provider: aws
+service: signer
+services:
+  client: signer
+  module: boto3.client
+discovery:
+- discovery_id: aws.signer.listSigningJobs
+  calls:
+  - action: listSigningJobs
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.jobs }}'
+    item:
+      jobId: '{{ item.jobId }}'
+      source: '{{ item.source }}'
+      signedObject: '{{ item.signedObject }}'
+      signingMaterial: '{{ item.signingMaterial }}'
+      createdAt: '{{ item.createdAt }}'
+      status: '{{ item.status }}'
+      isRevoked: '{{ item.isRevoked }}'
+      profileName: '{{ item.profileName }}'
+      profileVersion: '{{ item.profileVersion }}'
+      platformId: '{{ item.platformId }}'
+      platformDisplayName: '{{ item.platformDisplayName }}'
+      signatureExpiresAt: '{{ item.signatureExpiresAt }}'
+      jobOwner: '{{ item.jobOwner }}'
+      jobInvoker: '{{ item.jobInvoker }}'
+- discovery_id: aws.signer.listSigningPlatforms
+  calls:
+  - action: listSigningPlatforms
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.platforms }}'
+    item:
+      platformId: '{{ item.platformId }}'
+      displayName: '{{ item.displayName }}'
+      partner: '{{ item.partner }}'
+      target: '{{ item.target }}'
+      category: '{{ item.category }}'
+      signingConfiguration: '{{ item.signingConfiguration }}'
+      signingImageFormat: '{{ item.signingImageFormat }}'
+      maxSizeInMB: '{{ item.maxSizeInMB }}'
+      revocationSupported: '{{ item.revocationSupported }}'
+- discovery_id: aws.signer.listSigningProfiles
+  calls:
+  - action: listSigningProfiles
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.profiles }}'
+    item:
+      profileName: '{{ item.profileName }}'
+      profileVersion: '{{ item.profileVersion }}'
+      profileVersionArn: '{{ item.profileVersionArn }}'
+      signingMaterial: '{{ item.signingMaterial }}'
+      signatureValidityPeriod: '{{ item.signatureValidityPeriod }}'
+      platformId: '{{ item.platformId }}'
+      platformDisplayName: '{{ item.platformDisplayName }}'
+      signingParameters: '{{ item.signingParameters }}'
+      status: '{{ item.status }}'
+      arn: '{{ item.arn }}'
+      tags: '{{ item.tags }}'
+- discovery_id: aws.signer.describeSigningJob
+  calls:
+  - action: describeSigningJob
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.source }}'
+    item:
+      s3: '{{ item.s3 }}'
+- discovery_id: aws.signer.getRevocationStatus
+  calls:
+  - action: getRevocationStatus
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.revokedEntities }}'
+- discovery_id: aws.signer.getSigningPlatform
+  calls:
+  - action: getSigningPlatform
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.signingConfiguration }}'
+    item:
+      encryptionAlgorithmOptions: '{{ item.encryptionAlgorithmOptions }}'
+      hashAlgorithmOptions: '{{ item.hashAlgorithmOptions }}'
+- discovery_id: aws.signer.getSigningProfile
+  calls:
+  - action: getSigningProfile
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.revocationRecord }}'
+    item:
+      revocationEffectiveFrom: '{{ item.revocationEffectiveFrom }}'
+      revokedAt: '{{ item.revokedAt }}'
+      revokedBy: '{{ item.revokedBy }}'
+- discovery_id: aws.signer.listProfilePermissions
+  calls:
+  - action: listProfilePermissions
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.permissions }}'
+    item:
+      action: '{{ item.action }}'
+      principal: '{{ item.principal }}'
+      statementId: '{{ item.statementId }}'
+      profileVersion: '{{ item.profileVersion }}'
+- discovery_id: aws.signer.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.tags }}'
+checks: []

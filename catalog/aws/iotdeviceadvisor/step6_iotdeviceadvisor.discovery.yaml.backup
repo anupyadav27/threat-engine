@@ -1,0 +1,95 @@
+version: '1.0'
+provider: aws
+service: iotdeviceadvisor
+services:
+  client: iotdeviceadvisor
+  module: boto3.client
+discovery:
+- discovery_id: aws.iotdeviceadvisor.getEndpoint
+  calls:
+  - action: getEndpoint
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.endpoint }}'
+- discovery_id: aws.iotdeviceadvisor.listSuiteDefinitions
+  calls:
+  - action: listSuiteDefinitions
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.suiteDefinitionInformationList }}'
+    item:
+      suiteDefinitionId: '{{ item.suiteDefinitionId }}'
+      suiteDefinitionName: '{{ item.suiteDefinitionName }}'
+      defaultDevices: '{{ item.defaultDevices }}'
+      intendedForQualification: '{{ item.intendedForQualification }}'
+      isLongDurationTest: '{{ item.isLongDurationTest }}'
+      protocol: '{{ item.protocol }}'
+      createdAt: '{{ item.createdAt }}'
+- discovery_id: aws.iotdeviceadvisor.listSuiteRuns
+  calls:
+  - action: listSuiteRuns
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.suiteRunsList }}'
+    item:
+      suiteDefinitionId: '{{ item.suiteDefinitionId }}'
+      suiteDefinitionVersion: '{{ item.suiteDefinitionVersion }}'
+      suiteDefinitionName: '{{ item.suiteDefinitionName }}'
+      suiteRunId: '{{ item.suiteRunId }}'
+      createdAt: '{{ item.createdAt }}'
+      startedAt: '{{ item.startedAt }}'
+      endAt: '{{ item.endAt }}'
+      status: '{{ item.status }}'
+      passed: '{{ item.passed }}'
+      failed: '{{ item.failed }}'
+- discovery_id: aws.iotdeviceadvisor.getSuiteDefinition
+  calls:
+  - action: getSuiteDefinition
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.suiteDefinitionConfiguration }}'
+    item:
+      suiteDefinitionName: '{{ item.suiteDefinitionName }}'
+      devices: '{{ item.devices }}'
+      intendedForQualification: '{{ item.intendedForQualification }}'
+      isLongDurationTest: '{{ item.isLongDurationTest }}'
+      rootGroup: '{{ item.rootGroup }}'
+      devicePermissionRoleArn: '{{ item.devicePermissionRoleArn }}'
+      protocol: '{{ item.protocol }}'
+- discovery_id: aws.iotdeviceadvisor.getSuiteRun
+  calls:
+  - action: getSuiteRun
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.suiteRunConfiguration }}'
+    item:
+      primaryDevice: '{{ item.primaryDevice }}'
+      selectedTestList: '{{ item.selectedTestList }}'
+      parallelRun: '{{ item.parallelRun }}'
+- discovery_id: aws.iotdeviceadvisor.getSuiteRunReport
+  calls:
+  - action: getSuiteRunReport
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.qualificationReportDownloadUrl }}'
+- discovery_id: aws.iotdeviceadvisor.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.tags }}'
+checks: []

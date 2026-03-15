@@ -1,0 +1,65 @@
+# ============================================================
+# Discovery YAML — mybusinessverifications (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 2 | independent: 2 | dependent: 0
+# ops with fields: 2/2 | dep ops with chain: 0/0
+# ============================================================
+version: '1.0'
+provider: gcp
+service: mybusinessverifications
+
+services:
+  client: mybusinessverifications
+  module: "googleapiclient.discovery.build('mybusinessverifications', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Gets the VoiceOfMerchant state.
+  # ── gcp.mybusinessverifications.locations.getVoiceOfMerchantState ──
+  - discovery_id: gcp.mybusinessverifications.locations.getVoiceOfMerchantState
+    # python: svc.locations().getVoiceOfMerchantState(**params).execute()
+    calls:
+      - action: locations.getVoiceOfMerchantState
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        complyWithGuidelines: '{{ response.complyWithGuidelines }}'
+        hasBusinessAuthority: '{{ response.hasBusinessAuthority }}'
+        hasVoiceOfMerchant: '{{ response.hasVoiceOfMerchant }}'
+        resolveOwnershipConflict: '{{ response.resolveOwnershipConflict }}'
+        verify: '{{ response.verify }}'
+        waitForVoiceOfMerchant: '{{ response.waitForVoiceOfMerchant }}'
+  # List verifications of a location, ordered by create time.
+  # ── gcp.mybusinessverifications.locations.verifications.list ──
+  - discovery_id: gcp.mybusinessverifications.locations.verifications.list
+    # python: svc.locations().verifications().list(**params).execute()
+    calls:
+      - action: locations.verifications.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.verifications }}'
+      item:
+        announcement: '{{ item.announcement }}'
+        createTime: '{{ item.createTime }}'
+        method: '{{ item.method }}'
+        name: '{{ item.name }}'
+        state: '{{ item.state }}'

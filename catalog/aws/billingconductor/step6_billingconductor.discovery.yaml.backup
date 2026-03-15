@@ -1,0 +1,212 @@
+version: '1.0'
+provider: aws
+service: billingconductor
+services:
+  client: billingconductor
+  module: boto3.client
+discovery:
+- discovery_id: aws.billingconductor.listAccountAssociations
+  calls:
+  - action: listAccountAssociations
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.LinkedAccounts }}'
+    item:
+      AccountId: '{{ item.AccountId }}'
+      BillingGroupArn: '{{ item.BillingGroupArn }}'
+      AccountName: '{{ item.AccountName }}'
+      AccountEmail: '{{ item.AccountEmail }}'
+- discovery_id: aws.billingconductor.listBillingGroupCostReports
+  calls:
+  - action: listBillingGroupCostReports
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.BillingGroupCostReports }}'
+    item:
+      Arn: '{{ item.Arn }}'
+      AWSCost: '{{ item.AWSCost }}'
+      ProformaCost: '{{ item.ProformaCost }}'
+      Margin: '{{ item.Margin }}'
+      MarginPercentage: '{{ item.MarginPercentage }}'
+      Currency: '{{ item.Currency }}'
+- discovery_id: aws.billingconductor.listBillingGroups
+  calls:
+  - action: listBillingGroups
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.BillingGroups }}'
+    item:
+      Name: '{{ item.Name }}'
+      Arn: '{{ item.Arn }}'
+      Description: '{{ item.Description }}'
+      PrimaryAccountId: '{{ item.PrimaryAccountId }}'
+      ComputationPreference: '{{ item.ComputationPreference }}'
+      Size: '{{ item.Size }}'
+      CreationTime: '{{ item.CreationTime }}'
+      LastModifiedTime: '{{ item.LastModifiedTime }}'
+      Status: '{{ item.Status }}'
+      StatusReason: '{{ item.StatusReason }}'
+      AccountGrouping: '{{ item.AccountGrouping }}'
+      BillingGroupType: '{{ item.BillingGroupType }}'
+- discovery_id: aws.billingconductor.listCustomLineItems
+  calls:
+  - action: listCustomLineItems
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.CustomLineItems }}'
+    item:
+      Arn: '{{ item.Arn }}'
+      Name: '{{ item.Name }}'
+      ChargeDetails: '{{ item.ChargeDetails }}'
+      CurrencyCode: '{{ item.CurrencyCode }}'
+      Description: '{{ item.Description }}'
+      ProductCode: '{{ item.ProductCode }}'
+      BillingGroupArn: '{{ item.BillingGroupArn }}'
+      CreationTime: '{{ item.CreationTime }}'
+      LastModifiedTime: '{{ item.LastModifiedTime }}'
+      AssociationSize: '{{ item.AssociationSize }}'
+      AccountId: '{{ item.AccountId }}'
+      ComputationRule: '{{ item.ComputationRule }}'
+      PresentationDetails: '{{ item.PresentationDetails }}'
+- discovery_id: aws.billingconductor.listPricingPlans
+  calls:
+  - action: listPricingPlans
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.PricingPlans }}'
+    item:
+      Name: '{{ item.Name }}'
+      Arn: '{{ item.Arn }}'
+      Description: '{{ item.Description }}'
+      Size: '{{ item.Size }}'
+      CreationTime: '{{ item.CreationTime }}'
+      LastModifiedTime: '{{ item.LastModifiedTime }}'
+- discovery_id: aws.billingconductor.listPricingRules
+  calls:
+  - action: listPricingRules
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.PricingRules }}'
+    item:
+      Name: '{{ item.Name }}'
+      Arn: '{{ item.Arn }}'
+      Description: '{{ item.Description }}'
+      Scope: '{{ item.Scope }}'
+      Type: '{{ item.Type }}'
+      ModifierPercentage: '{{ item.ModifierPercentage }}'
+      Service: '{{ item.Service }}'
+      AssociatedPricingPlanCount: '{{ item.AssociatedPricingPlanCount }}'
+      CreationTime: '{{ item.CreationTime }}'
+      LastModifiedTime: '{{ item.LastModifiedTime }}'
+      BillingEntity: '{{ item.BillingEntity }}'
+      Tiering: '{{ item.Tiering }}'
+      UsageType: '{{ item.UsageType }}'
+      Operation: '{{ item.Operation }}'
+- discovery_id: aws.billingconductor.getBillingGroupCostReport
+  calls:
+  - action: getBillingGroupCostReport
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.BillingGroupCostReportResults }}'
+    item:
+      Arn: '{{ item.Arn }}'
+      AWSCost: '{{ item.AWSCost }}'
+      ProformaCost: '{{ item.ProformaCost }}'
+      Margin: '{{ item.Margin }}'
+      MarginPercentage: '{{ item.MarginPercentage }}'
+      Currency: '{{ item.Currency }}'
+      Attributes: '{{ item.Attributes }}'
+- discovery_id: aws.billingconductor.listCustomLineItemVersions
+  calls:
+  - action: listCustomLineItemVersions
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.CustomLineItemVersions }}'
+    item:
+      Name: '{{ item.Name }}'
+      ChargeDetails: '{{ item.ChargeDetails }}'
+      CurrencyCode: '{{ item.CurrencyCode }}'
+      Description: '{{ item.Description }}'
+      ProductCode: '{{ item.ProductCode }}'
+      BillingGroupArn: '{{ item.BillingGroupArn }}'
+      CreationTime: '{{ item.CreationTime }}'
+      LastModifiedTime: '{{ item.LastModifiedTime }}'
+      AssociationSize: '{{ item.AssociationSize }}'
+      StartBillingPeriod: '{{ item.StartBillingPeriod }}'
+      EndBillingPeriod: '{{ item.EndBillingPeriod }}'
+      Arn: '{{ item.Arn }}'
+      StartTime: '{{ item.StartTime }}'
+      AccountId: '{{ item.AccountId }}'
+      ComputationRule: '{{ item.ComputationRule }}'
+      PresentationDetails: '{{ item.PresentationDetails }}'
+- discovery_id: aws.billingconductor.listPricingPlansAssociatedWithPricingRule
+  calls:
+  - action: listPricingPlansAssociatedWithPricingRule
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.PricingPlanArns }}'
+- discovery_id: aws.billingconductor.listPricingRulesAssociatedToPricingPlan
+  calls:
+  - action: listPricingRulesAssociatedToPricingPlan
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.PricingRuleArns }}'
+- discovery_id: aws.billingconductor.listResourcesAssociatedToCustomLineItem
+  calls:
+  - action: listResourcesAssociatedToCustomLineItem
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.AssociatedResources }}'
+    item:
+      Arn: '{{ item.Arn }}'
+      Relationship: '{{ item.Relationship }}'
+      EndBillingPeriod: '{{ item.EndBillingPeriod }}'
+- discovery_id: aws.billingconductor.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+checks: []

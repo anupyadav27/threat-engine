@@ -1,0 +1,204 @@
+version: '1.0'
+provider: aws
+service: guardduty
+services:
+  client: guardduty
+  module: boto3.client
+discovery:
+- discovery_id: aws.guardduty.list_detectors
+  calls:
+  - action: list_detectors
+    params:
+      MaxResults: 1000
+    on_error: continue
+    save_as: response
+  emit:
+    items_for: '{{ response.DetectorIds }}'
+    as: item
+- discovery_id: aws.guardduty.get_detector
+  for_each: aws.guardduty.list_detectors
+  calls:
+  - action: get_detector
+    params:
+      DetectorId: '{{ item.DetectorId }}'
+    save_as: response
+  emit: {}
+- discovery_id: aws.guardduty.describe_organization_configuration
+  for_each: aws.guardduty.list_detectors
+  calls:
+  - action: describe_organization_configuration
+    params:
+      DetectorId: '{{ item.DetectorId }}'
+      MaxResults: 1000
+    save_as: response
+  emit: {}
+checks:
+- rule_id: aws.guardduty.resource.security_center_enabled
+  for_each: aws.guardduty.get_detector
+  conditions:
+    var: item.Status
+    op: equals
+    value: ENABLED
+- rule_id: aws.guardduty.finding.guardduty_finding_archival_export_encrypted
+  for_each: aws.guardduty.list_detectors
+  conditions:
+    var: item.DetectorId
+    op: exists
+    value: null
+- rule_id: aws.guardduty.no.guardduty_finding_high_severity_findings_configured
+  for_each: aws.guardduty.list_detectors
+  conditions:
+    var: item.DetectorId
+    op: exists
+    value: null
+- rule_id: aws.guardduty.resource.guardduty_vulnerability_assessment_enabled
+  for_each: aws.guardduty.get_detector
+  conditions:
+    var: item.DataSources.MalwareProtection.ScanEc2InstanceWithFindings.EbsVolumes.Status
+    op: equals
+    value: ENABLED
+- rule_id: aws.guardduty.finding.guardduty_finding_export_destinations_private_configured
+  for_each: aws.guardduty.describe_organization_configuration
+  conditions:
+    all:
+    - var: item.DataSources.S3Logs.Enable
+      op: equals
+      value: 'true'
+    - var: item.DataSources.S3Logs.DestinationType
+      op: equals
+      value: S3
+    - var: item.DataSources.S3Logs.DestinationProperties.DestinationArn
+      op: exists
+      value: null
+- rule_id: aws.guardduty.ipset.guardduty_storage_encrypted
+  for_each: aws.guardduty.list_detectors
+  conditions:
+    var: item.DetectorId
+    op: exists
+    value: null
+- rule_id: aws.guardduty.finding.guardduty_finding_suppression_rules_documented_and_scoped_configured
+  for_each: aws.guardduty.list_detectors
+  conditions:
+    var: item.DetectorId
+    op: exists
+    value: null
+- rule_id: aws.guardduty.finding.rbac_least_privilege
+  for_each: aws.guardduty.list_detectors
+  conditions:
+    var: item.DetectorId
+    op: exists
+    value: null
+- rule_id: aws.guardduty.detector.guardduty_detector_enabled_in_all_regions
+  for_each: aws.guardduty.list_detectors
+  conditions:
+    var: item.DetectorId
+    op: exists
+    value: null
+- rule_id: aws.guardduty.ipset.guardduty_detector_used_by_detectors_configured
+  for_each: aws.guardduty.list_detectors
+  conditions:
+    var: item.DetectorId
+    op: exists
+    value: null
+- rule_id: aws.guardduty.detector.guardduty_detector_s_enabled
+  for_each: aws.guardduty.get_detector
+  conditions:
+    var: item.Status
+    op: equals
+    value: ENABLED
+- rule_id: aws.guardduty.finding.guardduty_finding_reports_storage_encrypted
+  for_each: aws.guardduty.list_detectors
+  conditions:
+    var: item.DetectorId
+    op: exists
+    value: null
+- rule_id: aws.guardduty.detector.guardduty_detectors_enabled
+  for_each: aws.guardduty.list_detectors
+  conditions:
+    var: item.DetectorId
+    op: not_equals
+    value: null
+- rule_id: aws.guardduty.resource.eks_audit_log_enabled
+  for_each: aws.guardduty.describe_organization_configuration
+  conditions:
+    var: item.Features.EKSClusterAuditLogsConfiguration.AutoEnable
+    op: equals
+    value: 'true'
+- rule_id: aws.guardduty.is.guardduty_enabled
+  for_each: aws.guardduty.list_detectors
+  conditions:
+    var: item.DetectorId
+    op: not_equals
+    value: null
+- rule_id: aws.guardduty.custom_identifier.guardduty_storage_encrypted
+  for_each: aws.guardduty.list_detectors
+  conditions:
+    var: item.DetectorId
+    op: exists
+    value: null
+- rule_id: aws.guardduty.detector.finding_detector_finding_export_encrypted_destination
+  for_each: aws.guardduty.get_detector
+  conditions:
+    var: item.DataSources.KinesisDataStream.DestinationProperties.DestinationArn
+    op: exists
+    value: null
+- rule_id: aws.guardduty.detector.guardduty_detector_destinations_encrypted
+  for_each: aws.guardduty.describe_organization_configuration
+  conditions:
+    all:
+    - var: item.DataSources.S3Logs.Enable
+      op: equals
+      value: 'true'
+    - var: item.DataSources.S3Logs.Destination.KmsKeyId
+      op: exists
+      value: null
+- rule_id: aws.guardduty.finding.alert_destinations_configured
+  for_each: aws.guardduty.get_detector
+  conditions:
+    all:
+    - var: item.Status
+      op: equals
+      value: ENABLED
+    - var: item.FindingPublishingFrequency
+      op: in
+      value:
+      - FIFTEEN_MINUTES
+      - ONE_HOUR
+      - SIX_HOURS
+- rule_id: aws.guardduty.custom_identifier.guardduty_source_trusted_configured
+  for_each: aws.guardduty.get_detector
+  conditions:
+    all:
+    - var: item.DataSources.S3Logs.Enable
+      op: equals
+      value: 'true'
+    - var: item.DataSources.Kubernetes.Enable
+      op: equals
+      value: 'true'
+    - var: item.DataSources.MalwareProtection.Enable
+      op: equals
+      value: 'true'
+- rule_id: aws.guardduty.centrally_managed.guardduty_centrally_managed_configured
+  for_each: aws.guardduty.list_detectors
+  conditions:
+    var: item.DetectorId
+    op: exists
+    value: null
+- rule_id: aws.guardduty.ipset.guardduty_sources_trusted_configured
+  for_each: aws.guardduty.list_detectors
+  conditions:
+    var: item.DetectorId
+    op: exists
+    value: null
+- rule_id: aws.guardduty.resource.guardduty_enabled
+  for_each: aws.guardduty.list_detectors
+  conditions:
+    var: item.DetectorId
+    op: not_equals
+    value: null
+- rule_id: aws.guardduty.no_high_severity_findings.guardduty_finding_no_high_severity_findings_configured
+  for_each: aws.guardduty.list_detectors
+  conditions:
+    var: item.DetectorId
+    op: exists
+    value: null

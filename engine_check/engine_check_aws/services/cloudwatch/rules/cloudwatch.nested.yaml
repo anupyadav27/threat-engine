@@ -1,0 +1,927 @@
+version: '1.0'
+provider: aws
+service: cloudwatch
+services:
+  client: cloudwatch
+  module: boto3.client
+discovery:
+- discovery_id: aws.cloudwatch.describe_alarms
+  calls:
+  - action: describe_alarms
+    save_as: response
+    params:
+      MaxRecords: 1000
+  emit:
+    items_for: '{{ response.MetricAlarms }}'
+    as: item
+- discovery_id: aws.cloudwatch.describe_composite_alarms
+  calls:
+  - action: describe_alarms
+    save_as: response
+    params:
+      MaxRecords: 1000
+  emit:
+    items_for: '{{ response.CompositeAlarms }}'
+    as: item
+- discovery_id: aws.cloudwatch.describe_alarm_history
+  calls:
+  - action: describe_alarm_history
+    save_as: response
+    params:
+      MaxRecords: 1000
+  emit:
+    items_for: '{{ response.AlarmHistoryItems }}'
+    as: item
+- discovery_id: aws.cloudwatch.describe_anomaly_detectors
+  calls:
+  - action: describe_anomaly_detectors
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.AnomalyDetectors }}'
+    as: item
+- discovery_id: aws.cloudwatch.list_dashboards
+  calls:
+  - action: list_dashboards
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.DashboardEntries }}'
+    as: item
+- discovery_id: aws.cloudwatch.list_metric_streams
+  calls:
+  - action: list_metric_streams
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.Entries }}'
+    as: item
+- discovery_id: aws.cloudwatch.describe_insight_rules
+  calls:
+  - action: describe_insight_rules
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.InsightRules }}'
+    as: item
+- discovery_id: aws.cloudwatch.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.Tags }}'
+    as: item
+checks:
+- rule_id: aws.cloudwatch.alarm.alert_destinations_configured
+  for_each: aws.cloudwatch.describe_alarms
+  conditions:
+    all:
+    - var: item.AlarmActions
+      op: exists
+      value: null
+    - var: item.OKActions
+      op: exists
+      value: null
+    - var: item.InsufficientDataActions
+      op: exists
+      value: null
+- rule_id: aws.cloudwatch.alarm.alerts_for_backup_failures_configured
+  for_each: aws.cloudwatch.describe_alarm_history
+  conditions:
+    all:
+    - var: item.AlarmName
+      op: exists
+      value: null
+    - var: item.AlarmActions
+      op: exists
+      value: null
+    - var: item.AlarmDescription
+      op: equals
+      value: Backup Failure Alert
+- rule_id: aws.cloudwatch.alarm.alerts_for_replication_lag_configured
+  for_each: aws.cloudwatch.describe_alarm_history
+  conditions:
+    all:
+    - var: item.AlarmName
+      op: exists
+      value: null
+    - var: item.AlarmActions
+      op: exists
+      value: null
+    - var: item.AlarmDescription
+      op: equals
+      value: Replication Lag
+- rule_id: aws.cloudwatch.alarm.alerts_for_rpo_rto_breach_configured
+  for_each: aws.cloudwatch.describe_alarms
+  conditions:
+    all:
+    - var: item.AlarmActions
+      op: exists
+      value: null
+    - var: item.AlarmName
+      op: equals
+      value: RPO_RTO_Breach_Alarm
+- rule_id: aws.cloudwatch.alarm.cloudwatch_alarm_actions_configured
+  for_each: aws.cloudwatch.describe_alarms
+  conditions:
+    all:
+    - var: item.ActionsEnabled
+      op: equals
+      value: 'true'
+    - var: item.AlarmActions
+      op: exists
+      value: null
+    - var: item.OKActions
+      op: exists
+      value: null
+    - var: item.InsufficientDataActions
+      op: exists
+      value: null
+- rule_id: aws.cloudwatch.alarm.cloudwatch_alarm_critical_s_enabled
+  for_each: aws.cloudwatch.describe_alarms
+  conditions:
+    all:
+    - var: item.ActionsEnabled
+      op: equals
+      value: 'true'
+    - var: item.AlarmName
+      op: equals
+      value: Critical S
+- rule_id: aws.cloudwatch.alarm.destinations_authenticated_configured
+  for_each: aws.cloudwatch.describe_composite_alarms
+  conditions:
+    all:
+    - var: item.AlarmActions
+      op: exists
+      value: null
+    - var: item.ActionsEnabled
+      op: equals
+      value: 'true'
+- rule_id: aws.cloudwatch.alarm_cpu_utilization_configured.alarm_cloudwatch_alarm_cpu_utilization_configured
+  for_each: aws.cloudwatch.describe_alarm_history
+  conditions:
+    all:
+    - var: item.AlarmName
+      op: exists
+      value: null
+    - var: item.AlarmActions
+      op: exists
+      value: null
+    - var: item.StateValue
+      op: equals
+      value: ALARM
+- rule_id: aws.cloudwatch.alarm_memory_utilization_configured.alarm_cloudwatch_alarm_memory_utilization_configured
+  for_each: aws.cloudwatch.describe_alarm_history
+  conditions:
+    all:
+    - var: item.AlarmName
+      op: exists
+      value: null
+    - var: item.MetricName
+      op: equals
+      value: MemoryUtilization
+    - var: item.Namespace
+      op: equals
+      value: AWS/EC2
+    - var: item.AlarmActions
+      op: exists
+      value: null
+- rule_id: aws.cloudwatch.alarmconfigured.alarm_cloudwatch_alarm_configured
+  for_each: aws.cloudwatch.describe_alarm_history
+  conditions:
+    all:
+    - var: item.AlarmName
+      op: exists
+      value: null
+    - var: item.AlarmActions
+      op: exists
+      value: null
+    - var: item.StateValue
+      op: equals
+      value: ALARM
+- rule_id: aws.cloudwatch.anomalydetector.alerts_configured
+  for_each: aws.cloudwatch.describe_alarm_history
+  conditions:
+    all:
+    - var: item.AlarmName
+      op: exists
+      value: null
+    - var: item.AlarmActions
+      op: exists
+      value: null
+- rule_id: aws.cloudwatch.anomalydetector.cloudwatch_detectors_enabled
+  for_each: aws.cloudwatch.describe_anomaly_detectors
+  conditions:
+    var: item.StateValue
+    op: equals
+    value: ENABLED
+- rule_id: aws.cloudwatch.anomalydetector.cloudwatch_training_data_sources_approved_configured
+  for_each: aws.cloudwatch.describe_anomaly_detectors
+  conditions:
+    var: item.Configuration
+    op: exists
+    value: null
+- rule_id: aws.cloudwatch.bucket.policy_changes_configured
+  for_each: aws.cloudwatch.describe_alarm_history
+  conditions:
+    all:
+    - var: item.AlarmName
+      op: exists
+      value: null
+    - var: item.AlarmActions
+      op: exists
+      value: null
+- rule_id: aws.cloudwatch.changes.to_network_acls_alarm_configured
+  for_each: aws.cloudwatch.describe_alarm_history
+  conditions:
+    all:
+    - var: item.AlarmName
+      op: equals
+      value: NetworkACLsChangeAlarm
+    - var: item.AlarmActions
+      op: exists
+      value: null
+    - var: item.StateValue
+      op: equals
+      value: ALARM
+- rule_id: aws.cloudwatch.changes.to_network_gateways_alarm_configured
+  for_each: aws.cloudwatch.describe_alarm_history
+  conditions:
+    all:
+    - var: item.AlarmName
+      op: equals
+      value: NetworkGatewaysAlarm
+    - var: item.AlarmActions
+      op: exists
+      value: null
+- rule_id: aws.cloudwatch.changes.to_network_route_tables_alarm_configured
+  for_each: aws.cloudwatch.describe_alarm_history
+  conditions:
+    all:
+    - var: item.AlarmName
+      op: equals
+      value: NetworkRouteTablesChangeAlarm
+    - var: item.AlarmActions
+      op: exists
+      value: null
+    - var: item.StateValue
+      op: equals
+      value: ALARM
+- rule_id: aws.cloudwatch.changes.to_vpcs_alarm_configured
+  for_each: aws.cloudwatch.describe_alarm_history
+  conditions:
+    all:
+    - var: item.AlarmName
+      op: equals
+      value: VPCsAlarm
+    - var: item.AlarmActions
+      op: exists
+      value: null
+- rule_id: aws.cloudwatch.changes_to_vpcs_alarm_configured.changes_to_vpcs_alarm_configured_configured
+  for_each: aws.cloudwatch.describe_alarm_history
+  conditions:
+    all:
+    - var: item.AlarmName
+      op: equals
+      value: changes_to_vpcs_alarm_configured
+    - var: item.ActionsEnabled
+      op: equals
+      value: 'true'
+- rule_id: aws.cloudwatch.dashboard.cloudwatch_sharing_restricted_to_org_configured
+  for_each: aws.cloudwatch.list_dashboards
+  conditions:
+    var: item.DashboardArn
+    op: exists
+    value: null
+- rule_id: aws.cloudwatch.dashboard.cloudwatch_sso_required
+  for_each: aws.cloudwatch.list_dashboards
+  conditions:
+    all:
+    - var: item.DashboardName
+      op: exists
+      value: null
+    - var: item.DashboardArn
+      op: exists
+      value: null
+- rule_id: aws.cloudwatch.dashboard.public_embeds_disabled
+  for_each: aws.cloudwatch.list_dashboards
+  conditions:
+    var: item.DashboardArn
+    op: exists
+    value: null
+- rule_id: aws.cloudwatch.destination.endpoint_private_networking_configured
+  for_each: aws.cloudwatch.list_metric_streams
+  conditions:
+    all:
+    - var: item.State
+      op: equals
+      value: ACTIVE
+    - var: item.FirehoseArn
+      op: exists
+      value: null
+- rule_id: aws.cloudwatch.destination.iam_policy_least_privilege
+  for_each: aws.cloudwatch.list_metric_streams
+  conditions:
+    all:
+    - var: item.Arn
+      op: exists
+      value: null
+    - var: item.FirehoseArn
+      op: exists
+      value: null
+    - var: item.State
+      op: equals
+      value: ACTIVE
+- rule_id: aws.cloudwatch.destination.tls_min_1_2_enforced
+  for_each: aws.cloudwatch.list_metric_streams
+  conditions:
+    all:
+    - var: item.State
+      op: equals
+      value: ACTIVE
+    - var: item.OutputFormat
+      op: equals
+      value: opentelemetry0.7
+- rule_id: aws.cloudwatch.group.cloudwatch_configuration_changes_monitored
+  for_each: aws.cloudwatch.describe_alarm_history
+  conditions:
+    all:
+    - var: item.AlarmName
+      op: exists
+      value: null
+    - var: item.AlarmActions
+      op: exists
+      value: null
+    - var: item.StateValue
+      op: equals
+      value: ALARM
+- rule_id: aws.cloudwatch.group.cloudwatch_log_edr_log_delivery_configured
+  for_each: aws.cloudwatch.describe_insight_rules
+  conditions:
+    all:
+    - var: item.Name
+      op: equals
+      value: CloudWatchLogEDR
+    - var: item.State
+      op: equals
+      value: ENABLED
+- rule_id: aws.cloudwatch.group.cloudwatch_log_no_secrets_in_logs_configured
+  for_each: aws.cloudwatch.describe_insight_rules
+  conditions:
+    all:
+    - var: item.Name
+      op: equals
+      value: NoSecretsInLogs
+    - var: item.State
+      op: equals
+      value: ENABLED
+- rule_id: aws.cloudwatch.group.kms_encryption_enabled
+  for_each: aws.cloudwatch.list_metric_streams
+  conditions:
+    var: item.Arn
+    op: exists
+    value: null
+- rule_id: aws.cloudwatch.group.not_publicly_accessible_configured
+  for_each: aws.cloudwatch.list_tags_for_resource
+  conditions:
+    all:
+    - var: item.Key
+      op: equals
+      value: PublicAccess
+    - var: item.Value
+      op: equals
+      value: 'false'
+- rule_id: aws.cloudwatch.group.retention_policy_configured
+  for_each: aws.cloudwatch.describe_insight_rules
+  conditions:
+    all:
+    - var: item.Name
+      op: exists
+      value: null
+    - var: item.State
+      op: equals
+      value: ENABLED
+- rule_id: aws.cloudwatch.insightsquery.cloudwatch_storage_encrypted
+  for_each: aws.cloudwatch.describe_insight_rules
+  conditions:
+    var: item.State
+    op: equals
+    value: ENABLED
+- rule_id: aws.cloudwatch.insightsquery.rbac_least_privilege
+  for_each: aws.cloudwatch.describe_insight_rules
+  conditions:
+    all:
+    - var: item.Name
+      op: exists
+      value: null
+    - var: item.State
+      op: equals
+      value: ENABLED
+- rule_id: aws.cloudwatch.log.group_kms_encryption_enabled
+  for_each: aws.cloudwatch.list_tags_for_resource
+  conditions:
+    var: item.Key
+    op: exists
+    value: aws:cloudwatch:log:kmsKeyId
+- rule_id: aws.cloudwatch.log.group_retention_policy_specific_days_enabled
+  for_each: aws.cloudwatch.describe_insight_rules
+  conditions:
+    all:
+    - var: item.Name
+      op: exists
+      value: null
+    - var: item.State
+      op: equals
+      value: ENABLED
+- rule_id: aws.cloudwatch.log.metric_alarm_kms_cmk_deletion_configured
+  for_each: aws.cloudwatch.describe_alarm_history
+  conditions:
+    all:
+    - var: item.AlarmName
+      op: exists
+      value: null
+    - var: item.AlarmActions
+      op: exists
+      value: null
+- rule_id: aws.cloudwatch.log.metric_filter_authentication_failures_configured
+  for_each: aws.cloudwatch.describe_insight_rules
+  conditions:
+    all:
+    - var: item.Name
+      op: equals
+      value: AuthenticationFailures
+    - var: item.State
+      op: equals
+      value: ENABLED
+- rule_id: aws.cloudwatch.log.metric_filter_for_s3_bucket_policy_changes_configured
+  for_each: aws.cloudwatch.describe_insight_rules
+  conditions:
+    all:
+    - var: item.Name
+      op: equals
+      value: S3BucketPolicyChanges
+    - var: item.State
+      op: equals
+      value: ENABLED
+- rule_id: aws.cloudwatch.log.metric_filter_policy_changes_configured
+  for_each: aws.cloudwatch.describe_insight_rules
+  conditions:
+    all:
+    - var: item.Name
+      op: equals
+      value: MetricFilterPolicyChanges
+    - var: item.State
+      op: equals
+      value: ENABLED
+- rule_id: aws.cloudwatch.log.metric_filter_security_group_changes_configured
+  for_each: aws.cloudwatch.describe_insight_rules
+  conditions:
+    any:
+    - var: item.Name
+      op: equals
+      value: SecurityGroupChanges
+    - var: item.State
+      op: equals
+      value: ENABLED
+- rule_id: aws.cloudwatch.log.metric_filter_sign_in_without_mfa_configured
+  for_each: aws.cloudwatch.describe_insight_rules
+  conditions:
+    any:
+    - var: item.Name
+      op: equals
+      value: SignInWithoutMFA
+    - var: item.State
+      op: equals
+      value: ENABLED
+- rule_id: aws.cloudwatch.log.metric_filter_unauthorized_api_calls_configured
+  for_each: aws.cloudwatch.describe_insight_rules
+  conditions:
+    all:
+    - var: item.Name
+      op: equals
+      value: UnauthorizedApiCalls
+    - var: item.State
+      op: equals
+      value: ENABLED
+- rule_id: aws.cloudwatch.log.metric_log_metric_alarm_aws_config_configuration_changes_configured
+  for_each: aws.cloudwatch.describe_alarm_history
+  conditions:
+    all:
+    - var: item.AlarmName
+      op: equals
+      value: aws.config.configuration_changes
+    - var: item.AlarmActions
+      op: exists
+      value: null
+- rule_id: aws.cloudwatch.log.metric_log_metric_alarm_cloudtrail_configuration_changes_configured
+  for_each: aws.cloudwatch.describe_alarm_history
+  conditions:
+    all:
+    - var: item.AlarmName
+      op: equals
+      value: CloudTrailConfigurationChanges
+    - var: item.AlarmActions
+      op: exists
+      value: null
+    - var: item.StateValue
+      op: equals
+      value: OK
+- rule_id: aws.cloudwatch.log.metric_log_metric_filter_root_usage_configured
+  for_each: aws.cloudwatch.describe_insight_rules
+  conditions:
+    all:
+    - var: item.Name
+      op: equals
+      value: RootUsage
+    - var: item.State
+      op: equals
+      value: ENABLED
+- rule_id: aws.cloudwatch.log_metric_filter_alarm_configured.log_metric_log_metric_filter_alarm_configured
+  for_each: aws.cloudwatch.describe_alarm_history
+  conditions:
+    all:
+    - var: item.AlarmName
+      op: exists
+      value: null
+    - var: item.AlarmActions
+      op: exists
+      value: null
+    - var: item.StateValue
+      op: equals
+      value: ALARM
+- rule_id: aws.cloudwatch.log_metric_filter_authentication_failures.log_metric_filter_authentication_failures_configured
+  for_each: aws.cloudwatch.describe_insight_rules
+  conditions:
+    all:
+    - var: item.Name
+      op: equals
+      value: log_metric_filter_authentication_failures
+    - var: item.State
+      op: equals
+      value: ENABLED
+- rule_id: aws.cloudwatch.log_metric_filter_aws_organizations_changes.log_metric_log_metric_filter_aws_organizations_changes_configured
+  for_each: aws.cloudwatch.describe_insight_rules
+  conditions:
+    all:
+    - var: item.Name
+      op: equals
+      value: log_metric_filter_aws_organizations_changes
+    - var: item.State
+      op: equals
+      value: ENABLED
+- rule_id: aws.cloudwatch.log_metric_filter_disable_or_scheduled_deletion_of_kms_cmk.metric_alarm_kms_cmk_deletion_configured
+  for_each: aws.cloudwatch.describe_alarm_history
+  conditions:
+    all:
+    - var: item.AlarmName
+      op: equals
+      value: log_metric_filter_disable_or_scheduled_deletion_of_kms_cmk
+    - var: item.AlarmActions
+      op: exists
+      value: null
+- rule_id: aws.cloudwatch.log_metric_filter_root_usage.log_metric_log_metric_filter_root_usage_configured
+  for_each: aws.cloudwatch.describe_insight_rules
+  conditions:
+    all:
+    - var: item.Name
+      op: equals
+      value: LogMetricFilterRootUsage
+    - var: item.State
+      op: equals
+      value: ENABLED
+- rule_id: aws.cloudwatch.log_metric_filter_sign_in_without_mfa.log_metric_filter_sign_in_without_mfa_configured
+  for_each: aws.cloudwatch.describe_insight_rules
+  conditions:
+    all:
+    - var: item.Name
+      op: equals
+      value: log_metric_filter_sign_in_without_mfa
+    - var: item.State
+      op: equals
+      value: ENABLED
+- rule_id: aws.cloudwatch.log_metric_filter_unauthorized_api_calls.log_metric_filter_unauthorized_api_calls_configured
+  for_each: aws.cloudwatch.describe_insight_rules
+  conditions:
+    all:
+    - var: item.Name
+      op: equals
+      value: UnauthorizedAPICalls
+    - var: item.State
+      op: equals
+      value: ENABLED
+- rule_id: aws.cloudwatch.loggroup.encryption_at_rest_cmek_configured
+  for_each: aws.cloudwatch.list_tags_for_resource
+  conditions:
+    any:
+    - var: item.Key
+      op: equals
+      value: aws:cloudwatch:loggroup:encryption
+    - var: item.Value
+      op: equals
+      value: 'true'
+- rule_id: aws.cloudwatch.loggroup.log_cross_account_destinations_restricted
+  for_each: aws.cloudwatch.list_metric_streams
+  conditions:
+    all:
+    - var: item.Arn
+      op: exists
+      value: null
+    - var: item.FirehoseArn
+      op: exists
+      value: null
+- rule_id: aws.cloudwatch.loggroup.log_destination_encrypted
+  for_each: aws.cloudwatch.list_metric_streams
+  conditions:
+    var: item.FirehoseArn
+    op: exists
+    value: null
+- rule_id: aws.cloudwatch.loggroup.log_destination_least_privilege
+  for_each: aws.cloudwatch.list_tags_for_resource
+  conditions:
+    all:
+    - var: item.Key
+      op: exists
+      value: aws:cloudwatch:loggroup:permissions
+    - var: item.Value
+      op: equals
+      value: least_privilege
+- rule_id: aws.cloudwatch.loggroup.log_immutability_or_object_lock_if_supported
+  for_each: aws.cloudwatch.describe_insight_rules
+  conditions:
+    var: item.State
+    op: equals
+    value: ENABLED
+- rule_id: aws.cloudwatch.loggroup.rbac_least_privilege
+  for_each: aws.cloudwatch.list_tags_for_resource
+  conditions:
+    all:
+    - var: item.Key
+      op: exists
+      value: aws:cloudwatch:loggroup:access
+    - var: item.Value
+      op: equals
+      value: least_privilege
+- rule_id: aws.cloudwatch.loggroup.retention_days_minimum
+  for_each: aws.cloudwatch.describe_insight_rules
+  conditions:
+    var: item.State
+    op: equals
+    value: ENABLED
+- rule_id: aws.cloudwatch.logstream.encryption_at_rest_enabled
+  for_each: aws.cloudwatch.describe_insight_rules
+  conditions:
+    var: item.State
+    op: equals
+    value: ENABLED
+- rule_id: aws.cloudwatch.logstream.ingestion_auth_required
+  for_each: aws.cloudwatch.list_metric_streams
+  conditions:
+    all:
+    - var: item.State
+      op: equals
+      value: ACTIVE
+    - var: item.FirehoseArn
+      op: exists
+      value: null
+- rule_id: aws.cloudwatch.logstream.log_cross_account_destinations_restricted
+  for_each: aws.cloudwatch.list_metric_streams
+  conditions:
+    all:
+    - var: item.FirehoseArn
+      op: exists
+      value: null
+    - var: item.State
+      op: equals
+      value: ACTIVE
+- rule_id: aws.cloudwatch.logstream.log_destination_encrypted
+  for_each: aws.cloudwatch.list_metric_streams
+  conditions:
+    var: item.FirehoseArn
+    op: exists
+    value: null
+- rule_id: aws.cloudwatch.logstream.log_destination_least_privilege
+  for_each: aws.cloudwatch.list_metric_streams
+  conditions:
+    all:
+    - var: item.FirehoseArn
+      op: exists
+      value: null
+    - var: item.State
+      op: equals
+      value: ACTIVE
+- rule_id: aws.cloudwatch.logstream.retention_days_minimum
+  for_each: aws.cloudwatch.list_metric_streams
+  conditions:
+    var: item.State
+    op: equals
+    value: ACTIVE
+- rule_id: aws.cloudwatch.metric.admin_activity_logging_enabled
+  for_each: aws.cloudwatch.describe_alarm_history
+  conditions:
+    all:
+    - var: item.HistoryItemType
+      op: equals
+      value: ConfigurationUpdate
+    - var: item.HistoryItemType
+      op: equals
+      value: StateUpdate
+    - var: item.HistoryItemType
+      op: equals
+      value: Action
+- rule_id: aws.cloudwatch.metric.alerts_for_anomalies_configured
+  for_each: aws.cloudwatch.describe_anomaly_detectors
+  conditions:
+    all:
+    - var: item.StateValue
+      op: equals
+      value: ACTIVE
+    - var: item.Configuration
+      op: exists
+      value: null
+- rule_id: aws.cloudwatch.metric.api_access_log_fields_identity_configured
+  for_each: aws.cloudwatch.describe_insight_rules
+  conditions:
+    all:
+    - var: item.Name
+      op: exists
+      value: null
+    - var: item.State
+      op: equals
+      value: ENABLED
+- rule_id: aws.cloudwatch.metric.api_access_log_sink_configured
+  for_each: aws.cloudwatch.list_metric_streams
+  conditions:
+    var: item.FirehoseArn
+    op: exists
+    value: null
+- rule_id: aws.cloudwatch.metric.api_access_logging_enabled
+  for_each: aws.cloudwatch.list_metric_streams
+  conditions:
+    all:
+    - var: item.FirehoseArn
+      op: exists
+      value: null
+    - var: item.State
+      op: equals
+      value: ACTIVE
+- rule_id: aws.cloudwatch.metric.api_execution_logging_level_minimum_error_configured
+  for_each: aws.cloudwatch.describe_insight_rules
+  conditions:
+    all:
+    - var: item.State
+      op: equals
+      value: ENABLED
+    - var: item.Definition
+      op: exists
+      value: null
+- rule_id: aws.cloudwatch.metric.api_logs_retention_days_minimum
+  for_each: aws.cloudwatch.describe_alarms
+  conditions:
+    var: item.AlarmConfigurationUpdatedTimestamp
+    op: exists
+    value: null
+- rule_id: aws.cloudwatch.metric.flow_logging_enabled
+  for_each: aws.cloudwatch.describe_insight_rules
+  conditions:
+    any:
+    - var: item.Name
+      op: equals
+      value: VPCFlowLogs
+    - var: item.State
+      op: equals
+      value: ENABLED
+- rule_id: aws.cloudwatch.metric.logs_retention_days_minimum
+  for_each: aws.cloudwatch.describe_alarms
+  conditions:
+    var: item.AlarmConfigurationUpdatedTimestamp
+    op: exists
+    value: null
+- rule_id: aws.cloudwatch.metric.query_access_logging_enabled
+  for_each: aws.cloudwatch.list_metric_streams
+  conditions:
+    all:
+    - var: item.FirehoseArn
+      op: exists
+      value: null
+    - var: item.State
+      op: equals
+      value: ACTIVE
+- rule_id: aws.cloudwatch.metricfilter.iam_policy_change_detected_filter_present
+  for_each: aws.cloudwatch.describe_insight_rules
+  conditions:
+    var: item.Name
+    op: equals
+    value: IamPolicyChangeDetected
+- rule_id: aws.cloudwatch.metricfilter.kms_key_deletion_disable_detected_filter_present
+  for_each: aws.cloudwatch.describe_insight_rules
+  conditions:
+    all:
+    - var: item.Name
+      op: equals
+      value: KmsKeyDeletionDisableDetected
+    - var: item.State
+      op: equals
+      value: ENABLED
+- rule_id: aws.cloudwatch.metricfilter.metric_log_console_root_login_detected_filter_present
+  for_each: aws.cloudwatch.describe_insight_rules
+  conditions:
+    var: item.Name
+    op: equals
+    value: ConsoleRootLoginDetected
+- rule_id: aws.cloudwatch.metricfilter.network_acl_or_sg_change_detected_filter_present
+  for_each: aws.cloudwatch.describe_insight_rules
+  conditions:
+    var: item.Name
+    op: equals
+    value: network_acl_or_sg_change_detected
+- rule_id: aws.cloudwatch.network.cloudwatch_alarm_acls_alarm_configured
+  for_each: aws.cloudwatch.describe_alarm_history
+  conditions:
+    all:
+    - var: item.AlarmName
+      op: exists
+      value: null
+    - var: item.AlarmActions
+      op: exists
+      value: null
+    - var: item.StateValue
+      op: equals
+      value: ALARM
+- rule_id: aws.cloudwatch.network.gateways_alarm_configured
+  for_each: aws.cloudwatch.describe_alarm_history
+  conditions:
+    all:
+    - var: item.AlarmName
+      op: exists
+      value: null
+    - var: item.AlarmActions
+      op: exists
+      value: null
+- rule_id: aws.cloudwatch.network.route_tables_alarm_configured
+  for_each: aws.cloudwatch.describe_alarm_history
+  conditions:
+    all:
+    - var: item.AlarmName
+      op: exists
+      value: null
+    - var: item.AlarmActions
+      op: exists
+      value: null
+    - var: item.StateValue
+      op: equals
+      value: ALARM
+- rule_id: aws.cloudwatch.policy.cloudwatch_configuration_changes_monitored
+  for_each: aws.cloudwatch.describe_alarm_history
+  conditions:
+    all:
+    - var: item.AlarmName
+      op: exists
+      value: null
+    - var: item.AlarmActions
+      op: exists
+      value: null
+    - var: item.StateValue
+      op: equals
+      value: ALARM
+- rule_id: aws.cloudwatch.resource.log_cloudwatch_log_analysis_enabled
+  for_each: aws.cloudwatch.describe_insight_rules
+  conditions:
+    all:
+    - var: item.State
+      op: equals
+      value: ENABLED
+    - var: item.ApplyOnTransformedLogs
+      op: equals
+      value: 'true'
+- rule_id: aws.cloudwatch.resource.metric_alarm_metric_alarm_aws_config_configuration_changes_configured
+  for_each: aws.cloudwatch.describe_alarm_history
+  conditions:
+    all:
+    - var: item.AlarmName
+      op: exists
+      value: null
+    - var: item.AlarmActions
+      op: exists
+      value: null
+    - var: item.StateValue
+      op: equals
+      value: OK
+- rule_id: aws.cloudwatch.resource.metric_alarm_metric_alarm_cloudtrail_configuration_changes_configured
+  for_each: aws.cloudwatch.describe_alarm_history
+  conditions:
+    all:
+    - var: item.AlarmName
+      op: equals
+      value: CloudTrailConfigurationChanges
+    - var: item.AlarmActions
+      op: exists
+      value: null
+    - var: item.StateValue
+      op: equals
+      value: OK

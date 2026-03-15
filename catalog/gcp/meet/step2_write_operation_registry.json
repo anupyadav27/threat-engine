@@ -1,0 +1,112 @@
+{
+  "service": "meet",
+  "version": "v2",
+  "csp": "gcp",
+  "title": "Google Meet API",
+  "base_url": "https://meet.googleapis.com/",
+  "total_operations": 2,
+  "operations": {
+    "gcp.meet.spaces.create": {
+      "op": "gcp.meet.spaces.create",
+      "service": "meet",
+      "kind": "write_create",
+      "http": {
+        "verb": "POST",
+        "path": "/v2/spaces"
+      },
+      "python_call": "svc.spaces().create(**params).execute()",
+      "description": "Creates a space.",
+      "inputs": {
+        "required": [],
+        "optional": []
+      },
+      "outputs": {
+        "response_schema": "Space",
+        "list_field": null,
+        "id_field": null,
+        "id_is_full_resource_name": false,
+        "produces_fields": []
+      },
+      "independent": true,
+      "dependency_hints": [],
+      "scopes": [
+        "https://www.googleapis.com/auth/meetings.space.created"
+      ],
+      "paginated": false
+    },
+    "gcp.meet.spaces.patch": {
+      "op": "gcp.meet.spaces.patch",
+      "service": "meet",
+      "kind": "write_update",
+      "http": {
+        "verb": "PATCH",
+        "path": "/v2/{+name}"
+      },
+      "python_call": "svc.spaces().patch(**params).execute()",
+      "description": "Updates details about a meeting space. For an example, see [Update a meeting space](https://developers.google.com/workspace/meet/api/guides/meeting-spaces#update-meeting-space).",
+      "inputs": {
+        "required": [
+          {
+            "param": "name",
+            "type": "string",
+            "location": "path",
+            "template": "spaces/{spaceId}",
+            "slots": [
+              {
+                "slot": "spaceId",
+                "source": "from_list_op",
+                "after_segment": "spaces"
+              }
+            ],
+            "pattern": "^spaces/[^/]+$",
+            "description": "Immutable. Resource name of the space. Format: `spaces/{space}`. `{space}` is the resource identifier for the space. It'"
+          }
+        ],
+        "optional": [
+          "updateMask"
+        ]
+      },
+      "outputs": {
+        "response_schema": "Space",
+        "list_field": null,
+        "id_field": null,
+        "id_is_full_resource_name": false,
+        "produces_fields": []
+      },
+      "independent": false,
+      "dependency_hints": [
+        {
+          "param": "name",
+          "can_come_from": [
+            {
+              "kind": "known_format",
+              "template": "spaces/{spaceId}",
+              "slots": [
+                {
+                  "slot": "spaceId",
+                  "source": "from_list_op",
+                  "after_segment": "spaces"
+                }
+              ]
+            },
+            {
+              "kind": "from_list_op",
+              "op": "gcp.meet.conferenceRecords.list",
+              "match_tier": 3,
+              "match_confidence": "field_match",
+              "list_field": "conferenceRecords",
+              "id_field": "name",
+              "produces_slot": "spaceId",
+              "note": "[tier 3/field_match] call gcp.meet.conferenceRecords.list, iterate response[\"conferenceRecords\"][], extract item[\"name\"] \u2192 fill {spaceId}"
+            }
+          ]
+        }
+      ],
+      "scopes": [
+        "https://www.googleapis.com/auth/meetings.space.created",
+        "https://www.googleapis.com/auth/meetings.space.settings"
+      ],
+      "paginated": false
+    }
+  }
+}

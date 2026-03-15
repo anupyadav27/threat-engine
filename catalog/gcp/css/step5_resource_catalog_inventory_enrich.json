@@ -1,0 +1,303 @@
+{
+  "csp": "gcp",
+  "generated_at": "2026-02-19T14:43:25.447025+00:00",
+  "anchors": {
+    "fixed": [
+      "project_id",
+      "org_id",
+      "folder_id",
+      "location",
+      "zone",
+      "region"
+    ]
+  },
+  "services": {
+    "css": {
+      "version": "v1",
+      "resources": {
+        "accounts": {
+          "resource_type": "accounts",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.css.accounts.listChildAccounts",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}:listChildAccounts"
+                },
+                "python_call": "svc.accounts().listChildAccounts(**params).execute()",
+                "produces": {
+                  "name": "accounts[].name",
+                  "fullName": "accounts[].fullName",
+                  "displayName": "accounts[].displayName",
+                  "homepageUri": "accounts[].homepageUri",
+                  "parent": "accounts[].parent",
+                  "labelIds": "accounts[].labelIds",
+                  "automaticLabelIds": "accounts[].automaticLabelIds",
+                  "accountType": "accounts[].accountType"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.css.accounts.get",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.accounts().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "cssProducts": {
+          "resource_type": "cssProducts",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.css.accounts.cssProducts.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/cssProducts"
+                },
+                "python_call": "svc.accounts().cssProducts().list(**params).execute()",
+                "produces": {
+                  "name": "cssProducts[].name",
+                  "rawProvidedId": "cssProducts[].rawProvidedId",
+                  "contentLanguage": "cssProducts[].contentLanguage",
+                  "feedLabel": "cssProducts[].feedLabel",
+                  "attributes": "cssProducts[].attributes",
+                  "customAttributes": "cssProducts[].customAttributes",
+                  "cssProductStatus": "cssProducts[].cssProductStatus"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.css.accounts.cssProducts.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.accounts().cssProducts().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.css.accounts.cssProducts.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.css.accounts.cssProducts.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.accounts().cssProducts().list(**params).execute()",
+                      "path": "/v1/{+parent}/cssProducts",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^accounts/[^/]+$",
+                          "description": "Required. The account/domain to list processed CSS Products for. Format: accounts/{account}"
+                        }
+                      },
+                      "output_list_field": "cssProducts",
+                      "output_id_field": "name",
+                      "produces": {
+                        "cssProductId": {
+                          "via_list_field": "cssProducts",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"cssProducts\"][], extract item[\"name\"] \u2192 pass as \"cssProductId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: cssProductId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.css.accounts.cssProducts.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.accounts().cssProducts().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^accounts/[^/]+/cssProducts/[^/]+$",
+                          "description": "Required. The name of the CSS product to retrieve. Format: `accounts/{account}/cssProducts/{css_product}`"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "cssProductId": {
+                            "from_step": 1,
+                            "from_op": "gcp.css.accounts.cssProducts.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "labels": {
+          "resource_type": "labels",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "",
+              "built_from_parts": [],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.css.accounts.labels.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/labels"
+                },
+                "python_call": "svc.accounts().labels().list(**params).execute()",
+                "produces": {
+                  "name": "accountLabels[].name",
+                  "labelId": "accountLabels[].labelId",
+                  "accountId": "accountLabels[].accountId",
+                  "displayName": "accountLabels[].displayName",
+                  "description": "accountLabels[].description",
+                  "labelType": "accountLabels[].labelType"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": []
+          },
+          "confidence": 0.5,
+          "notes": "No enrich (get) ops found; inventory only."
+        },
+        "quotas": {
+          "resource_type": "quotas",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "",
+              "built_from_parts": [],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.css.accounts.quotas.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/quotas"
+                },
+                "python_call": "svc.accounts().quotas().list(**params).execute()",
+                "produces": {
+                  "name": "quotaGroups[].name",
+                  "quotaUsage": "quotaGroups[].quotaUsage",
+                  "quotaLimit": "quotaGroups[].quotaLimit",
+                  "quotaMinuteLimit": "quotaGroups[].quotaMinuteLimit",
+                  "methodDetails": "quotaGroups[].methodDetails"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": []
+          },
+          "confidence": 0.5,
+          "notes": "No enrich (get) ops found; inventory only."
+        }
+      }
+    }
+  }
+}

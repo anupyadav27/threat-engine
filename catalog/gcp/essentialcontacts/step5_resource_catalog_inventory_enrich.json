@@ -1,0 +1,419 @@
+{
+  "csp": "gcp",
+  "generated_at": "2026-02-19T14:43:26.570885+00:00",
+  "anchors": {
+    "fixed": [
+      "project_id",
+      "org_id",
+      "folder_id",
+      "location",
+      "zone",
+      "region"
+    ]
+  },
+  "services": {
+    "essentialcontacts": {
+      "version": "v1",
+      "resources": {
+        "contacts": {
+          "resource_type": "contacts",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{parent}/contacts:compute",
+              "built_from_parts": [
+                "parent"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [
+              "parent"
+            ],
+            "part_sources": {
+              "parent": {
+                "op": "gcp.essentialcontacts.organizations.contacts.list",
+                "field_path": "contacts[].name",
+                "transform": null
+              }
+            },
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.essentialcontacts.organizations.contacts.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/contacts"
+                },
+                "python_call": "svc.organizations().contacts().list(**params).execute()",
+                "produces": {
+                  "name": "contacts[].name",
+                  "validateTime": "contacts[].validateTime",
+                  "languageTag": "contacts[].languageTag",
+                  "notificationCategorySubscriptions": "contacts[].notificationCategorySubscriptions",
+                  "email": "contacts[].email",
+                  "validationState": "contacts[].validationState"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.essentialcontacts.folders.contacts.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/contacts"
+                },
+                "python_call": "svc.folders().contacts().list(**params).execute()",
+                "produces": {
+                  "name": "contacts[].name",
+                  "validateTime": "contacts[].validateTime",
+                  "languageTag": "contacts[].languageTag",
+                  "notificationCategorySubscriptions": "contacts[].notificationCategorySubscriptions",
+                  "email": "contacts[].email",
+                  "validationState": "contacts[].validationState"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.essentialcontacts.projects.contacts.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/contacts"
+                },
+                "python_call": "svc.projects().contacts().list(**params).execute()",
+                "produces": {
+                  "name": "contacts[].name",
+                  "validateTime": "contacts[].validateTime",
+                  "languageTag": "contacts[].languageTag",
+                  "notificationCategorySubscriptions": "contacts[].notificationCategorySubscriptions",
+                  "email": "contacts[].email",
+                  "validationState": "contacts[].validationState"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.essentialcontacts.folders.contacts.compute",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/contacts:compute"
+                },
+                "python_call": "svc.folders().contacts().compute(**params).execute()",
+                "required_params": {
+                  "parent": {
+                    "from_identifier": "parent"
+                  }
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.essentialcontacts.folders.contacts.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.folders().contacts().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.essentialcontacts.folders.contacts.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.essentialcontacts.organizations.contacts.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.organizations().contacts().list(**params).execute()",
+                      "path": "/v1/{+parent}/contacts",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^organizations/[^/]+$",
+                          "description": "Required. The parent resource name. Format: organizations/{organization_id}, folders/{folder_id} or projects/{project_id"
+                        }
+                      },
+                      "output_list_field": "contacts",
+                      "output_id_field": "name",
+                      "produces": {
+                        "contactId": {
+                          "via_list_field": "contacts",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"contacts\"][], extract item[\"name\"] \u2192 pass as \"contactId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: contactId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.essentialcontacts.folders.contacts.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.folders().contacts().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^folders/[^/]+/contacts/[^/]+$",
+                          "description": "Required. The name of the contact to retrieve. Format: organizations/{organization_id}/contacts/{contact_id}, folders/{f"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "contactId": {
+                            "from_step": 1,
+                            "from_op": "gcp.essentialcontacts.organizations.contacts.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.essentialcontacts.organizations.contacts.compute",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/contacts:compute"
+                },
+                "python_call": "svc.organizations().contacts().compute(**params).execute()",
+                "required_params": {
+                  "parent": {
+                    "from_identifier": "parent"
+                  }
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.essentialcontacts.organizations.contacts.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.organizations().contacts().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.essentialcontacts.organizations.contacts.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.essentialcontacts.organizations.contacts.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.organizations().contacts().list(**params).execute()",
+                      "path": "/v1/{+parent}/contacts",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^organizations/[^/]+$",
+                          "description": "Required. The parent resource name. Format: organizations/{organization_id}, folders/{folder_id} or projects/{project_id"
+                        }
+                      },
+                      "output_list_field": "contacts",
+                      "output_id_field": "name",
+                      "produces": {
+                        "contactId": {
+                          "via_list_field": "contacts",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"contacts\"][], extract item[\"name\"] \u2192 pass as \"contactId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: contactId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.essentialcontacts.organizations.contacts.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.organizations().contacts().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^organizations/[^/]+/contacts/[^/]+$",
+                          "description": "Required. The name of the contact to retrieve. Format: organizations/{organization_id}/contacts/{contact_id}, folders/{f"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "contactId": {
+                            "from_step": 1,
+                            "from_op": "gcp.essentialcontacts.organizations.contacts.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.essentialcontacts.projects.contacts.compute",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/contacts:compute"
+                },
+                "python_call": "svc.projects().contacts().compute(**params).execute()",
+                "required_params": {
+                  "parent": {
+                    "from_identifier": "parent"
+                  }
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.essentialcontacts.projects.contacts.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().contacts().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.essentialcontacts.projects.contacts.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.essentialcontacts.organizations.contacts.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.organizations().contacts().list(**params).execute()",
+                      "path": "/v1/{+parent}/contacts",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^organizations/[^/]+$",
+                          "description": "Required. The parent resource name. Format: organizations/{organization_id}, folders/{folder_id} or projects/{project_id"
+                        }
+                      },
+                      "output_list_field": "contacts",
+                      "output_id_field": "name",
+                      "produces": {
+                        "contactId": {
+                          "via_list_field": "contacts",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"contacts\"][], extract item[\"name\"] \u2192 pass as \"contactId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: contactId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.essentialcontacts.projects.contacts.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().contacts().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/contacts/[^/]+$",
+                          "description": "Required. The name of the contact to retrieve. Format: organizations/{organization_id}/contacts/{contact_id}, folders/{f"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "contactId": {
+                            "from_step": 1,
+                            "from_op": "gcp.essentialcontacts.organizations.contacts.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,76 @@
+version: '1.0'
+provider: oci
+service: database_management
+services:
+  client: database_management
+  module: oci.database_management
+discovery:
+- discovery_id: oci.database_management.get_sql_execution_plan
+  calls:
+  - action: get_sql_execution_plan
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.database_management.get_execution_plan_stats_comparision
+  calls:
+  - action: get_execution_plan_stats_comparision
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.database_management.get_sql_tuning_advisor_task_summary_report
+  calls:
+  - action: get_sql_tuning_advisor_task_summary_report
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.database_management.list_sql_tuning_advisor_task_recommendations
+  for_each: oci.database_management.get_sql_execution_plan
+  calls:
+  - action: list_sql_tuning_advisor_task_recommendations
+    save_as: response
+    on_error: continue
+    params:
+      compartment_id: '{{ item.compartment_id }}'
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.database_management.list_sql_tuning_advisor_task_findings
+  for_each: oci.database_management.get_sql_execution_plan
+  calls:
+  - action: list_sql_tuning_advisor_task_findings
+    save_as: response
+    on_error: continue
+    params:
+      compartment_id: '{{ item.compartment_id }}'
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.database_management.list_sql_tuning_advisor_tasks
+  for_each: oci.database_management.get_sql_execution_plan
+  calls:
+  - action: list_sql_tuning_advisor_tasks
+    save_as: response
+    on_error: continue
+    params:
+      compartment_id: '{{ item.compartment_id }}'
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.database_management.list_sql_tuning_sets
+  for_each: oci.database_management.get_sql_execution_plan
+  calls:
+  - action: list_sql_tuning_sets
+    save_as: response
+    on_error: continue
+    params:
+      compartment_id: '{{ item.compartment_id }}'
+  emit:
+    as: item
+    items_for: '{{ response }}'
+checks: []

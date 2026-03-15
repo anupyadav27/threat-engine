@@ -1,0 +1,334 @@
+# ============================================================
+# Discovery YAML — pubsub (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 15 | independent: 4 | dependent: 11
+# ops with fields: 13/15 | dep ops with chain: 6/11
+# ============================================================
+version: '1.0'
+provider: gcp
+service: pubsub
+
+services:
+  client: pubsub
+  module: "googleapiclient.discovery.build('pubsub', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists schemas in a project.
+  # ── gcp.pubsub.projects.schemas.list ──
+  - discovery_id: gcp.pubsub.projects.schemas.list
+    # python: svc.projects().schemas().list(**params).execute()
+    calls:
+      - action: projects.schemas.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.schemas }}'
+      item:
+        definition: '{{ item.definition }}'
+        name: '{{ item.name }}'
+        revisionCreateTime: '{{ item.revisionCreateTime }}'
+        revisionId: '{{ item.revisionId }}'
+        type: '{{ item.type }}'
+  # Lists the existing snapshots. Snapshots are used in [Seek]( https://cloud.google.com/pubsub/docs/rep
+  # ── gcp.pubsub.projects.snapshots.list ──
+  - discovery_id: gcp.pubsub.projects.snapshots.list
+    # python: svc.projects().snapshots().list(**params).execute()
+    calls:
+      - action: projects.snapshots.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.snapshots }}'
+      item:
+        expireTime: '{{ item.expireTime }}'
+        labels: '{{ item.labels }}'
+        name: '{{ item.name }}'
+        topic: '{{ item.topic }}'
+  # Lists matching subscriptions.
+  # ── gcp.pubsub.projects.subscriptions.list ──
+  - discovery_id: gcp.pubsub.projects.subscriptions.list
+    # python: svc.projects().subscriptions().list(**params).execute()
+    calls:
+      - action: projects.subscriptions.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.subscriptions }}'
+      item:
+        ackDeadlineSeconds: '{{ item.ackDeadlineSeconds }}'
+        analyticsHubSubscriptionInfo: '{{ item.analyticsHubSubscriptionInfo }}'
+        bigqueryConfig: '{{ item.bigqueryConfig }}'
+        cloudStorageConfig: '{{ item.cloudStorageConfig }}'
+        deadLetterPolicy: '{{ item.deadLetterPolicy }}'
+        detached: '{{ item.detached }}'
+        enableExactlyOnceDelivery: '{{ item.enableExactlyOnceDelivery }}'
+        enableMessageOrdering: '{{ item.enableMessageOrdering }}'
+        expirationPolicy: '{{ item.expirationPolicy }}'
+        filter: '{{ item.filter }}'
+        labels: '{{ item.labels }}'
+        messageRetentionDuration: '{{ item.messageRetentionDuration }}'
+        messageTransforms: '{{ item.messageTransforms }}'
+        name: '{{ item.name }}'
+        pushConfig: '{{ item.pushConfig }}'
+        retainAckedMessages: '{{ item.retainAckedMessages }}'
+        retryPolicy: '{{ item.retryPolicy }}'
+        state: '{{ item.state }}'
+        tags: '{{ item.tags }}'
+        topic: '{{ item.topic }}'
+        topicMessageRetentionDuration: '{{ item.topicMessageRetentionDuration }}'
+  # Lists matching topics.
+  # ── gcp.pubsub.projects.topics.list ──
+  - discovery_id: gcp.pubsub.projects.topics.list
+    # python: svc.projects().topics().list(**params).execute()
+    calls:
+      - action: projects.topics.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.topics }}'
+      item:
+        ingestionDataSourceSettings: '{{ item.ingestionDataSourceSettings }}'
+        kmsKeyName: '{{ item.kmsKeyName }}'
+        labels: '{{ item.labels }}'
+        messageRetentionDuration: '{{ item.messageRetentionDuration }}'
+        messageStoragePolicy: '{{ item.messageStoragePolicy }}'
+        messageTransforms: '{{ item.messageTransforms }}'
+        name: '{{ item.name }}'
+        satisfiesPzs: '{{ item.satisfiesPzs }}'
+        schemaSettings: '{{ item.schemaSettings }}'
+        state: '{{ item.state }}'
+        tags: '{{ item.tags }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets a schema.
+  # ── gcp.pubsub.projects.schemas.get [dependent] ──
+  - discovery_id: gcp.pubsub.projects.schemas.get
+    for_each: gcp.pubsub.projects.schemas.listRevisions
+    # python: svc.projects().schemas().get(**params).execute()
+    calls:
+      - action: projects.schemas.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        definition: '{{ response.definition }}'
+        name: '{{ response.name }}'
+        revisionCreateTime: '{{ response.revisionCreateTime }}'
+        revisionId: '{{ response.revisionId }}'
+        type: '{{ response.type }}'
+    # required_params: ['name']
+  # Gets the access control policy for a resource. Returns an empty policy if the resource exists and do
+  # ── gcp.pubsub.projects.schemas.getIamPolicy [dependent] ──
+  - discovery_id: gcp.pubsub.projects.schemas.getIamPolicy
+    for_each: gcp.pubsub.projects.schemas.listRevisions
+    # python: svc.projects().schemas().getIamPolicy(**params).execute()
+    calls:
+      - action: projects.schemas.getIamPolicy
+        params:
+          resource: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        bindings: '{{ response.bindings }}'
+        version: '{{ response.version }}'
+    # required_params: ['resource']
+  # Lists all schema revisions for the named schema.
+  # ── gcp.pubsub.projects.schemas.listRevisions [dependent] ──
+  - discovery_id: gcp.pubsub.projects.schemas.listRevisions
+    # python: svc.projects().schemas().listRevisions(**params).execute()
+    calls:
+      - action: projects.schemas.listRevisions
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.schemas }}'
+      item:
+        definition: '{{ item.definition }}'
+        name: '{{ item.name }}'
+        revisionCreateTime: '{{ item.revisionCreateTime }}'
+        revisionId: '{{ item.revisionId }}'
+        type: '{{ item.type }}'
+    # required_params: ['name']
+  # Gets the configuration details of a snapshot. Snapshots are used in [Seek](https://cloud.google.com/
+  # ── gcp.pubsub.projects.snapshots.get [dependent] ──
+  - discovery_id: gcp.pubsub.projects.snapshots.get
+    # python: svc.projects().snapshots().get(**params).execute()
+    calls:
+      - action: projects.snapshots.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        expireTime: '{{ response.expireTime }}'
+        labels: '{{ response.labels }}'
+        name: '{{ response.name }}'
+        topic: '{{ response.topic }}'
+    # required_params: ['snapshot']
+  # Gets the access control policy for a resource. Returns an empty policy if the resource exists and do
+  # ── gcp.pubsub.projects.snapshots.getIamPolicy [dependent] ──
+  - discovery_id: gcp.pubsub.projects.snapshots.getIamPolicy
+    # python: svc.projects().snapshots().getIamPolicy(**params).execute()
+    calls:
+      - action: projects.snapshots.getIamPolicy
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        bindings: '{{ response.bindings }}'
+        version: '{{ response.version }}'
+    # required_params: ['resource']
+  # Gets the configuration details of a subscription.
+  # ── gcp.pubsub.projects.subscriptions.get [dependent] ──
+  - discovery_id: gcp.pubsub.projects.subscriptions.get
+    # python: svc.projects().subscriptions().get(**params).execute()
+    calls:
+      - action: projects.subscriptions.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        ackDeadlineSeconds: '{{ response.ackDeadlineSeconds }}'
+        analyticsHubSubscriptionInfo: '{{ response.analyticsHubSubscriptionInfo }}'
+        bigqueryConfig: '{{ response.bigqueryConfig }}'
+        cloudStorageConfig: '{{ response.cloudStorageConfig }}'
+        deadLetterPolicy: '{{ response.deadLetterPolicy }}'
+        detached: '{{ response.detached }}'
+        enableExactlyOnceDelivery: '{{ response.enableExactlyOnceDelivery }}'
+        enableMessageOrdering: '{{ response.enableMessageOrdering }}'
+        expirationPolicy: '{{ response.expirationPolicy }}'
+        filter: '{{ response.filter }}'
+        labels: '{{ response.labels }}'
+        messageRetentionDuration: '{{ response.messageRetentionDuration }}'
+        messageTransforms: '{{ response.messageTransforms }}'
+        name: '{{ response.name }}'
+        pushConfig: '{{ response.pushConfig }}'
+        retainAckedMessages: '{{ response.retainAckedMessages }}'
+        retryPolicy: '{{ response.retryPolicy }}'
+        state: '{{ response.state }}'
+        tags: '{{ response.tags }}'
+        topic: '{{ response.topic }}'
+        topicMessageRetentionDuration: '{{ response.topicMessageRetentionDuration }}'
+    # required_params: ['subscription']
+  # Gets the access control policy for a resource. Returns an empty policy if the resource exists and do
+  # ── gcp.pubsub.projects.subscriptions.getIamPolicy [dependent] ──
+  - discovery_id: gcp.pubsub.projects.subscriptions.getIamPolicy
+    # python: svc.projects().subscriptions().getIamPolicy(**params).execute()
+    calls:
+      - action: projects.subscriptions.getIamPolicy
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        bindings: '{{ response.bindings }}'
+        version: '{{ response.version }}'
+    # required_params: ['resource']
+  # Gets the configuration of a topic.
+  # ── gcp.pubsub.projects.topics.get [dependent] ──
+  - discovery_id: gcp.pubsub.projects.topics.get
+    for_each: gcp.pubsub.projects.topics.list
+    # python: svc.projects().topics().get(**params).execute()
+    calls:
+      - action: projects.topics.get
+        params:
+          topic: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        ingestionDataSourceSettings: '{{ response.ingestionDataSourceSettings }}'
+        kmsKeyName: '{{ response.kmsKeyName }}'
+        labels: '{{ response.labels }}'
+        messageRetentionDuration: '{{ response.messageRetentionDuration }}'
+        messageStoragePolicy: '{{ response.messageStoragePolicy }}'
+        messageTransforms: '{{ response.messageTransforms }}'
+        name: '{{ response.name }}'
+        satisfiesPzs: '{{ response.satisfiesPzs }}'
+        schemaSettings: '{{ response.schemaSettings }}'
+        state: '{{ response.state }}'
+        tags: '{{ response.tags }}'
+    # required_params: ['topic']
+  # Gets the access control policy for a resource. Returns an empty policy if the resource exists and do
+  # ── gcp.pubsub.projects.topics.getIamPolicy [dependent] ──
+  - discovery_id: gcp.pubsub.projects.topics.getIamPolicy
+    for_each: gcp.pubsub.projects.topics.list
+    # python: svc.projects().topics().getIamPolicy(**params).execute()
+    calls:
+      - action: projects.topics.getIamPolicy
+        params:
+          resource: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        bindings: '{{ response.bindings }}'
+        version: '{{ response.version }}'
+    # required_params: ['resource']
+  # Lists the names of the snapshots on this topic. Snapshots are used in [Seek](https://cloud.google.co
+  # ── gcp.pubsub.projects.topics.snapshots.list [dependent] ──
+  - discovery_id: gcp.pubsub.projects.topics.snapshots.list
+    for_each: gcp.pubsub.projects.topics.list
+    # python: svc.projects().topics().snapshots().list(**params).execute()
+    calls:
+      - action: projects.topics.snapshots.list
+        params:
+          topic: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.snapshots }}'
+    # required_params: ['topic']
+  # Lists the names of the attached subscriptions on this topic.
+  # ── gcp.pubsub.projects.topics.subscriptions.list [dependent] ──
+  - discovery_id: gcp.pubsub.projects.topics.subscriptions.list
+    for_each: gcp.pubsub.projects.topics.list
+    # python: svc.projects().topics().subscriptions().list(**params).execute()
+    calls:
+      - action: projects.topics.subscriptions.list
+        params:
+          topic: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.subscriptions }}'
+    # required_params: ['topic']

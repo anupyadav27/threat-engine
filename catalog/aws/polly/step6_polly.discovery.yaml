@@ -1,0 +1,116 @@
+# ============================================================
+# Discovery YAML — polly (AWS)
+# Generated: 2026-02-21T04:56:59Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: polly
+services:
+  client: polly
+  module: boto3.client
+discovery:
+  # ── DescribeVoices ──
+  - discovery_id: aws.polly.describe_voices
+    calls:
+      - action: describe_voices
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Voices }}'
+      item:
+        Id: '{{ item.Id }}'
+        Name: '{{ item.Name }}'
+        AdditionalLanguageCodes: '{{ item.AdditionalLanguageCodes }}'
+        Gender: '{{ item.Gender }}'
+        LanguageCode: '{{ item.LanguageCode }}'
+        LanguageName: '{{ item.LanguageName }}'
+        SupportedEngines: '{{ item.SupportedEngines }}'
+        Voices: '{{ item.Voices }}'
+  # ── ListLexicons ──
+  - discovery_id: aws.polly.list_lexicons
+    calls:
+      - action: list_lexicons
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Lexicons }}'
+      item:
+        Name: '{{ item.Name }}'
+        Attributes: '{{ item.Attributes }}'
+        Content: '{{ item.Content }}'
+        Lexicon: '{{ item.Lexicon }}'
+        LexiconAttributes: '{{ item.LexiconAttributes }}'
+  # ── ListSpeechSynthesisTasks ──
+  - discovery_id: aws.polly.list_speech_synthesis_tasks
+    calls:
+      - action: list_speech_synthesis_tasks
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.SynthesisTasks }}'
+      item:
+        CreationTime: '{{ item.CreationTime }}'
+        Engine: '{{ item.Engine }}'
+        LanguageCode: '{{ item.LanguageCode }}'
+        LexiconNames: '{{ item.LexiconNames }}'
+        OutputFormat: '{{ item.OutputFormat }}'
+        OutputUri: '{{ item.OutputUri }}'
+        RequestCharacters: '{{ item.RequestCharacters }}'
+        SampleRate: '{{ item.SampleRate }}'
+        SnsTopicArn: '{{ item.SnsTopicArn }}'
+        SpeechMarkTypes: '{{ item.SpeechMarkTypes }}'
+        TaskId: '{{ item.TaskId }}'
+        TaskStatus: '{{ item.TaskStatus }}'
+        TaskStatusReason: '{{ item.TaskStatusReason }}'
+        TextType: '{{ item.TextType }}'
+        VoiceId: '{{ item.VoiceId }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── GetLexicon ──
+  - discovery_id: aws.polly.get_lexicon
+    for_each: aws.polly.describe_voices
+    calls:
+      - action: get_lexicon
+        params:
+          Name: '{{ item.Name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Lexicon }}'
+      item:
+        Name: '{{ item.Name }}'
+        Content: '{{ item.Content }}'
+        Lexicon: '{{ item.Lexicon }}'
+        LexiconAttributes: '{{ item.LexiconAttributes }}'
+  # ── GetSpeechSynthesisTask ──
+  - discovery_id: aws.polly.get_speech_synthesis_task
+    for_each: aws.polly.list_speech_synthesis_tasks
+    calls:
+      - action: get_speech_synthesis_task
+        params:
+          TaskId: '{{ item.TaskId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.SynthesisTasks }}'
+      item:
+        CreationTime: '{{ item.CreationTime }}'
+        Engine: '{{ item.Engine }}'
+        LanguageCode: '{{ item.LanguageCode }}'
+        LexiconNames: '{{ item.LexiconNames }}'
+        OutputFormat: '{{ item.OutputFormat }}'
+        OutputUri: '{{ item.OutputUri }}'
+        RequestCharacters: '{{ item.RequestCharacters }}'
+        SampleRate: '{{ item.SampleRate }}'
+        SnsTopicArn: '{{ item.SnsTopicArn }}'
+        SpeechMarkTypes: '{{ item.SpeechMarkTypes }}'
+        TaskId: '{{ item.TaskId }}'
+        TaskStatus: '{{ item.TaskStatus }}'
+        TaskStatusReason: '{{ item.TaskStatusReason }}'
+        TextType: '{{ item.TextType }}'
+        VoiceId: '{{ item.VoiceId }}'

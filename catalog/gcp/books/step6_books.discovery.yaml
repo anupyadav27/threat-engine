@@ -1,0 +1,662 @@
+# ============================================================
+# Discovery YAML — books (v1)
+# Generated: 2026-02-21T03:06:38Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 30 | independent: 11 | dependent: 19
+# ops with fields: 28/30 | dep ops with chain: 10/19
+# ============================================================
+version: '1.0'
+provider: gcp
+service: books
+
+services:
+  client: books
+  module: "googleapiclient.discovery.build('books', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Gets information regarding the family that the user is part of.
+  # ── gcp.books.familysharing.getFamilyInfo ──
+  - discovery_id: gcp.books.familysharing.getFamilyInfo
+    # python: svc.familysharing().getFamilyInfo(**params).execute()
+    calls:
+      - action: familysharing.getFamilyInfo
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        membership: '{{ response.membership }}'
+  # Gets the current settings for the user.
+  # ── gcp.books.myconfig.getUserSettings ──
+  - discovery_id: gcp.books.myconfig.getUserSettings
+    # python: svc.myconfig().getUserSettings(**params).execute()
+    calls:
+      - action: myconfig.getUserSettings
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        notesExport: '{{ response.notesExport }}'
+        notification: '{{ response.notification }}'
+  # Retrieves a list of annotations, possibly filtered.
+  # ── gcp.books.mylibrary.annotations.list ──
+  - discovery_id: gcp.books.mylibrary.annotations.list
+    # python: svc.mylibrary().annotations().list(**params).execute()
+    calls:
+      - action: mylibrary.annotations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.annotations }}'
+      item:
+        afterSelectedText: '{{ item.afterSelectedText }}'
+        beforeSelectedText: '{{ item.beforeSelectedText }}'
+        clientVersionRanges: '{{ item.clientVersionRanges }}'
+        created: '{{ item.created }}'
+        currentVersionRanges: '{{ item.currentVersionRanges }}'
+        data: '{{ item.data }}'
+        deleted: '{{ item.deleted }}'
+        highlightStyle: '{{ item.highlightStyle }}'
+        id: '{{ item.id }}'
+        layerId: '{{ item.layerId }}'
+        layerSummary: '{{ item.layerSummary }}'
+        pageIds: '{{ item.pageIds }}'
+        selectedText: '{{ item.selectedText }}'
+        updated: '{{ item.updated }}'
+        volumeId: '{{ item.volumeId }}'
+  # Retrieves a list of bookshelves belonging to the authenticated user.
+  # ── gcp.books.mylibrary.bookshelves.list ──
+  - discovery_id: gcp.books.mylibrary.bookshelves.list
+    # python: svc.mylibrary().bookshelves().list(**params).execute()
+    calls:
+      - action: mylibrary.bookshelves.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.bookshelves }}'
+      item:
+        access: '{{ item.access }}'
+        created: '{{ item.created }}'
+        description: '{{ item.description }}'
+        id: '{{ item.id }}'
+        title: '{{ item.title }}'
+        updated: '{{ item.updated }}'
+        volumeCount: '{{ item.volumeCount }}'
+        volumesLastUpdated: '{{ item.volumesLastUpdated }}'
+  # List categories for onboarding experience.
+  # ── gcp.books.onboarding.listCategories ──
+  - discovery_id: gcp.books.onboarding.listCategories
+    # python: svc.onboarding().listCategories(**params).execute()
+    calls:
+      - action: onboarding.listCategories
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.onboarding }}'
+  # List available volumes under categories for onboarding experience.
+  # ── gcp.books.onboarding.listCategoryVolumes ──
+  - discovery_id: gcp.books.onboarding.listCategoryVolumes
+    # python: svc.onboarding().listCategoryVolumes(**params).execute()
+    calls:
+      - action: onboarding.listCategoryVolumes
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.onboarding }}'
+      item:
+        accessInfo: '{{ item.accessInfo }}'
+        id: '{{ item.id }}'
+        layerInfo: '{{ item.layerInfo }}'
+        recommendedInfo: '{{ item.recommendedInfo }}'
+        saleInfo: '{{ item.saleInfo }}'
+        searchInfo: '{{ item.searchInfo }}'
+        userInfo: '{{ item.userInfo }}'
+        volumeInfo: '{{ item.volumeInfo }}'
+  # Returns a stream of personalized book clusters
+  # ── gcp.books.personalizedstream.get ──
+  - discovery_id: gcp.books.personalizedstream.get
+    # python: svc.personalizedstream().get(**params).execute()
+    calls:
+      - action: personalizedstream.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        clusters: '{{ response.clusters }}'
+        totalClusters: '{{ response.totalClusters }}'
+  # Returns a list of promo offers available to the user
+  # ── gcp.books.promooffer.get ──
+  - discovery_id: gcp.books.promooffer.get
+    # python: svc.promooffer().get(**params).execute()
+    calls:
+      - action: promooffer.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        items: '{{ response.items }}'
+  # Return a list of books in My Library.
+  # ── gcp.books.volumes.mybooks.list ──
+  - discovery_id: gcp.books.volumes.mybooks.list
+    # python: svc.volumes().mybooks().list(**params).execute()
+    calls:
+      - action: volumes.mybooks.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.mybooks }}'
+      item:
+        accessInfo: '{{ item.accessInfo }}'
+        id: '{{ item.id }}'
+        layerInfo: '{{ item.layerInfo }}'
+        recommendedInfo: '{{ item.recommendedInfo }}'
+        saleInfo: '{{ item.saleInfo }}'
+        searchInfo: '{{ item.searchInfo }}'
+        userInfo: '{{ item.userInfo }}'
+        volumeInfo: '{{ item.volumeInfo }}'
+  # Return a list of recommended books for the current user.
+  # ── gcp.books.volumes.recommended.list ──
+  - discovery_id: gcp.books.volumes.recommended.list
+    # python: svc.volumes().recommended().list(**params).execute()
+    calls:
+      - action: volumes.recommended.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.recommended }}'
+      item:
+        accessInfo: '{{ item.accessInfo }}'
+        id: '{{ item.id }}'
+        layerInfo: '{{ item.layerInfo }}'
+        recommendedInfo: '{{ item.recommendedInfo }}'
+        saleInfo: '{{ item.saleInfo }}'
+        searchInfo: '{{ item.searchInfo }}'
+        userInfo: '{{ item.userInfo }}'
+        volumeInfo: '{{ item.volumeInfo }}'
+  # Return a list of books uploaded by the current user.
+  # ── gcp.books.volumes.useruploaded.list ──
+  - discovery_id: gcp.books.volumes.useruploaded.list
+    # python: svc.volumes().useruploaded().list(**params).execute()
+    calls:
+      - action: volumes.useruploaded.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.useruploaded }}'
+      item:
+        accessInfo: '{{ item.accessInfo }}'
+        id: '{{ item.id }}'
+        layerInfo: '{{ item.layerInfo }}'
+        recommendedInfo: '{{ item.recommendedInfo }}'
+        saleInfo: '{{ item.saleInfo }}'
+        searchInfo: '{{ item.searchInfo }}'
+        userInfo: '{{ item.userInfo }}'
+        volumeInfo: '{{ item.volumeInfo }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Retrieves metadata for a specific bookshelf for the specified user.
+  # ── gcp.books.bookshelves.get [dependent] ──
+  - discovery_id: gcp.books.bookshelves.get
+    # python: svc.bookshelves().get(**params).execute()
+    calls:
+      - action: bookshelves.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        access: '{{ response.access }}'
+        created: '{{ response.created }}'
+        description: '{{ response.description }}'
+        id: '{{ response.id }}'
+        title: '{{ response.title }}'
+        updated: '{{ response.updated }}'
+        volumeCount: '{{ response.volumeCount }}'
+        volumesLastUpdated: '{{ response.volumesLastUpdated }}'
+    # required_params: ['userId', 'shelf']
+  # Retrieves a list of public bookshelves for the specified user.
+  # ── gcp.books.bookshelves.list [dependent] ──
+  - discovery_id: gcp.books.bookshelves.list
+    for_each: gcp.books.mylibrary.bookshelves.volumes.list
+    # python: svc.bookshelves().list(**params).execute()
+    calls:
+      - action: bookshelves.list
+        params:
+          userId: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.bookshelves }}'
+      item:
+        access: '{{ item.access }}'
+        created: '{{ item.created }}'
+        description: '{{ item.description }}'
+        id: '{{ item.id }}'
+        title: '{{ item.title }}'
+        updated: '{{ item.updated }}'
+        volumeCount: '{{ item.volumeCount }}'
+        volumesLastUpdated: '{{ item.volumesLastUpdated }}'
+    # required_params: ['userId']
+  # Retrieves volumes in a specific bookshelf for the specified user.
+  # ── gcp.books.bookshelves.volumes.list [dependent] ──
+  - discovery_id: gcp.books.bookshelves.volumes.list
+    # python: svc.bookshelves().volumes().list(**params).execute()
+    calls:
+      - action: bookshelves.volumes.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.volumes }}'
+      item:
+        accessInfo: '{{ item.accessInfo }}'
+        id: '{{ item.id }}'
+        layerInfo: '{{ item.layerInfo }}'
+        recommendedInfo: '{{ item.recommendedInfo }}'
+        saleInfo: '{{ item.saleInfo }}'
+        searchInfo: '{{ item.searchInfo }}'
+        userInfo: '{{ item.userInfo }}'
+        volumeInfo: '{{ item.volumeInfo }}'
+    # required_params: ['shelf', 'userId']
+  # Returns a list of offline dictionary metadata available
+  # ── gcp.books.dictionary.listOfflineMetadata [dependent] ──
+  - discovery_id: gcp.books.dictionary.listOfflineMetadata
+    # python: svc.dictionary().listOfflineMetadata(**params).execute()
+    calls:
+      - action: dictionary.listOfflineMetadata
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.dictionary }}'
+    # required_params: ['cpksver']
+  # Gets the annotation data.
+  # ── gcp.books.layers.annotationData.get [dependent] ──
+  - discovery_id: gcp.books.layers.annotationData.get
+    for_each: gcp.books.layers.annotationData.list
+    # python: svc.layers().annotationData().get(**params).execute()
+    calls:
+      - action: layers.annotationData.get
+        params:
+          annotationDataId: '{{ item.selfLink }}'
+          contentVersion: '{{ item.selfLink }}'
+          layerId: '{{ item.selfLink }}'
+          volumeId: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        annotationType: '{{ response.annotationType }}'
+        data: '{{ response.data }}'
+        encodedData: '{{ response.encodedData }}'
+        id: '{{ response.id }}'
+        layerId: '{{ response.layerId }}'
+        updated: '{{ response.updated }}'
+        volumeId: '{{ response.volumeId }}'
+    # required_params: ['volumeId', 'annotationDataId', 'contentVersion', 'layerId']
+  # Gets the annotation data for a volume and layer.
+  # ── gcp.books.layers.annotationData.list [dependent] ──
+  - discovery_id: gcp.books.layers.annotationData.list
+    for_each: gcp.books.layers.list
+    # python: svc.layers().annotationData().list(**params).execute()
+    calls:
+      - action: layers.annotationData.list
+        params:
+          contentVersion: '{{ item.selfLink }}'
+          layerId: '{{ item.selfLink }}'
+          volumeId: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.annotationData }}'
+      item:
+        annotationType: '{{ item.annotationType }}'
+        data: '{{ item.data }}'
+        encodedData: '{{ item.encodedData }}'
+        id: '{{ item.id }}'
+        layerId: '{{ item.layerId }}'
+        updated: '{{ item.updated }}'
+        volumeId: '{{ item.volumeId }}'
+    # required_params: ['layerId', 'contentVersion', 'volumeId']
+  # Gets the layer summary for a volume.
+  # ── gcp.books.layers.get [dependent] ──
+  - discovery_id: gcp.books.layers.get
+    for_each: gcp.books.mylibrary.annotations.list
+    # python: svc.layers().get(**params).execute()
+    calls:
+      - action: layers.get
+        params:
+          summaryId: '{{ item.selfLink }}'
+          volumeId: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        annotationCount: '{{ response.annotationCount }}'
+        annotationTypes: '{{ response.annotationTypes }}'
+        annotationsDataLink: '{{ response.annotationsDataLink }}'
+        annotationsLink: '{{ response.annotationsLink }}'
+        contentVersion: '{{ response.contentVersion }}'
+        dataCount: '{{ response.dataCount }}'
+        id: '{{ response.id }}'
+        layerId: '{{ response.layerId }}'
+        updated: '{{ response.updated }}'
+        volumeAnnotationsVersion: '{{ response.volumeAnnotationsVersion }}'
+        volumeId: '{{ response.volumeId }}'
+    # required_params: ['volumeId', 'summaryId']
+  # List the layer summaries for a volume.
+  # ── gcp.books.layers.list [dependent] ──
+  - discovery_id: gcp.books.layers.list
+    for_each: gcp.books.mylibrary.bookshelves.volumes.list
+    # python: svc.layers().list(**params).execute()
+    calls:
+      - action: layers.list
+        params:
+          volumeId: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.layers }}'
+      item:
+        annotationCount: '{{ item.annotationCount }}'
+        annotationTypes: '{{ item.annotationTypes }}'
+        annotationsDataLink: '{{ item.annotationsDataLink }}'
+        annotationsLink: '{{ item.annotationsLink }}'
+        contentVersion: '{{ item.contentVersion }}'
+        dataCount: '{{ item.dataCount }}'
+        id: '{{ item.id }}'
+        layerId: '{{ item.layerId }}'
+        updated: '{{ item.updated }}'
+        volumeAnnotationsVersion: '{{ item.volumeAnnotationsVersion }}'
+        volumeId: '{{ item.volumeId }}'
+    # required_params: ['volumeId']
+  # Gets the volume annotation.
+  # ── gcp.books.layers.volumeAnnotations.get [dependent] ──
+  - discovery_id: gcp.books.layers.volumeAnnotations.get
+    for_each: gcp.books.mylibrary.annotations.list
+    # python: svc.layers().volumeAnnotations().get(**params).execute()
+    calls:
+      - action: layers.volumeAnnotations.get
+        params:
+          annotationId: '{{ item.selfLink }}'
+          layerId: '{{ item.selfLink }}'
+          volumeId: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        annotationDataId: '{{ response.annotationDataId }}'
+        annotationDataLink: '{{ response.annotationDataLink }}'
+        annotationType: '{{ response.annotationType }}'
+        contentRanges: '{{ response.contentRanges }}'
+        data: '{{ response.data }}'
+        deleted: '{{ response.deleted }}'
+        id: '{{ response.id }}'
+        layerId: '{{ response.layerId }}'
+        pageIds: '{{ response.pageIds }}'
+        selectedText: '{{ response.selectedText }}'
+        updated: '{{ response.updated }}'
+        volumeId: '{{ response.volumeId }}'
+    # required_params: ['layerId', 'annotationId', 'volumeId']
+  # Gets the volume annotations for a volume and layer.
+  # ── gcp.books.layers.volumeAnnotations.list [dependent] ──
+  - discovery_id: gcp.books.layers.volumeAnnotations.list
+    for_each: gcp.books.layers.list
+    # python: svc.layers().volumeAnnotations().list(**params).execute()
+    calls:
+      - action: layers.volumeAnnotations.list
+        params:
+          contentVersion: '{{ item.selfLink }}'
+          layerId: '{{ item.selfLink }}'
+          volumeId: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.volumeAnnotations }}'
+      item:
+        annotationDataId: '{{ item.annotationDataId }}'
+        annotationDataLink: '{{ item.annotationDataLink }}'
+        annotationType: '{{ item.annotationType }}'
+        contentRanges: '{{ item.contentRanges }}'
+        data: '{{ item.data }}'
+        deleted: '{{ item.deleted }}'
+        id: '{{ item.id }}'
+        layerId: '{{ item.layerId }}'
+        pageIds: '{{ item.pageIds }}'
+        selectedText: '{{ item.selectedText }}'
+        updated: '{{ item.updated }}'
+        volumeId: '{{ item.volumeId }}'
+    # required_params: ['contentVersion', 'volumeId', 'layerId']
+  # Retrieves metadata for a specific bookshelf belonging to the authenticated user.
+  # ── gcp.books.mylibrary.bookshelves.get [dependent] ──
+  - discovery_id: gcp.books.mylibrary.bookshelves.get
+    # python: svc.mylibrary().bookshelves().get(**params).execute()
+    calls:
+      - action: mylibrary.bookshelves.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        access: '{{ response.access }}'
+        created: '{{ response.created }}'
+        description: '{{ response.description }}'
+        id: '{{ response.id }}'
+        title: '{{ response.title }}'
+        updated: '{{ response.updated }}'
+        volumeCount: '{{ response.volumeCount }}'
+        volumesLastUpdated: '{{ response.volumesLastUpdated }}'
+    # required_params: ['shelf']
+  # Gets volume information for volumes on a bookshelf.
+  # ── gcp.books.mylibrary.bookshelves.volumes.list [dependent] ──
+  - discovery_id: gcp.books.mylibrary.bookshelves.volumes.list
+    # python: svc.mylibrary().bookshelves().volumes().list(**params).execute()
+    calls:
+      - action: mylibrary.bookshelves.volumes.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.volumes }}'
+      item:
+        accessInfo: '{{ item.accessInfo }}'
+        id: '{{ item.id }}'
+        layerInfo: '{{ item.layerInfo }}'
+        recommendedInfo: '{{ item.recommendedInfo }}'
+        saleInfo: '{{ item.saleInfo }}'
+        searchInfo: '{{ item.searchInfo }}'
+        userInfo: '{{ item.userInfo }}'
+        volumeInfo: '{{ item.volumeInfo }}'
+    # required_params: ['shelf']
+  # Retrieves my reading position information for a volume.
+  # ── gcp.books.mylibrary.readingpositions.get [dependent] ──
+  - discovery_id: gcp.books.mylibrary.readingpositions.get
+    for_each: gcp.books.mylibrary.bookshelves.volumes.list
+    # python: svc.mylibrary().readingpositions().get(**params).execute()
+    calls:
+      - action: mylibrary.readingpositions.get
+        params:
+          volumeId: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        epubCfiPosition: '{{ response.epubCfiPosition }}'
+        gbImagePosition: '{{ response.gbImagePosition }}'
+        gbTextPosition: '{{ response.gbTextPosition }}'
+        pdfPosition: '{{ response.pdfPosition }}'
+        updated: '{{ response.updated }}'
+        volumeId: '{{ response.volumeId }}'
+    # required_params: ['volumeId']
+  # Returns notification details for a given notification id.
+  # ── gcp.books.notification.get [dependent] ──
+  - discovery_id: gcp.books.notification.get
+    # python: svc.notification().get(**params).execute()
+    calls:
+      - action: notification.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        body: '{{ response.body }}'
+        crmExperimentIds: '{{ response.crmExperimentIds }}'
+        doc_id: '{{ response.doc_id }}'
+        doc_type: '{{ response.doc_type }}'
+        dont_show_notification: '{{ response.dont_show_notification }}'
+        iconUrl: '{{ response.iconUrl }}'
+        is_document_mature: '{{ response.is_document_mature }}'
+        notificationGroup: '{{ response.notificationGroup }}'
+        notification_type: '{{ response.notification_type }}'
+        pcampaign_id: '{{ response.pcampaign_id }}'
+        reason: '{{ response.reason }}'
+        show_notification_settings_action: '{{ response.show_notification_settings_action }}'
+        targetUrl: '{{ response.targetUrl }}'
+        timeToExpireMs: '{{ response.timeToExpireMs }}'
+        title: '{{ response.title }}'
+    # required_params: ['notification_id']
+  # Returns Series metadata for the given series ids.
+  # ── gcp.books.series.get [dependent] ──
+  - discovery_id: gcp.books.series.get
+    # python: svc.series().get(**params).execute()
+    calls:
+      - action: series.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        series: '{{ response.series }}'
+    # required_params: ['series_id']
+  # Returns Series membership data given the series id.
+  # ── gcp.books.series.membership.get [dependent] ──
+  - discovery_id: gcp.books.series.membership.get
+    # python: svc.series().membership().get(**params).execute()
+    calls:
+      - action: series.membership.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        member: '{{ response.member }}'
+    # required_params: ['series_id']
+  # Return a list of associated books.
+  # ── gcp.books.volumes.associated.list [dependent] ──
+  - discovery_id: gcp.books.volumes.associated.list
+    for_each: gcp.books.mylibrary.bookshelves.volumes.list
+    # python: svc.volumes().associated().list(**params).execute()
+    calls:
+      - action: volumes.associated.list
+        params:
+          volumeId: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.associated }}'
+      item:
+        accessInfo: '{{ item.accessInfo }}'
+        id: '{{ item.id }}'
+        layerInfo: '{{ item.layerInfo }}'
+        recommendedInfo: '{{ item.recommendedInfo }}'
+        saleInfo: '{{ item.saleInfo }}'
+        searchInfo: '{{ item.searchInfo }}'
+        userInfo: '{{ item.userInfo }}'
+        volumeInfo: '{{ item.volumeInfo }}'
+    # required_params: ['volumeId']
+  # Gets volume information for a single volume.
+  # ── gcp.books.volumes.get [dependent] ──
+  - discovery_id: gcp.books.volumes.get
+    for_each: gcp.books.mylibrary.bookshelves.volumes.list
+    # python: svc.volumes().get(**params).execute()
+    calls:
+      - action: volumes.get
+        params:
+          volumeId: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accessInfo: '{{ response.accessInfo }}'
+        id: '{{ response.id }}'
+        layerInfo: '{{ response.layerInfo }}'
+        recommendedInfo: '{{ response.recommendedInfo }}'
+        saleInfo: '{{ response.saleInfo }}'
+        searchInfo: '{{ response.searchInfo }}'
+        userInfo: '{{ response.userInfo }}'
+        volumeInfo: '{{ response.volumeInfo }}'
+    # required_params: ['volumeId']
+  # Performs a book search.
+  # ── gcp.books.volumes.list [dependent] ──
+  - discovery_id: gcp.books.volumes.list
+    # python: svc.volumes().list(**params).execute()
+    calls:
+      - action: volumes.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.volumes }}'
+      item:
+        accessInfo: '{{ item.accessInfo }}'
+        id: '{{ item.id }}'
+        layerInfo: '{{ item.layerInfo }}'
+        recommendedInfo: '{{ item.recommendedInfo }}'
+        saleInfo: '{{ item.saleInfo }}'
+        searchInfo: '{{ item.searchInfo }}'
+        userInfo: '{{ item.userInfo }}'
+        volumeInfo: '{{ item.volumeInfo }}'
+    # required_params: ['q']

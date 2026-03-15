@@ -1,0 +1,370 @@
+{
+  "csp": "gcp",
+  "generated_at": "2026-02-19T14:43:25.798937+00:00",
+  "anchors": {
+    "fixed": [
+      "project_id",
+      "org_id",
+      "folder_id",
+      "location",
+      "zone",
+      "region"
+    ]
+  },
+  "services": {
+    "datastore": {
+      "version": "v1",
+      "resources": {
+        "indexes": {
+          "resource_type": "indexes",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "constructed",
+            "full_identifier": {
+              "template": "indexes/{url_encoded_ancestor}",
+              "built_from_parts": [
+                "indexes[].ancestor"
+              ],
+              "notes": ""
+            },
+            "parts": [
+              "project_id",
+              "ancestor"
+            ],
+            "part_sources": {
+              "project_id": {
+                "op": "service_anchor",
+                "field_path": "project_id",
+                "transform": null
+              },
+              "ancestor": {
+                "op": "gcp.datastore.projects.indexes.list",
+                "field_path": "indexes[].ancestor",
+                "transform": null
+              }
+            },
+            "transforms": [
+              {
+                "from": "indexes[].ancestor",
+                "fn": "url_encode",
+                "to": "url_encoded_ancestor"
+              },
+              {
+                "from": "url_encoded_ancestor",
+                "fn": "prefix:indexes/",
+                "to": "projectId"
+              },
+              {
+                "build": "full_id",
+                "template": "indexes/{url_encoded_ancestor}"
+              }
+            ]
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.datastore.projects.indexes.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/projects/{projectId}/indexes"
+                },
+                "python_call": "svc.projects().indexes().list(**params).execute()",
+                "produces": {
+                  "ancestor": "indexes[].ancestor",
+                  "properties": "indexes[].properties",
+                  "indexId": "indexes[].indexId",
+                  "projectId": "indexes[].projectId",
+                  "state": "indexes[].state"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.datastore.projects.indexes.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/projects/{projectId}/indexes/{indexId}"
+                },
+                "python_call": "svc.projects().indexes().get(**params).execute()",
+                "required_params": {
+                  "projectId": {
+                    "from_identifier": "transforms \u2192 projectId"
+                  },
+                  "indexId": {
+                    "from_identifier": "indexes[].indexId"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.datastore.projects.indexes.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.datastore.projects.indexes.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().indexes().list(**params).execute()",
+                      "path": "/v1/projects/{projectId}/indexes",
+                      "required_params": {
+                        "projectId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Project ID against which to make the request."
+                        }
+                      },
+                      "output_list_field": "indexes",
+                      "output_id_field": "ancestor",
+                      "produces": {
+                        "indexeId": {
+                          "via_list_field": "indexes",
+                          "from_id_field": "ancestor",
+                          "note": "Iterate response[\"indexes\"][], extract item[\"ancestor\"] \u2192 pass as \"indexeId\""
+                        }
+                      },
+                      "param_sources": {
+                        "projectId": "always_available"
+                      },
+                      "purpose": "Provides: indexeId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.datastore.projects.indexes.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().indexes().get(**params).execute()",
+                      "path": "/v1/projects/{projectId}/indexes/{indexId}",
+                      "required_params": {
+                        "projectId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Project ID against which to make the request."
+                        },
+                        "indexId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The resource ID of the index to get."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "projectId": "always_available",
+                        "indexId": {
+                          "from_step": 1,
+                          "from_op": "gcp.datastore.projects.indexes.list",
+                          "field": "ancestor"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [
+                    "projectId"
+                  ],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        },
+        "operations": {
+          "resource_type": "operations",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.datastore.projects.operations.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}/operations"
+                },
+                "python_call": "svc.projects().operations().list(**params).execute()",
+                "produces": {
+                  "name": "operations[].name",
+                  "error": "operations[].error",
+                  "done": "operations[].done",
+                  "metadata": "operations[].metadata",
+                  "response": "operations[].response"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.datastore.projects.operations.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().operations().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.datastore.projects.operations.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.datastore.projects.operations.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().operations().list(**params).execute()",
+                      "path": "/v1/{+name}/operations",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+$",
+                          "description": "The name of the operation's parent resource."
+                        }
+                      },
+                      "output_list_field": "operations",
+                      "output_id_field": "name",
+                      "produces": {
+                        "operationId": {
+                          "via_list_field": "operations",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"operations\"][], extract item[\"name\"] \u2192 pass as \"operationId\""
+                        }
+                      },
+                      "param_sources": {
+                        "name": "always_available"
+                      },
+                      "purpose": "Provides: operationId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.datastore.projects.operations.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().operations().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/operations/[^/]+$",
+                          "description": "The name of the operation resource."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "operationId": {
+                            "from_step": 1,
+                            "from_op": "gcp.datastore.projects.operations.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "projects": {
+          "resource_type": "projects",
+          "pattern_type": "PROJECT_GLOBAL",
+          "identifier": {
+            "kind": "tuple",
+            "full_identifier": {
+              "template": "projects/{projectId}:lookup",
+              "built_from_parts": [],
+              "notes": "Tuple identifier; anchor parts are user-provided."
+            },
+            "parts": [
+              "project_id"
+            ],
+            "part_sources": {
+              "project_id": {
+                "op": "service_anchor",
+                "field_path": "project_id",
+                "transform": null
+              }
+            },
+            "transforms": []
+          },
+          "inventory": {
+            "ops": []
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.datastore.projects.lookup",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "POST",
+                  "path": "/v1/projects/{projectId}:lookup"
+                },
+                "python_call": "svc.projects().lookup(**params).execute()",
+                "required_params": {
+                  "projectId": {
+                    "from_identifier": "projectId"
+                  }
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "confidence": 0.5,
+          "notes": "No inventory (list) ops found; enrich only."
+        }
+      }
+    }
+  }
+}

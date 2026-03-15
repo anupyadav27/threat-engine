@@ -1,0 +1,116 @@
+version: '1.0'
+provider: aws
+service: redshift-data
+services:
+  client: redshift-data
+  module: boto3.client
+discovery:
+- discovery_id: aws.redshift-data.listStatements
+  calls:
+  - action: listStatements
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Statements }}'
+    item:
+      Id: '{{ item.Id }}'
+      QueryString: '{{ item.QueryString }}'
+      QueryStrings: '{{ item.QueryStrings }}'
+      SecretArn: '{{ item.SecretArn }}'
+      Status: '{{ item.Status }}'
+      StatementName: '{{ item.StatementName }}'
+      CreatedAt: '{{ item.CreatedAt }}'
+      UpdatedAt: '{{ item.UpdatedAt }}'
+      QueryParameters: '{{ item.QueryParameters }}'
+      IsBatchStatement: '{{ item.IsBatchStatement }}'
+      ResultFormat: '{{ item.ResultFormat }}'
+      SessionId: '{{ item.SessionId }}'
+- discovery_id: aws.redshift-data.describeStatement
+  calls:
+  - action: describeStatement
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.QueryParameters }}'
+    item:
+      name: '{{ item.name }}'
+      value: '{{ item.value }}'
+- discovery_id: aws.redshift-data.describeTable
+  calls:
+  - action: describeTable
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ColumnList }}'
+    item:
+      isCaseSensitive: '{{ item.isCaseSensitive }}'
+      isCurrency: '{{ item.isCurrency }}'
+      isSigned: '{{ item.isSigned }}'
+      label: '{{ item.label }}'
+      name: '{{ item.name }}'
+      nullable: '{{ item.nullable }}'
+      precision: '{{ item.precision }}'
+      scale: '{{ item.scale }}'
+      schemaName: '{{ item.schemaName }}'
+      tableName: '{{ item.tableName }}'
+      typeName: '{{ item.typeName }}'
+      length: '{{ item.length }}'
+      columnDefault: '{{ item.columnDefault }}'
+- discovery_id: aws.redshift-data.getStatementResult
+  calls:
+  - action: getStatementResult
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Records }}'
+- discovery_id: aws.redshift-data.getStatementResultV2
+  calls:
+  - action: getStatementResultV2
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Records }}'
+    item:
+      CSVRecords: '{{ item.CSVRecords }}'
+- discovery_id: aws.redshift-data.listDatabases
+  calls:
+  - action: listDatabases
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Databases }}'
+- discovery_id: aws.redshift-data.listSchemas
+  calls:
+  - action: listSchemas
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Schemas }}'
+- discovery_id: aws.redshift-data.listTables
+  calls:
+  - action: listTables
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Tables }}'
+    item:
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      schema: '{{ item.schema }}'
+checks: []

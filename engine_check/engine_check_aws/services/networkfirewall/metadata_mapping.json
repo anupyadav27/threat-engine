@@ -1,0 +1,125 @@
+{
+  "networkfirewall_metadata_mapping": [
+    {
+      "rule_id": "aws.networkfirewall.firewall.logging_enabled",
+      "python_method": "describe_firewall",
+      "response_path": "FirewallStatus.SyncStates[].Attachment",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "Attachment.Status",
+          "expected_value": "READY",
+          "operator": "equals"
+        },
+        {
+          "field_path": "Attachment.Config.LoggingConfiguration",
+          "expected_value": null,
+          "operator": "exists"
+        }
+      ]
+    },
+    {
+      "rule_id": "aws.networkfirewall.firewall.networkfirewall_multi_az_deployment_enabled",
+      "python_method": "describe_firewalls",
+      "response_path": "Firewalls[]",
+      "logical_operator": null,
+      "nested_field": [
+        {
+          "field_path": "FirewallStatus.SyncStates",
+          "expected_value": null,
+          "operator": "exists"
+        }
+      ]
+    },
+    {
+      "rule_id": "aws.networkfirewall.firewall.rule_groups_enabled",
+      "python_method": "describe_firewall",
+      "response_path": "Firewall.RuleGroups",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "RuleGroups.StatefulRuleGroupReferences",
+          "expected_value": null,
+          "operator": "exists"
+        },
+        {
+          "field_path": "RuleGroups.StatelessRuleGroupReferences",
+          "expected_value": null,
+          "operator": "exists"
+        }
+      ]
+    },
+    {
+      "rule_id": "aws.networkfirewall.resource.logging_enabled",
+      "python_method": "describe_logging_configuration",
+      "response_path": "LoggingConfiguration",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "LoggingConfiguration.LogDestinationConfigs[]",
+          "expected_value": null,
+          "operator": "exists"
+        },
+        {
+          "field_path": "LoggingConfiguration.LogDestinationConfigs[].LogType",
+          "expected_value": [
+            "ALERT",
+            "FLOW"
+          ],
+          "operator": "in"
+        }
+      ]
+    },
+    {
+      "rule_id": "aws.networkfirewall.firewall.networkfirewall_no_permit_any_configured",
+      "python_method": "describe_firewall_policy",
+      "response_path": "FirewallPolicies[]",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "StatelessRuleGroupReferences[].Priority",
+          "expected_value": null,
+          "operator": "exists"
+        },
+        {
+          "field_path": "StatelessRuleGroupReferences[].ResourceArn",
+          "expected_value": null,
+          "operator": "exists"
+        },
+        {
+          "field_path": "StatelessRulesAndCustomActions.StatelessRules[].RuleDefinition.MatchAttributes.DestinationPorts[].FromPort",
+          "expected_value": 0,
+          "operator": "greater_than"
+        },
+        {
+          "field_path": "StatelessRulesAndCustomActions.StatelessRules[].RuleDefinition.MatchAttributes.SourcePorts[].FromPort",
+          "expected_value": 0,
+          "operator": "greater_than"
+        },
+        {
+          "field_path": "StatelessRulesAndCustomActions.StatelessRules[].RuleDefinition.MatchAttributes.Protocols[]",
+          "expected_value": null,
+          "operator": "exists"
+        }
+      ]
+    },
+    {
+      "rule_id": "aws.networkfirewall.in.all_vpc_configured",
+      "python_method": "describe_firewall_policies",
+      "response_path": "FirewallPolicies[]",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "FirewallPolicy.StatelessRuleGroupReferences",
+          "expected_value": null,
+          "operator": "exists"
+        },
+        {
+          "field_path": "FirewallPolicy.StatefulRuleGroupReferences",
+          "expected_value": null,
+          "operator": "exists"
+        }
+      ]
+    }
+  ]
+}

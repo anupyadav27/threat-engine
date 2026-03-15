@@ -1,0 +1,30 @@
+version: '1.0'
+provider: aws
+service: kafka
+checks:
+- rule_id: aws.kafka.resource.connector_in_transit_encryption_enabled
+  for_each: aws.kafka.describe_cluster
+  conditions:
+    all:
+    - var: item.EncryptionInfo.EncryptionInTransit.ClientBroker
+      op: equals
+      value: TLS
+    - var: item.EncryptionInfo.EncryptionInTransit.InCluster
+      op: equals
+      value: 'true'
+- rule_id: aws.kafka.cluster.in_transit_encryption_enabled
+  for_each: aws.kafka.describe_cluster
+  conditions:
+    all:
+    - var: item.EncryptionInfo.EncryptionInTransit.InCluster
+      op: equals
+      value: 'true'
+    - var: item.EncryptionInfo.EncryptionInTransit.ClientBroker
+      op: equals
+      value: TLS
+- rule_id: aws.kafka.cluster.encryption_at_rest_uses_cmk_configured
+  for_each: aws.kafka.describe_cluster
+  conditions:
+    var: item.EncryptionInfo.EncryptionAtRest.DataVolumeKMSKeyId
+    op: exists
+    value: null

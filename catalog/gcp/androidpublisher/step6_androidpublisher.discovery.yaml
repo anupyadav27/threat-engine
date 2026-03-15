@@ -1,0 +1,950 @@
+# ============================================================
+# Discovery YAML — androidpublisher (v3)
+# Generated: 2026-02-21T03:06:38Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 43 | independent: 1 | dependent: 42
+# ops with fields: 41/43 | dep ops with chain: 27/42
+# ============================================================
+version: '1.0'
+provider: gcp
+service: androidpublisher
+
+services:
+  client: androidpublisher
+  module: "googleapiclient.discovery.build('androidpublisher', 'v3')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists all users with access to a developer account.
+  # ── gcp.androidpublisher.users.list ──
+  - discovery_id: gcp.androidpublisher.users.list
+    # python: svc.users().list(**params).execute()
+    calls:
+      - action: users.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.users }}'
+      item:
+        accessState: '{{ item.accessState }}'
+        developerAccountPermissions: '{{ item.developerAccountPermissions }}'
+        email: '{{ item.email }}'
+        expirationTime: '{{ item.expirationTime }}'
+        grants: '{{ item.grants }}'
+        name: '{{ item.name }}'
+        partial: '{{ item.partial }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Returns a particular device tier config.
+  # ── gcp.androidpublisher.applications.deviceTierConfigs.get [dependent] ──
+  - discovery_id: gcp.androidpublisher.applications.deviceTierConfigs.get
+    for_each: gcp.androidpublisher.applications.deviceTierConfigs.list
+    # python: svc.applications().deviceTierConfigs().get(**params).execute()
+    calls:
+      - action: applications.deviceTierConfigs.get
+        params:
+          deviceTierConfigId: '{{ item.deviceTierConfigId }}'
+          packageName: '{{ item.packageName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        deviceGroups: '{{ response.deviceGroups }}'
+        deviceTierConfigId: '{{ response.deviceTierConfigId }}'
+        deviceTierSet: '{{ response.deviceTierSet }}'
+        userCountrySets: '{{ response.userCountrySets }}'
+    # required_params: ['packageName', 'deviceTierConfigId']
+  # Returns created device tier configs, ordered by descending creation time.
+  # ── gcp.androidpublisher.applications.deviceTierConfigs.list [dependent] ──
+  - discovery_id: gcp.androidpublisher.applications.deviceTierConfigs.list
+    for_each: gcp.androidpublisher.inappproducts.list
+    # python: svc.applications().deviceTierConfigs().list(**params).execute()
+    calls:
+      - action: applications.deviceTierConfigs.list
+        params:
+          packageName: '{{ item.packageName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.deviceTierConfigs }}'
+      item:
+        deviceGroups: '{{ item.deviceGroups }}'
+        deviceTierConfigId: '{{ item.deviceTierConfigId }}'
+        deviceTierSet: '{{ item.deviceTierSet }}'
+        userCountrySets: '{{ item.userCountrySets }}'
+    # required_params: ['packageName']
+  # List all app recovery action resources associated with a particular package name and app version.
+  # ── gcp.androidpublisher.apprecovery.list [dependent] ──
+  - discovery_id: gcp.androidpublisher.apprecovery.list
+    for_each: gcp.androidpublisher.inappproducts.list
+    # python: svc.apprecovery().list(**params).execute()
+    calls:
+      - action: apprecovery.list
+        params:
+          packageName: '{{ item.packageName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.apprecovery }}'
+      item:
+        appRecoveryId: '{{ item.appRecoveryId }}'
+        cancelTime: '{{ item.cancelTime }}'
+        createTime: '{{ item.createTime }}'
+        deployTime: '{{ item.deployTime }}'
+        lastUpdateTime: '{{ item.lastUpdateTime }}'
+        remoteInAppUpdateData: '{{ item.remoteInAppUpdateData }}'
+        status: '{{ item.status }}'
+        targeting: '{{ item.targeting }}'
+    # required_params: ['packageName']
+  # Lists all current APKs of the app and edit.
+  # ── gcp.androidpublisher.edits.apks.list [dependent] ──
+  - discovery_id: gcp.androidpublisher.edits.apks.list
+    # python: svc.edits().apks().list(**params).execute()
+    calls:
+      - action: edits.apks.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.apks }}'
+      item:
+        binary: '{{ item.binary }}'
+        versionCode: '{{ item.versionCode }}'
+    # required_params: ['packageName', 'editId']
+  # Lists all current Android App Bundles of the app and edit.
+  # ── gcp.androidpublisher.edits.bundles.list [dependent] ──
+  - discovery_id: gcp.androidpublisher.edits.bundles.list
+    # python: svc.edits().bundles().list(**params).execute()
+    calls:
+      - action: edits.bundles.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.bundles }}'
+      item:
+        sha1: '{{ item.sha1 }}'
+        sha256: '{{ item.sha256 }}'
+        versionCode: '{{ item.versionCode }}'
+    # required_params: ['packageName', 'editId']
+  # Gets country availability.
+  # ── gcp.androidpublisher.edits.countryavailability.get [dependent] ──
+  - discovery_id: gcp.androidpublisher.edits.countryavailability.get
+    # python: svc.edits().countryavailability().get(**params).execute()
+    calls:
+      - action: edits.countryavailability.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        countries: '{{ response.countries }}'
+        restOfWorld: '{{ response.restOfWorld }}'
+        syncWithProduction: '{{ response.syncWithProduction }}'
+    # required_params: ['packageName', 'editId', 'track']
+  # Gets details of an app.
+  # ── gcp.androidpublisher.edits.details.get [dependent] ──
+  - discovery_id: gcp.androidpublisher.edits.details.get
+    # python: svc.edits().details().get(**params).execute()
+    calls:
+      - action: edits.details.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        contactEmail: '{{ response.contactEmail }}'
+        contactPhone: '{{ response.contactPhone }}'
+        contactWebsite: '{{ response.contactWebsite }}'
+        defaultLanguage: '{{ response.defaultLanguage }}'
+    # required_params: ['packageName', 'editId']
+  # Fetches the expansion file configuration for the specified APK.
+  # ── gcp.androidpublisher.edits.expansionfiles.get [dependent] ──
+  - discovery_id: gcp.androidpublisher.edits.expansionfiles.get
+    # python: svc.edits().expansionfiles().get(**params).execute()
+    calls:
+      - action: edits.expansionfiles.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        fileSize: '{{ response.fileSize }}'
+        referencesVersion: '{{ response.referencesVersion }}'
+    # required_params: ['packageName', 'editId', 'apkVersionCode', 'expansionFileType']
+  # Gets an app edit.
+  # ── gcp.androidpublisher.edits.get [dependent] ──
+  - discovery_id: gcp.androidpublisher.edits.get
+    # python: svc.edits().get(**params).execute()
+    calls:
+      - action: edits.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        expiryTimeSeconds: '{{ response.expiryTimeSeconds }}'
+        id: '{{ response.id }}'
+    # required_params: ['packageName', 'editId']
+  # Lists all images. The response may be empty.
+  # ── gcp.androidpublisher.edits.images.list [dependent] ──
+  - discovery_id: gcp.androidpublisher.edits.images.list
+    # python: svc.edits().images().list(**params).execute()
+    calls:
+      - action: edits.images.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.images }}'
+      item:
+        id: '{{ item.id }}'
+        sha1: '{{ item.sha1 }}'
+        sha256: '{{ item.sha256 }}'
+        url: '{{ item.url }}'
+    # required_params: ['packageName', 'editId', 'language', 'imageType']
+  # Gets a localized store listing.
+  # ── gcp.androidpublisher.edits.listings.get [dependent] ──
+  - discovery_id: gcp.androidpublisher.edits.listings.get
+    # python: svc.edits().listings().get(**params).execute()
+    calls:
+      - action: edits.listings.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        fullDescription: '{{ response.fullDescription }}'
+        language: '{{ response.language }}'
+        shortDescription: '{{ response.shortDescription }}'
+        title: '{{ response.title }}'
+        video: '{{ response.video }}'
+    # required_params: ['packageName', 'editId', 'language']
+  # Lists all localized store listings.
+  # ── gcp.androidpublisher.edits.listings.list [dependent] ──
+  - discovery_id: gcp.androidpublisher.edits.listings.list
+    # python: svc.edits().listings().list(**params).execute()
+    calls:
+      - action: edits.listings.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.listings }}'
+      item:
+        fullDescription: '{{ item.fullDescription }}'
+        language: '{{ item.language }}'
+        shortDescription: '{{ item.shortDescription }}'
+        title: '{{ item.title }}'
+        video: '{{ item.video }}'
+    # required_params: ['packageName', 'editId']
+  # Gets testers. Note: Testers resource does not support email lists.
+  # ── gcp.androidpublisher.edits.testers.get [dependent] ──
+  - discovery_id: gcp.androidpublisher.edits.testers.get
+    # python: svc.edits().testers().get(**params).execute()
+    calls:
+      - action: edits.testers.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        googleGroups: '{{ response.googleGroups }}'
+    # required_params: ['packageName', 'editId', 'track']
+  # Gets a track.
+  # ── gcp.androidpublisher.edits.tracks.get [dependent] ──
+  - discovery_id: gcp.androidpublisher.edits.tracks.get
+    # python: svc.edits().tracks().get(**params).execute()
+    calls:
+      - action: edits.tracks.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        releases: '{{ response.releases }}'
+        track: '{{ response.track }}'
+    # required_params: ['packageName', 'editId', 'track']
+  # Lists all tracks.
+  # ── gcp.androidpublisher.edits.tracks.list [dependent] ──
+  - discovery_id: gcp.androidpublisher.edits.tracks.list
+    # python: svc.edits().tracks().list(**params).execute()
+    calls:
+      - action: edits.tracks.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.tracks }}'
+      item:
+        releases: '{{ item.releases }}'
+        track: '{{ item.track }}'
+    # required_params: ['packageName', 'editId']
+  # Gets an existing external transaction.
+  # ── gcp.androidpublisher.externaltransactions.getexternaltransaction [dependent] ──
+  - discovery_id: gcp.androidpublisher.externaltransactions.getexternaltransaction
+    # python: svc.externaltransactions().getexternaltransaction(**params).execute()
+    calls:
+      - action: externaltransactions.getexternaltransaction
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        createTime: '{{ response.createTime }}'
+        currentPreTaxAmount: '{{ response.currentPreTaxAmount }}'
+        currentTaxAmount: '{{ response.currentTaxAmount }}'
+        externalOfferDetails: '{{ response.externalOfferDetails }}'
+        externalTransactionId: '{{ response.externalTransactionId }}'
+        oneTimeTransaction: '{{ response.oneTimeTransaction }}'
+        originalPreTaxAmount: '{{ response.originalPreTaxAmount }}'
+        originalTaxAmount: '{{ response.originalTaxAmount }}'
+        packageName: '{{ response.packageName }}'
+        recurringTransaction: '{{ response.recurringTransaction }}'
+        testPurchase: '{{ response.testPurchase }}'
+        transactionProgramCode: '{{ response.transactionProgramCode }}'
+        transactionState: '{{ response.transactionState }}'
+        transactionTime: '{{ response.transactionTime }}'
+        userTaxAddress: '{{ response.userTaxAddress }}'
+    # required_params: ['name']
+  # Downloads a single signed APK generated from an app bundle.
+  # ── gcp.androidpublisher.generatedapks.download [dependent] ──
+  - discovery_id: gcp.androidpublisher.generatedapks.download
+    # python: svc.generatedapks().download(**params).execute()
+    calls:
+      - action: generatedapks.download
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+    # required_params: ['packageName', 'versionCode', 'downloadId']
+  # Returns download metadata for all APKs that were generated from a given app bundle.
+  # ── gcp.androidpublisher.generatedapks.list [dependent] ──
+  - discovery_id: gcp.androidpublisher.generatedapks.list
+    for_each: gcp.androidpublisher.edits.apks.list
+    # python: svc.generatedapks().list(**params).execute()
+    calls:
+      - action: generatedapks.list
+        params:
+          packageName: '{{ item.packageName }}'
+          versionCode: '{{ item.binary }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.generatedapks }}'
+      item:
+        certificateSha256Hash: '{{ item.certificateSha256Hash }}'
+        generatedAssetPackSlices: '{{ item.generatedAssetPackSlices }}'
+        generatedRecoveryModules: '{{ item.generatedRecoveryModules }}'
+        generatedSplitApks: '{{ item.generatedSplitApks }}'
+        generatedStandaloneApks: '{{ item.generatedStandaloneApks }}'
+        generatedUniversalApk: '{{ item.generatedUniversalApk }}'
+        targetingInfo: '{{ item.targetingInfo }}'
+    # required_params: ['packageName', 'versionCode']
+  # Reads multiple in-app products, which can be managed products or subscriptions. This method should n
+  # ── gcp.androidpublisher.inappproducts.batchGet [dependent] ──
+  - discovery_id: gcp.androidpublisher.inappproducts.batchGet
+    for_each: gcp.androidpublisher.inappproducts.list
+    # python: svc.inappproducts().batchGet(**params).execute()
+    calls:
+      - action: inappproducts.batchGet
+        params:
+          packageName: '{{ item.packageName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        inappproduct: '{{ response.inappproduct }}'
+    # required_params: ['packageName']
+  # Gets an in-app product, which can be a managed product or a subscription. This method should no long
+  # ── gcp.androidpublisher.inappproducts.get [dependent] ──
+  - discovery_id: gcp.androidpublisher.inappproducts.get
+    for_each: gcp.androidpublisher.inappproducts.list
+    # python: svc.inappproducts().get(**params).execute()
+    calls:
+      - action: inappproducts.get
+        params:
+          packageName: '{{ item.packageName }}'
+          sku: '{{ item.packageName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        defaultLanguage: '{{ response.defaultLanguage }}'
+        defaultPrice: '{{ response.defaultPrice }}'
+        gracePeriod: '{{ response.gracePeriod }}'
+        listings: '{{ response.listings }}'
+        managedProductTaxesAndComplianceSettings: '{{ response.managedProductTaxesAndComplianceSettings }}'
+        packageName: '{{ response.packageName }}'
+        prices: '{{ response.prices }}'
+        purchaseType: '{{ response.purchaseType }}'
+        sku: '{{ response.sku }}'
+        status: '{{ response.status }}'
+        subscriptionPeriod: '{{ response.subscriptionPeriod }}'
+        subscriptionTaxesAndComplianceSettings: '{{ response.subscriptionTaxesAndComplianceSettings }}'
+        trialPeriod: '{{ response.trialPeriod }}'
+    # required_params: ['packageName', 'sku']
+  # Lists all in-app products - both managed products and subscriptions. If an app has a large number of
+  # ── gcp.androidpublisher.inappproducts.list [dependent] ──
+  - discovery_id: gcp.androidpublisher.inappproducts.list
+    # python: svc.inappproducts().list(**params).execute()
+    calls:
+      - action: inappproducts.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.inappproducts }}'
+      item:
+        defaultLanguage: '{{ item.defaultLanguage }}'
+        defaultPrice: '{{ item.defaultPrice }}'
+        gracePeriod: '{{ item.gracePeriod }}'
+        listings: '{{ item.listings }}'
+        managedProductTaxesAndComplianceSettings: '{{ item.managedProductTaxesAndComplianceSettings }}'
+        packageName: '{{ item.packageName }}'
+        prices: '{{ item.prices }}'
+        purchaseType: '{{ item.purchaseType }}'
+        sku: '{{ item.sku }}'
+        status: '{{ item.status }}'
+        subscriptionPeriod: '{{ item.subscriptionPeriod }}'
+        subscriptionTaxesAndComplianceSettings: '{{ item.subscriptionTaxesAndComplianceSettings }}'
+        trialPeriod: '{{ item.trialPeriod }}'
+    # required_params: ['packageName']
+  # Reads one or more one-time products.
+  # ── gcp.androidpublisher.monetization.onetimeproducts.batchGet [dependent] ──
+  - discovery_id: gcp.androidpublisher.monetization.onetimeproducts.batchGet
+    for_each: gcp.androidpublisher.inappproducts.list
+    # python: svc.monetization().onetimeproducts().batchGet(**params).execute()
+    calls:
+      - action: monetization.onetimeproducts.batchGet
+        params:
+          packageName: '{{ item.packageName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        oneTimeProducts: '{{ response.oneTimeProducts }}'
+    # required_params: ['packageName']
+  # Reads a single one-time product.
+  # ── gcp.androidpublisher.monetization.onetimeproducts.get [dependent] ──
+  - discovery_id: gcp.androidpublisher.monetization.onetimeproducts.get
+    for_each: gcp.androidpublisher.inappproducts.list
+    # python: svc.monetization().onetimeproducts().get(**params).execute()
+    calls:
+      - action: monetization.onetimeproducts.get
+        params:
+          packageName: '{{ item.packageName }}'
+          productId: '{{ item.packageName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        listings: '{{ response.listings }}'
+        offerTags: '{{ response.offerTags }}'
+        packageName: '{{ response.packageName }}'
+        productId: '{{ response.productId }}'
+        purchaseOptions: '{{ response.purchaseOptions }}'
+        regionsVersion: '{{ response.regionsVersion }}'
+        restrictedPaymentCountries: '{{ response.restrictedPaymentCountries }}'
+        taxAndComplianceSettings: '{{ response.taxAndComplianceSettings }}'
+    # required_params: ['packageName', 'productId']
+  # Lists all one-time products under a given app.
+  # ── gcp.androidpublisher.monetization.onetimeproducts.list [dependent] ──
+  - discovery_id: gcp.androidpublisher.monetization.onetimeproducts.list
+    for_each: gcp.androidpublisher.inappproducts.list
+    # python: svc.monetization().onetimeproducts().list(**params).execute()
+    calls:
+      - action: monetization.onetimeproducts.list
+        params:
+          packageName: '{{ item.packageName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.onetimeproducts }}'
+      item:
+        listings: '{{ item.listings }}'
+        offerTags: '{{ item.offerTags }}'
+        packageName: '{{ item.packageName }}'
+        productId: '{{ item.productId }}'
+        purchaseOptions: '{{ item.purchaseOptions }}'
+        regionsVersion: '{{ item.regionsVersion }}'
+        restrictedPaymentCountries: '{{ item.restrictedPaymentCountries }}'
+        taxAndComplianceSettings: '{{ item.taxAndComplianceSettings }}'
+    # required_params: ['packageName']
+  # Lists all offers under a given app, product, or purchase option.
+  # ── gcp.androidpublisher.monetization.onetimeproducts.purchaseOptions.offers.list [dependent] ──
+  - discovery_id: gcp.androidpublisher.monetization.onetimeproducts.purchaseOptions.offers.list
+    for_each: gcp.androidpublisher.monetization.onetimeproducts.list
+    # python: svc.monetization().onetimeproducts().purchaseOptions().offers().list(**params).execute()
+    calls:
+      - action: monetization.onetimeproducts.purchaseOptions.offers.list
+        params:
+          packageName: '{{ item.packageName }}'
+          productId: '{{ item.packageName }}'
+          purchaseOptionId: '{{ item.packageName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.offers }}'
+      item:
+        discountedOffer: '{{ item.discountedOffer }}'
+        offerId: '{{ item.offerId }}'
+        offerTags: '{{ item.offerTags }}'
+        packageName: '{{ item.packageName }}'
+        preOrderOffer: '{{ item.preOrderOffer }}'
+        productId: '{{ item.productId }}'
+        purchaseOptionId: '{{ item.purchaseOptionId }}'
+        regionalPricingAndAvailabilityConfigs: '{{ item.regionalPricingAndAvailabilityConfigs }}'
+        regionsVersion: '{{ item.regionsVersion }}'
+        state: '{{ item.state }}'
+    # required_params: ['packageName', 'productId', 'purchaseOptionId']
+  # Reads a single offer
+  # ── gcp.androidpublisher.monetization.subscriptions.basePlans.offers.get [dependent] ──
+  - discovery_id: gcp.androidpublisher.monetization.subscriptions.basePlans.offers.get
+    for_each: gcp.androidpublisher.monetization.onetimeproducts.purchaseOptions.offers.list
+    # python: svc.monetization().subscriptions().basePlans().offers().get(**params).execute()
+    calls:
+      - action: monetization.subscriptions.basePlans.offers.get
+        params:
+          basePlanId: '{{ item.packageName }}'
+          offerId: '{{ item.packageName }}'
+          packageName: '{{ item.packageName }}'
+          productId: '{{ item.packageName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        basePlanId: '{{ response.basePlanId }}'
+        offerId: '{{ response.offerId }}'
+        offerTags: '{{ response.offerTags }}'
+        otherRegionsConfig: '{{ response.otherRegionsConfig }}'
+        packageName: '{{ response.packageName }}'
+        phases: '{{ response.phases }}'
+        productId: '{{ response.productId }}'
+        regionalConfigs: '{{ response.regionalConfigs }}'
+        state: '{{ response.state }}'
+        targeting: '{{ response.targeting }}'
+    # required_params: ['packageName', 'productId', 'basePlanId', 'offerId']
+  # Lists all offers under a given subscription.
+  # ── gcp.androidpublisher.monetization.subscriptions.basePlans.offers.list [dependent] ──
+  - discovery_id: gcp.androidpublisher.monetization.subscriptions.basePlans.offers.list
+    for_each: gcp.androidpublisher.monetization.subscriptions.list
+    # python: svc.monetization().subscriptions().basePlans().offers().list(**params).execute()
+    calls:
+      - action: monetization.subscriptions.basePlans.offers.list
+        params:
+          basePlanId: '{{ item.packageName }}'
+          packageName: '{{ item.packageName }}'
+          productId: '{{ item.packageName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.offers }}'
+      item:
+        basePlanId: '{{ item.basePlanId }}'
+        offerId: '{{ item.offerId }}'
+        offerTags: '{{ item.offerTags }}'
+        otherRegionsConfig: '{{ item.otherRegionsConfig }}'
+        packageName: '{{ item.packageName }}'
+        phases: '{{ item.phases }}'
+        productId: '{{ item.productId }}'
+        regionalConfigs: '{{ item.regionalConfigs }}'
+        state: '{{ item.state }}'
+        targeting: '{{ item.targeting }}'
+    # required_params: ['packageName', 'productId', 'basePlanId']
+  # Reads one or more subscriptions.
+  # ── gcp.androidpublisher.monetization.subscriptions.batchGet [dependent] ──
+  - discovery_id: gcp.androidpublisher.monetization.subscriptions.batchGet
+    for_each: gcp.androidpublisher.inappproducts.list
+    # python: svc.monetization().subscriptions().batchGet(**params).execute()
+    calls:
+      - action: monetization.subscriptions.batchGet
+        params:
+          packageName: '{{ item.packageName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        subscriptions: '{{ response.subscriptions }}'
+    # required_params: ['packageName']
+  # Reads a single subscription.
+  # ── gcp.androidpublisher.monetization.subscriptions.get [dependent] ──
+  - discovery_id: gcp.androidpublisher.monetization.subscriptions.get
+    for_each: gcp.androidpublisher.inappproducts.list
+    # python: svc.monetization().subscriptions().get(**params).execute()
+    calls:
+      - action: monetization.subscriptions.get
+        params:
+          packageName: '{{ item.packageName }}'
+          productId: '{{ item.packageName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        archived: '{{ response.archived }}'
+        basePlans: '{{ response.basePlans }}'
+        listings: '{{ response.listings }}'
+        packageName: '{{ response.packageName }}'
+        productId: '{{ response.productId }}'
+        restrictedPaymentCountries: '{{ response.restrictedPaymentCountries }}'
+        taxAndComplianceSettings: '{{ response.taxAndComplianceSettings }}'
+    # required_params: ['packageName', 'productId']
+  # Lists all subscriptions under a given app.
+  # ── gcp.androidpublisher.monetization.subscriptions.list [dependent] ──
+  - discovery_id: gcp.androidpublisher.monetization.subscriptions.list
+    for_each: gcp.androidpublisher.inappproducts.list
+    # python: svc.monetization().subscriptions().list(**params).execute()
+    calls:
+      - action: monetization.subscriptions.list
+        params:
+          packageName: '{{ item.packageName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.subscriptions }}'
+      item:
+        archived: '{{ item.archived }}'
+        basePlans: '{{ item.basePlans }}'
+        listings: '{{ item.listings }}'
+        packageName: '{{ item.packageName }}'
+        productId: '{{ item.productId }}'
+        restrictedPaymentCountries: '{{ item.restrictedPaymentCountries }}'
+        taxAndComplianceSettings: '{{ item.taxAndComplianceSettings }}'
+    # required_params: ['packageName']
+  # Get order details for a list of orders.
+  # ── gcp.androidpublisher.orders.batchget [dependent] ──
+  - discovery_id: gcp.androidpublisher.orders.batchget
+    for_each: gcp.androidpublisher.inappproducts.list
+    # python: svc.orders().batchget(**params).execute()
+    calls:
+      - action: orders.batchget
+        params:
+          packageName: '{{ item.packageName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        orders: '{{ response.orders }}'
+    # required_params: ['packageName']
+  # Get order details for a single order.
+  # ── gcp.androidpublisher.orders.get [dependent] ──
+  - discovery_id: gcp.androidpublisher.orders.get
+    for_each: gcp.androidpublisher.purchases.voidedpurchases.list
+    # python: svc.orders().get(**params).execute()
+    calls:
+      - action: orders.get
+        params:
+          orderId: '{{ item.kind }}'
+          packageName: '{{ item.packageName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        buyerAddress: '{{ response.buyerAddress }}'
+        createTime: '{{ response.createTime }}'
+        developerRevenueInBuyerCurrency: '{{ response.developerRevenueInBuyerCurrency }}'
+        lastEventTime: '{{ response.lastEventTime }}'
+        lineItems: '{{ response.lineItems }}'
+        orderDetails: '{{ response.orderDetails }}'
+        orderHistory: '{{ response.orderHistory }}'
+        orderId: '{{ response.orderId }}'
+        pointsDetails: '{{ response.pointsDetails }}'
+        purchaseToken: '{{ response.purchaseToken }}'
+        salesChannel: '{{ response.salesChannel }}'
+        state: '{{ response.state }}'
+        tax: '{{ response.tax }}'
+        total: '{{ response.total }}'
+    # required_params: ['packageName', 'orderId']
+  # Checks the purchase and consumption status of an inapp item.
+  # ── gcp.androidpublisher.purchases.products.get [dependent] ──
+  - discovery_id: gcp.androidpublisher.purchases.products.get
+    for_each: gcp.androidpublisher.purchases.voidedpurchases.list
+    # python: svc.purchases().products().get(**params).execute()
+    calls:
+      - action: purchases.products.get
+        params:
+          packageName: '{{ item.packageName }}'
+          productId: '{{ item.packageName }}'
+          token: '{{ item.kind }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        acknowledgementState: '{{ response.acknowledgementState }}'
+        consumptionState: '{{ response.consumptionState }}'
+        developerPayload: '{{ response.developerPayload }}'
+        obfuscatedExternalAccountId: '{{ response.obfuscatedExternalAccountId }}'
+        obfuscatedExternalProfileId: '{{ response.obfuscatedExternalProfileId }}'
+        orderId: '{{ response.orderId }}'
+        productId: '{{ response.productId }}'
+        purchaseState: '{{ response.purchaseState }}'
+        purchaseTimeMillis: '{{ response.purchaseTimeMillis }}'
+        purchaseToken: '{{ response.purchaseToken }}'
+        purchaseType: '{{ response.purchaseType }}'
+        quantity: '{{ response.quantity }}'
+        refundableQuantity: '{{ response.refundableQuantity }}'
+        regionCode: '{{ response.regionCode }}'
+    # required_params: ['packageName', 'productId', 'token']
+  # Checks the purchase and consumption status of an inapp item.
+  # ── gcp.androidpublisher.purchases.productsv2.getproductpurchasev2 [dependent] ──
+  - discovery_id: gcp.androidpublisher.purchases.productsv2.getproductpurchasev2
+    for_each: gcp.androidpublisher.purchases.voidedpurchases.list
+    # python: svc.purchases().productsv2().getproductpurchasev2(**params).execute()
+    calls:
+      - action: purchases.productsv2.getproductpurchasev2
+        params:
+          packageName: '{{ item.packageName }}'
+          token: '{{ item.kind }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        acknowledgementState: '{{ response.acknowledgementState }}'
+        obfuscatedExternalAccountId: '{{ response.obfuscatedExternalAccountId }}'
+        obfuscatedExternalProfileId: '{{ response.obfuscatedExternalProfileId }}'
+        orderId: '{{ response.orderId }}'
+        productLineItem: '{{ response.productLineItem }}'
+        purchaseCompletionTime: '{{ response.purchaseCompletionTime }}'
+        purchaseStateContext: '{{ response.purchaseStateContext }}'
+        regionCode: '{{ response.regionCode }}'
+        testPurchaseContext: '{{ response.testPurchaseContext }}'
+    # required_params: ['packageName', 'token']
+  # Deprecated: Use purchases.subscriptionsv2.get instead. Checks whether a user's subscription purchase
+  # ── gcp.androidpublisher.purchases.subscriptions.get [dependent] ──
+  - discovery_id: gcp.androidpublisher.purchases.subscriptions.get
+    for_each: gcp.androidpublisher.purchases.voidedpurchases.list
+    # python: svc.purchases().subscriptions().get(**params).execute()
+    calls:
+      - action: purchases.subscriptions.get
+        params:
+          packageName: '{{ item.packageName }}'
+          subscriptionId: '{{ item.packageName }}'
+          token: '{{ item.kind }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        acknowledgementState: '{{ response.acknowledgementState }}'
+        autoRenewing: '{{ response.autoRenewing }}'
+        autoResumeTimeMillis: '{{ response.autoResumeTimeMillis }}'
+        cancelReason: '{{ response.cancelReason }}'
+        cancelSurveyResult: '{{ response.cancelSurveyResult }}'
+        countryCode: '{{ response.countryCode }}'
+        developerPayload: '{{ response.developerPayload }}'
+        emailAddress: '{{ response.emailAddress }}'
+        expiryTimeMillis: '{{ response.expiryTimeMillis }}'
+        externalAccountId: '{{ response.externalAccountId }}'
+        familyName: '{{ response.familyName }}'
+        givenName: '{{ response.givenName }}'
+        introductoryPriceInfo: '{{ response.introductoryPriceInfo }}'
+        linkedPurchaseToken: '{{ response.linkedPurchaseToken }}'
+        obfuscatedExternalAccountId: '{{ response.obfuscatedExternalAccountId }}'
+        obfuscatedExternalProfileId: '{{ response.obfuscatedExternalProfileId }}'
+        orderId: '{{ response.orderId }}'
+        paymentState: '{{ response.paymentState }}'
+        priceAmountMicros: '{{ response.priceAmountMicros }}'
+        priceChange: '{{ response.priceChange }}'
+        priceCurrencyCode: '{{ response.priceCurrencyCode }}'
+        profileId: '{{ response.profileId }}'
+        profileName: '{{ response.profileName }}'
+        promotionCode: '{{ response.promotionCode }}'
+        promotionType: '{{ response.promotionType }}'
+        purchaseType: '{{ response.purchaseType }}'
+        startTimeMillis: '{{ response.startTimeMillis }}'
+        userCancellationTimeMillis: '{{ response.userCancellationTimeMillis }}'
+    # required_params: ['packageName', 'subscriptionId', 'token']
+  # Get metadata about a subscription
+  # ── gcp.androidpublisher.purchases.subscriptionsv2.get [dependent] ──
+  - discovery_id: gcp.androidpublisher.purchases.subscriptionsv2.get
+    for_each: gcp.androidpublisher.purchases.voidedpurchases.list
+    # python: svc.purchases().subscriptionsv2().get(**params).execute()
+    calls:
+      - action: purchases.subscriptionsv2.get
+        params:
+          packageName: '{{ item.packageName }}'
+          token: '{{ item.kind }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        acknowledgementState: '{{ response.acknowledgementState }}'
+        canceledStateContext: '{{ response.canceledStateContext }}'
+        externalAccountIdentifiers: '{{ response.externalAccountIdentifiers }}'
+        latestOrderId: '{{ response.latestOrderId }}'
+        lineItems: '{{ response.lineItems }}'
+        linkedPurchaseToken: '{{ response.linkedPurchaseToken }}'
+        outOfAppPurchaseContext: '{{ response.outOfAppPurchaseContext }}'
+        pausedStateContext: '{{ response.pausedStateContext }}'
+        regionCode: '{{ response.regionCode }}'
+        startTime: '{{ response.startTime }}'
+        subscribeWithGoogleInfo: '{{ response.subscribeWithGoogleInfo }}'
+        subscriptionState: '{{ response.subscriptionState }}'
+        testPurchase: '{{ response.testPurchase }}'
+    # required_params: ['packageName', 'token']
+  # Lists the purchases that were canceled, refunded or charged-back.
+  # ── gcp.androidpublisher.purchases.voidedpurchases.list [dependent] ──
+  - discovery_id: gcp.androidpublisher.purchases.voidedpurchases.list
+    for_each: gcp.androidpublisher.inappproducts.list
+    # python: svc.purchases().voidedpurchases().list(**params).execute()
+    calls:
+      - action: purchases.voidedpurchases.list
+        params:
+          packageName: '{{ item.packageName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.voidedpurchases }}'
+      item:
+        orderId: '{{ item.orderId }}'
+        purchaseTimeMillis: '{{ item.purchaseTimeMillis }}'
+        purchaseToken: '{{ item.purchaseToken }}'
+        voidedQuantity: '{{ item.voidedQuantity }}'
+        voidedReason: '{{ item.voidedReason }}'
+        voidedSource: '{{ item.voidedSource }}'
+        voidedTimeMillis: '{{ item.voidedTimeMillis }}'
+    # required_params: ['packageName']
+  # Gets a single review.
+  # ── gcp.androidpublisher.reviews.get [dependent] ──
+  - discovery_id: gcp.androidpublisher.reviews.get
+    for_each: gcp.androidpublisher.reviews.list
+    # python: svc.reviews().get(**params).execute()
+    calls:
+      - action: reviews.get
+        params:
+          packageName: '{{ item.packageName }}'
+          reviewId: '{{ item.reviewId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        authorName: '{{ response.authorName }}'
+        comments: '{{ response.comments }}'
+        reviewId: '{{ response.reviewId }}'
+    # required_params: ['packageName', 'reviewId']
+  # Lists all reviews.
+  # ── gcp.androidpublisher.reviews.list [dependent] ──
+  - discovery_id: gcp.androidpublisher.reviews.list
+    for_each: gcp.androidpublisher.inappproducts.list
+    # python: svc.reviews().list(**params).execute()
+    calls:
+      - action: reviews.list
+        params:
+          packageName: '{{ item.packageName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.reviews }}'
+      item:
+        authorName: '{{ item.authorName }}'
+        comments: '{{ item.comments }}'
+        reviewId: '{{ item.reviewId }}'
+    # required_params: ['packageName']
+  # Downloads a previously created system APK which is suitable for inclusion in a system image.
+  # ── gcp.androidpublisher.systemapks.variants.download [dependent] ──
+  - discovery_id: gcp.androidpublisher.systemapks.variants.download
+    for_each: gcp.androidpublisher.systemapks.variants.list
+    # python: svc.systemapks().variants().download(**params).execute()
+    calls:
+      - action: systemapks.variants.download
+        params:
+          packageName: '{{ item.packageName }}'
+          variantId: '{{ item.deviceSpec }}'
+          versionCode: '{{ item.binary }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+    # required_params: ['packageName', 'versionCode', 'variantId']
+  # Returns a previously created system APK variant.
+  # ── gcp.androidpublisher.systemapks.variants.get [dependent] ──
+  - discovery_id: gcp.androidpublisher.systemapks.variants.get
+    for_each: gcp.androidpublisher.systemapks.variants.list
+    # python: svc.systemapks().variants().get(**params).execute()
+    calls:
+      - action: systemapks.variants.get
+        params:
+          packageName: '{{ item.packageName }}'
+          variantId: '{{ item.deviceSpec }}'
+          versionCode: '{{ item.binary }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        deviceSpec: '{{ response.deviceSpec }}'
+        options: '{{ response.options }}'
+        variantId: '{{ response.variantId }}'
+    # required_params: ['packageName', 'versionCode', 'variantId']
+  # Returns the list of previously created system APK variants.
+  # ── gcp.androidpublisher.systemapks.variants.list [dependent] ──
+  - discovery_id: gcp.androidpublisher.systemapks.variants.list
+    for_each: gcp.androidpublisher.edits.apks.list
+    # python: svc.systemapks().variants().list(**params).execute()
+    calls:
+      - action: systemapks.variants.list
+        params:
+          packageName: '{{ item.packageName }}'
+          versionCode: '{{ item.binary }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.variants }}'
+      item:
+        deviceSpec: '{{ item.deviceSpec }}'
+        options: '{{ item.options }}'
+        variantId: '{{ item.variantId }}'
+    # required_params: ['packageName', 'versionCode']

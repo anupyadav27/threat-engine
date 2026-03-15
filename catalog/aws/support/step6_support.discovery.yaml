@@ -1,0 +1,199 @@
+# ============================================================
+# Discovery YAML — support (AWS)
+# Generated: 2026-02-21T04:57:00Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: support
+services:
+  client: support
+  module: boto3.client
+discovery:
+  # ── DescribeCases ──
+  - discovery_id: aws.support.describe_cases
+    calls:
+      - action: describe_cases
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.cases }}'
+      item:
+        attachmentSet: '{{ item.attachmentSet }}'
+        body: '{{ item.body }}'
+        caseId: '{{ item.caseId }}'
+        cases: '{{ item.cases }}'
+        categoryCode: '{{ item.categoryCode }}'
+        ccEmailAddresses: '{{ item.ccEmailAddresses }}'
+        displayId: '{{ item.displayId }}'
+        language: '{{ item.language }}'
+        recentCommunications: '{{ item.recentCommunications }}'
+        serviceCode: '{{ item.serviceCode }}'
+        severityCode: '{{ item.severityCode }}'
+        status: '{{ item.status }}'
+        subject: '{{ item.subject }}'
+        submittedBy: '{{ item.submittedBy }}'
+        timeCreated: '{{ item.timeCreated }}'
+  # ── DescribeServices ──
+  - discovery_id: aws.support.describe_services
+    calls:
+      - action: describe_services
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.services }}'
+      item:
+        categories: '{{ item.categories }}'
+        code: '{{ item.code }}'
+        name: '{{ item.name }}'
+        services: '{{ item.services }}'
+  # ── DescribeSeverityLevels ──
+  - discovery_id: aws.support.describe_severity_levels
+    calls:
+      - action: describe_severity_levels
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.severityLevels }}'
+      item:
+        code: '{{ item.code }}'
+        name: '{{ item.name }}'
+        severityLevels: '{{ item.severityLevels }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── DescribeAttachment ──
+  - discovery_id: aws.support.describe_attachment
+    calls:
+      - action: describe_attachment
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.attachment }}'
+      item:
+        attachment: '{{ item.attachment }}'
+        data: '{{ item.data }}'
+        fileName: '{{ item.fileName }}'
+  # ── DescribeCommunications ──
+  - discovery_id: aws.support.describe_communications
+    for_each: aws.support.describe_cases
+    calls:
+      - action: describe_communications
+        params:
+          caseId: '{{ item.caseId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.communications }}'
+      item:
+        attachmentSet: '{{ item.attachmentSet }}'
+        body: '{{ item.body }}'
+        caseId: '{{ item.caseId }}'
+        communications: '{{ item.communications }}'
+        submittedBy: '{{ item.submittedBy }}'
+        timeCreated: '{{ item.timeCreated }}'
+  # ── DescribeCreateCaseOptions ──
+  - discovery_id: aws.support.describe_create_case_options
+    for_each: aws.support.describe_cases
+    calls:
+      - action: describe_create_case_options
+        params:
+          issueType: '{{ item.issueType }}'
+          serviceCode: '{{ item.serviceCode }}'
+          language: '{{ item.language }}'
+          categoryCode: '{{ item.categoryCode }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.communicationTypes }}'
+      item:
+        datesWithoutSupport: '{{ item.datesWithoutSupport }}'
+        supportedHours: '{{ item.supportedHours }}'
+        type: '{{ item.type }}'
+  # ── DescribeSupportedLanguages ──
+  - discovery_id: aws.support.describe_supported_languages
+    for_each: aws.support.describe_cases
+    calls:
+      - action: describe_supported_languages
+        params:
+          issueType: '{{ item.issueType }}'
+          serviceCode: '{{ item.serviceCode }}'
+          categoryCode: '{{ item.categoryCode }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.supportedLanguages }}'
+      item:
+        code: '{{ item.code }}'
+        display: '{{ item.display }}'
+        language: '{{ item.language }}'
+  # ── DescribeTrustedAdvisorCheckRefreshStatuses ──
+  - discovery_id: aws.support.describe_trusted_advisor_check_refresh_statuses
+    calls:
+      - action: describe_trusted_advisor_check_refresh_statuses
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.statuses }}'
+      item:
+        checkId: '{{ item.checkId }}'
+        millisUntilNextRefreshable: '{{ item.millisUntilNextRefreshable }}'
+        status: '{{ item.status }}'
+  # ── DescribeTrustedAdvisorCheckResult ──
+  - discovery_id: aws.support.describe_trusted_advisor_check_result
+    calls:
+      - action: describe_trusted_advisor_check_result
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.result }}'
+      item:
+        categorySpecificSummary: '{{ item.categorySpecificSummary }}'
+        checkId: '{{ item.checkId }}'
+        flaggedResources: '{{ item.flaggedResources }}'
+        resourcesSummary: '{{ item.resourcesSummary }}'
+        status: '{{ item.status }}'
+        timestamp: '{{ item.timestamp }}'
+  # ── DescribeTrustedAdvisorCheckSummaries ──
+  - discovery_id: aws.support.describe_trusted_advisor_check_summaries
+    calls:
+      - action: describe_trusted_advisor_check_summaries
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.summaries }}'
+      item:
+        categorySpecificSummary: '{{ item.categorySpecificSummary }}'
+        checkId: '{{ item.checkId }}'
+        hasFlaggedResources: '{{ item.hasFlaggedResources }}'
+        resourcesSummary: '{{ item.resourcesSummary }}'
+        status: '{{ item.status }}'
+        summaries: '{{ item.summaries }}'
+        timestamp: '{{ item.timestamp }}'
+  # ── DescribeTrustedAdvisorChecks ──
+  - discovery_id: aws.support.describe_trusted_advisor_checks
+    for_each: aws.support.describe_cases
+    calls:
+      - action: describe_trusted_advisor_checks
+        params:
+          language: '{{ item.language }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.checks }}'
+      item:
+        category: '{{ item.category }}'
+        checks: '{{ item.checks }}'
+        description: '{{ item.description }}'
+        id: '{{ item.id }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'

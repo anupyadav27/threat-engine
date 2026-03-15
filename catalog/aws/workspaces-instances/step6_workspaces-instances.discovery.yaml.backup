@@ -1,0 +1,68 @@
+version: '1.0'
+provider: aws
+service: workspaces-instances
+services:
+  client: workspaces-instances
+  module: boto3.client
+discovery:
+- discovery_id: aws.workspaces-instances.listInstanceTypes
+  calls:
+  - action: listInstanceTypes
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.InstanceTypes }}'
+    item:
+      InstanceType: '{{ item.InstanceType }}'
+- discovery_id: aws.workspaces-instances.listRegions
+  calls:
+  - action: listRegions
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Regions }}'
+    item:
+      RegionName: '{{ item.RegionName }}'
+- discovery_id: aws.workspaces-instances.listWorkspaceInstances
+  calls:
+  - action: listWorkspaceInstances
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.WorkspaceInstances }}'
+    item:
+      ProvisionState: '{{ item.ProvisionState }}'
+      WorkspaceInstanceId: '{{ item.WorkspaceInstanceId }}'
+      EC2ManagedInstance: '{{ item.EC2ManagedInstance }}'
+- discovery_id: aws.workspaces-instances.getWorkspaceInstance
+  calls:
+  - action: getWorkspaceInstance
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.WorkspaceInstanceErrors }}'
+    item:
+      ErrorCode: '{{ item.ErrorCode }}'
+      ErrorMessage: '{{ item.ErrorMessage }}'
+- discovery_id: aws.workspaces-instances.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+    item:
+      Key: '{{ item.Key }}'
+      Value: '{{ item.Value }}'
+checks: []

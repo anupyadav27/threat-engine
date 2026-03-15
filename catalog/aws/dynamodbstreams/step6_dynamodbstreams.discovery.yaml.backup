@@ -1,0 +1,64 @@
+version: '1.0'
+provider: aws
+service: dynamodbstreams
+services:
+  client: dynamodbstreams
+  module: boto3.client
+discovery:
+- discovery_id: aws.dynamodbstreams.listStreams
+  calls:
+  - action: listStreams
+    save_as: response
+    on_error: continue
+    params:
+      Limit: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Streams }}'
+    item:
+      StreamArn: '{{ item.StreamArn }}'
+      TableName: '{{ item.TableName }}'
+      StreamLabel: '{{ item.StreamLabel }}'
+- discovery_id: aws.dynamodbstreams.describeStream
+  calls:
+  - action: describeStream
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.StreamDescription }}'
+    item:
+      StreamArn: '{{ item.StreamArn }}'
+      StreamLabel: '{{ item.StreamLabel }}'
+      StreamStatus: '{{ item.StreamStatus }}'
+      StreamViewType: '{{ item.StreamViewType }}'
+      CreationRequestDateTime: '{{ item.CreationRequestDateTime }}'
+      TableName: '{{ item.TableName }}'
+      KeySchema: '{{ item.KeySchema }}'
+      Shards: '{{ item.Shards }}'
+      LastEvaluatedShardId: '{{ item.LastEvaluatedShardId }}'
+- discovery_id: aws.dynamodbstreams.getRecords
+  calls:
+  - action: getRecords
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Records }}'
+    item:
+      eventID: '{{ item.eventID }}'
+      eventName: '{{ item.eventName }}'
+      eventVersion: '{{ item.eventVersion }}'
+      eventSource: '{{ item.eventSource }}'
+      awsRegion: '{{ item.awsRegion }}'
+      dynamodb: '{{ item.dynamodb }}'
+      userIdentity: '{{ item.userIdentity }}'
+- discovery_id: aws.dynamodbstreams.getShardIterator
+  calls:
+  - action: getShardIterator
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ShardIterator }}'
+checks: []

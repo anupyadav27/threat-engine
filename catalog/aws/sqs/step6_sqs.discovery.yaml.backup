@@ -1,0 +1,82 @@
+version: '1.0'
+provider: aws
+service: sqs
+services:
+  client: sqs
+  module: boto3.client
+discovery:
+- discovery_id: aws.sqs.listQueues
+  calls:
+  - action: listQueues
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.QueueUrls }}'
+- discovery_id: aws.sqs.getQueueAttributes
+  calls:
+  - action: getQueueAttributes
+    save_as: response
+    on_error: continue
+    params:
+      QueueUrl: '{{ item.QueueUrl }}'
+  emit:
+    as: item
+    items_for: '{{ response.Attributes }}'
+  for_each: aws.sqs.listQueues
+- discovery_id: aws.sqs.getQueueUrl
+  calls:
+  - action: getQueueUrl
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.QueueUrl }}'
+- discovery_id: aws.sqs.listDeadLetterSourceQueues
+  calls:
+  - action: listDeadLetterSourceQueues
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+      QueueUrl: '{{ item.QueueUrl }}'
+  emit:
+    as: item
+    items_for: '{{ response.queueUrls }}'
+  for_each: aws.sqs.listQueues
+- discovery_id: aws.sqs.listMessageMoveTasks
+  calls:
+  - action: listMessageMoveTasks
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Results }}'
+    item:
+      TaskHandle: '{{ item.TaskHandle }}'
+      Status: '{{ item.Status }}'
+      SourceArn: '{{ item.SourceArn }}'
+      DestinationArn: '{{ item.DestinationArn }}'
+      MaxNumberOfMessagesPerSecond: '{{ item.MaxNumberOfMessagesPerSecond }}'
+      ApproximateNumberOfMessagesMoved: '{{ item.ApproximateNumberOfMessagesMoved
+        }}'
+      ApproximateNumberOfMessagesToMove: '{{ item.ApproximateNumberOfMessagesToMove
+        }}'
+      FailureReason: '{{ item.FailureReason }}'
+      StartedTimestamp: '{{ item.StartedTimestamp }}'
+- discovery_id: aws.sqs.listQueueTags
+  calls:
+  - action: listQueueTags
+    save_as: response
+    on_error: continue
+    params:
+      QueueUrl: '{{ item.QueueUrl }}'
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+  for_each: aws.sqs.listQueues
+checks: []

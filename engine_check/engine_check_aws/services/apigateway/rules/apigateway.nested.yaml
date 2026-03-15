@@ -1,0 +1,438 @@
+version: '1.0'
+provider: aws
+service: apigateway
+services:
+  client: apigateway
+  module: boto3.client
+discovery:
+- discovery_id: aws.apigateway.get_api_keys
+  calls:
+  - action: get_api_keys
+    save_as: response
+  emit:
+    items_for: '{{ response.items }}'
+    as: item
+- discovery_id: aws.apigateway.get_authorizers
+  for_each: '{{ aws.apigateway.get_rest_apis }}'
+  calls:
+  - action: get_authorizers
+    params:
+      restApiId: '{{ item.id }}'
+    save_as: response
+  emit:
+    items_for: '{{ response.items }}'
+    as: item
+- discovery_id: aws.apigateway.get_domain_names
+  calls:
+  - action: get_domain_names
+    save_as: response
+  emit:
+    items_for: '{{ response.items }}'
+    as: item
+- discovery_id: aws.apigateway.get_request_validators
+  for_each: '{{ aws.apigateway.get_rest_apis }}'
+  calls:
+  - action: get_request_validators
+    params:
+      restApiId: '{{ item.id }}'
+    save_as: response
+  emit:
+    items_for: '{{ response.items }}'
+    as: item
+- discovery_id: aws.apigateway.get_domain_name
+  for_each: '{{ aws.apigateway.get_domain_names }}'
+  calls:
+  - action: get_domain_name
+    params:
+      domainName: '{{ item.domainName }}'
+    save_as: response
+  emit: {}
+- discovery_id: aws.apigateway.get_rest_apis
+  calls:
+  - action: get_rest_apis
+    save_as: response
+  emit:
+    items_for: '{{ response.items }}'
+    as: item
+- discovery_id: aws.apigateway.get_resources
+  for_each: '{{ aws.apigateway.get_rest_apis }}'
+  calls:
+  - action: get_resources
+    params:
+      restApiId: '{{ item.id }}'
+    save_as: response
+  emit:
+    items_for: '{{ response.items }}'
+    as: item
+- discovery_id: aws.apigateway.get_method
+  for_each: '{{ aws.apigateway.get_resources }}'
+  calls:
+  - action: get_method
+    params:
+      restApiId: '{{ item.restApiId }}'
+      resourceId: '{{ item.id }}'
+      httpMethod: GET
+    save_as: response
+  emit: {}
+- discovery_id: aws.apigateway.get_stages
+  for_each: '{{ aws.apigateway.get_rest_apis }}'
+  calls:
+  - action: get_stages
+    params:
+      restApiId: '{{ item.id }}'
+    save_as: response
+  emit:
+    items_for: '{{ response.item }}'
+    as: stage_item
+- discovery_id: aws.apigateway.get_stage
+  for_each: '{{ aws.apigateway.get_stages }}'
+  calls:
+  - action: get_stage
+    params:
+      restApiId: '{{ item.restApiId }}'
+      stageName: '{{ item.stageName }}'
+    save_as: response
+  emit: {}
+- discovery_id: aws.apigateway.get_usage_plans
+  calls:
+  - action: get_usage_plans
+    save_as: response
+  emit:
+    items_for: '{{ response.items }}'
+    as: item
+checks:
+- rule_id: aws.apigateway.apikey.key_expiration_required
+  for_each: aws.apigateway.get_api_keys
+  conditions:
+    all:
+    - var: item.enabled
+      op: equals
+      value: 'true'
+    - var: item.lastUpdatedDate
+      op: exists
+      value: null
+- rule_id: aws.apigateway.authorizer.api_token_audience_restricted
+  for_each: aws.apigateway.get_authorizers
+  conditions:
+    all:
+    - var: item.identityValidationExpression
+      op: exists
+      value: null
+- rule_id: aws.apigateway.authorizer.cache_ttl_configured
+  for_each: aws.apigateway.get_authorizers
+  conditions:
+    all:
+    - var: item.authorizerResultTtlInSeconds
+      op: exists
+      value: null
+- rule_id: aws.apigateway.authorizer.tls_min_1_2_enforced
+  for_each: aws.apigateway.get_domain_names
+  conditions:
+    all:
+    - var: item.securityPolicy
+      op: equals
+      value: TLS_1_2
+- rule_id: aws.apigateway.certificate.certificate_enabled
+  for_each: aws.apigateway.get_domain_names
+  conditions:
+    all:
+    - var: item.certificateArn
+      op: exists
+      value: null
+- rule_id: aws.apigateway.requestvalidator.api_parameters_validation_enabled
+  for_each: aws.apigateway.get_request_validators
+  conditions:
+    all:
+    - var: item.validateRequestParameters
+      op: equals
+      value: 'true'
+- rule_id: aws.apigateway.requestvalidator.api_request_schema_validation_enabled
+  for_each: aws.apigateway.get_request_validators
+  conditions:
+    all:
+    - var: item.validateRequestBody
+      op: equals
+      value: 'true'
+    - var: item.validateRequestParameters
+      op: equals
+      value: 'true'
+- rule_id: aws.apigateway.resource.api_gateway_https_required
+  for_each: aws.apigateway.get_rest_apis
+  conditions:
+    all:
+    - var: item.endpointConfiguration.types
+      op: in
+      value: EDGE
+    - var: item.endpointConfiguration.types
+      op: in
+      value: REGIONAL
+    - var: item.endpointConfiguration.types
+      op: in
+      value: PRIVATE
+- rule_id: aws.apigateway.resource.api_resource_attached_enabled
+  for_each: aws.apigateway.get_resources
+  conditions:
+    all:
+    - var: item.resourceMethods
+      op: exists
+      value: null
+- rule_id: aws.apigateway.resource.authorization_enabled
+  for_each: aws.apigateway.get_method
+  conditions:
+    all:
+    - var: item.authorizationType
+      op: not_equals
+      value: NONE
+- rule_id: aws.apigateway.resource.restapi_cache_encrypted
+  for_each: aws.apigateway.get_stage
+  conditions:
+    all:
+    - var: item.cacheClusterEnabled
+      op: equals
+      value: 'true'
+- rule_id: aws.apigateway.resource.restapi_logging_enabled
+  for_each: aws.apigateway.get_stages
+  conditions:
+    all:
+    - var: item.accessLogSettings.format
+      op: exists
+      value: null
+    - var: item.accessLogSettings.destinationArn
+      op: exists
+      value: null
+- rule_id: aws.apigateway.restapi.authn_required
+  for_each: aws.apigateway.get_method
+  conditions:
+    all:
+    - var: item.authorizationType
+      op: not_equals
+      value: NONE
+- rule_id: aws.apigateway.restapi.authz_policies_enforced
+  for_each: aws.apigateway.get_rest_apis
+  conditions:
+    all:
+    - var: item.policy
+      op: exists
+      value: null
+- rule_id: aws.apigateway.restapi.logging_enabled
+  for_each: aws.apigateway.get_stages
+  conditions:
+    all:
+    - var: item.accessLogSettings.format
+      op: exists
+      value: null
+    - var: item.accessLogSettings.destinationArn
+      op: exists
+      value: null
+- rule_id: aws.apigateway.restapi.private_networking_enforced
+  for_each: aws.apigateway.get_rest_apis
+  conditions:
+    all:
+    - var: item.endpointConfiguration.types
+      op: equals
+      value:
+      - PRIVATE
+    - var: item.endpointAccessMode
+      op: equals
+      value: PRIVATE
+- rule_id: aws.apigateway.restapi.public_access_restricted
+  for_each: aws.apigateway.get_rest_apis
+  conditions:
+    all:
+    - var: item.endpointConfiguration
+      op: equals
+      value: PRIVATE
+    - var: item.disableExecuteApiEndpoint
+      op: equals
+      value: 'true'
+- rule_id: aws.apigateway.restapi.tracing_enabled
+  for_each: aws.apigateway.get_stages
+  conditions:
+    var: item.tracingEnabled
+    op: equals
+    value: 'true'
+- rule_id: aws.apigateway.restapi.waf_enabled
+  for_each: aws.apigateway.get_stages
+  conditions:
+    any:
+    - var: item.webAclArn
+      op: exists
+      value: null
+- rule_id: aws.apigateway.stage.api_access_log_fields_identity_configured
+  for_each: aws.apigateway.get_stage
+  conditions:
+    all:
+    - var: item.accessLogSettings.format
+      op: exists
+      value: null
+    - var: item.accessLogSettings.destinationArn
+      op: exists
+      value: null
+- rule_id: aws.apigateway.stage.api_access_log_sink_configured
+  for_each: aws.apigateway.get_stage
+  conditions:
+    all:
+    - var: item.accessLogSettings.format
+      op: exists
+      value: null
+    - var: item.accessLogSettings.destinationArn
+      op: exists
+      value: null
+- rule_id: aws.apigateway.stage.api_access_logging_enabled
+  for_each: aws.apigateway.get_stage
+  conditions:
+    all:
+    - var: item.accessLogSettings.format
+      op: exists
+      value: null
+    - var: item.accessLogSettings.destinationArn
+      op: exists
+      value: null
+- rule_id: aws.apigateway.stage.logging_enabled
+  for_each: aws.apigateway.get_stage
+  conditions:
+    all:
+    - var: item.accessLogSettings.format
+      op: exists
+      value: null
+    - var: item.accessLogSettings.destinationArn
+      op: exists
+      value: null
+- rule_id: aws.apigateway.stage.throttling_enabled
+  for_each: aws.apigateway.get_usage_plans
+  conditions:
+    all:
+    - var: item.throttle
+      op: exists
+      value: null
+- rule_id: aws.apigateway.stage.usage_plan_for_api_keys_required
+  for_each: aws.apigateway.get_usage_plans
+  conditions:
+    all:
+    - var: item.apiStages
+      op: exists
+      value: null
+- rule_id: aws.apigateway.throttle.api_quota_limit_configured
+  for_each: aws.apigateway.get_usage_plans
+  conditions:
+    all:
+    - var: item.quota
+      op: exists
+      value: null
+- rule_id: aws.apigateway.throttle.api_stage_burst_limit_configured
+  for_each: aws.apigateway.get_usage_plans
+  conditions:
+    all:
+    - var: item.throttle
+      op: exists
+      value: null
+- rule_id: aws.apigateway.throttle.api_stage_overrides_bounded
+  for_each: aws.apigateway.get_usage_plans
+  conditions:
+    all:
+    - var: item.throttle
+      op: exists
+      value: null
+- rule_id: aws.apigateway.throttle.api_stage_rate_limit_configured
+  for_each: aws.apigateway.get_usage_plans
+  conditions:
+    all:
+    - var: item.throttle
+      op: exists
+      value: null
+- rule_id: aws.apigateway.throttle.api_usage_plan_for_keys_required
+  for_each: aws.apigateway.get_usage_plans
+  conditions:
+    all:
+    - var: item.throttle
+      op: exists
+      value: null
+    - var: item.apiStages
+      op: exists
+      value: null
+- rule_id: aws.apigateway.usageplan.api_keys_required
+  for_each: aws.apigateway.get_usage_plans
+  conditions:
+    all:
+    - var: item.apiStages
+      op: exists
+      value: null
+- rule_id: aws.apigateway.usageplan.api_quota_limit_configured
+  for_each: aws.apigateway.get_usage_plans
+  conditions:
+    all:
+    - var: item.quota
+      op: exists
+      value: null
+- rule_id: aws.apigateway.usageplan.api_quota_limits_configured
+  for_each: aws.apigateway.get_usage_plans
+  conditions:
+    all:
+    - var: item.quota
+      op: exists
+      value: null
+- rule_id: aws.apigateway.usageplan.api_rate_limits_configured
+  for_each: aws.apigateway.get_usage_plans
+  conditions:
+    all:
+    - var: item.throttle
+      op: exists
+      value: null
+- rule_id: aws.apigateway.usageplan.api_stage_burst_limit_configured
+  for_each: aws.apigateway.get_usage_plans
+  conditions:
+    all:
+    - var: item.throttle
+      op: exists
+      value: null
+- rule_id: aws.apigateway.usageplan.api_stage_rate_limit_configured
+  for_each: aws.apigateway.get_usage_plans
+  conditions:
+    all:
+    - var: item.throttle
+      op: exists
+      value: null
+- rule_id: aws.apigateway.usageplan.api_stage_throttle_overrides_bounded
+  for_each: aws.apigateway.get_usage_plans
+  conditions:
+    all:
+    - var: item.apiStages.throttle
+      op: exists
+      value: null
+- rule_id: aws.apigateway.v2api.authn_required
+  for_each: aws.apigateway.get_authorizers
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+    - var: item.authType
+      op: equals
+      value: AWS_IAM
+- rule_id: aws.apigateway.v2api.authz_policies_enforced
+  for_each: aws.apigateway.get_authorizers
+  conditions:
+    all:
+    - var: item.id
+      op: exists
+      value: null
+    - var: item.type
+      op: equals
+      value: REQUEST
+- rule_id: aws.apigateway.v2api.private_networking_enforced
+  for_each: aws.apigateway.get_rest_apis
+  conditions:
+    all:
+    - var: item.endpointConfiguration
+      op: equals
+      value: PRIVATE
+    - var: item.endpointAccessMode
+      op: equals
+      value: PRIVATE
+- rule_id: aws.apigateway.v2api.waf_enabled
+  for_each: aws.apigateway.get_stages
+  conditions:
+    all:
+    - var: item.webAclArn
+      op: exists
+      value: null

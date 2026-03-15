@@ -1,0 +1,216 @@
+# ============================================================
+# Discovery YAML — detective (AWS)
+# Generated: 2026-02-21T04:56:58Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: detective
+services:
+  client: detective
+  module: boto3.client
+discovery:
+  # ── ListGraphs ──
+  - discovery_id: aws.detective.list_graphs
+    calls:
+      - action: list_graphs
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.GraphList }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        AutoEnable: '{{ item.AutoEnable }}'
+        CreatedTime: '{{ item.CreatedTime }}'
+        MemberDetails: '{{ item.MemberDetails }}'
+        ScopeEndTime: '{{ item.ScopeEndTime }}'
+        ScopeStartTime: '{{ item.ScopeStartTime }}'
+  # ── ListInvitations ──
+  - discovery_id: aws.detective.list_invitations
+    calls:
+      - action: list_invitations
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Invitations }}'
+      item:
+        AccountId: '{{ item.AccountId }}'
+        Status: '{{ item.Status }}'
+        AdministratorId: '{{ item.AdministratorId }}'
+        DatasourcePackageIngestStates: '{{ item.DatasourcePackageIngestStates }}'
+        DisabledReason: '{{ item.DisabledReason }}'
+        EmailAddress: '{{ item.EmailAddress }}'
+        GraphArn: '{{ item.GraphArn }}'
+        InvitationType: '{{ item.InvitationType }}'
+        InvitedTime: '{{ item.InvitedTime }}'
+        MasterId: '{{ item.MasterId }}'
+        PercentOfGraphUtilization: '{{ item.PercentOfGraphUtilization }}'
+        PercentOfGraphUtilizationUpdatedTime: '{{ item.PercentOfGraphUtilizationUpdatedTime }}'
+        UpdatedTime: '{{ item.UpdatedTime }}'
+        VolumeUsageByDatasourcePackage: '{{ item.VolumeUsageByDatasourcePackage }}'
+        VolumeUsageInBytes: '{{ item.VolumeUsageInBytes }}'
+        VolumeUsageUpdatedTime: '{{ item.VolumeUsageUpdatedTime }}'
+  # ── ListOrganizationAdminAccounts ──
+  - discovery_id: aws.detective.list_organization_admin_accounts
+    calls:
+      - action: list_organization_admin_accounts
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Administrators }}'
+      item:
+        AccountId: '{{ item.AccountId }}'
+        DelegationTime: '{{ item.DelegationTime }}'
+        GraphArn: '{{ item.GraphArn }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── DescribeOrganizationConfiguration ──
+  - discovery_id: aws.detective.describe_organization_configuration
+    for_each: aws.detective.list_invitations
+    calls:
+      - action: describe_organization_configuration
+        params:
+          GraphArn: '{{ item.GraphArn }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.GraphList }}'
+      item:
+        AutoEnable: '{{ item.AutoEnable }}'
+  # ── GetInvestigation ──
+  - discovery_id: aws.detective.get_investigation
+    for_each: aws.detective.list_invitations
+    calls:
+      - action: get_investigation
+        params:
+          GraphArn: '{{ item.GraphArn }}'
+          InvestigationId: '{{ item.InvestigationId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.GraphList }}'
+      item:
+        ScopeEndTime: '{{ item.ScopeEndTime }}'
+        ScopeStartTime: '{{ item.ScopeStartTime }}'
+  # ── GetMembers ──
+  - discovery_id: aws.detective.get_members
+    for_each: aws.detective.list_invitations
+    calls:
+      - action: get_members
+        params:
+          GraphArn: '{{ item.GraphArn }}'
+          AccountIds: '{{ item.AccountIds }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.MemberDetails }}'
+      item:
+        AccountId: '{{ item.AccountId }}'
+        Status: '{{ item.Status }}'
+        AdministratorId: '{{ item.AdministratorId }}'
+        DatasourcePackageIngestStates: '{{ item.DatasourcePackageIngestStates }}'
+        DisabledReason: '{{ item.DisabledReason }}'
+        EmailAddress: '{{ item.EmailAddress }}'
+        GraphArn: '{{ item.GraphArn }}'
+        InvitationType: '{{ item.InvitationType }}'
+        InvitedTime: '{{ item.InvitedTime }}'
+        MasterId: '{{ item.MasterId }}'
+        PercentOfGraphUtilization: '{{ item.PercentOfGraphUtilization }}'
+        PercentOfGraphUtilizationUpdatedTime: '{{ item.PercentOfGraphUtilizationUpdatedTime }}'
+        UpdatedTime: '{{ item.UpdatedTime }}'
+        VolumeUsageByDatasourcePackage: '{{ item.VolumeUsageByDatasourcePackage }}'
+        VolumeUsageInBytes: '{{ item.VolumeUsageInBytes }}'
+        VolumeUsageUpdatedTime: '{{ item.VolumeUsageUpdatedTime }}'
+  # ── ListDatasourcePackages ──
+  - discovery_id: aws.detective.list_datasource_packages
+    calls:
+      - action: list_datasource_packages
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        DatasourcePackages: '{{ response.DatasourcePackages }}'
+  # ── ListIndicators ──
+  - discovery_id: aws.detective.list_indicators
+    for_each: aws.detective.list_invitations
+    calls:
+      - action: list_indicators
+        params:
+          GraphArn: '{{ item.GraphArn }}'
+          InvestigationId: '{{ item.InvestigationId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Indicators }}'
+      item:
+        IndicatorDetail: '{{ item.IndicatorDetail }}'
+        IndicatorType: '{{ item.IndicatorType }}'
+  # ── ListInvestigations ──
+  - discovery_id: aws.detective.list_investigations
+    for_each: aws.detective.list_invitations
+    calls:
+      - action: list_investigations
+        params:
+          GraphArn: '{{ item.GraphArn }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.InvestigationDetails }}'
+      item:
+        State: '{{ item.State }}'
+        Status: '{{ item.Status }}'
+        CreatedTime: '{{ item.CreatedTime }}'
+        EntityArn: '{{ item.EntityArn }}'
+        EntityType: '{{ item.EntityType }}'
+        InvestigationId: '{{ item.InvestigationId }}'
+        ScopeEndTime: '{{ item.ScopeEndTime }}'
+        ScopeStartTime: '{{ item.ScopeStartTime }}'
+        Severity: '{{ item.Severity }}'
+  # ── ListMembers ──
+  - discovery_id: aws.detective.list_members
+    for_each: aws.detective.list_invitations
+    calls:
+      - action: list_members
+        params:
+          GraphArn: '{{ item.GraphArn }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.MemberDetails }}'
+      item:
+        AccountId: '{{ item.AccountId }}'
+        Status: '{{ item.Status }}'
+        AdministratorId: '{{ item.AdministratorId }}'
+        DatasourcePackageIngestStates: '{{ item.DatasourcePackageIngestStates }}'
+        DisabledReason: '{{ item.DisabledReason }}'
+        EmailAddress: '{{ item.EmailAddress }}'
+        GraphArn: '{{ item.GraphArn }}'
+        InvitationType: '{{ item.InvitationType }}'
+        InvitedTime: '{{ item.InvitedTime }}'
+        MasterId: '{{ item.MasterId }}'
+        MemberDetails: '{{ item.MemberDetails }}'
+        PercentOfGraphUtilization: '{{ item.PercentOfGraphUtilization }}'
+        PercentOfGraphUtilizationUpdatedTime: '{{ item.PercentOfGraphUtilizationUpdatedTime }}'
+        UpdatedTime: '{{ item.UpdatedTime }}'
+        VolumeUsageByDatasourcePackage: '{{ item.VolumeUsageByDatasourcePackage }}'
+        VolumeUsageInBytes: '{{ item.VolumeUsageInBytes }}'
+        VolumeUsageUpdatedTime: '{{ item.VolumeUsageUpdatedTime }}'
+  # ── ListTagsForResource ──
+  - discovery_id: aws.detective.list_tags_for_resource
+    calls:
+      - action: list_tags_for_resource
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        Tags: '{{ response.Tags }}'

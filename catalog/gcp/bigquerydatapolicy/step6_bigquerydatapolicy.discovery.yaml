@@ -1,0 +1,69 @@
+# ============================================================
+# Discovery YAML — bigquerydatapolicy (v1)
+# Generated: 2026-02-21T03:06:38Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 2 | independent: 1 | dependent: 1
+# ops with fields: 2/2 | dep ops with chain: 1/1
+# ============================================================
+version: '1.0'
+provider: gcp
+service: bigquerydatapolicy
+
+services:
+  client: bigquerydatapolicy
+  module: "googleapiclient.discovery.build('bigquerydatapolicy', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # List all of the data policies in the specified parent project.
+  # ── gcp.bigquerydatapolicy.projects.locations.dataPolicies.list ──
+  - discovery_id: gcp.bigquerydatapolicy.projects.locations.dataPolicies.list
+    # python: svc.projects().locations().dataPolicies().list(**params).execute()
+    calls:
+      - action: projects.locations.dataPolicies.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.dataPolicies }}'
+      item:
+        dataMaskingPolicy: '{{ item.dataMaskingPolicy }}'
+        dataPolicyId: '{{ item.dataPolicyId }}'
+        dataPolicyType: '{{ item.dataPolicyType }}'
+        name: '{{ item.name }}'
+        policyTag: '{{ item.policyTag }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets the data policy specified by its resource name.
+  # ── gcp.bigquerydatapolicy.projects.locations.dataPolicies.get [dependent] ──
+  - discovery_id: gcp.bigquerydatapolicy.projects.locations.dataPolicies.get
+    for_each: gcp.bigquerydatapolicy.projects.locations.dataPolicies.list
+    # python: svc.projects().locations().dataPolicies().get(**params).execute()
+    calls:
+      - action: projects.locations.dataPolicies.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        dataMaskingPolicy: '{{ response.dataMaskingPolicy }}'
+        dataPolicyId: '{{ response.dataPolicyId }}'
+        dataPolicyType: '{{ response.dataPolicyType }}'
+        name: '{{ response.name }}'
+        policyTag: '{{ response.policyTag }}'
+    # required_params: ['name']

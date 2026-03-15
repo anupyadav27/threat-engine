@@ -1,0 +1,129 @@
+# ============================================================
+# Discovery YAML — mediapackage (AWS)
+# Generated: 2026-02-21T04:56:59Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: mediapackage
+services:
+  client: mediapackage
+  module: boto3.client
+discovery:
+  # ── ListChannels ──
+  - discovery_id: aws.mediapackage.list_channels
+    calls:
+      - action: list_channels
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Channels }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        Id: '{{ item.Id }}'
+        Tags: '{{ item.Tags }}'
+        CreatedAt: '{{ item.CreatedAt }}'
+        Description: '{{ item.Description }}'
+        EgressAccessLogs: '{{ item.EgressAccessLogs }}'
+        HlsIngest: '{{ item.HlsIngest }}'
+        IngressAccessLogs: '{{ item.IngressAccessLogs }}'
+  # ── ListHarvestJobs ──
+  - discovery_id: aws.mediapackage.list_harvest_jobs
+    calls:
+      - action: list_harvest_jobs
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.HarvestJobs }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        Id: '{{ item.Id }}'
+        Status: '{{ item.Status }}'
+        ChannelId: '{{ item.ChannelId }}'
+        CreatedAt: '{{ item.CreatedAt }}'
+        EndTime: '{{ item.EndTime }}'
+        OriginEndpointId: '{{ item.OriginEndpointId }}'
+        S3Destination: '{{ item.S3Destination }}'
+        StartTime: '{{ item.StartTime }}'
+  # ── ListOriginEndpoints ──
+  - discovery_id: aws.mediapackage.list_origin_endpoints
+    calls:
+      - action: list_origin_endpoints
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.OriginEndpoints }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        Id: '{{ item.Id }}'
+        Tags: '{{ item.Tags }}'
+        Authorization: '{{ item.Authorization }}'
+        ChannelId: '{{ item.ChannelId }}'
+        CmafPackage: '{{ item.CmafPackage }}'
+        CreatedAt: '{{ item.CreatedAt }}'
+        DashPackage: '{{ item.DashPackage }}'
+        Description: '{{ item.Description }}'
+        HlsPackage: '{{ item.HlsPackage }}'
+        ManifestName: '{{ item.ManifestName }}'
+        MssPackage: '{{ item.MssPackage }}'
+        Origination: '{{ item.Origination }}'
+        StartoverWindowSeconds: '{{ item.StartoverWindowSeconds }}'
+        TimeDelaySeconds: '{{ item.TimeDelaySeconds }}'
+        Url: '{{ item.Url }}'
+        Whitelist: '{{ item.Whitelist }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── DescribeChannel ──
+  - discovery_id: aws.mediapackage.describe_channel
+    for_each: aws.mediapackage.list_channels
+    calls:
+      - action: describe_channel
+        params:
+          Id: '{{ item.Id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.EgressAccessLogs }}'
+      item:
+        LogGroupName: '{{ item.LogGroupName }}'
+  # ── DescribeHarvestJob ──
+  - discovery_id: aws.mediapackage.describe_harvest_job
+    for_each: aws.mediapackage.list_channels
+    calls:
+      - action: describe_harvest_job
+        params:
+          Id: '{{ item.Id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.S3Destination }}'
+      item:
+        RoleArn: '{{ item.RoleArn }}'
+        BucketName: '{{ item.BucketName }}'
+        ManifestKey: '{{ item.ManifestKey }}'
+  # ── DescribeOriginEndpoint ──
+  - discovery_id: aws.mediapackage.describe_origin_endpoint
+    for_each: aws.mediapackage.list_channels
+    calls:
+      - action: describe_origin_endpoint
+        params:
+          Id: '{{ item.Id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Whitelist }}'
+  # ── ListTagsForResource ──
+  - discovery_id: aws.mediapackage.list_tags_for_resource
+    calls:
+      - action: list_tags_for_resource
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        Tags: '{{ response.Tags }}'

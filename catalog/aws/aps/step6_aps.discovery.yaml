@@ -1,0 +1,208 @@
+# ============================================================
+# Discovery YAML — amp (AWS)
+# Generated: 2026-02-21T04:56:57Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: amp
+services:
+  client: amp
+  module: boto3.client
+discovery:
+  # ── GetDefaultScraperConfiguration ──
+  - discovery_id: aws.amp.get_default_scraper_configuration
+    calls:
+      - action: get_default_scraper_configuration
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        configuration: '{{ response.configuration }}'
+  # ── ListScrapers ──
+  - discovery_id: aws.amp.list_scrapers
+    calls:
+      - action: list_scrapers
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.scrapers }}'
+  # ── ListWorkspaces ──
+  - discovery_id: aws.amp.list_workspaces
+    calls:
+      - action: list_workspaces
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.workspaces }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── DescribeAlertManagerDefinition ──
+  - discovery_id: aws.amp.describe_alert_manager_definition
+    for_each: aws.amp.create_workspace
+    calls:
+      - action: describe_alert_manager_definition
+        params:
+          workspaceId: '{{ item.workspaceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        alertManagerDefinition: '{{ response.alertManagerDefinition }}'
+  # ── DescribeAnomalyDetector ──
+  - discovery_id: aws.amp.describe_anomaly_detector
+    for_each: aws.amp.create_workspace
+    calls:
+      - action: describe_anomaly_detector
+        params:
+          workspaceId: '{{ item.workspaceId }}'
+          anomalyDetectorId: '{{ item.anomalyDetectorId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        anomalyDetector: '{{ response.anomalyDetector }}'
+  # ── DescribeLoggingConfiguration ──
+  - discovery_id: aws.amp.describe_logging_configuration
+    for_each: aws.amp.create_workspace
+    calls:
+      - action: describe_logging_configuration
+        params:
+          workspaceId: '{{ item.workspaceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        loggingConfiguration: '{{ response.loggingConfiguration }}'
+  # ── DescribeQueryLoggingConfiguration ──
+  - discovery_id: aws.amp.describe_query_logging_configuration
+    for_each: aws.amp.create_workspace
+    calls:
+      - action: describe_query_logging_configuration
+        params:
+          workspaceId: '{{ item.workspaceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        queryLoggingConfiguration: '{{ response.queryLoggingConfiguration }}'
+  # ── DescribeResourcePolicy ──
+  - discovery_id: aws.amp.describe_resource_policy
+    for_each: aws.amp.create_workspace
+    calls:
+      - action: describe_resource_policy
+        params:
+          workspaceId: '{{ item.workspaceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        policyDocument: '{{ response.policyDocument }}'
+        policyStatus: '{{ response.policyStatus }}'
+        revisionId: '{{ response.revisionId }}'
+  # ── DescribeRuleGroupsNamespace ──
+  - discovery_id: aws.amp.describe_rule_groups_namespace
+    for_each: aws.amp.create_workspace
+    calls:
+      - action: describe_rule_groups_namespace
+        params:
+          workspaceId: '{{ item.workspaceId }}'
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        ruleGroupsNamespace: '{{ response.ruleGroupsNamespace }}'
+  # ── DescribeScraper ──
+  - discovery_id: aws.amp.describe_scraper
+    for_each: aws.amp.list_scrapers
+    calls:
+      - action: describe_scraper
+        params:
+          scraperId: '{{ item.scraperId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        scraper: '{{ response.scraper }}'
+  # ── DescribeScraperLoggingConfiguration ──
+  - discovery_id: aws.amp.describe_scraper_logging_configuration
+    for_each: aws.amp.list_scrapers
+    calls:
+      - action: describe_scraper_logging_configuration
+        params:
+          scraperId: '{{ item.scraperId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.scraperComponents }}'
+  # ── DescribeWorkspace ──
+  - discovery_id: aws.amp.describe_workspace
+    for_each: aws.amp.create_workspace
+    calls:
+      - action: describe_workspace
+        params:
+          workspaceId: '{{ item.workspaceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        workspace: '{{ response.workspace }}'
+  # ── DescribeWorkspaceConfiguration ──
+  - discovery_id: aws.amp.describe_workspace_configuration
+    for_each: aws.amp.create_workspace
+    calls:
+      - action: describe_workspace_configuration
+        params:
+          workspaceId: '{{ item.workspaceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        workspaceConfiguration: '{{ response.workspaceConfiguration }}'
+  # ── ListAnomalyDetectors ──
+  - discovery_id: aws.amp.list_anomaly_detectors
+    for_each: aws.amp.create_workspace
+    calls:
+      - action: list_anomaly_detectors
+        params:
+          workspaceId: '{{ item.workspaceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.anomalyDetectors }}'
+  # ── ListRuleGroupsNamespaces ──
+  - discovery_id: aws.amp.list_rule_groups_namespaces
+    for_each: aws.amp.create_workspace
+    calls:
+      - action: list_rule_groups_namespaces
+        params:
+          workspaceId: '{{ item.workspaceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ruleGroupsNamespaces }}'
+  # ── ListTagsForResource ──
+  - discovery_id: aws.amp.list_tags_for_resource
+    calls:
+      - action: list_tags_for_resource
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        tags: '{{ response.tags }}'

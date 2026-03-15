@@ -1,0 +1,99 @@
+# ============================================================
+# Discovery YAML — libraryagent (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 4 | independent: 2 | dependent: 2
+# ops with fields: 4/4 | dep ops with chain: 2/2
+# ============================================================
+version: '1.0'
+provider: gcp
+service: libraryagent
+
+services:
+  client: libraryagent
+  module: "googleapiclient.discovery.build('libraryagent', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists books in a shelf. The order is unspecified but deterministic. Newly created books will not nec
+  # ── gcp.libraryagent.shelves.books.list ──
+  - discovery_id: gcp.libraryagent.shelves.books.list
+    # python: svc.shelves().books().list(**params).execute()
+    calls:
+      - action: shelves.books.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.books }}'
+      item:
+        author: '{{ item.author }}'
+        name: '{{ item.name }}'
+        read: '{{ item.read }}'
+        title: '{{ item.title }}'
+  # Lists shelves. The order is unspecified but deterministic. Newly created shelves will not necessaril
+  # ── gcp.libraryagent.shelves.list ──
+  - discovery_id: gcp.libraryagent.shelves.list
+    # python: svc.shelves().list(**params).execute()
+    calls:
+      - action: shelves.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.shelves }}'
+      item:
+        name: '{{ item.name }}'
+        theme: '{{ item.theme }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets a book. Returns NOT_FOUND if the book does not exist.
+  # ── gcp.libraryagent.shelves.books.get [dependent] ──
+  - discovery_id: gcp.libraryagent.shelves.books.get
+    for_each: gcp.libraryagent.shelves.books.list
+    # python: svc.shelves().books().get(**params).execute()
+    calls:
+      - action: shelves.books.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        author: '{{ response.author }}'
+        name: '{{ response.name }}'
+        read: '{{ response.read }}'
+        title: '{{ response.title }}'
+    # required_params: ['name']
+  # Gets a shelf. Returns NOT_FOUND if the shelf does not exist.
+  # ── gcp.libraryagent.shelves.get [dependent] ──
+  - discovery_id: gcp.libraryagent.shelves.get
+    for_each: gcp.libraryagent.shelves.list
+    # python: svc.shelves().get(**params).execute()
+    calls:
+      - action: shelves.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        name: '{{ response.name }}'
+        theme: '{{ response.theme }}'
+    # required_params: ['name']

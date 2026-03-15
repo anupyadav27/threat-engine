@@ -1,0 +1,176 @@
+# ============================================================
+# Discovery YAML — workflowexecutions (v1)
+# Generated: 2026-02-21T03:06:41Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 6 | independent: 3 | dependent: 3
+# ops with fields: 6/6 | dep ops with chain: 3/3
+# ============================================================
+version: '1.0'
+provider: gcp
+service: workflowexecutions
+
+services:
+  client: workflowexecutions
+  module: "googleapiclient.discovery.build('workflowexecutions', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Returns a list of active callbacks that belong to the execution with the given name. The returned ca
+  # ── gcp.workflowexecutions.projects.locations.workflows.executions.callbacks.list ──
+  - discovery_id: gcp.workflowexecutions.projects.locations.workflows.executions.callbacks.list
+    # python: svc.projects().locations().workflows().executions().callbacks().list(**params).execute()
+    calls:
+      - action: projects.locations.workflows.executions.callbacks.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.callbacks }}'
+      item:
+        availablePayloads: '{{ item.availablePayloads }}'
+        method: '{{ item.method }}'
+        name: '{{ item.name }}'
+        waiters: '{{ item.waiters }}'
+  # Returns a list of executions which belong to the workflow with the given name. The method returns ex
+  # ── gcp.workflowexecutions.projects.locations.workflows.executions.list ──
+  - discovery_id: gcp.workflowexecutions.projects.locations.workflows.executions.list
+    # python: svc.projects().locations().workflows().executions().list(**params).execute()
+    calls:
+      - action: projects.locations.workflows.executions.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.executions }}'
+      item:
+        argument: '{{ item.argument }}'
+        callLogLevel: '{{ item.callLogLevel }}'
+        createTime: '{{ item.createTime }}'
+        disableConcurrencyQuotaOverflowBuffering: '{{ item.disableConcurrencyQuotaOverflowBuffering }}'
+        duration: '{{ item.duration }}'
+        endTime: '{{ item.endTime }}'
+        error: '{{ item.error }}'
+        executionHistoryLevel: '{{ item.executionHistoryLevel }}'
+        labels: '{{ item.labels }}'
+        name: '{{ item.name }}'
+        result: '{{ item.result }}'
+        startTime: '{{ item.startTime }}'
+        state: '{{ item.state }}'
+        stateError: '{{ item.stateError }}'
+        status: '{{ item.status }}'
+        workflowRevisionId: '{{ item.workflowRevisionId }}'
+  # Lists step entries for the corresponding workflow execution. Returned entries are ordered by their c
+  # ── gcp.workflowexecutions.projects.locations.workflows.executions.stepEntries.list ──
+  - discovery_id: gcp.workflowexecutions.projects.locations.workflows.executions.stepEntries.list
+    # python: svc.projects().locations().workflows().executions().stepEntries().list(**params).execute()
+    calls:
+      - action: projects.locations.workflows.executions.stepEntries.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.stepEntries }}'
+      item:
+        createTime: '{{ item.createTime }}'
+        entryId: '{{ item.entryId }}'
+        exception: '{{ item.exception }}'
+        name: '{{ item.name }}'
+        navigationInfo: '{{ item.navigationInfo }}'
+        routine: '{{ item.routine }}'
+        state: '{{ item.state }}'
+        step: '{{ item.step }}'
+        stepEntryMetadata: '{{ item.stepEntryMetadata }}'
+        stepType: '{{ item.stepType }}'
+        updateTime: '{{ item.updateTime }}'
+        variableData: '{{ item.variableData }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Returns all metadata stored about an execution, excluding most data that is already accessible using
+  # ── gcp.workflowexecutions.projects.locations.workflows.executions.exportData [dependent] ──
+  - discovery_id: gcp.workflowexecutions.projects.locations.workflows.executions.exportData
+    for_each: gcp.workflowexecutions.projects.locations.workflows.executions.list
+    # python: svc.projects().locations().workflows().executions().exportData(**params).execute()
+    calls:
+      - action: projects.locations.workflows.executions.exportData
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        data: '{{ response.data }}'
+    # required_params: ['name']
+  # Returns an execution of the given name.
+  # ── gcp.workflowexecutions.projects.locations.workflows.executions.get [dependent] ──
+  - discovery_id: gcp.workflowexecutions.projects.locations.workflows.executions.get
+    for_each: gcp.workflowexecutions.projects.locations.workflows.executions.list
+    # python: svc.projects().locations().workflows().executions().get(**params).execute()
+    calls:
+      - action: projects.locations.workflows.executions.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        argument: '{{ response.argument }}'
+        callLogLevel: '{{ response.callLogLevel }}'
+        createTime: '{{ response.createTime }}'
+        disableConcurrencyQuotaOverflowBuffering: '{{ response.disableConcurrencyQuotaOverflowBuffering }}'
+        duration: '{{ response.duration }}'
+        endTime: '{{ response.endTime }}'
+        error: '{{ response.error }}'
+        executionHistoryLevel: '{{ response.executionHistoryLevel }}'
+        labels: '{{ response.labels }}'
+        name: '{{ response.name }}'
+        result: '{{ response.result }}'
+        startTime: '{{ response.startTime }}'
+        state: '{{ response.state }}'
+        stateError: '{{ response.stateError }}'
+        status: '{{ response.status }}'
+        workflowRevisionId: '{{ response.workflowRevisionId }}'
+    # required_params: ['name']
+  # Gets a step entry.
+  # ── gcp.workflowexecutions.projects.locations.workflows.executions.stepEntries.get [dependent] ──
+  - discovery_id: gcp.workflowexecutions.projects.locations.workflows.executions.stepEntries.get
+    for_each: gcp.workflowexecutions.projects.locations.workflows.executions.stepEntries.list
+    # python: svc.projects().locations().workflows().executions().stepEntries().get(**params).execute()
+    calls:
+      - action: projects.locations.workflows.executions.stepEntries.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        createTime: '{{ response.createTime }}'
+        entryId: '{{ response.entryId }}'
+        exception: '{{ response.exception }}'
+        name: '{{ response.name }}'
+        navigationInfo: '{{ response.navigationInfo }}'
+        routine: '{{ response.routine }}'
+        state: '{{ response.state }}'
+        step: '{{ response.step }}'
+        stepEntryMetadata: '{{ response.stepEntryMetadata }}'
+        stepType: '{{ response.stepType }}'
+        updateTime: '{{ response.updateTime }}'
+        variableData: '{{ response.variableData }}'
+    # required_params: ['name']

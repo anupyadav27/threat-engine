@@ -1,0 +1,106 @@
+# ============================================================
+# Discovery YAML — serviceconsumermanagement (v1)
+# Generated: 2026-02-21T03:06:41Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 4 | independent: 2 | dependent: 2
+# ops with fields: 4/4 | dep ops with chain: 1/2
+# ============================================================
+version: '1.0'
+provider: gcp
+service: serviceconsumermanagement
+
+services:
+  client: serviceconsumermanagement
+  module: "googleapiclient.discovery.build('serviceconsumermanagement', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Search tenancy units for a managed service.
+  # ── gcp.serviceconsumermanagement.services.search ──
+  - discovery_id: gcp.serviceconsumermanagement.services.search
+    # python: svc.services().search(**params).execute()
+    calls:
+      - action: services.search
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.services }}'
+      item:
+        consumer: '{{ item.consumer }}'
+        createTime: '{{ item.createTime }}'
+        name: '{{ item.name }}'
+        service: '{{ item.service }}'
+        tenantResources: '{{ item.tenantResources }}'
+  # Find the tenancy unit for a managed service and service consumer. This method shouldn't be used in a
+  # ── gcp.serviceconsumermanagement.services.tenancyUnits.list ──
+  - discovery_id: gcp.serviceconsumermanagement.services.tenancyUnits.list
+    # python: svc.services().tenancyUnits().list(**params).execute()
+    calls:
+      - action: services.tenancyUnits.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.tenancyUnits }}'
+      item:
+        consumer: '{{ item.consumer }}'
+        createTime: '{{ item.createTime }}'
+        name: '{{ item.name }}'
+        service: '{{ item.service }}'
+        tenantResources: '{{ item.tenantResources }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.serviceconsumermanagement.operations.get [dependent] ──
+  - discovery_id: gcp.serviceconsumermanagement.operations.get
+    for_each: gcp.serviceconsumermanagement.operations.list
+    # python: svc.operations().get(**params).execute()
+    calls:
+      - action: operations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']
+  # Lists operations that match the specified filter in the request. If the server doesn't support this 
+  # ── gcp.serviceconsumermanagement.operations.list [dependent] ──
+  - discovery_id: gcp.serviceconsumermanagement.operations.list
+    # python: svc.operations().list(**params).execute()
+    calls:
+      - action: operations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.operations }}'
+      item:
+        done: '{{ item.done }}'
+        error: '{{ item.error }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+        response: '{{ item.response }}'
+    # required_params: ['name']

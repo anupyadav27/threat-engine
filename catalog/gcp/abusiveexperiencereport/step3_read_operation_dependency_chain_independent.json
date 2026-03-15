@@ -1,0 +1,104 @@
+{
+  "service": "abusiveexperiencereport",
+  "version": "v1",
+  "total_ops": 2,
+  "total_chains": 2,
+  "independent_ops": 1,
+  "dependent_ops": 1,
+  "chains": {
+    "gcp.abusiveexperiencereport.sites.get": {
+      "target_op": "gcp.abusiveexperiencereport.sites.get",
+      "kind": "read_get",
+      "independent": false,
+      "hop_distance": 1,
+      "chain_length": 2,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.abusiveexperiencereport.violatingSites.list",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.violatingSites().list(**params).execute()",
+          "path": "/v1/violatingSites",
+          "required_params": {},
+          "output_list_field": "violatingSites",
+          "output_id_field": "reviewedSite",
+          "produces": {
+            "violatingSiteId": {
+              "via_list_field": "violatingSites",
+              "from_id_field": "reviewedSite",
+              "note": "Iterate response[\"violatingSites\"][], extract item[\"reviewedSite\"] \u2192 pass as \"violatingSiteId\""
+            }
+          },
+          "param_sources": {},
+          "purpose": "Provides: violatingSiteId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.abusiveexperiencereport.sites.get",
+          "kind": "read_get",
+          "independent": false,
+          "python_call": "svc.sites().get(**params).execute()",
+          "path": "/v1/{+name}",
+          "required_params": {
+            "name": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^sites/[^/]+$",
+              "description": "Required. The name of the site whose summary to get, e.g. `sites/http%3A%2F%2Fwww.google.com%2F`. Format: `sites/{site}`"
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "name": {
+              "siteId": {
+                "from_step": 1,
+                "from_op": "gcp.abusiveexperiencereport.violatingSites.list",
+                "field": "reviewedSite"
+              }
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.abusiveexperiencereport.violatingSites.list": {
+      "target_op": "gcp.abusiveexperiencereport.violatingSites.list",
+      "kind": "read_list",
+      "independent": true,
+      "hop_distance": 0,
+      "chain_length": 1,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.abusiveexperiencereport.violatingSites.list",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.violatingSites().list(**params).execute()",
+          "path": "/v1/violatingSites",
+          "required_params": {},
+          "output_list_field": "violatingSites",
+          "output_id_field": "reviewedSite",
+          "produces": {
+            "violatingSiteId": {
+              "via_list_field": "violatingSites",
+              "from_id_field": "reviewedSite",
+              "note": "Iterate response[\"violatingSites\"][], extract item[\"reviewedSite\"] \u2192 pass as \"violatingSiteId\""
+            }
+          },
+          "param_sources": {},
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    }
+  }
+}

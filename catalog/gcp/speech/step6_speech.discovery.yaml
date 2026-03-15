@@ -1,0 +1,173 @@
+# ============================================================
+# Discovery YAML — speech (v1)
+# Generated: 2026-02-21T03:06:41Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 6 | independent: 3 | dependent: 3
+# ops with fields: 6/6 | dep ops with chain: 3/3
+# ============================================================
+version: '1.0'
+provider: gcp
+service: speech
+
+services:
+  client: speech
+  module: "googleapiclient.discovery.build('speech', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists operations that match the specified filter in the request. If the server doesn't support this 
+  # ── gcp.speech.operations.list ──
+  - discovery_id: gcp.speech.operations.list
+    # python: svc.operations().list(**params).execute()
+    calls:
+      - action: operations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.operations }}'
+      item:
+        done: '{{ item.done }}'
+        error: '{{ item.error }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+        response: '{{ item.response }}'
+  # List custom classes.
+  # ── gcp.speech.projects.locations.customClasses.list ──
+  - discovery_id: gcp.speech.projects.locations.customClasses.list
+    # python: svc.projects().locations().customClasses().list(**params).execute()
+    calls:
+      - action: projects.locations.customClasses.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.customClasses }}'
+      item:
+        annotations: '{{ item.annotations }}'
+        customClassId: '{{ item.customClassId }}'
+        deleteTime: '{{ item.deleteTime }}'
+        displayName: '{{ item.displayName }}'
+        expireTime: '{{ item.expireTime }}'
+        items: '{{ item.items }}'
+        kmsKeyName: '{{ item.kmsKeyName }}'
+        kmsKeyVersionName: '{{ item.kmsKeyVersionName }}'
+        name: '{{ item.name }}'
+        reconciling: '{{ item.reconciling }}'
+        state: '{{ item.state }}'
+        uid: '{{ item.uid }}'
+  # List phrase sets.
+  # ── gcp.speech.projects.locations.phraseSets.list ──
+  - discovery_id: gcp.speech.projects.locations.phraseSets.list
+    # python: svc.projects().locations().phraseSets().list(**params).execute()
+    calls:
+      - action: projects.locations.phraseSets.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.phraseSets }}'
+      item:
+        annotations: '{{ item.annotations }}'
+        boost: '{{ item.boost }}'
+        deleteTime: '{{ item.deleteTime }}'
+        displayName: '{{ item.displayName }}'
+        expireTime: '{{ item.expireTime }}'
+        kmsKeyName: '{{ item.kmsKeyName }}'
+        kmsKeyVersionName: '{{ item.kmsKeyVersionName }}'
+        name: '{{ item.name }}'
+        phrases: '{{ item.phrases }}'
+        reconciling: '{{ item.reconciling }}'
+        state: '{{ item.state }}'
+        uid: '{{ item.uid }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.speech.operations.get [dependent] ──
+  - discovery_id: gcp.speech.operations.get
+    for_each: gcp.speech.operations.list
+    # python: svc.operations().get(**params).execute()
+    calls:
+      - action: operations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']
+  # Get a custom class.
+  # ── gcp.speech.projects.locations.customClasses.get [dependent] ──
+  - discovery_id: gcp.speech.projects.locations.customClasses.get
+    for_each: gcp.speech.projects.locations.customClasses.list
+    # python: svc.projects().locations().customClasses().get(**params).execute()
+    calls:
+      - action: projects.locations.customClasses.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        annotations: '{{ response.annotations }}'
+        customClassId: '{{ response.customClassId }}'
+        deleteTime: '{{ response.deleteTime }}'
+        displayName: '{{ response.displayName }}'
+        expireTime: '{{ response.expireTime }}'
+        items: '{{ response.items }}'
+        kmsKeyName: '{{ response.kmsKeyName }}'
+        kmsKeyVersionName: '{{ response.kmsKeyVersionName }}'
+        name: '{{ response.name }}'
+        reconciling: '{{ response.reconciling }}'
+        state: '{{ response.state }}'
+        uid: '{{ response.uid }}'
+    # required_params: ['name']
+  # Get a phrase set.
+  # ── gcp.speech.projects.locations.phraseSets.get [dependent] ──
+  - discovery_id: gcp.speech.projects.locations.phraseSets.get
+    for_each: gcp.speech.projects.locations.phraseSets.list
+    # python: svc.projects().locations().phraseSets().get(**params).execute()
+    calls:
+      - action: projects.locations.phraseSets.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        annotations: '{{ response.annotations }}'
+        boost: '{{ response.boost }}'
+        deleteTime: '{{ response.deleteTime }}'
+        displayName: '{{ response.displayName }}'
+        expireTime: '{{ response.expireTime }}'
+        kmsKeyName: '{{ response.kmsKeyName }}'
+        kmsKeyVersionName: '{{ response.kmsKeyVersionName }}'
+        name: '{{ response.name }}'
+        phrases: '{{ response.phrases }}'
+        reconciling: '{{ response.reconciling }}'
+        state: '{{ response.state }}'
+        uid: '{{ response.uid }}'
+    # required_params: ['name']

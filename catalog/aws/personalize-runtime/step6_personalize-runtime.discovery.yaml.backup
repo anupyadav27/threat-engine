@@ -1,0 +1,47 @@
+version: '1.0'
+provider: aws
+service: personalize-runtime
+services:
+  client: personalize-runtime
+  module: boto3.client
+discovery:
+- discovery_id: aws.personalize-runtime.getActionRecommendations
+  calls:
+  - action: getActionRecommendations
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.actionList }}'
+    item:
+      actionId: '{{ item.actionId }}'
+      score: '{{ item.score }}'
+- discovery_id: aws.personalize-runtime.getRecommendations
+  calls:
+  - action: getRecommendations
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.itemList }}'
+    item:
+      itemId: '{{ item.itemId }}'
+      score: '{{ item.score }}'
+      promotionName: '{{ item.promotionName }}'
+      metadata: '{{ item.metadata }}'
+      reason: '{{ item.reason }}'
+- discovery_id: aws.personalize-runtime.getPersonalizedRanking
+  calls:
+  - action: getPersonalizedRanking
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.personalizedRanking }}'
+    item:
+      itemId: '{{ item.itemId }}'
+      score: '{{ item.score }}'
+      promotionName: '{{ item.promotionName }}'
+      metadata: '{{ item.metadata }}'
+      reason: '{{ item.reason }}'
+checks: []

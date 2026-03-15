@@ -1,0 +1,85 @@
+# ============================================================
+# Discovery YAML — discovery (v1)
+# Generated: 2026-02-21T03:06:39Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 2 | independent: 1 | dependent: 1
+# ops with fields: 1/2 | dep ops with chain: 0/1
+# ============================================================
+version: '1.0'
+provider: gcp
+service: discovery
+
+services:
+  client: discovery
+  module: "googleapiclient.discovery.build('discovery', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Retrieve the list of APIs supported at this endpoint.
+  # ── gcp.discovery.apis.list ──
+  - discovery_id: gcp.discovery.apis.list
+    # python: svc.apis().list(**params).execute()
+    calls:
+      - action: apis.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.apis }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Retrieve the description of a particular version of an api.
+  # ── gcp.discovery.apis.getRest [dependent] ──
+  - discovery_id: gcp.discovery.apis.getRest
+    # python: svc.apis().getRest(**params).execute()
+    calls:
+      - action: apis.getRest
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        auth: '{{ response.auth }}'
+        basePath: '{{ response.basePath }}'
+        baseUrl: '{{ response.baseUrl }}'
+        batchPath: '{{ response.batchPath }}'
+        canonicalName: '{{ response.canonicalName }}'
+        description: '{{ response.description }}'
+        discoveryVersion: '{{ response.discoveryVersion }}'
+        documentationLink: '{{ response.documentationLink }}'
+        endpoints: '{{ response.endpoints }}'
+        exponentialBackoffDefault: '{{ response.exponentialBackoffDefault }}'
+        features: '{{ response.features }}'
+        icons: '{{ response.icons }}'
+        id: '{{ response.id }}'
+        labels: '{{ response.labels }}'
+        methods: '{{ response.methods }}'
+        name: '{{ response.name }}'
+        ownerDomain: '{{ response.ownerDomain }}'
+        ownerName: '{{ response.ownerName }}'
+        packagePath: '{{ response.packagePath }}'
+        parameters: '{{ response.parameters }}'
+        protocol: '{{ response.protocol }}'
+        resources: '{{ response.resources }}'
+        revision: '{{ response.revision }}'
+        rootUrl: '{{ response.rootUrl }}'
+        schemas: '{{ response.schemas }}'
+        servicePath: '{{ response.servicePath }}'
+        title: '{{ response.title }}'
+        version: '{{ response.version }}'
+        version_module: '{{ response.version_module }}'
+    # required_params: ['version', 'api']

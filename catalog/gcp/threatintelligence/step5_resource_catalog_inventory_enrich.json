@@ -1,0 +1,750 @@
+{
+  "csp": "gcp",
+  "generated_at": "2026-02-19T14:43:28.501048+00:00",
+  "anchors": {
+    "fixed": [
+      "project_id",
+      "org_id",
+      "folder_id",
+      "location",
+      "zone",
+      "region"
+    ]
+  },
+  "services": {
+    "threatintelligence": {
+      "version": "v1beta",
+      "resources": {
+        "alerts": {
+          "resource_type": "alerts",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{parent}/alerts:enumerateFacets",
+              "built_from_parts": [
+                "parent"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [
+              "parent"
+            ],
+            "part_sources": {
+              "parent": {
+                "op": "gcp.threatintelligence.projects.alerts.list",
+                "field_path": "alerts[].name",
+                "transform": null
+              }
+            },
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.threatintelligence.projects.alerts.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1beta/{+parent}/alerts"
+                },
+                "python_call": "svc.projects().alerts().list(**params).execute()",
+                "produces": {
+                  "name": "alerts[].name",
+                  "findings": "alerts[].findings",
+                  "state": "alerts[].state",
+                  "audit": "alerts[].audit",
+                  "displayName": "alerts[].displayName",
+                  "detail": "alerts[].detail",
+                  "duplicateOf": "alerts[].duplicateOf",
+                  "duplicatedBy": "alerts[].duplicatedBy",
+                  "externalId": "alerts[].externalId",
+                  "aiSummary": "alerts[].aiSummary",
+                  "relevanceAnalysis": "alerts[].relevanceAnalysis",
+                  "severityAnalysis": "alerts[].severityAnalysis",
+                  "priorityAnalysis": "alerts[].priorityAnalysis",
+                  "findingCount": "alerts[].findingCount",
+                  "configurations": "alerts[].configurations"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.threatintelligence.projects.alerts.enumerateFacets",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1beta/{+parent}/alerts:enumerateFacets"
+                },
+                "python_call": "svc.projects().alerts().enumerateFacets(**params).execute()",
+                "required_params": {
+                  "parent": {
+                    "from_identifier": "parent"
+                  }
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.threatintelligence.projects.alerts.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1beta/{+name}"
+                },
+                "python_call": "svc.projects().alerts().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.threatintelligence.projects.alerts.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.threatintelligence.projects.alerts.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().alerts().list(**params).execute()",
+                      "path": "/v1beta/{+parent}/alerts",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+$",
+                          "description": "Required. Parent of the alerts. Format: projects/{project}"
+                        }
+                      },
+                      "output_list_field": "alerts",
+                      "output_id_field": "name",
+                      "produces": {
+                        "alertId": {
+                          "via_list_field": "alerts",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"alerts\"][], extract item[\"name\"] \u2192 pass as \"alertId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: alertId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.threatintelligence.projects.alerts.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().alerts().get(**params).execute()",
+                      "path": "/v1beta/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/alerts/[^/]+$",
+                          "description": "Required. Name of the alert to get. Format: projects/{project}/alerts/{alert}"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "alertId": {
+                            "from_step": 1,
+                            "from_op": "gcp.threatintelligence.projects.alerts.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.threatintelligence.projects.alerts.read",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "POST",
+                  "path": "/v1beta/{+name}:read"
+                },
+                "python_call": "svc.projects().alerts().read(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.threatintelligence.projects.alerts.read",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.threatintelligence.projects.alerts.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().alerts().list(**params).execute()",
+                      "path": "/v1beta/{+parent}/alerts",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+$",
+                          "description": "Required. Parent of the alerts. Format: projects/{project}"
+                        }
+                      },
+                      "output_list_field": "alerts",
+                      "output_id_field": "name",
+                      "produces": {
+                        "alertId": {
+                          "via_list_field": "alerts",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"alerts\"][], extract item[\"name\"] \u2192 pass as \"alertId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: alertId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.threatintelligence.projects.alerts.read",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().alerts().read(**params).execute()",
+                      "path": "/v1beta/{+name}:read",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/alerts/[^/]+$",
+                          "description": "Required. Name of the alert to mark as read. Format: projects/{project}/alerts/{alert}"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "alertId": {
+                            "from_step": 1,
+                            "from_op": "gcp.threatintelligence.projects.alerts.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        },
+        "configurations": {
+          "resource_type": "configurations",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.threatintelligence.projects.configurations.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1beta/{+parent}/configurations"
+                },
+                "python_call": "svc.projects().configurations().list(**params).execute()",
+                "produces": {
+                  "name": "configurations[].name",
+                  "displayName": "configurations[].displayName",
+                  "audit": "configurations[].audit",
+                  "provider": "configurations[].provider",
+                  "state": "configurations[].state",
+                  "detail": "configurations[].detail",
+                  "version": "configurations[].version",
+                  "description": "configurations[].description"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.threatintelligence.projects.configurations.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1beta/{+name}"
+                },
+                "python_call": "svc.projects().configurations().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.threatintelligence.projects.configurations.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.threatintelligence.projects.configurations.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().configurations().list(**params).execute()",
+                      "path": "/v1beta/{+parent}/configurations",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+$",
+                          "description": "Required. Parent of the configuration. Format: vaults/{vault}"
+                        }
+                      },
+                      "output_list_field": "configurations",
+                      "output_id_field": "name",
+                      "produces": {
+                        "configurationId": {
+                          "via_list_field": "configurations",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"configurations\"][], extract item[\"name\"] \u2192 pass as \"configurationId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: configurationId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.threatintelligence.projects.configurations.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().configurations().get(**params).execute()",
+                      "path": "/v1beta/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/configurations/[^/]+$",
+                          "description": "Required. Name of the configuration to get. Format: vaults/{vault}/configurations/{configuration}"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "configurationId": {
+                            "from_step": 1,
+                            "from_op": "gcp.threatintelligence.projects.configurations.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "documents": {
+          "resource_type": "documents",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.threatintelligence.projects.alerts.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1beta/{+parent}/alerts"
+                },
+                "python_call": "svc.projects().alerts().list(**params).execute()",
+                "produces": {
+                  "name": "alerts[].name",
+                  "findings": "alerts[].findings",
+                  "state": "alerts[].state",
+                  "audit": "alerts[].audit",
+                  "displayName": "alerts[].displayName",
+                  "detail": "alerts[].detail",
+                  "duplicateOf": "alerts[].duplicateOf",
+                  "duplicatedBy": "alerts[].duplicatedBy",
+                  "externalId": "alerts[].externalId",
+                  "aiSummary": "alerts[].aiSummary",
+                  "relevanceAnalysis": "alerts[].relevanceAnalysis",
+                  "severityAnalysis": "alerts[].severityAnalysis",
+                  "priorityAnalysis": "alerts[].priorityAnalysis",
+                  "findingCount": "alerts[].findingCount",
+                  "configurations": "alerts[].configurations"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.threatintelligence.projects.alerts.documents.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1beta/{+name}"
+                },
+                "python_call": "svc.projects().alerts().documents().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.threatintelligence.projects.alerts.documents.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.threatintelligence.projects.alerts.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().alerts().list(**params).execute()",
+                      "path": "/v1beta/{+parent}/alerts",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+$",
+                          "description": "Required. Parent of the alerts. Format: projects/{project}"
+                        }
+                      },
+                      "output_list_field": "alerts",
+                      "output_id_field": "name",
+                      "produces": {
+                        "alertId": {
+                          "via_list_field": "alerts",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"alerts\"][], extract item[\"name\"] \u2192 pass as \"alertId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: alertId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.threatintelligence.projects.alerts.documents.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().alerts().documents().get(**params).execute()",
+                      "path": "/v1beta/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/alerts/[^/]+/documents/[^/]+$",
+                          "description": "Required. Name of the alert document to get. Format: projects/{project}/alerts/{alert}/documents/{document}"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "alertId": {
+                            "from_step": 1,
+                            "from_op": "gcp.threatintelligence.projects.alerts.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "findings": {
+          "resource_type": "findings",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.threatintelligence.projects.findings.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1beta/{+parent}/findings"
+                },
+                "python_call": "svc.projects().findings().list(**params).execute()",
+                "produces": {
+                  "name": "findings[].name",
+                  "provider": "findings[].provider",
+                  "displayName": "findings[].displayName",
+                  "detail": "findings[].detail",
+                  "severity": "findings[].severity",
+                  "reoccurrenceTimes": "findings[].reoccurrenceTimes",
+                  "relevanceAnalysis": "findings[].relevanceAnalysis",
+                  "severityAnalysis": "findings[].severityAnalysis",
+                  "aiSummary": "findings[].aiSummary",
+                  "audit": "findings[].audit",
+                  "alert": "findings[].alert",
+                  "configurations": "findings[].configurations"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.threatintelligence.projects.findings.search",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1beta/{+parent}/findings:search"
+                },
+                "python_call": "svc.projects().findings().search(**params).execute()",
+                "produces": {
+                  "name": "findings[].name",
+                  "provider": "findings[].provider",
+                  "displayName": "findings[].displayName",
+                  "detail": "findings[].detail",
+                  "severity": "findings[].severity",
+                  "reoccurrenceTimes": "findings[].reoccurrenceTimes",
+                  "relevanceAnalysis": "findings[].relevanceAnalysis",
+                  "severityAnalysis": "findings[].severityAnalysis",
+                  "aiSummary": "findings[].aiSummary",
+                  "audit": "findings[].audit",
+                  "alert": "findings[].alert",
+                  "configurations": "findings[].configurations"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.threatintelligence.projects.findings.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1beta/{+name}"
+                },
+                "python_call": "svc.projects().findings().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.threatintelligence.projects.findings.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.threatintelligence.projects.findings.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().findings().list(**params).execute()",
+                      "path": "/v1beta/{+parent}/findings",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+$",
+                          "description": "Required. Parent of the findings."
+                        }
+                      },
+                      "output_list_field": "findings",
+                      "output_id_field": "name",
+                      "produces": {
+                        "findingId": {
+                          "via_list_field": "findings",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"findings\"][], extract item[\"name\"] \u2192 pass as \"findingId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: findingId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.threatintelligence.projects.findings.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().findings().get(**params).execute()",
+                      "path": "/v1beta/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/findings/[^/]+$",
+                          "description": "Required. Name of the finding to get."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "findingId": {
+                            "from_step": 1,
+                            "from_op": "gcp.threatintelligence.projects.findings.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "revisions": {
+          "resource_type": "revisions",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "",
+              "built_from_parts": [],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.threatintelligence.projects.configurations.revisions.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1beta/{+parent}/revisions"
+                },
+                "python_call": "svc.projects().configurations().revisions().list(**params).execute()",
+                "produces": {
+                  "name": "revisions[].name",
+                  "snapshot": "revisions[].snapshot",
+                  "createTime": "revisions[].createTime"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": []
+          },
+          "confidence": 0.5,
+          "notes": "No enrich (get) ops found; inventory only."
+        }
+      }
+    }
+  }
+}

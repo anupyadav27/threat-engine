@@ -1,0 +1,322 @@
+version: '1.0'
+provider: aws
+service: events
+services:
+  client: events
+  module: boto3.client
+discovery:
+- discovery_id: aws.events.describeEventBus
+  calls:
+  - action: describeEventBus
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.DeadLetterConfig }}'
+    item:
+      Arn: '{{ item.Arn }}'
+- discovery_id: aws.events.listApiDestinations
+  calls:
+  - action: listApiDestinations
+    save_as: response
+    on_error: continue
+    params:
+      Limit: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ApiDestinations }}'
+    item:
+      ApiDestinationArn: '{{ item.ApiDestinationArn }}'
+      Name: '{{ item.Name }}'
+      ApiDestinationState: '{{ item.ApiDestinationState }}'
+      ConnectionArn: '{{ item.ConnectionArn }}'
+      InvocationEndpoint: '{{ item.InvocationEndpoint }}'
+      HttpMethod: '{{ item.HttpMethod }}'
+      InvocationRateLimitPerSecond: '{{ item.InvocationRateLimitPerSecond }}'
+      CreationTime: '{{ item.CreationTime }}'
+      LastModifiedTime: '{{ item.LastModifiedTime }}'
+- discovery_id: aws.events.listArchives
+  calls:
+  - action: listArchives
+    save_as: response
+    on_error: continue
+    params:
+      Limit: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Archives }}'
+    item:
+      ArchiveName: '{{ item.ArchiveName }}'
+      EventSourceArn: '{{ item.EventSourceArn }}'
+      State: '{{ item.State }}'
+      StateReason: '{{ item.StateReason }}'
+      RetentionDays: '{{ item.RetentionDays }}'
+      SizeBytes: '{{ item.SizeBytes }}'
+      EventCount: '{{ item.EventCount }}'
+      CreationTime: '{{ item.CreationTime }}'
+- discovery_id: aws.events.listConnections
+  calls:
+  - action: listConnections
+    save_as: response
+    on_error: continue
+    params:
+      Limit: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Connections }}'
+    item:
+      ConnectionArn: '{{ item.ConnectionArn }}'
+      Name: '{{ item.Name }}'
+      ConnectionState: '{{ item.ConnectionState }}'
+      StateReason: '{{ item.StateReason }}'
+      AuthorizationType: '{{ item.AuthorizationType }}'
+      CreationTime: '{{ item.CreationTime }}'
+      LastModifiedTime: '{{ item.LastModifiedTime }}'
+      LastAuthorizedTime: '{{ item.LastAuthorizedTime }}'
+- discovery_id: aws.events.listEndpoints
+  calls:
+  - action: listEndpoints
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Endpoints }}'
+    item:
+      Name: '{{ item.Name }}'
+      Description: '{{ item.Description }}'
+      Arn: '{{ item.Arn }}'
+      RoutingConfig: '{{ item.RoutingConfig }}'
+      ReplicationConfig: '{{ item.ReplicationConfig }}'
+      EventBuses: '{{ item.EventBuses }}'
+      RoleArn: '{{ item.RoleArn }}'
+      EndpointId: '{{ item.EndpointId }}'
+      EndpointUrl: '{{ item.EndpointUrl }}'
+      State: '{{ item.State }}'
+      StateReason: '{{ item.StateReason }}'
+      CreationTime: '{{ item.CreationTime }}'
+      LastModifiedTime: '{{ item.LastModifiedTime }}'
+- discovery_id: aws.events.listEventBuses
+  calls:
+  - action: listEventBuses
+    save_as: response
+    on_error: continue
+    params:
+      Limit: 1000
+  emit:
+    as: item
+    items_for: '{{ response.EventBuses }}'
+    item:
+      Name: '{{ item.Name }}'
+      Arn: '{{ item.Arn }}'
+      Description: '{{ item.Description }}'
+      Policy: '{{ item.Policy }}'
+      CreationTime: '{{ item.CreationTime }}'
+      LastModifiedTime: '{{ item.LastModifiedTime }}'
+- discovery_id: aws.events.listEventSources
+  calls:
+  - action: listEventSources
+    save_as: response
+    on_error: continue
+    params:
+      Limit: 1000
+  emit:
+    as: item
+    items_for: '{{ response.EventSources }}'
+    item:
+      Arn: '{{ item.Arn }}'
+      CreatedBy: '{{ item.CreatedBy }}'
+      CreationTime: '{{ item.CreationTime }}'
+      ExpirationTime: '{{ item.ExpirationTime }}'
+      Name: '{{ item.Name }}'
+      State: '{{ item.State }}'
+- discovery_id: aws.events.listReplays
+  calls:
+  - action: listReplays
+    save_as: response
+    on_error: continue
+    params:
+      Limit: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Replays }}'
+    item:
+      ReplayName: '{{ item.ReplayName }}'
+      EventSourceArn: '{{ item.EventSourceArn }}'
+      State: '{{ item.State }}'
+      StateReason: '{{ item.StateReason }}'
+      EventStartTime: '{{ item.EventStartTime }}'
+      EventEndTime: '{{ item.EventEndTime }}'
+      EventLastReplayedTime: '{{ item.EventLastReplayedTime }}'
+      ReplayStartTime: '{{ item.ReplayStartTime }}'
+      ReplayEndTime: '{{ item.ReplayEndTime }}'
+- discovery_id: aws.events.listRules
+  calls:
+  - action: listRules
+    save_as: response
+    on_error: continue
+    params:
+      Limit: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Rules }}'
+    item:
+      Name: '{{ item.Name }}'
+      Arn: '{{ item.Arn }}'
+      EventPattern: '{{ item.EventPattern }}'
+      State: '{{ item.State }}'
+      Description: '{{ item.Description }}'
+      ScheduleExpression: '{{ item.ScheduleExpression }}'
+      RoleArn: '{{ item.RoleArn }}'
+      ManagedBy: '{{ item.ManagedBy }}'
+      EventBusName: '{{ item.EventBusName }}'
+- discovery_id: aws.events.describeApiDestination
+  calls:
+  - action: describeApiDestination
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ApiDestinationArn }}'
+- discovery_id: aws.events.describeArchive
+  calls:
+  - action: describeArchive
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ArchiveArn }}'
+- discovery_id: aws.events.describeConnection
+  calls:
+  - action: describeConnection
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.InvocationConnectivityParameters }}'
+    item:
+      ResourceParameters: '{{ item.ResourceParameters }}'
+- discovery_id: aws.events.describeEndpoint
+  calls:
+  - action: describeEndpoint
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.EventBuses }}'
+    item:
+      EventBusArn: '{{ item.EventBusArn }}'
+- discovery_id: aws.events.describeEventSource
+  calls:
+  - action: describeEventSource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Arn }}'
+- discovery_id: aws.events.describePartnerEventSource
+  calls:
+  - action: describePartnerEventSource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Arn }}'
+- discovery_id: aws.events.describeReplay
+  calls:
+  - action: describeReplay
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Destination }}'
+    item:
+      Arn: '{{ item.Arn }}'
+      FilterArns: '{{ item.FilterArns }}'
+- discovery_id: aws.events.describeRule
+  calls:
+  - action: describeRule
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Name }}'
+- discovery_id: aws.events.listPartnerEventSourceAccounts
+  calls:
+  - action: listPartnerEventSourceAccounts
+    save_as: response
+    on_error: continue
+    params:
+      Limit: 1000
+  emit:
+    as: item
+    items_for: '{{ response.PartnerEventSourceAccounts }}'
+    item:
+      Account: '{{ item.Account }}'
+      CreationTime: '{{ item.CreationTime }}'
+      ExpirationTime: '{{ item.ExpirationTime }}'
+      State: '{{ item.State }}'
+- discovery_id: aws.events.listPartnerEventSources
+  calls:
+  - action: listPartnerEventSources
+    save_as: response
+    on_error: continue
+    params:
+      Limit: 1000
+  emit:
+    as: item
+    items_for: '{{ response.PartnerEventSources }}'
+    item:
+      Arn: '{{ item.Arn }}'
+      Name: '{{ item.Name }}'
+- discovery_id: aws.events.listRuleNamesByTarget
+  calls:
+  - action: listRuleNamesByTarget
+    save_as: response
+    on_error: continue
+    params:
+      Limit: 1000
+  emit:
+    as: item
+    items_for: '{{ response.RuleNames }}'
+- discovery_id: aws.events.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+    item:
+      Key: '{{ item.Key }}'
+      Value: '{{ item.Value }}'
+- discovery_id: aws.events.listTargetsByRule
+  calls:
+  - action: listTargetsByRule
+    save_as: response
+    on_error: continue
+    params:
+      Limit: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Targets }}'
+    item:
+      Id: '{{ item.Id }}'
+      Arn: '{{ item.Arn }}'
+      RoleArn: '{{ item.RoleArn }}'
+      Input: '{{ item.Input }}'
+      InputPath: '{{ item.InputPath }}'
+      InputTransformer: '{{ item.InputTransformer }}'
+      KinesisParameters: '{{ item.KinesisParameters }}'
+      RunCommandParameters: '{{ item.RunCommandParameters }}'
+      EcsParameters: '{{ item.EcsParameters }}'
+      BatchParameters: '{{ item.BatchParameters }}'
+      SqsParameters: '{{ item.SqsParameters }}'
+      HttpParameters: '{{ item.HttpParameters }}'
+      RedshiftDataParameters: '{{ item.RedshiftDataParameters }}'
+      SageMakerPipelineParameters: '{{ item.SageMakerPipelineParameters }}'
+      DeadLetterConfig: '{{ item.DeadLetterConfig }}'
+      RetryPolicy: '{{ item.RetryPolicy }}'
+      AppSyncParameters: '{{ item.AppSyncParameters }}'
+checks: []

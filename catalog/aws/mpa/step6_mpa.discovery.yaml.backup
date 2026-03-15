@@ -1,0 +1,196 @@
+version: '1.0'
+provider: aws
+service: mpa
+services:
+  client: mpa
+  module: boto3.client
+discovery:
+- discovery_id: aws.mpa.listApprovalTeams
+  calls:
+  - action: listApprovalTeams
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ApprovalTeams }}'
+    item:
+      CreationTime: '{{ item.CreationTime }}'
+      ApprovalStrategy: '{{ item.ApprovalStrategy }}'
+      NumberOfApprovers: '{{ item.NumberOfApprovers }}'
+      Arn: '{{ item.Arn }}'
+      Name: '{{ item.Name }}'
+      Description: '{{ item.Description }}'
+      Status: '{{ item.Status }}'
+      StatusCode: '{{ item.StatusCode }}'
+      StatusMessage: '{{ item.StatusMessage }}'
+- discovery_id: aws.mpa.listIdentitySources
+  calls:
+  - action: listIdentitySources
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.IdentitySources }}'
+    item:
+      IdentitySourceType: '{{ item.IdentitySourceType }}'
+      IdentitySourceParameters: '{{ item.IdentitySourceParameters }}'
+      IdentitySourceArn: '{{ item.IdentitySourceArn }}'
+      CreationTime: '{{ item.CreationTime }}'
+      Status: '{{ item.Status }}'
+      StatusCode: '{{ item.StatusCode }}'
+      StatusMessage: '{{ item.StatusMessage }}'
+- discovery_id: aws.mpa.listPolicies
+  calls:
+  - action: listPolicies
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Policies }}'
+    item:
+      Arn: '{{ item.Arn }}'
+      DefaultVersion: '{{ item.DefaultVersion }}'
+      PolicyType: '{{ item.PolicyType }}'
+      Name: '{{ item.Name }}'
+- discovery_id: aws.mpa.getApprovalTeam
+  calls:
+  - action: getApprovalTeam
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Approvers }}'
+    item:
+      ApproverId: '{{ item.ApproverId }}'
+      ResponseTime: '{{ item.ResponseTime }}'
+      PrimaryIdentityId: '{{ item.PrimaryIdentityId }}'
+      PrimaryIdentitySourceArn: '{{ item.PrimaryIdentitySourceArn }}'
+      PrimaryIdentityStatus: '{{ item.PrimaryIdentityStatus }}'
+- discovery_id: aws.mpa.getIdentitySource
+  calls:
+  - action: getIdentitySource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.IdentitySourceParameters }}'
+    item:
+      IamIdentityCenter: '{{ item.IamIdentityCenter }}'
+- discovery_id: aws.mpa.getPolicyVersion
+  calls:
+  - action: getPolicyVersion
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.PolicyVersion }}'
+    item:
+      Arn: '{{ item.Arn }}'
+      PolicyArn: '{{ item.PolicyArn }}'
+      VersionId: '{{ item.VersionId }}'
+      PolicyType: '{{ item.PolicyType }}'
+      IsDefault: '{{ item.IsDefault }}'
+      Name: '{{ item.Name }}'
+      Status: '{{ item.Status }}'
+      CreationTime: '{{ item.CreationTime }}'
+      LastUpdatedTime: '{{ item.LastUpdatedTime }}'
+      Document: '{{ item.Document }}'
+- discovery_id: aws.mpa.getResourcePolicy
+  calls:
+  - action: getResourcePolicy
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ResourceArn }}'
+- discovery_id: aws.mpa.getSession
+  calls:
+  - action: getSession
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ApproverResponses }}'
+    item:
+      ApproverId: '{{ item.ApproverId }}'
+      IdentitySourceArn: '{{ item.IdentitySourceArn }}'
+      IdentityId: '{{ item.IdentityId }}'
+      Response: '{{ item.Response }}'
+      ResponseTime: '{{ item.ResponseTime }}'
+- discovery_id: aws.mpa.listPolicyVersions
+  calls:
+  - action: listPolicyVersions
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.PolicyVersions }}'
+    item:
+      Arn: '{{ item.Arn }}'
+      PolicyArn: '{{ item.PolicyArn }}'
+      VersionId: '{{ item.VersionId }}'
+      PolicyType: '{{ item.PolicyType }}'
+      IsDefault: '{{ item.IsDefault }}'
+      Name: '{{ item.Name }}'
+      Status: '{{ item.Status }}'
+      CreationTime: '{{ item.CreationTime }}'
+      LastUpdatedTime: '{{ item.LastUpdatedTime }}'
+- discovery_id: aws.mpa.listResourcePolicies
+  calls:
+  - action: listResourcePolicies
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ResourcePolicies }}'
+    item:
+      PolicyArn: '{{ item.PolicyArn }}'
+      PolicyType: '{{ item.PolicyType }}'
+      PolicyName: '{{ item.PolicyName }}'
+- discovery_id: aws.mpa.listSessions
+  calls:
+  - action: listSessions
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Sessions }}'
+    item:
+      SessionArn: '{{ item.SessionArn }}'
+      ApprovalTeamName: '{{ item.ApprovalTeamName }}'
+      ApprovalTeamArn: '{{ item.ApprovalTeamArn }}'
+      InitiationTime: '{{ item.InitiationTime }}'
+      ExpirationTime: '{{ item.ExpirationTime }}'
+      CompletionTime: '{{ item.CompletionTime }}'
+      Description: '{{ item.Description }}'
+      ActionName: '{{ item.ActionName }}'
+      ProtectedResourceArn: '{{ item.ProtectedResourceArn }}'
+      RequesterServicePrincipal: '{{ item.RequesterServicePrincipal }}'
+      RequesterPrincipalArn: '{{ item.RequesterPrincipalArn }}'
+      RequesterRegion: '{{ item.RequesterRegion }}'
+      RequesterAccountId: '{{ item.RequesterAccountId }}'
+      Status: '{{ item.Status }}'
+      StatusCode: '{{ item.StatusCode }}'
+      StatusMessage: '{{ item.StatusMessage }}'
+      ActionCompletionStrategy: '{{ item.ActionCompletionStrategy }}'
+- discovery_id: aws.mpa.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+checks: []

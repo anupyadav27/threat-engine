@@ -1,0 +1,167 @@
+version: '1.0'
+provider: aws
+service: glacier
+services:
+  client: glacier
+  module: boto3.client
+discovery:
+- discovery_id: aws.glacier.describeJob
+  calls:
+  - action: describeJob
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.InventoryRetrievalParameters }}'
+    item:
+      Format: '{{ item.Format }}'
+      StartDate: '{{ item.StartDate }}'
+      EndDate: '{{ item.EndDate }}'
+      Limit: '{{ item.Limit }}'
+      Marker: '{{ item.Marker }}'
+- discovery_id: aws.glacier.describeVault
+  calls:
+  - action: describeVault
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.VaultARN }}'
+- discovery_id: aws.glacier.getDataRetrievalPolicy
+  calls:
+  - action: getDataRetrievalPolicy
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Policy }}'
+    item:
+      Rules: '{{ item.Rules }}'
+- discovery_id: aws.glacier.getJobOutput
+  calls:
+  - action: getJobOutput
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.body }}'
+- discovery_id: aws.glacier.getVaultAccessPolicy
+  calls:
+  - action: getVaultAccessPolicy
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.policy }}'
+    item:
+      Policy: '{{ item.Policy }}'
+- discovery_id: aws.glacier.getVaultLock
+  calls:
+  - action: getVaultLock
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Policy }}'
+- discovery_id: aws.glacier.getVaultNotifications
+  calls:
+  - action: getVaultNotifications
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.vaultNotificationConfig }}'
+    item:
+      SNSTopic: '{{ item.SNSTopic }}'
+      Events: '{{ item.Events }}'
+- discovery_id: aws.glacier.listJobs
+  calls:
+  - action: listJobs
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.JobList }}'
+    item:
+      JobId: '{{ item.JobId }}'
+      JobDescription: '{{ item.JobDescription }}'
+      Action: '{{ item.Action }}'
+      ArchiveId: '{{ item.ArchiveId }}'
+      VaultARN: '{{ item.VaultARN }}'
+      CreationDate: '{{ item.CreationDate }}'
+      Completed: '{{ item.Completed }}'
+      StatusCode: '{{ item.StatusCode }}'
+      StatusMessage: '{{ item.StatusMessage }}'
+      ArchiveSizeInBytes: '{{ item.ArchiveSizeInBytes }}'
+      InventorySizeInBytes: '{{ item.InventorySizeInBytes }}'
+      SNSTopic: '{{ item.SNSTopic }}'
+      CompletionDate: '{{ item.CompletionDate }}'
+      SHA256TreeHash: '{{ item.SHA256TreeHash }}'
+      ArchiveSHA256TreeHash: '{{ item.ArchiveSHA256TreeHash }}'
+      RetrievalByteRange: '{{ item.RetrievalByteRange }}'
+      Tier: '{{ item.Tier }}'
+      InventoryRetrievalParameters: '{{ item.InventoryRetrievalParameters }}'
+      JobOutputPath: '{{ item.JobOutputPath }}'
+      SelectParameters: '{{ item.SelectParameters }}'
+      OutputLocation: '{{ item.OutputLocation }}'
+- discovery_id: aws.glacier.listMultipartUploads
+  calls:
+  - action: listMultipartUploads
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.UploadsList }}'
+    item:
+      MultipartUploadId: '{{ item.MultipartUploadId }}'
+      VaultARN: '{{ item.VaultARN }}'
+      ArchiveDescription: '{{ item.ArchiveDescription }}'
+      PartSizeInBytes: '{{ item.PartSizeInBytes }}'
+      CreationDate: '{{ item.CreationDate }}'
+- discovery_id: aws.glacier.listParts
+  calls:
+  - action: listParts
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Parts }}'
+    item:
+      RangeInBytes: '{{ item.RangeInBytes }}'
+      SHA256TreeHash: '{{ item.SHA256TreeHash }}'
+- discovery_id: aws.glacier.listProvisionedCapacity
+  calls:
+  - action: listProvisionedCapacity
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ProvisionedCapacityList }}'
+    item:
+      CapacityId: '{{ item.CapacityId }}'
+      StartDate: '{{ item.StartDate }}'
+      ExpirationDate: '{{ item.ExpirationDate }}'
+- discovery_id: aws.glacier.listTagsForVault
+  calls:
+  - action: listTagsForVault
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+- discovery_id: aws.glacier.listVaults
+  calls:
+  - action: listVaults
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.VaultList }}'
+    item:
+      VaultARN: '{{ item.VaultARN }}'
+      VaultName: '{{ item.VaultName }}'
+      CreationDate: '{{ item.CreationDate }}'
+      LastInventoryDate: '{{ item.LastInventoryDate }}'
+      NumberOfArchives: '{{ item.NumberOfArchives }}'
+      SizeInBytes: '{{ item.SizeInBytes }}'
+checks: []

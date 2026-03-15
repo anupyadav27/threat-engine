@@ -1,0 +1,227 @@
+{
+  "csp": "gcp",
+  "service": "firebasestorage",
+  "version": "v1beta",
+  "generated_at": "2026-02-19T14:14:42.091004+00:00",
+  "total_fields": 5,
+  "stats": {
+    "preferred_independent": 5,
+    "preferred_chained": 0,
+    "preferred_unresolved": 0,
+    "total_producers": 6
+  },
+  "fields": {
+    "bucket": {
+      "field_path": "bucket",
+      "producers": [
+        {
+          "op": "gcp.firebasestorage.projects.getDefaultBucket",
+          "service": "firebasestorage",
+          "kind": "read_get",
+          "independent": true,
+          "http": {
+            "verb": "GET",
+            "path": "/v1beta/{+name}"
+          },
+          "python_call": "svc.projects().getDefaultBucket(**params).execute()",
+          "produces_type": "string",
+          "is_id": false,
+          "notes": "",
+          "chain_to_independent": null,
+          "score": 56.0
+        }
+      ],
+      "preferred": {
+        "strategy": "independent_first",
+        "op": "gcp.firebasestorage.projects.getDefaultBucket",
+        "chain_to_independent": null
+      }
+    },
+    "buckets[].name": {
+      "field_path": "buckets[].name",
+      "producers": [
+        {
+          "op": "gcp.firebasestorage.projects.buckets.list",
+          "service": "firebasestorage",
+          "kind": "read_list",
+          "independent": true,
+          "http": {
+            "verb": "GET",
+            "path": "/v1beta/{+parent}/buckets"
+          },
+          "python_call": "svc.projects().buckets().list(**params).execute()",
+          "produces_type": "string",
+          "is_id": true,
+          "notes": "resource identity \u2014 use as name/parent param for .get()",
+          "chain_to_independent": null,
+          "score": 60.0
+        }
+      ],
+      "preferred": {
+        "strategy": "independent_first",
+        "op": "gcp.firebasestorage.projects.buckets.list",
+        "chain_to_independent": null
+      }
+    },
+    "location": {
+      "field_path": "location",
+      "producers": [
+        {
+          "op": "gcp.firebasestorage.projects.getDefaultBucket",
+          "service": "firebasestorage",
+          "kind": "read_get",
+          "independent": true,
+          "http": {
+            "verb": "GET",
+            "path": "/v1beta/{+name}"
+          },
+          "python_call": "svc.projects().getDefaultBucket(**params).execute()",
+          "produces_type": "string",
+          "is_id": false,
+          "notes": "",
+          "chain_to_independent": null,
+          "score": 56.0
+        }
+      ],
+      "preferred": {
+        "strategy": "independent_first",
+        "op": "gcp.firebasestorage.projects.getDefaultBucket",
+        "chain_to_independent": null
+      }
+    },
+    "name": {
+      "field_path": "name",
+      "producers": [
+        {
+          "op": "gcp.firebasestorage.projects.getDefaultBucket",
+          "service": "firebasestorage",
+          "kind": "read_get",
+          "independent": true,
+          "http": {
+            "verb": "GET",
+            "path": "/v1beta/{+name}"
+          },
+          "python_call": "svc.projects().getDefaultBucket(**params).execute()",
+          "produces_type": "string",
+          "is_id": true,
+          "notes": "",
+          "chain_to_independent": null,
+          "score": 56.0
+        },
+        {
+          "op": "gcp.firebasestorage.projects.buckets.get",
+          "service": "firebasestorage",
+          "kind": "read_get",
+          "independent": false,
+          "http": {
+            "verb": "GET",
+            "path": "/v1beta/{+name}"
+          },
+          "python_call": "svc.projects().buckets().get(**params).execute()",
+          "produces_type": "string",
+          "is_id": true,
+          "notes": "",
+          "chain_to_independent": {
+            "target_op": "gcp.firebasestorage.projects.buckets.get",
+            "chain_length": 2,
+            "hop_distance": 1,
+            "execution_steps": [
+              {
+                "step": 1,
+                "op": "gcp.firebasestorage.projects.buckets.list",
+                "kind": "read_list",
+                "independent": true,
+                "python_call": "svc.projects().buckets().list(**params).execute()",
+                "path": "/v1beta/{+parent}/buckets",
+                "required_params": {
+                  "parent": {
+                    "type": "string",
+                    "location": "path",
+                    "pattern": "^projects/[^/]+$",
+                    "description": "Required. Resource name of the parent Firebase project, `projects/{project_id_or_number}`."
+                  }
+                },
+                "output_list_field": "buckets",
+                "output_id_field": "name",
+                "produces": {
+                  "bucketId": {
+                    "via_list_field": "buckets",
+                    "from_id_field": "name",
+                    "note": "Iterate response[\"buckets\"][], extract item[\"name\"] \u2192 pass as \"bucketId\""
+                  }
+                },
+                "param_sources": {
+                  "parent": "always_available"
+                },
+                "purpose": "Provides: bucketId",
+                "full_resource_name_template": ""
+              },
+              {
+                "step": 2,
+                "op": "gcp.firebasestorage.projects.buckets.get",
+                "kind": "read_get",
+                "independent": false,
+                "python_call": "svc.projects().buckets().get(**params).execute()",
+                "path": "/v1beta/{+name}",
+                "required_params": {
+                  "name": {
+                    "type": "string",
+                    "location": "path",
+                    "pattern": "^projects/[^/]+/buckets/[^/]+$",
+                    "description": "Required. Resource name of the bucket, mirrors the ID of the underlying Google Cloud Storage bucket, `projects/{project_"
+                  }
+                },
+                "output_list_field": null,
+                "output_id_field": null,
+                "produces": {},
+                "param_sources": {
+                  "name": {
+                    "bucketId": {
+                      "from_step": 1,
+                      "from_op": "gcp.firebasestorage.projects.buckets.list",
+                      "field": "name"
+                    }
+                  }
+                },
+                "purpose": "Target operation",
+                "full_resource_name_template": ""
+              }
+            ]
+          },
+          "score": 4.0
+        }
+      ],
+      "preferred": {
+        "strategy": "independent_first",
+        "op": "gcp.firebasestorage.projects.getDefaultBucket",
+        "chain_to_independent": null
+      }
+    },
+    "storageClass": {
+      "field_path": "storageClass",
+      "producers": [
+        {
+          "op": "gcp.firebasestorage.projects.getDefaultBucket",
+          "service": "firebasestorage",
+          "kind": "read_get",
+          "independent": true,
+          "http": {
+            "verb": "GET",
+            "path": "/v1beta/{+name}"
+          },
+          "python_call": "svc.projects().getDefaultBucket(**params).execute()",
+          "produces_type": "string",
+          "is_id": false,
+          "notes": "",
+          "chain_to_independent": null,
+          "score": 56.0
+        }
+      ],
+      "preferred": {
+        "strategy": "independent_first",
+        "op": "gcp.firebasestorage.projects.getDefaultBucket",
+        "chain_to_independent": null
+      }
+    }
+  }
+}

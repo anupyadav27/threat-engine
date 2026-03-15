@@ -1,0 +1,174 @@
+# ============================================================
+# Discovery YAML — keyspaces (AWS)
+# Generated: 2026-02-21T04:56:58Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: keyspaces
+services:
+  client: keyspaces
+  module: boto3.client
+discovery:
+  # ── ListKeyspaces ──
+  - discovery_id: aws.keyspaces.list_keyspaces
+    calls:
+      - action: list_keyspaces
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.keyspaces }}'
+      item:
+        autoScalingSpecification: '{{ item.autoScalingSpecification }}'
+        capacitySpecification: '{{ item.capacitySpecification }}'
+        cdcSpecification: '{{ item.cdcSpecification }}'
+        clientSideTimestamps: '{{ item.clientSideTimestamps }}'
+        comment: '{{ item.comment }}'
+        creationTimestamp: '{{ item.creationTimestamp }}'
+        defaultTimeToLive: '{{ item.defaultTimeToLive }}'
+        encryptionSpecification: '{{ item.encryptionSpecification }}'
+        key: '{{ item.key }}'
+        keyspaceName: '{{ item.keyspaceName }}'
+        latestStreamArn: '{{ item.latestStreamArn }}'
+        pointInTimeRecovery: '{{ item.pointInTimeRecovery }}'
+        region: '{{ item.region }}'
+        replicaSpecifications: '{{ item.replicaSpecifications }}'
+        replicationGroupStatuses: '{{ item.replicationGroupStatuses }}'
+        replicationRegions: '{{ item.replicationRegions }}'
+        replicationStrategy: '{{ item.replicationStrategy }}'
+        resourceArn: '{{ item.resourceArn }}'
+        schemaDefinition: '{{ item.schemaDefinition }}'
+        status: '{{ item.status }}'
+        ttl: '{{ item.ttl }}'
+        value: '{{ item.value }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── GetKeyspace ──
+  - discovery_id: aws.keyspaces.get_keyspace
+    for_each: aws.keyspaces.list_keyspaces
+    calls:
+      - action: get_keyspace
+        params:
+          keyspaceName: '{{ item.keyspaceName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.replicationRegions }}'
+      item:
+        replicationGroupStatuses: '{{ item.replicationGroupStatuses }}'
+  # ── GetTable ──
+  - discovery_id: aws.keyspaces.get_table
+    for_each: aws.keyspaces.list_keyspaces
+    calls:
+      - action: get_table
+        params:
+          keyspaceName: '{{ item.keyspaceName }}'
+          tableName: '{{ item.tableName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.replicaSpecifications }}'
+      item:
+        capacitySpecification: '{{ item.capacitySpecification }}'
+        cdcSpecification: '{{ item.cdcSpecification }}'
+        clientSideTimestamps: '{{ item.clientSideTimestamps }}'
+        comment: '{{ item.comment }}'
+        creationTimestamp: '{{ item.creationTimestamp }}'
+        defaultTimeToLive: '{{ item.defaultTimeToLive }}'
+        encryptionSpecification: '{{ item.encryptionSpecification }}'
+        latestStreamArn: '{{ item.latestStreamArn }}'
+        pointInTimeRecovery: '{{ item.pointInTimeRecovery }}'
+        region: '{{ item.region }}'
+        replicaSpecifications: '{{ item.replicaSpecifications }}'
+        schemaDefinition: '{{ item.schemaDefinition }}'
+        status: '{{ item.status }}'
+        ttl: '{{ item.ttl }}'
+  # ── GetTableAutoScalingSettings ──
+  - discovery_id: aws.keyspaces.get_table_auto_scaling_settings
+    for_each: aws.keyspaces.list_keyspaces
+    calls:
+      - action: get_table_auto_scaling_settings
+        params:
+          keyspaceName: '{{ item.keyspaceName }}'
+          tableName: '{{ item.tableName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.replicaSpecifications }}'
+      item:
+        autoScalingSpecification: '{{ item.autoScalingSpecification }}'
+        region: '{{ item.region }}'
+  # ── GetType ──
+  - discovery_id: aws.keyspaces.get_type
+    for_each: aws.keyspaces.list_keyspaces
+    calls:
+      - action: get_type
+        params:
+          keyspaceName: '{{ item.keyspaceName }}'
+          typeName: '{{ item.typeName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.fieldDefinitions }}'
+      item:
+        name: '{{ item.name }}'
+        type: '{{ item.type }}'
+  # ── ListTables ──
+  - discovery_id: aws.keyspaces.list_tables
+    for_each: aws.keyspaces.list_keyspaces
+    calls:
+      - action: list_tables
+        params:
+          keyspaceName: '{{ item.keyspaceName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.tables }}'
+      item:
+        autoScalingSpecification: '{{ item.autoScalingSpecification }}'
+        capacitySpecification: '{{ item.capacitySpecification }}'
+        cdcSpecification: '{{ item.cdcSpecification }}'
+        clientSideTimestamps: '{{ item.clientSideTimestamps }}'
+        comment: '{{ item.comment }}'
+        creationTimestamp: '{{ item.creationTimestamp }}'
+        defaultTimeToLive: '{{ item.defaultTimeToLive }}'
+        encryptionSpecification: '{{ item.encryptionSpecification }}'
+        keyspaceName: '{{ item.keyspaceName }}'
+        latestStreamArn: '{{ item.latestStreamArn }}'
+        pointInTimeRecovery: '{{ item.pointInTimeRecovery }}'
+        region: '{{ item.region }}'
+        replicaSpecifications: '{{ item.replicaSpecifications }}'
+        resourceArn: '{{ item.resourceArn }}'
+        schemaDefinition: '{{ item.schemaDefinition }}'
+        status: '{{ item.status }}'
+        tableName: '{{ item.tableName }}'
+        ttl: '{{ item.ttl }}'
+  # ── ListTagsForResource ──
+  - discovery_id: aws.keyspaces.list_tags_for_resource
+    for_each: aws.keyspaces.list_keyspaces
+    calls:
+      - action: list_tags_for_resource
+        params:
+          resourceArn: '{{ item.resourceArn }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.tags }}'
+      item:
+        key: '{{ item.key }}'
+        value: '{{ item.value }}'
+  # ── ListTypes ──
+  - discovery_id: aws.keyspaces.list_types
+    calls:
+      - action: list_types
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.types }}'

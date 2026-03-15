@@ -1,0 +1,460 @@
+{
+  "csp": "gcp",
+  "generated_at": "2026-02-19T14:43:28.131376+00:00",
+  "anchors": {
+    "fixed": [
+      "project_id",
+      "org_id",
+      "folder_id",
+      "location",
+      "zone",
+      "region"
+    ]
+  },
+  "services": {
+    "smartdevicemanagement": {
+      "version": "v1",
+      "resources": {
+        "devices": {
+          "resource_type": "devices",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.smartdevicemanagement.enterprises.devices.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/devices"
+                },
+                "python_call": "svc.enterprises().devices().list(**params).execute()",
+                "produces": {
+                  "name": "devices[].name",
+                  "traits": "devices[].traits",
+                  "ghpName": "devices[].ghpName",
+                  "type": "devices[].type",
+                  "parentRelations": "devices[].parentRelations"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.smartdevicemanagement.enterprises.devices.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.enterprises().devices().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.smartdevicemanagement.enterprises.devices.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.smartdevicemanagement.enterprises.devices.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.enterprises().devices().list(**params).execute()",
+                      "path": "/v1/{+parent}/devices",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^enterprises/[^/]+$",
+                          "description": "The parent enterprise to list devices under. E.g. \"enterprises/XYZ\"."
+                        }
+                      },
+                      "output_list_field": "devices",
+                      "output_id_field": "name",
+                      "produces": {
+                        "deviceId": {
+                          "via_list_field": "devices",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"devices\"][], extract item[\"name\"] \u2192 pass as \"deviceId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: deviceId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.smartdevicemanagement.enterprises.devices.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.enterprises().devices().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^enterprises/[^/]+/devices/[^/]+$",
+                          "description": "The name of the device requested. For example: \"enterprises/XYZ/devices/123\""
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "deviceId": {
+                            "from_step": 1,
+                            "from_op": "gcp.smartdevicemanagement.enterprises.devices.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "rooms": {
+          "resource_type": "rooms",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.smartdevicemanagement.enterprises.structures.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/structures"
+                },
+                "python_call": "svc.enterprises().structures().list(**params).execute()",
+                "produces": {
+                  "name": "structures[].name",
+                  "traits": "structures[].traits",
+                  "ghpName": "structures[].ghpName"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.smartdevicemanagement.enterprises.structures.rooms.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/rooms"
+                },
+                "python_call": "svc.enterprises().structures().rooms().list(**params).execute()",
+                "produces": {
+                  "name": "rooms[].name",
+                  "traits": "rooms[].traits"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.smartdevicemanagement.enterprises.structures.rooms.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.enterprises().structures().rooms().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.smartdevicemanagement.enterprises.structures.rooms.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 3,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.smartdevicemanagement.enterprises.structures.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.enterprises().structures().list(**params).execute()",
+                      "path": "/v1/{+parent}/structures",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^enterprises/[^/]+$",
+                          "description": "The parent enterprise to list structures under. E.g. \"enterprises/XYZ\"."
+                        }
+                      },
+                      "output_list_field": "structures",
+                      "output_id_field": "name",
+                      "produces": {
+                        "structureId": {
+                          "via_list_field": "structures",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"structures\"][], extract item[\"name\"] \u2192 pass as \"structureId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: structureId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.smartdevicemanagement.enterprises.structures.rooms.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.enterprises().structures().rooms().list(**params).execute()",
+                      "path": "/v1/{+parent}/rooms",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^enterprises/[^/]+/structures/[^/]+$",
+                          "description": "The parent resource name of the rooms requested. For example: \"enterprises/XYZ/structures/ABC\"."
+                        }
+                      },
+                      "output_list_field": "rooms",
+                      "output_id_field": "name",
+                      "produces": {
+                        "roomId": {
+                          "via_list_field": "rooms",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"rooms\"][], extract item[\"name\"] \u2192 pass as \"roomId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: roomId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.smartdevicemanagement.enterprises.structures.rooms.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.enterprises().structures().rooms().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^enterprises/[^/]+/structures/[^/]+/rooms/[^/]+$",
+                          "description": "The name of the room requested. For example: \"enterprises/XYZ/structures/ABC/rooms/123\"."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "structureId": {
+                            "from_step": 1,
+                            "from_op": "gcp.smartdevicemanagement.enterprises.structures.list",
+                            "field": "name"
+                          },
+                          "roomId": {
+                            "from_step": 2,
+                            "from_op": "gcp.smartdevicemanagement.enterprises.structures.rooms.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "structures": {
+          "resource_type": "structures",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.smartdevicemanagement.enterprises.structures.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/structures"
+                },
+                "python_call": "svc.enterprises().structures().list(**params).execute()",
+                "produces": {
+                  "name": "structures[].name",
+                  "traits": "structures[].traits",
+                  "ghpName": "structures[].ghpName"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.smartdevicemanagement.enterprises.structures.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.enterprises().structures().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.smartdevicemanagement.enterprises.structures.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.smartdevicemanagement.enterprises.structures.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.enterprises().structures().list(**params).execute()",
+                      "path": "/v1/{+parent}/structures",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^enterprises/[^/]+$",
+                          "description": "The parent enterprise to list structures under. E.g. \"enterprises/XYZ\"."
+                        }
+                      },
+                      "output_list_field": "structures",
+                      "output_id_field": "name",
+                      "produces": {
+                        "structureId": {
+                          "via_list_field": "structures",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"structures\"][], extract item[\"name\"] \u2192 pass as \"structureId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: structureId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.smartdevicemanagement.enterprises.structures.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.enterprises().structures().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^enterprises/[^/]+/structures/[^/]+$",
+                          "description": "The name of the structure requested. For example: \"enterprises/XYZ/structures/ABC\"."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "structureId": {
+                            "from_step": 1,
+                            "from_op": "gcp.smartdevicemanagement.enterprises.structures.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        }
+      }
+    }
+  }
+}

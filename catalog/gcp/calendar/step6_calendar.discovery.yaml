@@ -1,0 +1,335 @@
+# ============================================================
+# Discovery YAML — calendar (v3)
+# Generated: 2026-02-21T03:06:38Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 12 | independent: 4 | dependent: 8
+# ops with fields: 11/12 | dep ops with chain: 1/8
+# ============================================================
+version: '1.0'
+provider: gcp
+service: calendar
+
+services:
+  client: calendar
+  module: "googleapiclient.discovery.build('calendar', 'v3')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Returns the calendars on the user's calendar list.
+  # ── gcp.calendar.calendarList.list ──
+  - discovery_id: gcp.calendar.calendarList.list
+    # python: svc.calendarList().list(**params).execute()
+    calls:
+      - action: calendarList.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.calendarList }}'
+      item:
+        accessRole: '{{ item.accessRole }}'
+        autoAcceptInvitations: '{{ item.autoAcceptInvitations }}'
+        backgroundColor: '{{ item.backgroundColor }}'
+        colorId: '{{ item.colorId }}'
+        conferenceProperties: '{{ item.conferenceProperties }}'
+        dataOwner: '{{ item.dataOwner }}'
+        defaultReminders: '{{ item.defaultReminders }}'
+        deleted: '{{ item.deleted }}'
+        description: '{{ item.description }}'
+        foregroundColor: '{{ item.foregroundColor }}'
+        hidden: '{{ item.hidden }}'
+        id: '{{ item.id }}'
+        location: '{{ item.location }}'
+        notificationSettings: '{{ item.notificationSettings }}'
+        primary: '{{ item.primary }}'
+        selected: '{{ item.selected }}'
+        summary: '{{ item.summary }}'
+        summaryOverride: '{{ item.summaryOverride }}'
+        timeZone: '{{ item.timeZone }}'
+  # Returns the color definitions for calendars and events.
+  # ── gcp.calendar.colors.get ──
+  - discovery_id: gcp.calendar.colors.get
+    # python: svc.colors().get(**params).execute()
+    calls:
+      - action: colors.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        calendar: '{{ response.calendar }}'
+        event: '{{ response.event }}'
+        updated: '{{ response.updated }}'
+  # Returns free/busy information for a set of calendars.
+  # ── gcp.calendar.freebusy.query ──
+  - discovery_id: gcp.calendar.freebusy.query
+    # python: svc.freebusy().query(**params).execute()
+    calls:
+      - action: freebusy.query
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.freebusy }}'
+  # Returns all user settings for the authenticated user.
+  # ── gcp.calendar.settings.list ──
+  - discovery_id: gcp.calendar.settings.list
+    # python: svc.settings().list(**params).execute()
+    calls:
+      - action: settings.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.settings }}'
+      item:
+        id: '{{ item.id }}'
+        value: '{{ item.value }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Returns an access control rule.
+  # ── gcp.calendar.acl.get [dependent] ──
+  - discovery_id: gcp.calendar.acl.get
+    # python: svc.acl().get(**params).execute()
+    calls:
+      - action: acl.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        id: '{{ response.id }}'
+        role: '{{ response.role }}'
+        scope: '{{ response.scope }}'
+    # required_params: ['calendarId', 'ruleId']
+  # Returns the rules in the access control list for the calendar.
+  # ── gcp.calendar.acl.list [dependent] ──
+  - discovery_id: gcp.calendar.acl.list
+    # python: svc.acl().list(**params).execute()
+    calls:
+      - action: acl.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.acl }}'
+      item:
+        id: '{{ item.id }}'
+        role: '{{ item.role }}'
+        scope: '{{ item.scope }}'
+    # required_params: ['calendarId']
+  # Returns a calendar from the user's calendar list.
+  # ── gcp.calendar.calendarList.get [dependent] ──
+  - discovery_id: gcp.calendar.calendarList.get
+    # python: svc.calendarList().get(**params).execute()
+    calls:
+      - action: calendarList.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accessRole: '{{ response.accessRole }}'
+        autoAcceptInvitations: '{{ response.autoAcceptInvitations }}'
+        backgroundColor: '{{ response.backgroundColor }}'
+        colorId: '{{ response.colorId }}'
+        conferenceProperties: '{{ response.conferenceProperties }}'
+        dataOwner: '{{ response.dataOwner }}'
+        defaultReminders: '{{ response.defaultReminders }}'
+        deleted: '{{ response.deleted }}'
+        description: '{{ response.description }}'
+        foregroundColor: '{{ response.foregroundColor }}'
+        hidden: '{{ response.hidden }}'
+        id: '{{ response.id }}'
+        location: '{{ response.location }}'
+        notificationSettings: '{{ response.notificationSettings }}'
+        primary: '{{ response.primary }}'
+        selected: '{{ response.selected }}'
+        summary: '{{ response.summary }}'
+        summaryOverride: '{{ response.summaryOverride }}'
+        timeZone: '{{ response.timeZone }}'
+    # required_params: ['calendarId']
+  # Returns metadata for a calendar.
+  # ── gcp.calendar.calendars.get [dependent] ──
+  - discovery_id: gcp.calendar.calendars.get
+    # python: svc.calendars().get(**params).execute()
+    calls:
+      - action: calendars.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        autoAcceptInvitations: '{{ response.autoAcceptInvitations }}'
+        conferenceProperties: '{{ response.conferenceProperties }}'
+        dataOwner: '{{ response.dataOwner }}'
+        description: '{{ response.description }}'
+        id: '{{ response.id }}'
+        location: '{{ response.location }}'
+        summary: '{{ response.summary }}'
+        timeZone: '{{ response.timeZone }}'
+    # required_params: ['calendarId']
+  # Returns an event based on its Google Calendar ID. To retrieve an event using its iCalendar ID, call 
+  # ── gcp.calendar.events.get [dependent] ──
+  - discovery_id: gcp.calendar.events.get
+    # python: svc.events().get(**params).execute()
+    calls:
+      - action: events.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        anyoneCanAddSelf: '{{ response.anyoneCanAddSelf }}'
+        attachments: '{{ response.attachments }}'
+        attendees: '{{ response.attendees }}'
+        attendeesOmitted: '{{ response.attendeesOmitted }}'
+        birthdayProperties: '{{ response.birthdayProperties }}'
+        colorId: '{{ response.colorId }}'
+        conferenceData: '{{ response.conferenceData }}'
+        created: '{{ response.created }}'
+        creator: '{{ response.creator }}'
+        description: '{{ response.description }}'
+        end: '{{ response.end }}'
+        endTimeUnspecified: '{{ response.endTimeUnspecified }}'
+        eventType: '{{ response.eventType }}'
+        extendedProperties: '{{ response.extendedProperties }}'
+        focusTimeProperties: '{{ response.focusTimeProperties }}'
+        gadget: '{{ response.gadget }}'
+        guestsCanInviteOthers: '{{ response.guestsCanInviteOthers }}'
+        guestsCanModify: '{{ response.guestsCanModify }}'
+        guestsCanSeeOtherGuests: '{{ response.guestsCanSeeOtherGuests }}'
+        hangoutLink: '{{ response.hangoutLink }}'
+        htmlLink: '{{ response.htmlLink }}'
+        iCalUID: '{{ response.iCalUID }}'
+        id: '{{ response.id }}'
+        location: '{{ response.location }}'
+        locked: '{{ response.locked }}'
+        organizer: '{{ response.organizer }}'
+        originalStartTime: '{{ response.originalStartTime }}'
+        outOfOfficeProperties: '{{ response.outOfOfficeProperties }}'
+        privateCopy: '{{ response.privateCopy }}'
+        recurrence: '{{ response.recurrence }}'
+        recurringEventId: '{{ response.recurringEventId }}'
+        reminders: '{{ response.reminders }}'
+        sequence: '{{ response.sequence }}'
+        source: '{{ response.source }}'
+        start: '{{ response.start }}'
+        status: '{{ response.status }}'
+        summary: '{{ response.summary }}'
+        transparency: '{{ response.transparency }}'
+        updated: '{{ response.updated }}'
+        visibility: '{{ response.visibility }}'
+        workingLocationProperties: '{{ response.workingLocationProperties }}'
+    # required_params: ['eventId', 'calendarId']
+  # Returns instances of the specified recurring event.
+  # ── gcp.calendar.events.instances [dependent] ──
+  - discovery_id: gcp.calendar.events.instances
+    # python: svc.events().instances(**params).execute()
+    calls:
+      - action: events.instances
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accessRole: '{{ response.accessRole }}'
+        defaultReminders: '{{ response.defaultReminders }}'
+        description: '{{ response.description }}'
+        items: '{{ response.items }}'
+        nextSyncToken: '{{ response.nextSyncToken }}'
+        summary: '{{ response.summary }}'
+        timeZone: '{{ response.timeZone }}'
+        updated: '{{ response.updated }}'
+    # required_params: ['calendarId', 'eventId']
+  # Returns events on the specified calendar.
+  # ── gcp.calendar.events.list [dependent] ──
+  - discovery_id: gcp.calendar.events.list
+    # python: svc.events().list(**params).execute()
+    calls:
+      - action: events.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.events }}'
+      item:
+        anyoneCanAddSelf: '{{ item.anyoneCanAddSelf }}'
+        attachments: '{{ item.attachments }}'
+        attendees: '{{ item.attendees }}'
+        attendeesOmitted: '{{ item.attendeesOmitted }}'
+        birthdayProperties: '{{ item.birthdayProperties }}'
+        colorId: '{{ item.colorId }}'
+        conferenceData: '{{ item.conferenceData }}'
+        created: '{{ item.created }}'
+        creator: '{{ item.creator }}'
+        end: '{{ item.end }}'
+        endTimeUnspecified: '{{ item.endTimeUnspecified }}'
+        eventType: '{{ item.eventType }}'
+        extendedProperties: '{{ item.extendedProperties }}'
+        focusTimeProperties: '{{ item.focusTimeProperties }}'
+        gadget: '{{ item.gadget }}'
+        guestsCanInviteOthers: '{{ item.guestsCanInviteOthers }}'
+        guestsCanModify: '{{ item.guestsCanModify }}'
+        guestsCanSeeOtherGuests: '{{ item.guestsCanSeeOtherGuests }}'
+        hangoutLink: '{{ item.hangoutLink }}'
+        htmlLink: '{{ item.htmlLink }}'
+        iCalUID: '{{ item.iCalUID }}'
+        id: '{{ item.id }}'
+        location: '{{ item.location }}'
+        locked: '{{ item.locked }}'
+        organizer: '{{ item.organizer }}'
+        originalStartTime: '{{ item.originalStartTime }}'
+        outOfOfficeProperties: '{{ item.outOfOfficeProperties }}'
+        privateCopy: '{{ item.privateCopy }}'
+        recurrence: '{{ item.recurrence }}'
+        recurringEventId: '{{ item.recurringEventId }}'
+        reminders: '{{ item.reminders }}'
+        sequence: '{{ item.sequence }}'
+        source: '{{ item.source }}'
+        start: '{{ item.start }}'
+        status: '{{ item.status }}'
+        transparency: '{{ item.transparency }}'
+        visibility: '{{ item.visibility }}'
+        workingLocationProperties: '{{ item.workingLocationProperties }}'
+    # required_params: ['calendarId']
+  # Returns a single user setting.
+  # ── gcp.calendar.settings.get [dependent] ──
+  - discovery_id: gcp.calendar.settings.get
+    for_each: gcp.calendar.settings.list
+    # python: svc.settings().get(**params).execute()
+    calls:
+      - action: settings.get
+        params:
+          setting: '{{ item.id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        id: '{{ response.id }}'
+        value: '{{ response.value }}'
+    # required_params: ['setting']

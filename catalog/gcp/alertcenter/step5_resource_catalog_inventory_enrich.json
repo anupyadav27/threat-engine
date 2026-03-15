@@ -1,0 +1,398 @@
+{
+  "csp": "gcp",
+  "generated_at": "2026-02-19T14:43:23.810197+00:00",
+  "anchors": {
+    "fixed": [
+      "project_id",
+      "org_id",
+      "folder_id",
+      "location",
+      "zone",
+      "region"
+    ]
+  },
+  "services": {
+    "alertcenter": {
+      "version": "v1beta1",
+      "resources": {
+        "alerts": {
+          "resource_type": "alerts",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "constructed",
+            "full_identifier": {
+              "template": "alerts/{url_encoded_startTime}",
+              "built_from_parts": [
+                "alerts[].startTime"
+              ],
+              "notes": ""
+            },
+            "parts": [
+              "startTime"
+            ],
+            "part_sources": {
+              "startTime": {
+                "op": "gcp.alertcenter.alerts.list",
+                "field_path": "alerts[].startTime",
+                "transform": null
+              }
+            },
+            "transforms": [
+              {
+                "from": "alerts[].startTime",
+                "fn": "url_encode",
+                "to": "url_encoded_startTime"
+              },
+              {
+                "from": "url_encoded_startTime",
+                "fn": "prefix:alerts/",
+                "to": "alertId"
+              },
+              {
+                "build": "full_id",
+                "template": "alerts/{url_encoded_startTime}"
+              }
+            ]
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.alertcenter.alerts.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1beta1/alerts"
+                },
+                "python_call": "svc.alerts().list(**params).execute()",
+                "produces": {
+                  "startTime": "alerts[].startTime",
+                  "alertId": "alerts[].alertId",
+                  "type": "alerts[].type",
+                  "data": "alerts[].data",
+                  "createTime": "alerts[].createTime",
+                  "endTime": "alerts[].endTime",
+                  "customerId": "alerts[].customerId",
+                  "source": "alerts[].source",
+                  "securityInvestigationToolLink": "alerts[].securityInvestigationToolLink",
+                  "deleted": "alerts[].deleted",
+                  "metadata": "alerts[].metadata",
+                  "updateTime": "alerts[].updateTime"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.alertcenter.alerts.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1beta1/alerts/{alertId}"
+                },
+                "python_call": "svc.alerts().get(**params).execute()",
+                "required_params": {
+                  "alertId": {
+                    "from_identifier": "transforms \u2192 alertId"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.alertcenter.alerts.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.alertcenter.alerts.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.alerts().list(**params).execute()",
+                      "path": "/v1beta1/alerts",
+                      "required_params": {},
+                      "output_list_field": "alerts",
+                      "output_id_field": "startTime",
+                      "produces": {
+                        "alertId": {
+                          "via_list_field": "alerts",
+                          "from_id_field": "startTime",
+                          "note": "Iterate response[\"alerts\"][], extract item[\"startTime\"] \u2192 pass as \"alertId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: alertId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.alertcenter.alerts.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.alerts().get(**params).execute()",
+                      "path": "/v1beta1/alerts/{alertId}",
+                      "required_params": {
+                        "alertId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Required. The identifier of the alert to retrieve."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "alertId": {
+                          "from_step": 1,
+                          "from_op": "gcp.alertcenter.alerts.list",
+                          "field": "startTime"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.alertcenter.alerts.getMetadata",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1beta1/alerts/{alertId}/metadata"
+                },
+                "python_call": "svc.alerts().getMetadata(**params).execute()",
+                "required_params": {
+                  "alertId": {
+                    "from_identifier": "transforms \u2192 alertId"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.alertcenter.alerts.getMetadata",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.alertcenter.alerts.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.alerts().list(**params).execute()",
+                      "path": "/v1beta1/alerts",
+                      "required_params": {},
+                      "output_list_field": "alerts",
+                      "output_id_field": "startTime",
+                      "produces": {
+                        "alertId": {
+                          "via_list_field": "alerts",
+                          "from_id_field": "startTime",
+                          "note": "Iterate response[\"alerts\"][], extract item[\"startTime\"] \u2192 pass as \"alertId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: alertId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.alertcenter.alerts.getMetadata",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.alerts().getMetadata(**params).execute()",
+                      "path": "/v1beta1/alerts/{alertId}/metadata",
+                      "required_params": {
+                        "alertId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Required. The identifier of the alert this metadata belongs to."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "alertId": {
+                          "from_step": 1,
+                          "from_op": "gcp.alertcenter.alerts.list",
+                          "field": "startTime"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        },
+        "feedback": {
+          "resource_type": "feedback",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "tuple",
+            "full_identifier": {
+              "template": "",
+              "built_from_parts": [],
+              "notes": "Tuple identifier; anchor parts are user-provided."
+            },
+            "parts": [
+              "createTime"
+            ],
+            "part_sources": {
+              "createTime": {
+                "op": "gcp.alertcenter.alerts.feedback.list",
+                "field_path": "feedback[].createTime",
+                "transform": null
+              }
+            },
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.alertcenter.alerts.feedback.list",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1beta1/alerts/{alertId}/feedback"
+                },
+                "python_call": "svc.alerts().feedback().list(**params).execute()",
+                "produces": {
+                  "createTime": "feedback[].createTime",
+                  "email": "feedback[].email",
+                  "type": "feedback[].type",
+                  "customerId": "feedback[].customerId",
+                  "alertId": "feedback[].alertId",
+                  "feedbackId": "feedback[].feedbackId"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.alertcenter.alerts.feedback.list",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.alertcenter.alerts.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.alerts().list(**params).execute()",
+                      "path": "/v1beta1/alerts",
+                      "required_params": {},
+                      "output_list_field": "alerts",
+                      "output_id_field": "startTime",
+                      "produces": {
+                        "alertId": {
+                          "via_list_field": "alerts",
+                          "from_id_field": "startTime",
+                          "note": "Iterate response[\"alerts\"][], extract item[\"startTime\"] \u2192 pass as \"alertId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: alertId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.alertcenter.alerts.feedback.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.alerts().feedback().list(**params).execute()",
+                      "path": "/v1beta1/alerts/{alertId}/feedback",
+                      "required_params": {
+                        "alertId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Required. The alert identifier. The \"-\" wildcard could be used to represent all alerts."
+                        }
+                      },
+                      "output_list_field": "feedback",
+                      "output_id_field": "createTime",
+                      "produces": {
+                        "feedbackId": {
+                          "via_list_field": "feedback",
+                          "from_id_field": "createTime",
+                          "note": "Iterate response[\"feedback\"][], extract item[\"createTime\"] \u2192 pass as \"feedbackId\""
+                        }
+                      },
+                      "param_sources": {
+                        "alertId": {
+                          "from_step": 1,
+                          "from_op": "gcp.alertcenter.alerts.list",
+                          "field": "startTime"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": []
+          },
+          "confidence": 0.4,
+          "notes": "No enrich (get) ops found; inventory only."
+        },
+        "v1beta1": {
+          "resource_type": "v1beta1",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "tuple",
+            "full_identifier": {
+              "template": "settings",
+              "built_from_parts": [],
+              "notes": "Tuple identifier; anchor parts are user-provided."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": []
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.alertcenter.v1beta1.getSettings",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1beta1/settings"
+                },
+                "python_call": "svc.v1beta1().getSettings(**params).execute()",
+                "required_params": {},
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "confidence": 0.4,
+          "notes": "No inventory (list) ops found; enrich only."
+        }
+      }
+    }
+  }
+}

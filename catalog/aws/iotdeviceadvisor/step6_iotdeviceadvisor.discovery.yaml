@@ -1,0 +1,120 @@
+# ============================================================
+# Discovery YAML — iotdeviceadvisor (AWS)
+# Generated: 2026-02-21T04:56:58Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: iotdeviceadvisor
+services:
+  client: iotdeviceadvisor
+  module: boto3.client
+discovery:
+  # ── GetEndpoint ──
+  - discovery_id: aws.iotdeviceadvisor.get_endpoint
+    calls:
+      - action: get_endpoint
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.endpoint }}'
+      item:
+        endpoint: '{{ item.endpoint }}'
+  # ── ListSuiteDefinitions ──
+  - discovery_id: aws.iotdeviceadvisor.list_suite_definitions
+    calls:
+      - action: list_suite_definitions
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.suiteDefinitionInformationList }}'
+      item:
+        createdAt: '{{ item.createdAt }}'
+        defaultDevices: '{{ item.defaultDevices }}'
+        intendedForQualification: '{{ item.intendedForQualification }}'
+        isLongDurationTest: '{{ item.isLongDurationTest }}'
+        protocol: '{{ item.protocol }}'
+        suiteDefinitionId: '{{ item.suiteDefinitionId }}'
+        suiteDefinitionName: '{{ item.suiteDefinitionName }}'
+  # ── ListSuiteRuns ──
+  - discovery_id: aws.iotdeviceadvisor.list_suite_runs
+    calls:
+      - action: list_suite_runs
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.suiteRunsList }}'
+      item:
+        createdAt: '{{ item.createdAt }}'
+        endAt: '{{ item.endAt }}'
+        failed: '{{ item.failed }}'
+        passed: '{{ item.passed }}'
+        startedAt: '{{ item.startedAt }}'
+        status: '{{ item.status }}'
+        suiteDefinitionId: '{{ item.suiteDefinitionId }}'
+        suiteDefinitionName: '{{ item.suiteDefinitionName }}'
+        suiteDefinitionVersion: '{{ item.suiteDefinitionVersion }}'
+        suiteRunId: '{{ item.suiteRunId }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── GetSuiteDefinition ──
+  - discovery_id: aws.iotdeviceadvisor.get_suite_definition
+    for_each: aws.iotdeviceadvisor.list_suite_definitions
+    calls:
+      - action: get_suite_definition
+        params:
+          suiteDefinitionId: '{{ item.suiteDefinitionId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.suiteDefinitionConfiguration }}'
+      item:
+        Status: '{{ item.Status }}'
+        Enabled: '{{ item.Enabled }}'
+        devicePermissionRoleArn: '{{ item.devicePermissionRoleArn }}'
+        devices: '{{ item.devices }}'
+        intendedForQualification: '{{ item.intendedForQualification }}'
+        isLongDurationTest: '{{ item.isLongDurationTest }}'
+        protocol: '{{ item.protocol }}'
+        rootGroup: '{{ item.rootGroup }}'
+        suiteDefinitionName: '{{ item.suiteDefinitionName }}'
+  # ── GetSuiteRun ──
+  - discovery_id: aws.iotdeviceadvisor.get_suite_run
+    for_each: aws.iotdeviceadvisor.list_suite_definitions
+    calls:
+      - action: get_suite_run
+        params:
+          suiteDefinitionId: '{{ item.suiteDefinitionId }}'
+          suiteRunId: '{{ item.suiteRunId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.suiteRunConfiguration }}'
+      item:
+        parallelRun: '{{ item.parallelRun }}'
+        primaryDevice: '{{ item.primaryDevice }}'
+        selectedTestList: '{{ item.selectedTestList }}'
+  # ── GetSuiteRunReport ──
+  - discovery_id: aws.iotdeviceadvisor.get_suite_run_report
+    calls:
+      - action: get_suite_run_report
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        qualificationReportDownloadUrl: '{{ response.qualificationReportDownloadUrl }}'
+  # ── ListTagsForResource ──
+  - discovery_id: aws.iotdeviceadvisor.list_tags_for_resource
+    calls:
+      - action: list_tags_for_resource
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        tags: '{{ response.tags }}'

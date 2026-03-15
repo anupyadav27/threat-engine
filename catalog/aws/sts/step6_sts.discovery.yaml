@@ -1,0 +1,93 @@
+# ============================================================
+# Discovery YAML — sts (AWS)
+# Generated: 2026-02-21T04:57:00Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: sts
+services:
+  client: sts
+  module: boto3.client
+discovery:
+  # ── GetCallerIdentity ──
+  - discovery_id: aws.sts.get_caller_identity
+    calls:
+      - action: get_caller_identity
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.UserId }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        Account: '{{ item.Account }}'
+        UserId: '{{ item.UserId }}'
+  # ── GetSessionToken ──
+  - discovery_id: aws.sts.get_session_token
+    calls:
+      - action: get_session_token
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Credentials }}'
+      item:
+        AccessKeyId: '{{ item.AccessKeyId }}'
+        Credentials: '{{ item.Credentials }}'
+        Expiration: '{{ item.Expiration }}'
+        SecretAccessKey: '{{ item.SecretAccessKey }}'
+        SessionToken: '{{ item.SessionToken }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── GetAccessKeyInfo ──
+  - discovery_id: aws.sts.get_access_key_info
+    for_each: aws.sts.get_session_token
+    calls:
+      - action: get_access_key_info
+        params:
+          AccessKeyId: '{{ item.AccessKeyId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        Account: '{{ response.Account }}'
+  # ── GetDelegatedAccessToken ──
+  - discovery_id: aws.sts.get_delegated_access_token
+    calls:
+      - action: get_delegated_access_token
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Credentials }}'
+      item:
+        AccessKeyId: '{{ item.AccessKeyId }}'
+        Expiration: '{{ item.Expiration }}'
+        SecretAccessKey: '{{ item.SecretAccessKey }}'
+        SessionToken: '{{ item.SessionToken }}'
+  # ── GetFederationToken ──
+  - discovery_id: aws.sts.get_federation_token
+    calls:
+      - action: get_federation_token
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Credentials }}'
+      item:
+        AccessKeyId: '{{ item.AccessKeyId }}'
+        Expiration: '{{ item.Expiration }}'
+        SecretAccessKey: '{{ item.SecretAccessKey }}'
+        SessionToken: '{{ item.SessionToken }}'
+  # ── GetWebIdentityToken ──
+  - discovery_id: aws.sts.get_web_identity_token
+    calls:
+      - action: get_web_identity_token
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        Expiration: '{{ response.Expiration }}'
+        WebIdentityToken: '{{ response.WebIdentityToken }}'

@@ -1,0 +1,70 @@
+version: '1.0'
+provider: aws
+service: simspaceweaver
+services:
+  client: simspaceweaver
+  module: boto3.client
+discovery:
+- discovery_id: aws.simspaceweaver.listSimulations
+  calls:
+  - action: listSimulations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Simulations }}'
+    item:
+      Arn: '{{ item.Arn }}'
+      CreationTime: '{{ item.CreationTime }}'
+      Name: '{{ item.Name }}'
+      Status: '{{ item.Status }}'
+      TargetStatus: '{{ item.TargetStatus }}'
+- discovery_id: aws.simspaceweaver.describeApp
+  calls:
+  - action: describeApp
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.EndpointInfo }}'
+    item:
+      Address: '{{ item.Address }}'
+      IngressPortMappings: '{{ item.IngressPortMappings }}'
+- discovery_id: aws.simspaceweaver.describeSimulation
+  calls:
+  - action: describeSimulation
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.LiveSimulationState }}'
+    item:
+      Clocks: '{{ item.Clocks }}'
+      Domains: '{{ item.Domains }}'
+- discovery_id: aws.simspaceweaver.listApps
+  calls:
+  - action: listApps
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Apps }}'
+    item:
+      Domain: '{{ item.Domain }}'
+      Name: '{{ item.Name }}'
+      Simulation: '{{ item.Simulation }}'
+      Status: '{{ item.Status }}'
+      TargetStatus: '{{ item.TargetStatus }}'
+- discovery_id: aws.simspaceweaver.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+checks: []

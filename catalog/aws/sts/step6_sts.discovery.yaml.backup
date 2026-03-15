@@ -1,0 +1,71 @@
+version: '1.0'
+provider: aws
+service: sts
+services:
+  client: sts
+  module: boto3.client
+discovery:
+- discovery_id: aws.sts.getCallerIdentity
+  calls:
+  - action: getCallerIdentity
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.UserId }}'
+- discovery_id: aws.sts.getSessionToken
+  calls:
+  - action: getSessionToken
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Credentials }}'
+    item:
+      AccessKeyId: '{{ item.AccessKeyId }}'
+      SecretAccessKey: '{{ item.SecretAccessKey }}'
+      SessionToken: '{{ item.SessionToken }}'
+      Expiration: '{{ item.Expiration }}'
+- discovery_id: aws.sts.getAccessKeyInfo
+  calls:
+  - action: getAccessKeyInfo
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Account }}'
+- discovery_id: aws.sts.getDelegatedAccessToken
+  calls:
+  - action: getDelegatedAccessToken
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Credentials }}'
+    item:
+      AccessKeyId: '{{ item.AccessKeyId }}'
+      SecretAccessKey: '{{ item.SecretAccessKey }}'
+      SessionToken: '{{ item.SessionToken }}'
+      Expiration: '{{ item.Expiration }}'
+- discovery_id: aws.sts.getFederationToken
+  calls:
+  - action: getFederationToken
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Credentials }}'
+    item:
+      AccessKeyId: '{{ item.AccessKeyId }}'
+      SecretAccessKey: '{{ item.SecretAccessKey }}'
+      SessionToken: '{{ item.SessionToken }}'
+      Expiration: '{{ item.Expiration }}'
+- discovery_id: aws.sts.getWebIdentityToken
+  calls:
+  - action: getWebIdentityToken
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.WebIdentityToken }}'
+checks: []

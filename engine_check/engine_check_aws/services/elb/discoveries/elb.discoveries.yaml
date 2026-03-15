@@ -1,0 +1,26 @@
+version: '1.0'
+provider: aws
+service: elb
+services:
+  client: elb
+  module: boto3.client
+discovery:
+- discovery_id: aws.elb.describe_load_balancers
+  calls:
+  - action: describe_load_balancers
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.LoadBalancerDescriptions }}'
+    as: item
+- discovery_id: aws.elb.describe_load_balancer_attributes
+  for_each: aws.elb.describe_load_balancers
+  calls:
+  - action: describe_load_balancer_attributes
+    params:
+      LoadBalancerName: '{{ item.LoadBalancerName }}'
+      MaxResults: 1000
+    save_as: response
+    on_error: continue
+  emit: {}

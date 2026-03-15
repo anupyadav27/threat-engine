@@ -1,0 +1,507 @@
+version: '1.0'
+provider: aws
+service: vpc
+checks:
+- rule_id: aws.vpc.subnet.dns_hostnames_and_support_configured
+  for_each: aws.ec2.describe_subnets
+  conditions:
+    all:
+    - var: item.MapCustomerOwnedIpOnLaunch
+      op: equals
+      value: 'true'
+    - var: item.AssignIpv6AddressOnCreation
+      op: equals
+      value: 'true'
+- rule_id: aws.vpc.customergateway.flow_logging_enabled
+  for_each: aws.ec2.describe_account_attributes
+  conditions:
+    all:
+    - var: item.AttributeName
+      op: equals
+      value: vpcFlowLogs
+    - var: item.AttributeValues
+      op: exists
+      value: null
+- rule_id: aws.vpc.internetgateway.flow_logging_enabled
+  for_each: aws.ec2.describe_egress_only_internet_gateways
+  conditions:
+    all:
+    - var: item.Attachments
+      op: exists
+      value: null
+    - var: item.OwnerId
+      op: exists
+      value: null
+- rule_id: aws.vpc.vpcendpoint.dns_hostnames_and_support_configured
+  for_each: aws.ec2.describe_vpc_endpoint_service_configurations
+  conditions:
+    all:
+    - var: item.ServiceState
+      op: equals
+      value: Available
+    - var: item.PrivateDnsName
+      op: exists
+      value: null
+- rule_id: aws.vpc.subnet.flow_logging_enabled
+  for_each: aws.ec2.describe_flow_logs
+  conditions:
+    all:
+    - var: item.ResourceId
+      op: exists
+      value: null
+    - var: item.ResourceId
+      op: contains
+      value: subnet
+    - var: item.FlowLogStatus
+      op: equals
+      value: ACTIVE
+- rule_id: aws.vpc.vpc.flow_logging_enabled
+  for_each: aws.ec2.describe_flow_logs
+  conditions:
+    var: item.FlowLogStatus
+    op: equals
+    value: ACTIVE
+- rule_id: aws.vpc.securitygroup.security_closed_ports_restricted
+  for_each: aws.ec2.describe_security_group_rules
+  conditions:
+    all:
+    - var: item.FromPort
+      op: not_equals
+      value: null
+    - var: item.ToPort
+      op: not_equals
+      value: null
+    - var: item.IpProtocol
+      op: not_equals
+      value: '-1'
+- rule_id: aws.vpc.networkacl.network_dns_hostnames_and_support_configured
+  for_each: aws.ec2.describe_ipam_resource_discoveries
+  conditions:
+    all:
+    - var: item.IsDefault
+      op: equals
+      value: 'true'
+    - var: item.OwnerId
+      op: exists
+      value: null
+- rule_id: aws.vpc.customergateway.api_dns_hostnames_and_support_configured
+  for_each: aws.vpc.describe_customer_gateways
+  conditions:
+    all:
+    - var: item.State
+      op: equals
+      value: available
+    - var: item.Type
+      op: equals
+      value: ipsec.1
+- rule_id: aws.vpc.resource.flow_log_active_rejects_enabled
+  for_each: aws.ec2.describe_flow_logs
+  conditions:
+    all:
+    - var: item.LogDestinationType
+      op: equals
+      value: cloud-watch-logs
+    - var: item.TrafficType
+      op: equals
+      value: REJECT
+- rule_id: aws.vpc.vpnconnection.flow_logging_enabled
+  for_each: aws.ec2.describe_account_attributes
+  conditions:
+    all:
+    - var: item.AttributeName
+      op: equals
+      value: vpc-flow-logs
+    - var: item.AttributeValues
+      op: exists
+      value: null
+- rule_id: aws.vpc.securitygroup.route_tables_no_unintended_internet_paths_configured
+  for_each: aws.ec2.describe_nat_gateways
+  conditions:
+    all:
+    - var: item.NatGatewayId
+      op: not_equals
+      value: null
+    - var: item.RouteTableId
+      op: not_equals
+      value: null
+- rule_id: aws.vpc.nacl_ingress_restricted_ports_22_3389.nacl_ingress_restricted_ports_22_3389_configured
+  for_each: aws.ec2.describe_security_group_rules
+  conditions:
+    all:
+    - var: item.FromPort
+      op: not_equals
+      value: '22'
+    - var: item.ToPort
+      op: not_equals
+      value: '22'
+    - var: item.FromPort
+      op: not_equals
+      value: '3389'
+    - var: item.ToPort
+      op: not_equals
+      value: '3389'
+- rule_id: aws.vpc.resource.endpoint_multi_az_enabled
+  for_each: aws.ec2.describe_vpc_endpoint_service_configurations
+  conditions:
+    all:
+    - var: item.ServiceType
+      op: equals
+      value: Interface
+    - var: item.AvailabilityZoneIds
+      op: exists
+      value: null
+- rule_id: aws.vpc.network_interface.flow_logging_enabled
+  for_each: aws.ec2.list_snapshots_in_recycle_bin
+  conditions:
+    var: item.Description
+    op: equals
+    value: cloud-watch-logs
+- rule_id: aws.vpc.internetgateway.api_dns_hostnames_and_support_configured
+  for_each: aws.ec2.describe_ipam_resource_discoveries
+  conditions:
+    all:
+    - var: item.IsDefault
+      op: equals
+      value: 'true'
+    - var: item.OwnerId
+      op: exists
+      value: null
+- rule_id: aws.vpc.routetable.s_no_unintended_internet_paths_configured
+  for_each: aws.ec2.describe_nat_gateways
+  conditions:
+    all:
+    - var: item.RouteTableId
+      op: not_equals
+      value: null
+    - var: item.VpcId
+      op: not_equals
+      value: null
+- rule_id: aws.vpc.resource.endpoint_for_ec2_enabled
+  for_each: aws.ec2.describe_vpc_endpoint_service_configurations
+  conditions:
+    all:
+    - var: item.ServiceName
+      op: equals
+      value: com.amazonaws.ec2
+    - var: item.ServiceState
+      op: equals
+      value: Available
+- rule_id: aws.vpc.network_interface.network_dns_hostnames_and_support_configured
+  for_each: aws.ec2.describe_carrier_gateways
+  conditions:
+    all:
+    - var: item.VpcId
+      op: exists
+      value: null
+    - var: item.State
+      op: equals
+      value: available
+- rule_id: aws.vpc.routetable.dns_hostnames_and_support_configured
+  for_each: aws.ec2.describe_carrier_gateways
+  conditions:
+    all:
+    - var: item.VpcId
+      op: exists
+      value: null
+    - var: item.State
+      op: equals
+      value: available
+- rule_id: aws.vpc.resource.flow_logging_enabled
+  for_each: aws.ec2.describe_flow_logs
+  conditions:
+    var: item.FlowLogStatus
+    op: equals
+    value: ACTIVE
+- rule_id: aws.vpc.subnet_separate_private_public.subnet_separate_private_public_configured
+  for_each: aws.ec2.describe_addresses
+  conditions:
+    all:
+    - var: item.Tags
+      op: contains
+      value:
+      - Key: Type
+        Value: Public
+    - var: item.Tags
+      op: contains
+      value:
+      - Key: Type
+        Value: Private
+- rule_id: aws.vpc.natgateway.route_tables_no_unintended_internet_paths_configured
+  for_each: aws.ec2.describe_nat_gateways
+  conditions:
+    all:
+    - var: item.Routes.GatewayId
+      op: not_equals
+      value: igw-
+    - var: item.Routes.NatGatewayId
+      op: exists
+      value: null
+- rule_id: aws.vpc.vpngateway.api_dns_hostnames_and_support_configured
+  for_each: aws.ec2.describe_carrier_gateways
+  conditions:
+    all:
+    - var: item.VpcId
+      op: exists
+      value: null
+    - var: item.InstanceTenancy
+      op: equals
+      value: default
+- rule_id: aws.vpc.vpcendpoint.flow_logging_enabled
+  for_each: aws.ec2.describe_vpc_endpoint_connection_notifications
+  conditions:
+    all:
+    - var: item.ServiceId
+      op: exists
+      value: null
+    - var: item.ServiceState
+      op: equals
+      value: Available
+- rule_id: aws.vpc.customergateway.route_tables_no_unintended_internet_paths_configured
+  for_each: aws.ec2.describe_nat_gateways
+  conditions:
+    var: item.RouteTableId
+    op: not_equals
+    value: null
+- rule_id: aws.vpc.securitygroup.security_dns_hostnames_and_support_configured
+  for_each: aws.ec2.describe_carrier_gateways
+  conditions:
+    all:
+    - var: item.VpcId
+      op: exists
+      value: null
+    - var: item.State
+      op: equals
+      value: available
+- rule_id: aws.vpc.endpoint_services_allowed_principals_trust_boundaries.endpoint_principals_trust_boundaries_configured
+  for_each: aws.ec2.describe_vpc_endpoint_service_permissions
+  conditions:
+    all:
+    - var: item.Principal
+      op: exists
+      value: null
+    - var: item.PrincipalType
+      op: in
+      value:
+      - Account
+      - Service
+- rule_id: aws.vpc.peering_routing_tables_with_least_privilege.privilege
+  for_each: aws.ec2.describe_nat_gateways
+  conditions:
+    all:
+    - var: item.NatGatewayId
+      op: exists
+      value: null
+    - var: item.VpcId
+      op: not_equals
+      value: vpc-12345678
+- rule_id: aws.vpc.natgateway.api_dns_hostnames_and_support_configured
+  for_each: aws.ec2.describe_nat_gateways
+  conditions:
+    all:
+    - var: item.NatGatewayId
+      op: exists
+      value: null
+    - var: item.NatGatewayAddresses
+      op: exists
+      value: null
+- rule_id: aws.vpc.subnet_no_public_ip_by_default.subnet_no_public_ip_by_default_configured
+  for_each: aws.ec2.describe_subnets
+  conditions:
+    var: item.MapPublicIpOnLaunch
+    op: equals
+    value: 'false'
+- rule_id: aws.vpc.networkacl.route_tables_no_unintended_internet_paths_configured
+  for_each: aws.vpc.describe_route_tables
+  conditions:
+    all:
+    - var: item.Associations.Main
+      op: equals
+      value: 'false'
+    - var: item.Routes.GatewayId
+      op: not_equals
+      value: igw-
+- rule_id: aws.vpc.vpngateway.route_tables_no_unintended_internet_paths_configured
+  for_each: aws.ec2.describe_nat_gateways
+  conditions:
+    all:
+    - var: item.NatGatewayAddresses.NatGatewayId
+      op: not_equals
+      value: igw-
+    - var: item.NatGatewayAddresses.PublicIp
+      op: not_equals
+      value: 0.0.0.0/0
+- rule_id: aws.vpc.vpngateway.flow_logging_enabled
+  for_each: aws.ec2.describe_account_attributes
+  conditions:
+    all:
+    - var: item.AttributeName
+      op: equals
+      value: vpcFlowLogs
+    - var: item.AttributeValues
+      op: exists
+      value: null
+- rule_id: aws.vpc.network.acl_unused_configured
+  for_each: aws.ec2.describe_network_acls
+  conditions:
+    var: item.Associations
+    op: equals
+    value: []
+- rule_id: aws.vpc.securitygroup.flow_logging_enabled
+  for_each: aws.ec2.describe_account_attributes
+  conditions:
+    all:
+    - var: item.AttributeName
+      op: equals
+      value: vpcFlowLogs
+    - var: item.AttributeValues
+      op: exists
+      value: null
+- rule_id: aws.vpc.natgateway.flow_logging_enabled
+  for_each: aws.ec2.describe_nat_gateways
+  conditions:
+    all:
+    - var: item.NatGatewayId
+      op: exists
+      value: null
+    - var: item.VpcId
+      op: exists
+      value: null
+    - var: item.State
+      op: equals
+      value: available
+- rule_id: aws.vpc.endpoint_connections_trust_boundaries.endpoint_connections_trust_boundaries_configured
+  for_each: aws.ec2.describe_vpc_endpoints
+  conditions:
+    all:
+    - var: item.PolicyDocument
+      op: exists
+      value: null
+    - var: item.PolicyDocument
+      op: not_equals
+      value: '{}'
+- rule_id: aws.vpc.flow.logging_enabled
+  for_each: aws.ec2.describe_account_attributes
+  conditions:
+    all:
+    - var: item.AttributeName
+      op: equals
+      value: vpc-flow-logs
+    - var: item.AttributeValues
+      op: exists
+      value: null
+- rule_id: aws.vpc.network_interface.route_tables_no_unintended_internet_paths_configured
+  for_each: aws.ec2.describe_nat_gateways
+  conditions:
+    var: item.RouteTableId
+    op: not_equals
+    value: null
+- rule_id: aws.vpc.networkacl.flow_logging_enabled
+  for_each: aws.ec2.describe_account_attributes
+  conditions:
+    all:
+    - var: item.AttributeName
+      op: exists
+      value: null
+    - var: item.AttributeValues
+      op: exists
+      value: null
+- rule_id: aws.vpc.subnet_different_az.subnet_different_az_configured
+  for_each: aws.ec2.list_volumes_in_recycle_bin
+  conditions:
+    var: item.AvailabilityZoneId
+    op: exists
+    value: null
+- rule_id: aws.vpc.vpnconnection.dns_hostnames_and_support_configured
+  for_each: aws.ec2.describe_ipam_resource_discoveries
+  conditions:
+    all:
+    - var: item.IsDefault
+      op: equals
+      value: 'true'
+    - var: item.CidrBlock
+      op: equals
+      value: 172.31.0.0/16
+- rule_id: aws.vpc.vpcendpoint.route_tables_no_unintended_internet_paths_configured
+  for_each: aws.ec2.describe_vpc_endpoint_service_configurations
+  conditions:
+    all:
+    - var: item.AvailabilityZoneIds
+      op: equals
+      value: []
+    - var: item.PrivateDnsName
+      op: equals
+      value: 'true'
+- rule_id: aws.vpc.vpn_connection_tunnels_up.vpn_connection_tunnels_up_configured
+  for_each: aws.ec2.describe_account_attributes
+  conditions:
+    var: item.AttributeValues
+    op: equals
+    value: UP
+- rule_id: aws.vpc.vpnconnection.route_tables_no_unintended_internet_paths_configured
+  for_each: aws.ec2.describe_nat_gateways
+  conditions:
+    var: item.RouteTableId
+    op: not_equals
+    value: null
+- rule_id: aws.vpc.subnet.route_tables_no_unintended_internet_paths_configured
+  for_each: aws.ec2.describe_nat_gateways
+  conditions:
+    all:
+    - var: item.SubnetId
+      op: exists
+      value: null
+    - var: item.NatGatewayId
+      op: not_equals
+      value: igw-
+- rule_id: aws.vpc.different_regions.different_regions_configured
+  for_each: aws.ec2.describe_vpcs
+  conditions:
+    all:
+    - var: item.CidrBlockAssociationSet
+      op: exists
+      value: null
+    - var: item.CidrBlock
+      op: exists
+      value: null
+- rule_id: aws.vpc.routetable.flow_logging_enabled
+  for_each: aws.ec2.describe_flow_logs
+  conditions:
+    var: item.FlowLogStatus
+    op: equals
+    value: ACTIVE
+- rule_id: aws.vpc.network.security_monitored
+  for_each: aws.ec2.list_snapshots_in_recycle_bin
+  conditions:
+    all:
+    - var: item.Description
+      op: equals
+      value: cloud-watch-logs
+    - var: item.TrafficMirrorFilterId
+      op: equals
+      value: ACTIVE
+- rule_id: aws.vpc.vpc.route_tables_no_unintended_internet_paths_configured
+  for_each: aws.vpc.describe_route_tables
+  conditions:
+    all:
+    - var: item.Routes.GatewayId
+      op: not_equals
+      value: igw-
+    - var: item.Routes.DestinationCidrBlock
+      op: not_equals
+      value: 0.0.0.0/0
+- rule_id: aws.vpc.internetgateway.route_tables_no_unintended_internet_paths_configured
+  for_each: aws.ec2.describe_carrier_gateways
+  conditions:
+    var: item.Attachments.VpcId
+    op: exists
+    value: null
+- rule_id: aws.vpc.vpc.dns_hostnames_and_support_configured
+  for_each: aws.ec2.describe_carrier_gateways
+  conditions:
+    all:
+    - var: item.VpcId
+      op: exists
+      value: null
+    - var: item.State
+      op: equals
+      value: available

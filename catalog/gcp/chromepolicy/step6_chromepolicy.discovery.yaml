@@ -1,0 +1,85 @@
+# ============================================================
+# Discovery YAML — chromepolicy (v1)
+# Generated: 2026-02-21T03:06:39Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 2 | independent: 1 | dependent: 1
+# ops with fields: 2/2 | dep ops with chain: 1/1
+# ============================================================
+version: '1.0'
+provider: gcp
+service: chromepolicy
+
+services:
+  client: chromepolicy
+  module: "googleapiclient.discovery.build('chromepolicy', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Gets a list of policy schemas that match a specified filter value for a given customer.
+  # ── gcp.chromepolicy.customers.policySchemas.list ──
+  - discovery_id: gcp.chromepolicy.customers.policySchemas.list
+    # python: svc.customers().policySchemas().list(**params).execute()
+    calls:
+      - action: customers.policySchemas.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.policySchemas }}'
+      item:
+        accessRestrictions: '{{ item.accessRestrictions }}'
+        additionalTargetKeyNames: '{{ item.additionalTargetKeyNames }}'
+        categoryTitle: '{{ item.categoryTitle }}'
+        definition: '{{ item.definition }}'
+        fieldDescriptions: '{{ item.fieldDescriptions }}'
+        name: '{{ item.name }}'
+        notices: '{{ item.notices }}'
+        policyApiLifecycle: '{{ item.policyApiLifecycle }}'
+        policyDescription: '{{ item.policyDescription }}'
+        schemaName: '{{ item.schemaName }}'
+        supportUri: '{{ item.supportUri }}'
+        supportedPlatforms: '{{ item.supportedPlatforms }}'
+        validTargetResources: '{{ item.validTargetResources }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Get a specific policy schema for a customer by its resource name.
+  # ── gcp.chromepolicy.customers.policySchemas.get [dependent] ──
+  - discovery_id: gcp.chromepolicy.customers.policySchemas.get
+    for_each: gcp.chromepolicy.customers.policySchemas.list
+    # python: svc.customers().policySchemas().get(**params).execute()
+    calls:
+      - action: customers.policySchemas.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accessRestrictions: '{{ response.accessRestrictions }}'
+        additionalTargetKeyNames: '{{ response.additionalTargetKeyNames }}'
+        categoryTitle: '{{ response.categoryTitle }}'
+        definition: '{{ response.definition }}'
+        fieldDescriptions: '{{ response.fieldDescriptions }}'
+        name: '{{ response.name }}'
+        notices: '{{ response.notices }}'
+        policyApiLifecycle: '{{ response.policyApiLifecycle }}'
+        policyDescription: '{{ response.policyDescription }}'
+        schemaName: '{{ response.schemaName }}'
+        supportUri: '{{ response.supportUri }}'
+        supportedPlatforms: '{{ response.supportedPlatforms }}'
+        validTargetResources: '{{ response.validTargetResources }}'
+    # required_params: ['name']

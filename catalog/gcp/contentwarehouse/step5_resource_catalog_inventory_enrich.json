@@ -1,0 +1,761 @@
+{
+  "csp": "gcp",
+  "generated_at": "2026-02-19T14:43:25.441096+00:00",
+  "anchors": {
+    "fixed": [
+      "project_id",
+      "org_id",
+      "folder_id",
+      "location",
+      "zone",
+      "region"
+    ]
+  },
+  "services": {
+    "contentwarehouse": {
+      "version": "v1",
+      "resources": {
+        "documentSchemas": {
+          "resource_type": "documentSchemas",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.contentwarehouse.projects.locations.documentSchemas.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/documentSchemas"
+                },
+                "python_call": "svc.projects().locations().documentSchemas().list(**params).execute()",
+                "produces": {
+                  "name": "documentSchemas[].name",
+                  "displayName": "documentSchemas[].displayName",
+                  "propertyDefinitions": "documentSchemas[].propertyDefinitions",
+                  "description": "documentSchemas[].description",
+                  "updateTime": "documentSchemas[].updateTime",
+                  "documentIsFolder": "documentSchemas[].documentIsFolder",
+                  "createTime": "documentSchemas[].createTime"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.contentwarehouse.projects.locations.documentSchemas.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().documentSchemas().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.contentwarehouse.projects.locations.documentSchemas.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.contentwarehouse.projects.locations.documentSchemas.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().documentSchemas().list(**params).execute()",
+                      "path": "/v1/{+parent}/documentSchemas",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. The parent, which owns this collection of document schemas. Format: projects/{project_number}/locations/{locat"
+                        }
+                      },
+                      "output_list_field": "documentSchemas",
+                      "output_id_field": "name",
+                      "produces": {
+                        "documentSchemaId": {
+                          "via_list_field": "documentSchemas",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"documentSchemas\"][], extract item[\"name\"] \u2192 pass as \"documentSchemaId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: documentSchemaId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.contentwarehouse.projects.locations.documentSchemas.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().documentSchemas().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/documentSchemas/[^/]+$",
+                          "description": "Required. The name of the document schema to retrieve."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "documentSchemaId": {
+                            "from_step": 1,
+                            "from_op": "gcp.contentwarehouse.projects.locations.documentSchemas.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "documents": {
+          "resource_type": "documents",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "constructed",
+            "full_identifier": {
+              "template": "projects/{url_encoded_qaResult}",
+              "built_from_parts": [
+                "matchingDocuments[].qaResult"
+              ],
+              "notes": ""
+            },
+            "parts": [
+              "qaResult"
+            ],
+            "part_sources": {
+              "qaResult": {
+                "op": "gcp.contentwarehouse.projects.locations.documents.search",
+                "field_path": "matchingDocuments[].qaResult",
+                "transform": null
+              }
+            },
+            "transforms": [
+              {
+                "from": "matchingDocuments[].qaResult",
+                "fn": "url_encode",
+                "to": "url_encoded_qaResult"
+              },
+              {
+                "from": "url_encoded_qaResult",
+                "fn": "prefix:projects/",
+                "to": "name"
+              },
+              {
+                "build": "full_id",
+                "template": "projects/{url_encoded_qaResult}"
+              }
+            ]
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.contentwarehouse.projects.locations.documents.search",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "POST",
+                  "path": "/v1/{+parent}/documents:search"
+                },
+                "python_call": "svc.projects().locations().documents().search(**params).execute()",
+                "produces": {
+                  "qaResult": "matchingDocuments[].qaResult",
+                  "matchedTokenPageIndices": "matchingDocuments[].matchedTokenPageIndices",
+                  "document": "matchingDocuments[].document",
+                  "searchTextSnippet": "matchingDocuments[].searchTextSnippet",
+                  "questionAnswer": "questionAnswer",
+                  "metadata": "metadata",
+                  "totalSize": "totalSize"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.contentwarehouse.projects.locations.documents.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "POST",
+                  "path": "/v1/{+name}:get"
+                },
+                "python_call": "svc.projects().locations().documents().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "transforms \u2192 name"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.contentwarehouse.projects.locations.documents.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.contentwarehouse.projects.locations.documents.search",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().documents().search(**params).execute()",
+                      "path": "/v1/{+parent}/documents:search",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. The parent, which owns this collection of documents. Format: projects/{project_number}/locations/{location}."
+                        }
+                      },
+                      "output_list_field": "matchingDocuments",
+                      "output_id_field": "qaResult",
+                      "produces": {
+                        "documentId": {
+                          "via_list_field": "matchingDocuments",
+                          "from_id_field": "qaResult",
+                          "note": "Iterate response[\"matchingDocuments\"][], extract item[\"qaResult\"] \u2192 pass as \"documentId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: documentId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.contentwarehouse.projects.locations.documents.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().documents().get(**params).execute()",
+                      "path": "/v1/{+name}:get",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/documents/[^/]+$",
+                          "description": "Required. The name of the document to retrieve. Format: projects/{project_number}/locations/{location}/documents/{docume"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "documentId": {
+                            "from_step": 1,
+                            "from_op": "gcp.contentwarehouse.projects.locations.documents.search",
+                            "field": "qaResult"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        },
+        "locations": {
+          "resource_type": "locations",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "tuple",
+            "full_identifier": {
+              "template": "{location}:getStatus",
+              "built_from_parts": [],
+              "notes": "Tuple identifier; anchor parts are user-provided."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": []
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.contentwarehouse.projects.locations.getStatus",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+location}:getStatus"
+                },
+                "python_call": "svc.projects().locations().getStatus(**params).execute()",
+                "required_params": {
+                  "location": {
+                    "from_identifier": "location"
+                  }
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "confidence": 0.4,
+          "notes": "No inventory (list) ops found; enrich only."
+        },
+        "operations": {
+          "resource_type": "operations",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "tuple",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [],
+              "notes": "Tuple identifier; anchor parts are user-provided."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": []
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.contentwarehouse.projects.locations.operations.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().operations().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "name"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.contentwarehouse.projects.locations.operations.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 1,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.contentwarehouse.projects.locations.operations.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().operations().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/operations/[^/]+$",
+                          "description": "The name of the operation resource."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": "unresolved"
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": [
+                    "name"
+                  ]
+                }
+              }
+            ]
+          },
+          "confidence": 0.4,
+          "notes": "No inventory (list) ops found; enrich only."
+        },
+        "referenceId": {
+          "resource_type": "referenceId",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "tuple",
+            "full_identifier": {
+              "template": "{name}:get",
+              "built_from_parts": [],
+              "notes": "Tuple identifier; anchor parts are user-provided."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": []
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.contentwarehouse.projects.locations.documents.referenceId.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "POST",
+                  "path": "/v1/{+name}:get"
+                },
+                "python_call": "svc.projects().locations().documents().referenceId().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "name"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.contentwarehouse.projects.locations.documents.referenceId.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 1,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.contentwarehouse.projects.locations.documents.referenceId.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().documents().referenceId().get(**params).execute()",
+                      "path": "/v1/{+name}:get",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/documents/referenceId/[^/]+$",
+                          "description": "Required. The name of the document to retrieve. Format: projects/{project_number}/locations/{location}/documents/{docume"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": "unresolved"
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": [
+                    "name"
+                  ]
+                }
+              }
+            ]
+          },
+          "confidence": 0.4,
+          "notes": "No inventory (list) ops found; enrich only."
+        },
+        "ruleSets": {
+          "resource_type": "ruleSets",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.contentwarehouse.projects.locations.ruleSets.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/ruleSets"
+                },
+                "python_call": "svc.projects().locations().ruleSets().list(**params).execute()",
+                "produces": {
+                  "name": "ruleSets[].name",
+                  "description": "ruleSets[].description",
+                  "source": "ruleSets[].source",
+                  "rules": "ruleSets[].rules"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.contentwarehouse.projects.locations.ruleSets.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().ruleSets().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.contentwarehouse.projects.locations.ruleSets.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.contentwarehouse.projects.locations.ruleSets.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().ruleSets().list(**params).execute()",
+                      "path": "/v1/{+parent}/ruleSets",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. The parent, which owns this collection of document. Format: projects/{project_number}/locations/{location}."
+                        }
+                      },
+                      "output_list_field": "ruleSets",
+                      "output_id_field": "name",
+                      "produces": {
+                        "ruleSetId": {
+                          "via_list_field": "ruleSets",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"ruleSets\"][], extract item[\"name\"] \u2192 pass as \"ruleSetId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: ruleSetId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.contentwarehouse.projects.locations.ruleSets.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().ruleSets().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/ruleSets/[^/]+$",
+                          "description": "Required. The name of the rule set to retrieve. Format: projects/{project_number}/locations/{location}/ruleSets/{rule_se"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "ruleSetId": {
+                            "from_step": 1,
+                            "from_op": "gcp.contentwarehouse.projects.locations.ruleSets.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "synonymSets": {
+          "resource_type": "synonymSets",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.contentwarehouse.projects.locations.synonymSets.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/synonymSets"
+                },
+                "python_call": "svc.projects().locations().synonymSets().list(**params).execute()",
+                "produces": {
+                  "name": "synonymSets[].name",
+                  "synonyms": "synonymSets[].synonyms",
+                  "context": "synonymSets[].context"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.contentwarehouse.projects.locations.synonymSets.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().synonymSets().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.contentwarehouse.projects.locations.synonymSets.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.contentwarehouse.projects.locations.synonymSets.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().synonymSets().list(**params).execute()",
+                      "path": "/v1/{+parent}/synonymSets",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. The parent name. Format: projects/{project_number}/locations/{location}."
+                        }
+                      },
+                      "output_list_field": "synonymSets",
+                      "output_id_field": "name",
+                      "produces": {
+                        "synonymSetId": {
+                          "via_list_field": "synonymSets",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"synonymSets\"][], extract item[\"name\"] \u2192 pass as \"synonymSetId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: synonymSetId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.contentwarehouse.projects.locations.synonymSets.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().synonymSets().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/synonymSets/[^/]+$",
+                          "description": "Required. The name of the synonymSet to retrieve Format: projects/{project_number}/locations/{location}/synonymSets/{con"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "synonymSetId": {
+                            "from_step": 1,
+                            "from_op": "gcp.contentwarehouse.projects.locations.synonymSets.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        }
+      }
+    }
+  }
+}

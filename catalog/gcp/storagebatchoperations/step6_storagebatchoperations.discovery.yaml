@@ -1,0 +1,220 @@
+# ============================================================
+# Discovery YAML — storagebatchoperations (v1)
+# Generated: 2026-02-21T03:06:41Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 8 | independent: 5 | dependent: 3
+# ops with fields: 8/8 | dep ops with chain: 3/3
+# ============================================================
+version: '1.0'
+provider: gcp
+service: storagebatchoperations
+
+services:
+  client: storagebatchoperations
+  module: "googleapiclient.discovery.build('storagebatchoperations', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Gets information about a location.
+  # ── gcp.storagebatchoperations.projects.locations.get ──
+  - discovery_id: gcp.storagebatchoperations.projects.locations.get
+    # python: svc.projects().locations().get(**params).execute()
+    calls:
+      - action: projects.locations.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        displayName: '{{ response.displayName }}'
+        labels: '{{ response.labels }}'
+        locationId: '{{ response.locationId }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+  # Lists BucketOperations in a given project and job.
+  # ── gcp.storagebatchoperations.projects.locations.jobs.bucketOperations.list ──
+  - discovery_id: gcp.storagebatchoperations.projects.locations.jobs.bucketOperations.list
+    # python: svc.projects().locations().jobs().bucketOperations().list(**params).execute()
+    calls:
+      - action: projects.locations.jobs.bucketOperations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.bucketOperations }}'
+      item:
+        bucketName: '{{ item.bucketName }}'
+        completeTime: '{{ item.completeTime }}'
+        counters: '{{ item.counters }}'
+        createTime: '{{ item.createTime }}'
+        deleteObject: '{{ item.deleteObject }}'
+        errorSummaries: '{{ item.errorSummaries }}'
+        manifest: '{{ item.manifest }}'
+        name: '{{ item.name }}'
+        prefixList: '{{ item.prefixList }}'
+        putMetadata: '{{ item.putMetadata }}'
+        putObjectHold: '{{ item.putObjectHold }}'
+        rewriteObject: '{{ item.rewriteObject }}'
+        startTime: '{{ item.startTime }}'
+        state: '{{ item.state }}'
+  # Lists Jobs in a given project.
+  # ── gcp.storagebatchoperations.projects.locations.jobs.list ──
+  - discovery_id: gcp.storagebatchoperations.projects.locations.jobs.list
+    # python: svc.projects().locations().jobs().list(**params).execute()
+    calls:
+      - action: projects.locations.jobs.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.jobs }}'
+      item:
+        bucketList: '{{ item.bucketList }}'
+        completeTime: '{{ item.completeTime }}'
+        counters: '{{ item.counters }}'
+        createTime: '{{ item.createTime }}'
+        deleteObject: '{{ item.deleteObject }}'
+        description: '{{ item.description }}'
+        dryRun: '{{ item.dryRun }}'
+        errorSummaries: '{{ item.errorSummaries }}'
+        isMultiBucketJob: '{{ item.isMultiBucketJob }}'
+        loggingConfig: '{{ item.loggingConfig }}'
+        name: '{{ item.name }}'
+        putMetadata: '{{ item.putMetadata }}'
+        putObjectHold: '{{ item.putObjectHold }}'
+        rewriteObject: '{{ item.rewriteObject }}'
+        scheduleTime: '{{ item.scheduleTime }}'
+        state: '{{ item.state }}'
+  # Lists information about the supported locations for this service. This method can be called in two w
+  # ── gcp.storagebatchoperations.projects.locations.list ──
+  - discovery_id: gcp.storagebatchoperations.projects.locations.list
+    # python: svc.projects().locations().list(**params).execute()
+    calls:
+      - action: projects.locations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.locations }}'
+      item:
+        displayName: '{{ item.displayName }}'
+        labels: '{{ item.labels }}'
+        locationId: '{{ item.locationId }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+  # Lists operations that match the specified filter in the request. If the server doesn't support this 
+  # ── gcp.storagebatchoperations.projects.locations.operations.list ──
+  - discovery_id: gcp.storagebatchoperations.projects.locations.operations.list
+    # python: svc.projects().locations().operations().list(**params).execute()
+    calls:
+      - action: projects.locations.operations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.operations }}'
+      item:
+        done: '{{ item.done }}'
+        error: '{{ item.error }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+        response: '{{ item.response }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets a BucketOperation.
+  # ── gcp.storagebatchoperations.projects.locations.jobs.bucketOperations.get [dependent] ──
+  - discovery_id: gcp.storagebatchoperations.projects.locations.jobs.bucketOperations.get
+    for_each: gcp.storagebatchoperations.projects.locations.jobs.bucketOperations.list
+    # python: svc.projects().locations().jobs().bucketOperations().get(**params).execute()
+    calls:
+      - action: projects.locations.jobs.bucketOperations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        bucketName: '{{ response.bucketName }}'
+        completeTime: '{{ response.completeTime }}'
+        counters: '{{ response.counters }}'
+        createTime: '{{ response.createTime }}'
+        deleteObject: '{{ response.deleteObject }}'
+        errorSummaries: '{{ response.errorSummaries }}'
+        manifest: '{{ response.manifest }}'
+        name: '{{ response.name }}'
+        prefixList: '{{ response.prefixList }}'
+        putMetadata: '{{ response.putMetadata }}'
+        putObjectHold: '{{ response.putObjectHold }}'
+        rewriteObject: '{{ response.rewriteObject }}'
+        startTime: '{{ response.startTime }}'
+        state: '{{ response.state }}'
+    # required_params: ['name']
+  # Gets a batch job.
+  # ── gcp.storagebatchoperations.projects.locations.jobs.get [dependent] ──
+  - discovery_id: gcp.storagebatchoperations.projects.locations.jobs.get
+    for_each: gcp.storagebatchoperations.projects.locations.jobs.list
+    # python: svc.projects().locations().jobs().get(**params).execute()
+    calls:
+      - action: projects.locations.jobs.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        bucketList: '{{ response.bucketList }}'
+        completeTime: '{{ response.completeTime }}'
+        counters: '{{ response.counters }}'
+        createTime: '{{ response.createTime }}'
+        deleteObject: '{{ response.deleteObject }}'
+        description: '{{ response.description }}'
+        dryRun: '{{ response.dryRun }}'
+        errorSummaries: '{{ response.errorSummaries }}'
+        isMultiBucketJob: '{{ response.isMultiBucketJob }}'
+        loggingConfig: '{{ response.loggingConfig }}'
+        name: '{{ response.name }}'
+        putMetadata: '{{ response.putMetadata }}'
+        putObjectHold: '{{ response.putObjectHold }}'
+        rewriteObject: '{{ response.rewriteObject }}'
+        scheduleTime: '{{ response.scheduleTime }}'
+        state: '{{ response.state }}'
+    # required_params: ['name']
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.storagebatchoperations.projects.locations.operations.get [dependent] ──
+  - discovery_id: gcp.storagebatchoperations.projects.locations.operations.get
+    for_each: gcp.storagebatchoperations.projects.locations.operations.list
+    # python: svc.projects().locations().operations().get(**params).execute()
+    calls:
+      - action: projects.locations.operations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']

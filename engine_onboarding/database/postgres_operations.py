@@ -1,0 +1,873 @@
+"""
+PostgreSQL database operations - replacement for DynamoDB operations
+"""
+from typing import Dict, Any, List, Optional
+from datetime import datetime
+import uuid
+import json
+import logging
+from sqlalchemy.orm import Session
+from sqlalchemy import and_, or_, desc
+
+from engine_onboarding.database.connection import SessionLocal, get_db_session
+from engine_onboarding.database.models import (
+    Tenant, Provider, Account, Schedule, Execution, ScanResult
+)
+
+logger = logging.getLogger(__name__)
+
+
+def _to_dict(obj) -> Optional[Dict[str, Any]]:
+    """Convert SQLAlchemy model instance to dict"""
+    if obj is None:
+        return None
+    
+    result = {}
+    for column in obj.__table__.columns:
+        value = getattr(obj, column.name)
+        # Convert datetime to ISO format string
+        if isinstance(value, datetime):
+            value = value.isoformat()
+        # Convert JSONB to list/dict
+        elif isinstance(value, (list, dict)):
+            value = value if value is not None else []
+        result[column.name] = value
+    return result
+
+
+# ==================== TENANTS ====================
+
+def create_tenant(tenant_name: str, description: Optional[str] = None) -> Dict[str, Any]:
+    """Create a new tenant"""
+    tenant_id = str(uuid.uuid4())
+    
+    with get_db_session() as db:
+        tenant = Tenant(
+            tenant_id=tenant_id,
+            tenant_name=tenant_name,
+            description=description or '',
+            status='active'
+        )
+        db.add(tenant)
+        db.commit()
+        db.refresh(tenant)
+        return _to_dict(tenant)
+
+
+def get_tenant(tenant_id: str) -> Optional[Dict[str, Any]]:
+    """Get tenant by ID"""
+    with get_db_session() as db:
+        tenant = db.query(Tenant).filter(Tenant.tenant_id == tenant_id).first()
+        return _to_dict(tenant)
+
+
+def get_tenant_by_name(tenant_name: str) -> Optional[Dict[str, Any]]:
+    """Get tenant by name"""
+    with get_db_session() as db:
+        tenant = db.query(Tenant).filter(Tenant.tenant_name == tenant_name).first()
+        return _to_dict(tenant)
+
+
+def list_tenants() -> List[Dict[str, Any]]:
+    """List all tenants"""
+    with get_db_session() as db:
+        tenants = db.query(Tenant).all()
+        return [_to_dict(t) for t in tenants]
+
+
+# ==================== PROVIDERS ====================
+
+def create_provider(tenant_id: str, provider_type: str) -> Dict[str, Any]:
+    """Create a new provider"""
+    provider_id = str(uuid.uuid4())
+    
+    with get_db_session() as db:
+        # Check if provider already exists for this tenant and type
+        existing = db.query(Provider).filter(
+            and_(
+                Provider.tenant_id == tenant_id,
+                Provider.provider_type == provider_type
+            )
+        ).first()
+        
+        if existing:
+            return _to_dict(existing)
+        
+        provider = Provider(
+            provider_id=provider_id,
+            tenant_id=tenant_id,
+            provider_type=provider_type,
+            status='active'
+        )
+        db.add(provider)
+        db.commit()
+        db.refresh(provider)
+        return _to_dict(provider)
+
+
+def get_provider(provider_id: str) -> Optional[Dict[str, Any]]:
+    """Get provider by ID"""
+    if not provider_id:
+        return None
+    
+    with get_db_session() as db:
+        provider = db.query(Provider).filter(Provider.provider_id == provider_id).first()
+        return _to_dict(provider)
+
+
+def get_provider_by_tenant_and_type(tenant_id: str, provider_type: str) -> Optional[Dict[str, Any]]:
+    """Get provider by tenant and type"""
+    with get_db_session() as db:
+        provider = db.query(Provider).filter(
+            and_(
+                Provider.tenant_id == tenant_id,
+                Provider.provider_type == provider_type
+            )
+        ).first()
+        return _to_dict(provider)
+
+
+def list_providers() -> List[Dict[str, Any]]:
+    """List all providers"""
+    with get_db_session() as db:
+        providers = db.query(Provider).all()
+        return [_to_dict(p) for p in providers]
+
+
+def list_providers_by_tenant(tenant_id: str) -> List[Dict[str, Any]]:
+    """List providers by tenant"""
+    with get_db_session() as db:
+        providers = db.query(Provider).filter(Provider.tenant_id == tenant_id).all()
+        return [_to_dict(p) for p in providers]
+
+
+# ==================== ACCOUNTS ====================
+
+def create_account(
+    provider_id: str,
+    tenant_id: str,
+    account_name: str,
+    account_number: Optional[str] = None
+) -> Dict[str, Any]:
+    """Create a new account"""
+    account_id = str(uuid.uuid4())
+    
+    with get_db_session() as db:
+        account = Account(
+            account_id=account_id,
+            provider_id=provider_id,
+            tenant_id=tenant_id,
+            account_name=account_name,
+            account_number=account_number or '',
+            status='pending',
+            onboarding_status='pending'
+        )
+        db.add(account)
+        db.commit()
+        db.refresh(account)
+        return _to_dict(account)
+
+
+def get_account(account_id: str) -> Optional[Dict[str, Any]]:
+    """Get account by ID"""
+    with get_db_session() as db:
+        account = db.query(Account).filter(Account.account_id == account_id).first()
+        return _to_dict(account)
+
+
+def update_account(account_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
+    """Update account"""
+    with get_db_session() as db:
+        account = db.query(Account).filter(Account.account_id == account_id).first()
+        if not account:
+            raise ValueError(f"Account {account_id} not found")
+        
+        for key, value in updates.items():
+            if key not in ['account_id', 'created_at'] and hasattr(account, key):
+                setattr(account, key, value)
+        
+        db.commit()
+        db.refresh(account)
+        return _to_dict(account)
+
+
+def list_accounts_by_tenant(tenant_id: str, status: Optional[str] = None) -> List[Dict[str, Any]]:
+    """List accounts by tenant"""
+    with get_db_session() as db:
+        query = db.query(Account).filter(Account.tenant_id == tenant_id)
+        if status:
+            query = query.filter(Account.status == status)
+        accounts = query.all()
+        return [_to_dict(a) for a in accounts]
+
+
+def list_accounts_by_provider(provider_id: str) -> List[Dict[str, Any]]:
+    """List accounts by provider"""
+    with get_db_session() as db:
+        accounts = db.query(Account).filter(Account.provider_id == provider_id).all()
+        return [_to_dict(a) for a in accounts]
+
+
+# ==================== SCHEDULES ====================
+
+def create_schedule(
+    tenant_id: str,
+    account_id: str,
+    name: str,
+    schedule_type: str,
+    provider_type: str,
+    cron_expression: Optional[str] = None,
+    interval_seconds: Optional[int] = None,
+    regions: Optional[List[str]] = None,
+    services: Optional[List[str]] = None,
+    exclude_services: Optional[List[str]] = None,
+    timezone: str = 'UTC'
+) -> Dict[str, Any]:
+    """Create a new schedule"""
+    schedule_id = str(uuid.uuid4())
+    
+    with get_db_session() as db:
+        schedule = Schedule(
+            schedule_id=schedule_id,
+            tenant_id=tenant_id,
+            account_id=account_id,
+            name=name,
+            schedule_type=schedule_type,
+            provider_type=provider_type,
+            cron_expression=cron_expression or '',
+            interval_seconds=interval_seconds or 0,
+            regions=regions or [],
+            services=services or [],
+            exclude_services=exclude_services or [],
+            timezone=timezone,
+            status='active',
+            enabled=True
+        )
+        db.add(schedule)
+        db.commit()
+        db.refresh(schedule)
+        return _to_dict(schedule)
+
+
+def get_schedule(schedule_id: str) -> Optional[Dict[str, Any]]:
+    """Get schedule by ID"""
+    with get_db_session() as db:
+        schedule = db.query(Schedule).filter(Schedule.schedule_id == schedule_id).first()
+        return _to_dict(schedule)
+
+
+def update_schedule(schedule_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
+    """Update schedule"""
+    with get_db_session() as db:
+        schedule = db.query(Schedule).filter(Schedule.schedule_id == schedule_id).first()
+        if not schedule:
+            raise ValueError(f"Schedule {schedule_id} not found")
+        
+        for key, value in updates.items():
+            if key not in ['schedule_id', 'created_at'] and hasattr(schedule, key):
+                setattr(schedule, key, value)
+        
+        db.commit()
+        db.refresh(schedule)
+        return _to_dict(schedule)
+
+
+def list_schedules_by_tenant(tenant_id: str) -> List[Dict[str, Any]]:
+    """List schedules by tenant"""
+    with get_db_session() as db:
+        schedules = db.query(Schedule).filter(Schedule.tenant_id == tenant_id).all()
+        return [_to_dict(s) for s in schedules]
+
+
+def list_schedules_by_account(account_id: str) -> List[Dict[str, Any]]:
+    """List schedules by account"""
+    with get_db_session() as db:
+        schedules = db.query(Schedule).filter(Schedule.account_id == account_id).all()
+        return [_to_dict(s) for s in schedules]
+
+
+def get_due_schedules() -> List[Dict[str, Any]]:
+    """Get schedules that are due to run"""
+    from datetime import datetime, timezone
+    
+    with get_db_session() as db:
+        now = datetime.now(timezone.utc)
+        schedules = db.query(Schedule).filter(
+            and_(
+                Schedule.enabled == True,
+                Schedule.next_run_at <= now
+            )
+        ).all()
+        return [_to_dict(s) for s in schedules]
+
+
+# ==================== EXECUTIONS ====================
+
+def create_execution(
+    schedule_id: str,
+    account_id: str,
+    triggered_by: str = 'scheduler'
+) -> Dict[str, Any]:
+    """Create a new execution record"""
+    execution_id = str(uuid.uuid4())
+    
+    with get_db_session() as db:
+        execution = Execution(
+            execution_id=execution_id,
+            schedule_id=schedule_id,
+            account_id=account_id,
+            status='running',
+            triggered_by=triggered_by
+        )
+        db.add(execution)
+        db.commit()
+        db.refresh(execution)
+        return _to_dict(execution)
+
+
+def update_execution(
+    execution_id: str,
+    status: str,
+    scan_id: Optional[str] = None,
+    total_checks: Optional[int] = None,
+    passed_checks: Optional[int] = None,
+    failed_checks: Optional[int] = None,
+    error_message: Optional[str] = None
+) -> Dict[str, Any]:
+    """Update execution record"""
+    from datetime import datetime, timezone
+    
+    with get_db_session() as db:
+        execution = db.query(Execution).filter(Execution.execution_id == execution_id).first()
+        if not execution:
+            raise ValueError(f"Execution {execution_id} not found")
+        
+        execution.status = status
+        execution.completed_at = datetime.now(timezone.utc)
+        
+        if scan_id:
+            execution.scan_id = scan_id
+        if total_checks is not None:
+            execution.total_checks = total_checks
+        if passed_checks is not None:
+            execution.passed_checks = passed_checks
+        if failed_checks is not None:
+            execution.failed_checks = failed_checks
+        if error_message:
+            execution.error_message = error_message
+        
+        db.commit()
+        db.refresh(execution)
+        return _to_dict(execution)
+
+
+def list_executions_by_schedule(schedule_id: str) -> List[Dict[str, Any]]:
+    """List executions by schedule"""
+    with get_db_session() as db:
+        executions = db.query(Execution).filter(
+            Execution.schedule_id == schedule_id
+        ).order_by(desc(Execution.started_at)).all()
+        return [_to_dict(e) for e in executions]
+
+
+def mark_stale_running_executions_as_failed(max_age_minutes: int = 30) -> int:
+    """
+    Mark long-running executions as failed.
+
+    This protects us against orphaned 'running' executions when a pod restarts
+    mid-scan (or when the AWS engine restarts and loses scan state).
+    """
+    from datetime import datetime, timezone, timedelta
+
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(minutes=max_age_minutes)
+
+    with get_db_session() as db:
+        stale = db.query(Execution).filter(
+            and_(
+                Execution.status == 'running',
+                Execution.started_at < cutoff
+            )
+        ).all()
+
+        for e in stale:
+            e.status = 'failed'
+            e.completed_at = now
+            if not e.error_message:
+                e.error_message = (
+                    "Marked failed as stale (service restart or engine lost scan state)."
+                )
+
+        db.commit()
+        return len(stale)
+
+
+# ==================== SCAN RESULTS ====================
+
+def create_scan_result(
+    scan_id: str,
+    account_id: str,
+    provider_type: str,
+    scan_type: str = 'scheduled'
+) -> Dict[str, Any]:
+    """Create a new scan result record"""
+    with get_db_session() as db:
+        scan_result = ScanResult(
+            scan_id=scan_id,
+            account_id=account_id,
+            provider_type=provider_type,
+            scan_type=scan_type,
+            status='running'
+        )
+        db.add(scan_result)
+        db.commit()
+        db.refresh(scan_result)
+        return _to_dict(scan_result)
+
+
+def update_scan_result(
+    scan_id: str,
+    status: str,
+    total_checks: Optional[int] = None,
+    passed_checks: Optional[int] = None,
+    failed_checks: Optional[int] = None,
+    error_checks: Optional[int] = None,
+    result_storage_path: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """Update scan result"""
+    from datetime import datetime, timezone
+    
+    with get_db_session() as db:
+        scan_result = db.query(ScanResult).filter(ScanResult.scan_id == scan_id).first()
+        if not scan_result:
+            raise ValueError(f"Scan result {scan_id} not found")
+        
+        scan_result.status = status
+        scan_result.completed_at = datetime.now(timezone.utc)
+        
+        if total_checks is not None:
+            scan_result.total_checks = total_checks
+        if passed_checks is not None:
+            scan_result.passed_checks = passed_checks
+        if failed_checks is not None:
+            scan_result.failed_checks = failed_checks
+        if error_checks is not None:
+            scan_result.error_checks = error_checks
+        if result_storage_path:
+            scan_result.result_storage_path = result_storage_path
+        if metadata:
+            scan_result.scan_metadata = metadata
+        
+        db.commit()
+        db.refresh(scan_result)
+        return _to_dict(scan_result)
+
+
+def list_scan_results_by_account(account_id: str) -> List[Dict[str, Any]]:
+    """List scan results by account"""
+    with get_db_session() as db:
+        scan_results = db.query(ScanResult).filter(
+            ScanResult.account_id == account_id
+        ).order_by(desc(ScanResult.started_at)).all()
+        return [_to_dict(sr) for sr in scan_results]
+
+
+# ==================== SCAN METADATA (for backward compatibility) ====================
+
+def create_scan_metadata(
+    scan_run_id: str,
+    tenant_id: str,
+    account_id: str,
+    provider: str,
+    scan_id: Optional[str] = None,
+    status: str = 'running'
+) -> Dict[str, Any]:
+    """Create unified scan metadata record (alias for create_scan_result)"""
+    # For PostgreSQL, we use scan_result table
+    # scan_run_id maps to scan_id in ScanResult
+    return create_scan_result(
+        scan_id=scan_run_id,
+        account_id=account_id,
+        provider_type=provider,
+        scan_type='scheduled'
+    )
+
+
+def update_scan_metadata(
+    scan_run_id: str,
+    status: Optional[str] = None,
+    scan_id: Optional[str] = None,
+    completed_at: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """Update unified scan metadata record (alias for update_scan_result)"""
+    update_data = {}
+    if status:
+        update_data['status'] = status
+    if metadata:
+        update_data['metadata'] = metadata
+    
+    return update_scan_result(
+        scan_id=scan_run_id,
+        status=status or 'running',
+        **{k: v for k, v in update_data.items() if k != 'status'}
+    )
+
+
+# ==================== ORCHESTRATION STATUS ====================
+
+def create_orchestration_status(
+    scan_run_id: str,
+    engine: str,
+    status: str = 'running',
+    account_id: Optional[str] = None,
+    tenant_id: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """Create orchestration status record (uses shared.scan_orchestration table)"""
+    from sqlalchemy import text
+    from datetime import datetime, timezone
+
+    if not account_id:
+        raise ValueError("account_id is required for orchestration status")
+
+    with get_db_session() as db:
+        # Insert into shared.scan_orchestration table
+        # Note: This assumes the shared schema is accessible
+        # For now, we'll use a simple approach - store in scan_results metadata
+        # In production, this should use the shared.scan_orchestration table
+
+        # For backward compatibility, we'll create a scan_result entry
+        # with orchestration metadata
+        result = create_scan_result(
+            scan_id=f"{scan_run_id}_{engine}",
+            account_id=account_id,
+            provider_type=engine,
+            scan_type="orchestration"
+        )
+        
+        # Update with orchestration metadata
+        if metadata:
+            update_scan_result(
+                scan_id=f"{scan_run_id}_{engine}",
+                status=status,
+                metadata={"orchestration": metadata, "scan_run_id": scan_run_id}
+            )
+        
+        return {
+            "scan_run_id": scan_run_id,
+            "engine": engine,
+            "status": status,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+
+
+def update_orchestration_status(
+    scan_run_id: str,
+    engine: str,
+    status: str,
+    response_data: Optional[Dict[str, Any]] = None,
+    error: Optional[str] = None
+) -> Dict[str, Any]:
+    """Update orchestration status record"""
+    from datetime import datetime, timezone
+
+    scan_id = f"{scan_run_id}_{engine}"
+
+    metadata = {
+        "scan_run_id": scan_run_id,
+        "engine": engine,
+        "status": status,
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+
+    if response_data:
+        metadata["response_data"] = response_data
+
+    if error:
+        metadata["error"] = error
+
+    return update_scan_result(
+        scan_id=scan_id,
+        status=status,
+        metadata=metadata
+    )
+
+
+# ============================================================================
+# NEW ORCHESTRATION FUNCTIONS (scan_orchestration table)
+# ============================================================================
+
+def create_orchestration_record(
+    orchestration_id: str,
+    tenant_id: str,
+    account_id: str,
+    provider_type: str,
+    customer_id: Optional[str] = None,
+    include_services: Optional[List[str]] = None,
+    include_regions: Optional[List[str]] = None,
+    exclude_services: Optional[List[str]] = None,
+    exclude_regions: Optional[List[str]] = None,
+    credential_type: Optional[str] = None,
+    credential_ref: Optional[str] = None,
+    engines_requested: Optional[List[str]] = None
+) -> str:
+    """
+    Create new orchestration record in scan_orchestration table (LOCAL to onboarding DB).
+
+    Args:
+        orchestration_id: UUID for this orchestration (usually scan_run_id)
+        tenant_id: Tenant identifier
+        account_id: Account identifier
+        provider_type: Cloud provider (aws, azure, gcp, etc.)
+        customer_id: Customer identifier (optional)
+        include_services: Services to include (optional, null = all)
+        include_regions: Regions to include (optional, null = all)
+        exclude_services: Services to exclude (optional)
+        exclude_regions: Regions to exclude (optional)
+        credential_type: Credential type (iam_role, access_key)
+        credential_ref: Credential reference (ARN or Secrets Manager path)
+        engines_requested: List of engines to run
+
+    Returns:
+        orchestration_id
+    """
+    with get_db_session() as db:
+        # Use SQLAlchemy to insert into the local scan_orchestration table
+        from sqlalchemy import text
+        
+        engines_json = json.dumps(engines_requested or ["discovery", "check", "inventory", "threat", "compliance", "iam", "datasec"])
+        include_services_json = json.dumps(include_services) if include_services else None
+        include_regions_json = json.dumps(include_regions) if include_regions else None
+        exclude_services_json = json.dumps(exclude_services) if exclude_services else None
+        exclude_regions_json = json.dumps(exclude_regions) if exclude_regions else None
+        
+        result = db.execute(text("""
+            INSERT INTO scan_orchestration
+            (orchestration_id, tenant_id, customer_id, account_id, provider, 
+             overall_status, engines_requested, include_services, include_regions,
+             exclude_services, exclude_regions, credential_type, credential_ref,
+             started_at, created_at)
+            VALUES (:orchestration_id::uuid, :tenant_id, :customer_id, :account_id, :provider,
+                    'pending', :engines_requested::jsonb, :include_services::jsonb, :include_regions::jsonb,
+                    :exclude_services::jsonb, :exclude_regions::jsonb, :credential_type, :credential_ref,
+                    NOW(), NOW())
+            ON CONFLICT (orchestration_id) DO NOTHING
+            RETURNING orchestration_id
+        """), {
+            "orchestration_id": orchestration_id,
+            "tenant_id": tenant_id,
+            "customer_id": customer_id,
+            "account_id": account_id,
+            "provider": provider_type,
+            "engines_requested": engines_json,
+            "include_services": include_services_json,
+            "include_regions": include_regions_json,
+            "exclude_services": exclude_services_json,
+            "exclude_regions": exclude_regions_json,
+            "credential_type": credential_type,
+            "credential_ref": credential_ref
+        })
+        
+        db.commit()
+        return orchestration_id
+
+
+def update_orchestration_engine_scan_id(
+    orchestration_id: str,
+    engine: str,
+    engine_scan_id: str
+) -> None:
+    """
+    Update orchestration record with engine-specific scan_id (LOCAL to onboarding DB).
+
+    Args:
+        orchestration_id: Orchestration UUID
+        engine: Engine name (discovery, check, threat, compliance, iam, datasec, inventory)
+        engine_scan_id: The engine's generated scan ID
+    """
+    column_map = {
+        "discovery": "discovery_scan_id",
+        "check": "check_scan_id",
+        "threat": "threat_scan_id",
+        "compliance": "compliance_scan_id",
+        "iam": "iam_scan_id",
+        "datasec": "datasec_scan_id",
+        "inventory": "inventory_scan_id"
+    }
+
+    column = column_map.get(engine)
+    if not column:
+        raise ValueError(f"Unknown engine: {engine}. Valid engines: {list(column_map.keys())}")
+
+    with get_db_session() as db:
+        from sqlalchemy import text
+        
+        db.execute(text(f"""
+            UPDATE scan_orchestration
+            SET {column} = :engine_scan_id
+            WHERE orchestration_id = :orchestration_id::uuid
+        """), {
+            "engine_scan_id": engine_scan_id,
+            "orchestration_id": orchestration_id
+        })
+        
+        db.commit()
+
+
+def get_orchestration_scan_ids(orchestration_id: str) -> Dict[str, Optional[str]]:
+    """
+    Get all engine scan IDs for an orchestration.
+
+    Args:
+        orchestration_id: Orchestration UUID
+
+    Returns:
+        Dictionary with engine scan IDs:
+        {
+            "discovery_scan_id": "...",
+            "check_scan_id": "...",
+            "threat_scan_id": "...",
+            "compliance_scan_id": "...",
+            "iam_scan_id": "...",
+            "datasec_scan_id": "...",
+            "inventory_scan_id": "..."
+        }
+    """
+    import psycopg2
+    import os
+
+    conn = psycopg2.connect(
+        host=os.getenv('SHARED_DB_HOST'),
+        database=os.getenv('SHARED_DB_NAME'),
+        user=os.getenv('SHARED_DB_USER'),
+        password=os.getenv('SHARED_DB_PASSWORD')
+    )
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("""
+            SELECT discovery_scan_id, check_scan_id, threat_scan_id,
+                   compliance_scan_id, iam_scan_id, datasec_scan_id, inventory_scan_id
+            FROM scan_orchestration
+            WHERE orchestration_id = %s::uuid
+        """, (orchestration_id,))
+
+        row = cursor.fetchone()
+        if not row:
+            return {}
+
+        return {
+            "discovery_scan_id": row[0],
+            "check_scan_id": row[1],
+            "threat_scan_id": row[2],
+            "compliance_scan_id": row[3],
+            "iam_scan_id": row[4],
+            "datasec_scan_id": row[5],
+            "inventory_scan_id": row[6]
+        }
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def mark_orchestration_complete(orchestration_id: str, status: str = 'completed') -> None:
+    """
+    Mark orchestration as complete (LOCAL to onboarding DB).
+
+    Args:
+        orchestration_id: Orchestration UUID
+        status: Final status (completed, failed, partial)
+    """
+    with get_db_session() as db:
+        from sqlalchemy import text
+        
+        db.execute(text("""
+            UPDATE scan_orchestration
+            SET overall_status = :status, completed_at = NOW()
+            WHERE orchestration_id = :orchestration_id::uuid
+        """), {
+            "status": status,
+            "orchestration_id": orchestration_id
+        })
+        
+        db.commit()
+
+
+def get_orchestration_metadata(orchestration_id: str) -> Dict[str, Any]:
+    """
+    Get complete orchestration metadata including tenant_id, account_id, provider,
+    and all engine scan IDs (LOCAL from onboarding DB).
+
+    This allows engines to receive ONLY orchestration_id and query all other
+    metadata from the onboarding database (single source of truth).
+
+    Args:
+        orchestration_id: Orchestration UUID
+
+    Returns:
+        Dictionary with all orchestration metadata (matches live RDS schema)
+    """
+    with get_db_session() as db:
+        from sqlalchemy import text
+        
+        result = db.execute(text("""
+            SELECT
+                orchestration_id,
+                tenant_id,
+                customer_id,
+                account_id,
+                provider,
+                overall_status,
+                discovery_scan_id,
+                check_scan_id,
+                threat_scan_id,
+                compliance_scan_id,
+                iam_scan_id,
+                datasec_scan_id,
+                inventory_scan_id,
+                credential_type,
+                credential_ref,
+                include_services,
+                include_regions,
+                exclude_services,
+                exclude_regions,
+                engines_requested,
+                started_at,
+                completed_at,
+                created_at
+            FROM scan_orchestration
+            WHERE orchestration_id = :orchestration_id::uuid
+        """), {"orchestration_id": orchestration_id})
+        
+        row = result.fetchone()
+        if not row:
+            return {}
+
+        return {
+            "orchestration_id": str(row[0]),
+            "tenant_id": row[1],
+            "customer_id": row[2],
+            "account_id": row[3],
+            "provider": row[4],
+            "overall_status": row[5],
+            "discovery_scan_id": row[6],
+            "check_scan_id": row[7],
+            "threat_scan_id": row[8],
+            "compliance_scan_id": row[9],
+            "iam_scan_id": row[10],
+            "datasec_scan_id": row[11],
+            "inventory_scan_id": row[12],
+            "credential_type": row[13],
+            "credential_ref": row[14],
+            "include_services": row[15],
+            "include_regions": row[16],
+            "exclude_services": row[17],
+            "exclude_regions": row[18],
+            "engines_requested": row[19],
+            "started_at": row[20].isoformat() if row[20] else None,
+            "completed_at": row[21].isoformat() if row[21] else None,
+            "created_at": row[22].isoformat() if row[22] else None
+        }
+

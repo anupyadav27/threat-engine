@@ -1,0 +1,185 @@
+# ============================================================
+# Discovery YAML — b2bi (AWS)
+# Generated: 2026-02-21T04:56:57Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: b2bi
+services:
+  client: b2bi
+  module: boto3.client
+discovery:
+  # ── ListCapabilities ──
+  - discovery_id: aws.b2bi.list_capabilities
+    calls:
+      - action: list_capabilities
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.capabilities }}'
+      item:
+        bucketName: '{{ item.bucketName }}'
+        capabilityArn: '{{ item.capabilityArn }}'
+        capabilityId: '{{ item.capabilityId }}'
+        createdAt: '{{ item.createdAt }}'
+        email: '{{ item.email }}'
+        instructionsDocuments: '{{ item.instructionsDocuments }}'
+        key: '{{ item.key }}'
+        modifiedAt: '{{ item.modifiedAt }}'
+        name: '{{ item.name }}'
+        phone: '{{ item.phone }}'
+        type: '{{ item.type }}'
+  # ── ListPartnerships ──
+  - discovery_id: aws.b2bi.list_partnerships
+    calls:
+      - action: list_partnerships
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.partnerships }}'
+      item:
+        capabilities: '{{ item.capabilities }}'
+        capabilityOptions: '{{ item.capabilityOptions }}'
+        createdAt: '{{ item.createdAt }}'
+        modifiedAt: '{{ item.modifiedAt }}'
+        name: '{{ item.name }}'
+        partnershipId: '{{ item.partnershipId }}'
+        profileId: '{{ item.profileId }}'
+        tradingPartnerId: '{{ item.tradingPartnerId }}'
+  # ── ListProfiles ──
+  - discovery_id: aws.b2bi.list_profiles
+    calls:
+      - action: list_profiles
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.profiles }}'
+      item:
+        businessName: '{{ item.businessName }}'
+        createdAt: '{{ item.createdAt }}'
+        logGroupName: '{{ item.logGroupName }}'
+        logging: '{{ item.logging }}'
+        modifiedAt: '{{ item.modifiedAt }}'
+        name: '{{ item.name }}'
+        profileId: '{{ item.profileId }}'
+  # ── ListTransformers ──
+  - discovery_id: aws.b2bi.list_transformers
+    calls:
+      - action: list_transformers
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.transformers }}'
+      item:
+        createdAt: '{{ item.createdAt }}'
+        ediType: '{{ item.ediType }}'
+        fileFormat: '{{ item.fileFormat }}'
+        inputConversion: '{{ item.inputConversion }}'
+        mapping: '{{ item.mapping }}'
+        mappingTemplate: '{{ item.mappingTemplate }}'
+        modifiedAt: '{{ item.modifiedAt }}'
+        name: '{{ item.name }}'
+        outputConversion: '{{ item.outputConversion }}'
+        sampleDocument: '{{ item.sampleDocument }}'
+        sampleDocuments: '{{ item.sampleDocuments }}'
+        status: '{{ item.status }}'
+        transformerId: '{{ item.transformerId }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── GetCapability ──
+  - discovery_id: aws.b2bi.get_capability
+    for_each: aws.b2bi.list_capabilities
+    calls:
+      - action: get_capability
+        params:
+          capabilityId: '{{ item.capabilityId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.instructionsDocuments }}'
+      item:
+        bucketName: '{{ item.bucketName }}'
+        capabilityArn: '{{ item.capabilityArn }}'
+        instructionsDocuments: '{{ item.instructionsDocuments }}'
+        key: '{{ item.key }}'
+  # ── GetPartnership ──
+  - discovery_id: aws.b2bi.get_partnership
+    for_each: aws.b2bi.list_partnerships
+    calls:
+      - action: get_partnership
+        params:
+          partnershipId: '{{ item.partnershipId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.capabilities }}'
+  # ── GetProfile ──
+  - discovery_id: aws.b2bi.get_profile
+    for_each: aws.b2bi.list_partnerships
+    calls:
+      - action: get_profile
+        params:
+          profileId: '{{ item.profileId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        businessName: '{{ response.businessName }}'
+        createdAt: '{{ response.createdAt }}'
+        email: '{{ response.email }}'
+        logGroupName: '{{ response.logGroupName }}'
+        logging: '{{ response.logging }}'
+        modifiedAt: '{{ response.modifiedAt }}'
+        name: '{{ response.name }}'
+        phone: '{{ response.phone }}'
+        profileArn: '{{ response.profileArn }}'
+        profileId: '{{ response.profileId }}'
+  # ── GetTransformer ──
+  - discovery_id: aws.b2bi.get_transformer
+    for_each: aws.b2bi.list_transformers
+    calls:
+      - action: get_transformer
+        params:
+          transformerId: '{{ item.transformerId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ediType }}'
+      item:
+        x12Details: '{{ item.x12Details }}'
+  # ── GetTransformerJob ──
+  - discovery_id: aws.b2bi.get_transformer_job
+    for_each: aws.b2bi.list_transformers
+    calls:
+      - action: get_transformer_job
+        params:
+          transformerJobId: '{{ item.transformerJobId }}'
+          transformerId: '{{ item.transformerId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.outputFiles }}'
+      item:
+        bucketName: '{{ item.bucketName }}'
+        key: '{{ item.key }}'
+  # ── ListTagsForResource ──
+  - discovery_id: aws.b2bi.list_tags_for_resource
+    calls:
+      - action: list_tags_for_resource
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Tags }}'
+      item:
+        Key: '{{ item.Key }}'
+        Value: '{{ item.Value }}'

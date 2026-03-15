@@ -1,0 +1,124 @@
+# ============================================================
+# Discovery YAML — datastore (v1)
+# Generated: 2026-02-21T03:06:39Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 5 | independent: 3 | dependent: 2
+# ops with fields: 5/5 | dep ops with chain: 2/2
+# ============================================================
+version: '1.0'
+provider: gcp
+service: datastore
+
+services:
+  client: datastore
+  module: "googleapiclient.discovery.build('datastore', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists the indexes that match the specified filters. Datastore uses an eventually consistent query to
+  # ── gcp.datastore.projects.indexes.list ──
+  - discovery_id: gcp.datastore.projects.indexes.list
+    # python: svc.projects().indexes().list(**params).execute()
+    calls:
+      - action: projects.indexes.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.indexes }}'
+      item:
+        ancestor: '{{ item.ancestor }}'
+        indexId: '{{ item.indexId }}'
+        projectId: '{{ item.projectId }}'
+        properties: '{{ item.properties }}'
+        state: '{{ item.state }}'
+  # Looks up entities by key.
+  # ── gcp.datastore.projects.lookup ──
+  - discovery_id: gcp.datastore.projects.lookup
+    # python: svc.projects().lookup(**params).execute()
+    calls:
+      - action: projects.lookup
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        deferred: '{{ response.deferred }}'
+        found: '{{ response.found }}'
+        missing: '{{ response.missing }}'
+        readTime: '{{ response.readTime }}'
+        transaction: '{{ response.transaction }}'
+  # Lists operations that match the specified filter in the request. If the server doesn't support this 
+  # ── gcp.datastore.projects.operations.list ──
+  - discovery_id: gcp.datastore.projects.operations.list
+    # python: svc.projects().operations().list(**params).execute()
+    calls:
+      - action: projects.operations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.operations }}'
+      item:
+        done: '{{ item.done }}'
+        error: '{{ item.error }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+        response: '{{ item.response }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets an index.
+  # ── gcp.datastore.projects.indexes.get [dependent] ──
+  - discovery_id: gcp.datastore.projects.indexes.get
+    for_each: gcp.datastore.projects.indexes.list
+    # python: svc.projects().indexes().get(**params).execute()
+    calls:
+      - action: projects.indexes.get
+        params:
+          indexId: '{{ item.ancestor }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        ancestor: '{{ response.ancestor }}'
+        indexId: '{{ response.indexId }}'
+        projectId: '{{ response.projectId }}'
+        properties: '{{ response.properties }}'
+        state: '{{ response.state }}'
+    # required_params: ['projectId', 'indexId']
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.datastore.projects.operations.get [dependent] ──
+  - discovery_id: gcp.datastore.projects.operations.get
+    for_each: gcp.datastore.projects.operations.list
+    # python: svc.projects().operations().get(**params).execute()
+    calls:
+      - action: projects.operations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']

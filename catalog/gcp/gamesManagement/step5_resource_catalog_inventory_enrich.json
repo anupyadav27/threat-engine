@@ -1,0 +1,111 @@
+{
+  "csp": "gcp",
+  "generated_at": "2026-02-19T14:43:26.936123+00:00",
+  "anchors": {
+    "fixed": [
+      "project_id",
+      "org_id",
+      "folder_id",
+      "location",
+      "zone",
+      "region"
+    ]
+  },
+  "services": {
+    "gamesManagement": {
+      "version": "v1management",
+      "resources": {
+        "applications": {
+          "resource_type": "applications",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "tuple",
+            "full_identifier": {
+              "template": "",
+              "built_from_parts": [],
+              "notes": "Tuple identifier; anchor parts are user-provided."
+            },
+            "parts": [
+              "kind"
+            ],
+            "part_sources": {
+              "kind": {
+                "op": "gcp.gamesManagement.applications.listHidden",
+                "field_path": "items[].kind",
+                "transform": null
+              }
+            },
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.gamesManagement.applications.listHidden",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/games/v1management/applications/{applicationId}/players/hidden"
+                },
+                "python_call": "svc.applications().listHidden(**params).execute()",
+                "produces": {
+                  "kind": "items[].kind",
+                  "hiddenTimeMillis": "items[].hiddenTimeMillis",
+                  "player": "items[].player"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.gamesManagement.applications.listHidden",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 1,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.gamesManagement.applications.listHidden",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.applications().listHidden(**params).execute()",
+                      "path": "/games/v1management/applications/{applicationId}/players/hidden",
+                      "required_params": {
+                        "applicationId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The application ID from the Google Play developer console."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "kind",
+                      "produces": {
+                        "applicationId": {
+                          "via_list_field": "items",
+                          "from_id_field": "kind",
+                          "note": "Iterate response[\"items\"][], extract item[\"kind\"] \u2192 pass as \"applicationId\""
+                        }
+                      },
+                      "param_sources": {
+                        "applicationId": "unresolved"
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": [
+                    "applicationId"
+                  ]
+                }
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": []
+          },
+          "confidence": 0.4,
+          "notes": "No enrich (get) ops found; inventory only."
+        }
+      }
+    }
+  }
+}

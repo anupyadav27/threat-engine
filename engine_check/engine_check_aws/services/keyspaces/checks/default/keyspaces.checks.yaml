@@ -1,0 +1,24 @@
+version: '1.0'
+provider: aws
+service: keyspaces
+checks:
+- rule_id: aws.keyspaces.resource.keyspace_security_configuration_configured
+  for_each: aws.keyspaces.list_keyspaces
+  conditions:
+    all:
+    - var: item.EncryptionSpecification.EncryptionType
+      op: equals
+      value: AWS_OWNED_KMS_KEY
+    - var: item.EncryptionSpecification.EncryptionType
+      op: equals
+      value: CUSTOMER_MANAGED_KMS_KEY
+- rule_id: aws.keyspaces.resource.keyspace_encryption_at_rest_and_in_transit_configured
+  for_each: aws.keyspaces.list_keyspaces
+  conditions:
+    all:
+    - var: item.EncryptionSpecification.EncryptionType
+      op: equals
+      value: KMS
+    - var: item.EncryptionSpecification.KmsKeyIdentifier
+      op: exists
+      value: null

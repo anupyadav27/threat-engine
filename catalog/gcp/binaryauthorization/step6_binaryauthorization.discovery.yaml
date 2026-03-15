@@ -1,0 +1,178 @@
+# ============================================================
+# Discovery YAML — binaryauthorization (v1)
+# Generated: 2026-02-21T03:06:38Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 8 | independent: 5 | dependent: 3
+# ops with fields: 8/8 | dep ops with chain: 3/3
+# ============================================================
+version: '1.0'
+provider: gcp
+service: binaryauthorization
+
+services:
+  client: binaryauthorization
+  module: "googleapiclient.discovery.build('binaryauthorization', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists attestors. Returns `INVALID_ARGUMENT` if the project does not exist.
+  # ── gcp.binaryauthorization.projects.attestors.list ──
+  - discovery_id: gcp.binaryauthorization.projects.attestors.list
+    # python: svc.projects().attestors().list(**params).execute()
+    calls:
+      - action: projects.attestors.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.attestors }}'
+      item:
+        description: '{{ item.description }}'
+        name: '{{ item.name }}'
+        updateTime: '{{ item.updateTime }}'
+        userOwnedGrafeasNote: '{{ item.userOwnedGrafeasNote }}'
+  # A policy specifies the attestors that must attest to a container image, before the project is allowe
+  # ── gcp.binaryauthorization.projects.getPolicy ──
+  - discovery_id: gcp.binaryauthorization.projects.getPolicy
+    # python: svc.projects().getPolicy(**params).execute()
+    calls:
+      - action: projects.getPolicy
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        admissionWhitelistPatterns: '{{ response.admissionWhitelistPatterns }}'
+        clusterAdmissionRules: '{{ response.clusterAdmissionRules }}'
+        defaultAdmissionRule: '{{ response.defaultAdmissionRule }}'
+        description: '{{ response.description }}'
+        globalPolicyEvaluationMode: '{{ response.globalPolicyEvaluationMode }}'
+        istioServiceIdentityAdmissionRules: '{{ response.istioServiceIdentityAdmissionRules }}'
+        kubernetesNamespaceAdmissionRules: '{{ response.kubernetesNamespaceAdmissionRules }}'
+        kubernetesServiceAccountAdmissionRules: '{{ response.kubernetesServiceAccountAdmissionRules }}'
+        name: '{{ response.name }}'
+        updateTime: '{{ response.updateTime }}'
+  # Lists platform policies owned by a project in the specified platform. Returns `INVALID_ARGUMENT` if 
+  # ── gcp.binaryauthorization.projects.platforms.policies.list ──
+  - discovery_id: gcp.binaryauthorization.projects.platforms.policies.list
+    # python: svc.projects().platforms().policies().list(**params).execute()
+    calls:
+      - action: projects.platforms.policies.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.policies }}'
+      item:
+        description: '{{ item.description }}'
+        gkePolicy: '{{ item.gkePolicy }}'
+        name: '{{ item.name }}'
+        updateTime: '{{ item.updateTime }}'
+  # Gets the access control policy for a resource. Returns an empty policy if the resource exists and do
+  # ── gcp.binaryauthorization.projects.policy.getIamPolicy ──
+  - discovery_id: gcp.binaryauthorization.projects.policy.getIamPolicy
+    # python: svc.projects().policy().getIamPolicy(**params).execute()
+    calls:
+      - action: projects.policy.getIamPolicy
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        bindings: '{{ response.bindings }}'
+        version: '{{ response.version }}'
+  # Gets the current system policy in the specified location.
+  # ── gcp.binaryauthorization.systempolicy.getPolicy ──
+  - discovery_id: gcp.binaryauthorization.systempolicy.getPolicy
+    # python: svc.systempolicy().getPolicy(**params).execute()
+    calls:
+      - action: systempolicy.getPolicy
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        admissionWhitelistPatterns: '{{ response.admissionWhitelistPatterns }}'
+        clusterAdmissionRules: '{{ response.clusterAdmissionRules }}'
+        defaultAdmissionRule: '{{ response.defaultAdmissionRule }}'
+        description: '{{ response.description }}'
+        globalPolicyEvaluationMode: '{{ response.globalPolicyEvaluationMode }}'
+        istioServiceIdentityAdmissionRules: '{{ response.istioServiceIdentityAdmissionRules }}'
+        kubernetesNamespaceAdmissionRules: '{{ response.kubernetesNamespaceAdmissionRules }}'
+        kubernetesServiceAccountAdmissionRules: '{{ response.kubernetesServiceAccountAdmissionRules }}'
+        name: '{{ response.name }}'
+        updateTime: '{{ response.updateTime }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets an attestor. Returns `NOT_FOUND` if the attestor does not exist.
+  # ── gcp.binaryauthorization.projects.attestors.get [dependent] ──
+  - discovery_id: gcp.binaryauthorization.projects.attestors.get
+    for_each: gcp.binaryauthorization.projects.attestors.list
+    # python: svc.projects().attestors().get(**params).execute()
+    calls:
+      - action: projects.attestors.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        description: '{{ response.description }}'
+        name: '{{ response.name }}'
+        updateTime: '{{ response.updateTime }}'
+        userOwnedGrafeasNote: '{{ response.userOwnedGrafeasNote }}'
+    # required_params: ['name']
+  # Gets the access control policy for a resource. Returns an empty policy if the resource exists and do
+  # ── gcp.binaryauthorization.projects.attestors.getIamPolicy [dependent] ──
+  - discovery_id: gcp.binaryauthorization.projects.attestors.getIamPolicy
+    for_each: gcp.binaryauthorization.projects.attestors.list
+    # python: svc.projects().attestors().getIamPolicy(**params).execute()
+    calls:
+      - action: projects.attestors.getIamPolicy
+        params:
+          resource: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        bindings: '{{ response.bindings }}'
+        version: '{{ response.version }}'
+    # required_params: ['resource']
+  # Gets a platform policy. Returns `NOT_FOUND` if the policy doesn't exist.
+  # ── gcp.binaryauthorization.projects.platforms.policies.get [dependent] ──
+  - discovery_id: gcp.binaryauthorization.projects.platforms.policies.get
+    for_each: gcp.binaryauthorization.projects.platforms.policies.list
+    # python: svc.projects().platforms().policies().get(**params).execute()
+    calls:
+      - action: projects.platforms.policies.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        description: '{{ response.description }}'
+        gkePolicy: '{{ response.gkePolicy }}'
+        name: '{{ response.name }}'
+        updateTime: '{{ response.updateTime }}'
+    # required_params: ['name']

@@ -1,0 +1,45 @@
+version: '1.0'
+provider: aws
+service: iot-data
+services:
+  client: iot-data
+  module: boto3.client
+discovery:
+- discovery_id: aws.iot-data.listRetainedMessages
+  calls:
+  - action: listRetainedMessages
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.retainedTopics }}'
+    item:
+      topic: '{{ item.topic }}'
+      payloadSize: '{{ item.payloadSize }}'
+      qos: '{{ item.qos }}'
+      lastModifiedTime: '{{ item.lastModifiedTime }}'
+- discovery_id: aws.iot-data.getRetainedMessage
+  calls:
+  - action: getRetainedMessage
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.topic }}'
+- discovery_id: aws.iot-data.getThingShadow
+  calls:
+  - action: getThingShadow
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.payload }}'
+- discovery_id: aws.iot-data.listNamedShadowsForThing
+  calls:
+  - action: listNamedShadowsForThing
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.results }}'
+checks: []

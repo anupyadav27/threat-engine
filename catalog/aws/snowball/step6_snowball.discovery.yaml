@@ -1,0 +1,298 @@
+# ============================================================
+# Discovery YAML — snowball (AWS)
+# Generated: 2026-02-21T04:56:59Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: snowball
+services:
+  client: snowball
+  module: boto3.client
+discovery:
+  # ── DescribeAddresses ──
+  - discovery_id: aws.snowball.describe_addresses
+    calls:
+      - action: describe_addresses
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Addresses }}'
+      item:
+        AddressId: '{{ item.AddressId }}'
+        Addresses: '{{ item.Addresses }}'
+  # ── GetSnowballUsage ──
+  - discovery_id: aws.snowball.get_snowball_usage
+    calls:
+      - action: get_snowball_usage
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.SnowballLimit }}'
+      item:
+        SnowballLimit: '{{ item.SnowballLimit }}'
+        SnowballsInUse: '{{ item.SnowballsInUse }}'
+  # ── ListClusters ──
+  - discovery_id: aws.snowball.list_clusters
+    calls:
+      - action: list_clusters
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ClusterListEntries }}'
+      item:
+        CreationDate: '{{ item.CreationDate }}'
+        ClusterId: '{{ item.ClusterId }}'
+        ClusterState: '{{ item.ClusterState }}'
+        Description: '{{ item.Description }}'
+  # ── ListCompatibleImages ──
+  - discovery_id: aws.snowball.list_compatible_images
+    calls:
+      - action: list_compatible_images
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.CompatibleImages }}'
+      item:
+        Name: '{{ item.Name }}'
+        AmiId: '{{ item.AmiId }}'
+  # ── ListJobs ──
+  - discovery_id: aws.snowball.list_jobs
+    calls:
+      - action: list_jobs
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.JobListEntries }}'
+      item:
+        CreationDate: '{{ item.CreationDate }}'
+        Description: '{{ item.Description }}'
+        IsMaster: '{{ item.IsMaster }}'
+        JobId: '{{ item.JobId }}'
+        JobState: '{{ item.JobState }}'
+        JobType: '{{ item.JobType }}'
+        SnowballType: '{{ item.SnowballType }}'
+  # ── ListLongTermPricing ──
+  - discovery_id: aws.snowball.list_long_term_pricing
+    calls:
+      - action: list_long_term_pricing
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.LongTermPricingEntries }}'
+      item:
+        CurrentActiveJob: '{{ item.CurrentActiveJob }}'
+        IsLongTermPricingAutoRenew: '{{ item.IsLongTermPricingAutoRenew }}'
+        JobIds: '{{ item.JobIds }}'
+        LongTermPricingEndDate: '{{ item.LongTermPricingEndDate }}'
+        LongTermPricingId: '{{ item.LongTermPricingId }}'
+        LongTermPricingStartDate: '{{ item.LongTermPricingStartDate }}'
+        LongTermPricingStatus: '{{ item.LongTermPricingStatus }}'
+        LongTermPricingType: '{{ item.LongTermPricingType }}'
+        ReplacementJob: '{{ item.ReplacementJob }}'
+        SnowballType: '{{ item.SnowballType }}'
+  # ── ListPickupLocations ──
+  - discovery_id: aws.snowball.list_pickup_locations
+    calls:
+      - action: list_pickup_locations
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Addresses }}'
+      item:
+        Name: '{{ item.Name }}'
+        AddressId: '{{ item.AddressId }}'
+        City: '{{ item.City }}'
+        Company: '{{ item.Company }}'
+        Country: '{{ item.Country }}'
+        IsRestricted: '{{ item.IsRestricted }}'
+        Landmark: '{{ item.Landmark }}'
+        PhoneNumber: '{{ item.PhoneNumber }}'
+        PostalCode: '{{ item.PostalCode }}'
+        PrefectureOrDistrict: '{{ item.PrefectureOrDistrict }}'
+        StateOrProvince: '{{ item.StateOrProvince }}'
+        Street1: '{{ item.Street1 }}'
+        Street2: '{{ item.Street2 }}'
+        Street3: '{{ item.Street3 }}'
+        Type: '{{ item.Type }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── DescribeAddress ──
+  - discovery_id: aws.snowball.describe_address
+    for_each: aws.snowball.describe_addresses
+    calls:
+      - action: describe_address
+        params:
+          AddressId: '{{ item.AddressId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Address }}'
+      item:
+        Name: '{{ item.Name }}'
+        Address: '{{ item.Address }}'
+        AddressId: '{{ item.AddressId }}'
+        City: '{{ item.City }}'
+        Company: '{{ item.Company }}'
+        Country: '{{ item.Country }}'
+        IsRestricted: '{{ item.IsRestricted }}'
+        Landmark: '{{ item.Landmark }}'
+        PhoneNumber: '{{ item.PhoneNumber }}'
+        PostalCode: '{{ item.PostalCode }}'
+        PrefectureOrDistrict: '{{ item.PrefectureOrDistrict }}'
+        StateOrProvince: '{{ item.StateOrProvince }}'
+        Street1: '{{ item.Street1 }}'
+        Street2: '{{ item.Street2 }}'
+        Street3: '{{ item.Street3 }}'
+        Type: '{{ item.Type }}'
+  # ── DescribeCluster ──
+  - discovery_id: aws.snowball.describe_cluster
+    for_each: aws.snowball.list_clusters
+    calls:
+      - action: describe_cluster
+        params:
+          ClusterId: '{{ item.ClusterId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Addresses }}'
+      item:
+        CreationDate: '{{ item.CreationDate }}'
+        Status: '{{ item.Status }}'
+        AddressId: '{{ item.AddressId }}'
+        ClusterId: '{{ item.ClusterId }}'
+        ClusterState: '{{ item.ClusterState }}'
+        Description: '{{ item.Description }}'
+        Enabled: '{{ item.Enabled }}'
+        ForwardingAddressId: '{{ item.ForwardingAddressId }}'
+        JobType: '{{ item.JobType }}'
+        KmsKeyARN: '{{ item.KmsKeyARN }}'
+        Notification: '{{ item.Notification }}'
+        OnDeviceServiceConfiguration: '{{ item.OnDeviceServiceConfiguration }}'
+        Resources: '{{ item.Resources }}'
+        RoleARN: '{{ item.RoleARN }}'
+        ShippingOption: '{{ item.ShippingOption }}'
+        SnowballType: '{{ item.SnowballType }}'
+        TaxDocuments: '{{ item.TaxDocuments }}'
+  # ── DescribeJob ──
+  - discovery_id: aws.snowball.describe_job
+    for_each: aws.snowball.list_jobs
+    calls:
+      - action: describe_job
+        params:
+          JobId: '{{ item.JobId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.SubJobMetadata }}'
+      item:
+        CreationDate: '{{ item.CreationDate }}'
+        AddressId: '{{ item.AddressId }}'
+        ClusterId: '{{ item.ClusterId }}'
+        DataTransferProgress: '{{ item.DataTransferProgress }}'
+        Description: '{{ item.Description }}'
+        DeviceConfiguration: '{{ item.DeviceConfiguration }}'
+        ForwardingAddressId: '{{ item.ForwardingAddressId }}'
+        ImpactLevel: '{{ item.ImpactLevel }}'
+        JobId: '{{ item.JobId }}'
+        JobLogInfo: '{{ item.JobLogInfo }}'
+        JobState: '{{ item.JobState }}'
+        JobType: '{{ item.JobType }}'
+        KmsKeyARN: '{{ item.KmsKeyARN }}'
+        LongTermPricingId: '{{ item.LongTermPricingId }}'
+        Notification: '{{ item.Notification }}'
+        OnDeviceServiceConfiguration: '{{ item.OnDeviceServiceConfiguration }}'
+        PickupDetails: '{{ item.PickupDetails }}'
+        RemoteManagement: '{{ item.RemoteManagement }}'
+        Resources: '{{ item.Resources }}'
+        RoleARN: '{{ item.RoleARN }}'
+        ShippingDetails: '{{ item.ShippingDetails }}'
+        SnowballCapacityPreference: '{{ item.SnowballCapacityPreference }}'
+        SnowballId: '{{ item.SnowballId }}'
+        SnowballType: '{{ item.SnowballType }}'
+        TaxDocuments: '{{ item.TaxDocuments }}'
+  # ── DescribeReturnShippingLabel ──
+  - discovery_id: aws.snowball.describe_return_shipping_label
+    for_each: aws.snowball.list_jobs
+    calls:
+      - action: describe_return_shipping_label
+        params:
+          JobId: '{{ item.JobId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        Status: '{{ response.Status }}'
+        ExpirationDate: '{{ response.ExpirationDate }}'
+        ReturnShippingLabelURI: '{{ response.ReturnShippingLabelURI }}'
+  # ── GetJobManifest ──
+  - discovery_id: aws.snowball.get_job_manifest
+    calls:
+      - action: get_job_manifest
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        ManifestURI: '{{ response.ManifestURI }}'
+  # ── GetJobUnlockCode ──
+  - discovery_id: aws.snowball.get_job_unlock_code
+    calls:
+      - action: get_job_unlock_code
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        UnlockCode: '{{ response.UnlockCode }}'
+  # ── GetSoftwareUpdates ──
+  - discovery_id: aws.snowball.get_software_updates
+    calls:
+      - action: get_software_updates
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        UpdatesURI: '{{ response.UpdatesURI }}'
+  # ── ListClusterJobs ──
+  - discovery_id: aws.snowball.list_cluster_jobs
+    for_each: aws.snowball.list_clusters
+    calls:
+      - action: list_cluster_jobs
+        params:
+          ClusterId: '{{ item.ClusterId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.JobListEntries }}'
+      item:
+        CreationDate: '{{ item.CreationDate }}'
+        Description: '{{ item.Description }}'
+        IsMaster: '{{ item.IsMaster }}'
+        JobId: '{{ item.JobId }}'
+        JobState: '{{ item.JobState }}'
+        JobType: '{{ item.JobType }}'
+        SnowballType: '{{ item.SnowballType }}'
+  # ── ListServiceVersions ──
+  - discovery_id: aws.snowball.list_service_versions
+    calls:
+      - action: list_service_versions
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ServiceVersions }}'
+      item:
+        Version: '{{ item.Version }}'

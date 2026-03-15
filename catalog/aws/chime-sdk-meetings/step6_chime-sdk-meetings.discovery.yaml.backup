@@ -1,0 +1,65 @@
+version: '1.0'
+provider: aws
+service: chime-sdk-meetings
+services:
+  client: chime-sdk-meetings
+  module: boto3.client
+discovery:
+- discovery_id: aws.chime-sdk-meetings.getAttendee
+  calls:
+  - action: getAttendee
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Attendee }}'
+    item:
+      ExternalUserId: '{{ item.ExternalUserId }}'
+      AttendeeId: '{{ item.AttendeeId }}'
+      JoinToken: '{{ item.JoinToken }}'
+      Capabilities: '{{ item.Capabilities }}'
+- discovery_id: aws.chime-sdk-meetings.getMeeting
+  calls:
+  - action: getMeeting
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Meeting }}'
+    item:
+      MeetingId: '{{ item.MeetingId }}'
+      MeetingHostId: '{{ item.MeetingHostId }}'
+      ExternalMeetingId: '{{ item.ExternalMeetingId }}'
+      MediaRegion: '{{ item.MediaRegion }}'
+      MediaPlacement: '{{ item.MediaPlacement }}'
+      MeetingFeatures: '{{ item.MeetingFeatures }}'
+      PrimaryMeetingId: '{{ item.PrimaryMeetingId }}'
+      TenantIds: '{{ item.TenantIds }}'
+      MeetingArn: '{{ item.MeetingArn }}'
+- discovery_id: aws.chime-sdk-meetings.listAttendees
+  calls:
+  - action: listAttendees
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Attendees }}'
+    item:
+      ExternalUserId: '{{ item.ExternalUserId }}'
+      AttendeeId: '{{ item.AttendeeId }}'
+      JoinToken: '{{ item.JoinToken }}'
+      Capabilities: '{{ item.Capabilities }}'
+- discovery_id: aws.chime-sdk-meetings.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+    item:
+      Key: '{{ item.Key }}'
+      Value: '{{ item.Value }}'
+checks: []

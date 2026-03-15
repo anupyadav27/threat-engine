@@ -1,0 +1,152 @@
+{
+  "csp": "gcp",
+  "generated_at": "2026-02-19T14:43:26.815752+00:00",
+  "anchors": {
+    "fixed": [
+      "project_id",
+      "org_id",
+      "folder_id",
+      "location",
+      "zone",
+      "region"
+    ]
+  },
+  "services": {
+    "firebasedatabase": {
+      "version": "v1beta",
+      "resources": {
+        "instances": {
+          "resource_type": "instances",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.firebasedatabase.projects.locations.instances.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1beta/{+parent}/instances"
+                },
+                "python_call": "svc.projects().locations().instances().list(**params).execute()",
+                "produces": {
+                  "name": "instances[].name",
+                  "type": "instances[].type",
+                  "databaseUrl": "instances[].databaseUrl",
+                  "state": "instances[].state",
+                  "project": "instances[].project"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.firebasedatabase.projects.locations.instances.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1beta/{+name}"
+                },
+                "python_call": "svc.projects().locations().instances().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.firebasedatabase.projects.locations.instances.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.firebasedatabase.projects.locations.instances.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().instances().list(**params).execute()",
+                      "path": "/v1beta/{+parent}/instances",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. The parent project for which to list database instances, in the form: `projects/{project-number}/locations/{lo"
+                        }
+                      },
+                      "output_list_field": "instances",
+                      "output_id_field": "name",
+                      "produces": {
+                        "instanceId": {
+                          "via_list_field": "instances",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"instances\"][], extract item[\"name\"] \u2192 pass as \"instanceId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: instanceId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.firebasedatabase.projects.locations.instances.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().instances().get(**params).execute()",
+                      "path": "/v1beta/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/instances/[^/]+$",
+                          "description": "Required. The fully qualified resource name of the database instance, in the form: `projects/{project-number}/locations/"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "instanceId": {
+                            "from_step": 1,
+                            "from_op": "gcp.firebasedatabase.projects.locations.instances.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        }
+      }
+    }
+  }
+}

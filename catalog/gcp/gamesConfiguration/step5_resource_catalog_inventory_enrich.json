@@ -1,0 +1,381 @@
+{
+  "csp": "gcp",
+  "generated_at": "2026-02-19T14:43:26.929408+00:00",
+  "anchors": {
+    "fixed": [
+      "project_id",
+      "org_id",
+      "folder_id",
+      "location",
+      "zone",
+      "region"
+    ]
+  },
+  "services": {
+    "gamesConfiguration": {
+      "version": "v1configuration",
+      "resources": {
+        "achievementConfigurations": {
+          "resource_type": "achievementConfigurations",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "constructed",
+            "full_identifier": {
+              "template": "achievementConfigurations/{url_encoded_id}",
+              "built_from_parts": [
+                "items[].id"
+              ],
+              "notes": ""
+            },
+            "parts": [
+              "id"
+            ],
+            "part_sources": {
+              "id": {
+                "op": "gcp.gamesConfiguration.achievementConfigurations.list",
+                "field_path": "items[].id",
+                "transform": null
+              }
+            },
+            "transforms": [
+              {
+                "from": "items[].id",
+                "fn": "url_encode",
+                "to": "url_encoded_id"
+              },
+              {
+                "from": "url_encoded_id",
+                "fn": "prefix:achievementConfigurations/",
+                "to": "achievementId"
+              },
+              {
+                "build": "full_id",
+                "template": "achievementConfigurations/{url_encoded_id}"
+              }
+            ]
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.gamesConfiguration.achievementConfigurations.list",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/games/v1configuration/applications/{applicationId}/achievements"
+                },
+                "python_call": "svc.achievementConfigurations().list(**params).execute()",
+                "produces": {
+                  "id": "items[].id",
+                  "published": "items[].published",
+                  "draft": "items[].draft",
+                  "achievementType": "items[].achievementType",
+                  "token": "items[].token",
+                  "stepsToUnlock": "items[].stepsToUnlock",
+                  "initialState": "items[].initialState"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.gamesConfiguration.achievementConfigurations.list",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 1,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.gamesConfiguration.achievementConfigurations.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.achievementConfigurations().list(**params).execute()",
+                      "path": "/games/v1configuration/applications/{applicationId}/achievements",
+                      "required_params": {
+                        "applicationId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The application ID from the Google Play developer console."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "id",
+                      "produces": {
+                        "achievementConfigurationId": {
+                          "via_list_field": "items",
+                          "from_id_field": "id",
+                          "note": "Iterate response[\"items\"][], extract item[\"id\"] \u2192 pass as \"achievementConfigurationId\""
+                        }
+                      },
+                      "param_sources": {
+                        "applicationId": "unresolved"
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": [
+                    "applicationId"
+                  ]
+                }
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.gamesConfiguration.achievementConfigurations.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/games/v1configuration/achievements/{achievementId}"
+                },
+                "python_call": "svc.achievementConfigurations().get(**params).execute()",
+                "required_params": {
+                  "achievementId": {
+                    "from_identifier": "transforms \u2192 achievementId"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.gamesConfiguration.achievementConfigurations.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.gamesConfiguration.achievementConfigurations.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.achievementConfigurations().list(**params).execute()",
+                      "path": "/games/v1configuration/applications/{applicationId}/achievements",
+                      "required_params": {
+                        "applicationId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The application ID from the Google Play developer console."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "id",
+                      "produces": {
+                        "achievementConfigurationId": {
+                          "via_list_field": "items",
+                          "from_id_field": "id",
+                          "note": "Iterate response[\"items\"][], extract item[\"id\"] \u2192 pass as \"achievementConfigurationId\""
+                        }
+                      },
+                      "param_sources": {
+                        "applicationId": "unresolved"
+                      },
+                      "purpose": "Provides: achievementConfigurationId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.gamesConfiguration.achievementConfigurations.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.achievementConfigurations().get(**params).execute()",
+                      "path": "/games/v1configuration/achievements/{achievementId}",
+                      "required_params": {
+                        "achievementId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the achievement used by this method."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "achievementId": {
+                          "from_step": 1,
+                          "from_op": "gcp.gamesConfiguration.achievementConfigurations.list",
+                          "field": "id"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        },
+        "leaderboardConfigurations": {
+          "resource_type": "leaderboardConfigurations",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "constructed",
+            "full_identifier": {
+              "template": "leaderboardConfigurations/{url_encoded_id}",
+              "built_from_parts": [
+                "items[].id"
+              ],
+              "notes": ""
+            },
+            "parts": [
+              "id"
+            ],
+            "part_sources": {
+              "id": {
+                "op": "gcp.gamesConfiguration.leaderboardConfigurations.list",
+                "field_path": "items[].id",
+                "transform": null
+              }
+            },
+            "transforms": [
+              {
+                "from": "items[].id",
+                "fn": "url_encode",
+                "to": "url_encoded_id"
+              },
+              {
+                "from": "url_encoded_id",
+                "fn": "prefix:leaderboardConfigurations/",
+                "to": "leaderboardId"
+              },
+              {
+                "build": "full_id",
+                "template": "leaderboardConfigurations/{url_encoded_id}"
+              }
+            ]
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.gamesConfiguration.leaderboardConfigurations.list",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/games/v1configuration/applications/{applicationId}/leaderboards"
+                },
+                "python_call": "svc.leaderboardConfigurations().list(**params).execute()",
+                "produces": {
+                  "id": "items[].id",
+                  "draft": "items[].draft",
+                  "scoreMax": "items[].scoreMax",
+                  "scoreOrder": "items[].scoreOrder",
+                  "published": "items[].published",
+                  "token": "items[].token",
+                  "scoreMin": "items[].scoreMin"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.gamesConfiguration.leaderboardConfigurations.list",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 1,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.gamesConfiguration.leaderboardConfigurations.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.leaderboardConfigurations().list(**params).execute()",
+                      "path": "/games/v1configuration/applications/{applicationId}/leaderboards",
+                      "required_params": {
+                        "applicationId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The application ID from the Google Play developer console."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "id",
+                      "produces": {
+                        "leaderboardConfigurationId": {
+                          "via_list_field": "items",
+                          "from_id_field": "id",
+                          "note": "Iterate response[\"items\"][], extract item[\"id\"] \u2192 pass as \"leaderboardConfigurationId\""
+                        }
+                      },
+                      "param_sources": {
+                        "applicationId": "unresolved"
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": [
+                    "applicationId"
+                  ]
+                }
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.gamesConfiguration.leaderboardConfigurations.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/games/v1configuration/leaderboards/{leaderboardId}"
+                },
+                "python_call": "svc.leaderboardConfigurations().get(**params).execute()",
+                "required_params": {
+                  "leaderboardId": {
+                    "from_identifier": "transforms \u2192 leaderboardId"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.gamesConfiguration.leaderboardConfigurations.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 1,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.gamesConfiguration.leaderboardConfigurations.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.leaderboardConfigurations().get(**params).execute()",
+                      "path": "/games/v1configuration/leaderboards/{leaderboardId}",
+                      "required_params": {
+                        "leaderboardId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the leaderboard."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "leaderboardId": "unresolved"
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": [
+                    "leaderboardId"
+                  ]
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        }
+      }
+    }
+  }
+}

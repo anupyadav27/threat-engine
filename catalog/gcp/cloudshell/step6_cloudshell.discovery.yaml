@@ -1,0 +1,105 @@
+# ============================================================
+# Discovery YAML — cloudshell (v1)
+# Generated: 2026-02-21T03:06:39Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 4 | independent: 0 | dependent: 4
+# ops with fields: 4/4 | dep ops with chain: 1/4
+# ============================================================
+version: '1.0'
+provider: gcp
+service: cloudshell
+
+services:
+  client: cloudshell
+  module: "googleapiclient.discovery.build('cloudshell', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.cloudshell.operations.get [dependent] ──
+  - discovery_id: gcp.cloudshell.operations.get
+    for_each: gcp.cloudshell.operations.list
+    # python: svc.operations().get(**params).execute()
+    calls:
+      - action: operations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']
+  # Lists operations that match the specified filter in the request. If the server doesn't support this 
+  # ── gcp.cloudshell.operations.list [dependent] ──
+  - discovery_id: gcp.cloudshell.operations.list
+    # python: svc.operations().list(**params).execute()
+    calls:
+      - action: operations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.operations }}'
+      item:
+        done: '{{ item.done }}'
+        error: '{{ item.error }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+        response: '{{ item.response }}'
+    # required_params: ['name']
+  # Generates an access token for the user's environment.
+  # ── gcp.cloudshell.users.environments.generateAccessToken [dependent] ──
+  - discovery_id: gcp.cloudshell.users.environments.generateAccessToken
+    # python: svc.users().environments().generateAccessToken(**params).execute()
+    calls:
+      - action: users.environments.generateAccessToken
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accessToken: '{{ response.accessToken }}'
+    # required_params: ['environment']
+  # Gets an environment. Returns NOT_FOUND if the environment does not exist.
+  # ── gcp.cloudshell.users.environments.get [dependent] ──
+  - discovery_id: gcp.cloudshell.users.environments.get
+    # python: svc.users().environments().get(**params).execute()
+    calls:
+      - action: users.environments.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        dockerImage: '{{ response.dockerImage }}'
+        id: '{{ response.id }}'
+        name: '{{ response.name }}'
+        publicKeys: '{{ response.publicKeys }}'
+        sshHost: '{{ response.sshHost }}'
+        sshPort: '{{ response.sshPort }}'
+        sshUsername: '{{ response.sshUsername }}'
+        state: '{{ response.state }}'
+        webHost: '{{ response.webHost }}'
+    # required_params: ['name']

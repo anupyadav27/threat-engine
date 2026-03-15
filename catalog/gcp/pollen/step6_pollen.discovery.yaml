@@ -1,0 +1,61 @@
+# ============================================================
+# Discovery YAML — pollen (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 2 | independent: 1 | dependent: 1
+# ops with fields: 2/2 | dep ops with chain: 0/1
+# ============================================================
+version: '1.0'
+provider: gcp
+service: pollen
+
+services:
+  client: pollen
+  module: "googleapiclient.discovery.build('pollen', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Returns up to 5 days of daily pollen information in more than 65 countries, up to 1km resolution.
+  # ── gcp.pollen.forecast.lookup ──
+  - discovery_id: gcp.pollen.forecast.lookup
+    # python: svc.forecast().lookup(**params).execute()
+    calls:
+      - action: forecast.lookup
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        dailyInfo: '{{ response.dailyInfo }}'
+        regionCode: '{{ response.regionCode }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Returns a byte array containing the data of the tile PNG image.
+  # ── gcp.pollen.mapTypes.heatmapTiles.lookupHeatmapTile [dependent] ──
+  - discovery_id: gcp.pollen.mapTypes.heatmapTiles.lookupHeatmapTile
+    # python: svc.mapTypes().heatmapTiles().lookupHeatmapTile(**params).execute()
+    calls:
+      - action: mapTypes.heatmapTiles.lookupHeatmapTile
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        contentType: '{{ response.contentType }}'
+        data: '{{ response.data }}'
+        extensions: '{{ response.extensions }}'
+    # required_params: ['mapType', 'zoom', 'x', 'y']

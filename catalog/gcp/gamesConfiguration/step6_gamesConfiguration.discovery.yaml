@@ -1,0 +1,114 @@
+# ============================================================
+# Discovery YAML — gamesConfiguration (v1configuration)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 4 | independent: 0 | dependent: 4
+# ops with fields: 4/4 | dep ops with chain: 1/4
+# ============================================================
+version: '1.0'
+provider: gcp
+service: gamesConfiguration
+
+services:
+  client: gamesConfiguration
+  module: "googleapiclient.discovery.build('gamesConfiguration', 'v1configuration')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Retrieves the metadata of the achievement configuration with the given ID.
+  # ── gcp.gamesConfiguration.achievementConfigurations.get [dependent] ──
+  - discovery_id: gcp.gamesConfiguration.achievementConfigurations.get
+    for_each: gcp.gamesConfiguration.achievementConfigurations.list
+    # python: svc.achievementConfigurations().get(**params).execute()
+    calls:
+      - action: achievementConfigurations.get
+        params:
+          achievementId: '{{ item.id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        achievementType: '{{ response.achievementType }}'
+        draft: '{{ response.draft }}'
+        id: '{{ response.id }}'
+        initialState: '{{ response.initialState }}'
+        published: '{{ response.published }}'
+        stepsToUnlock: '{{ response.stepsToUnlock }}'
+        token: '{{ response.token }}'
+    # required_params: ['achievementId']
+  # Returns a list of the achievement configurations in this application.
+  # ── gcp.gamesConfiguration.achievementConfigurations.list [dependent] ──
+  - discovery_id: gcp.gamesConfiguration.achievementConfigurations.list
+    # python: svc.achievementConfigurations().list(**params).execute()
+    calls:
+      - action: achievementConfigurations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.achievementConfigurations }}'
+      item:
+        achievementType: '{{ item.achievementType }}'
+        draft: '{{ item.draft }}'
+        id: '{{ item.id }}'
+        initialState: '{{ item.initialState }}'
+        published: '{{ item.published }}'
+        stepsToUnlock: '{{ item.stepsToUnlock }}'
+        token: '{{ item.token }}'
+    # required_params: ['applicationId']
+  # Retrieves the metadata of the leaderboard configuration with the given ID.
+  # ── gcp.gamesConfiguration.leaderboardConfigurations.get [dependent] ──
+  - discovery_id: gcp.gamesConfiguration.leaderboardConfigurations.get
+    # python: svc.leaderboardConfigurations().get(**params).execute()
+    calls:
+      - action: leaderboardConfigurations.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        draft: '{{ response.draft }}'
+        id: '{{ response.id }}'
+        published: '{{ response.published }}'
+        scoreMax: '{{ response.scoreMax }}'
+        scoreMin: '{{ response.scoreMin }}'
+        scoreOrder: '{{ response.scoreOrder }}'
+        token: '{{ response.token }}'
+    # required_params: ['leaderboardId']
+  # Returns a list of the leaderboard configurations in this application.
+  # ── gcp.gamesConfiguration.leaderboardConfigurations.list [dependent] ──
+  - discovery_id: gcp.gamesConfiguration.leaderboardConfigurations.list
+    # python: svc.leaderboardConfigurations().list(**params).execute()
+    calls:
+      - action: leaderboardConfigurations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.leaderboardConfigurations }}'
+      item:
+        draft: '{{ item.draft }}'
+        id: '{{ item.id }}'
+        published: '{{ item.published }}'
+        scoreMax: '{{ item.scoreMax }}'
+        scoreMin: '{{ item.scoreMin }}'
+        scoreOrder: '{{ item.scoreOrder }}'
+        token: '{{ item.token }}'
+    # required_params: ['applicationId']

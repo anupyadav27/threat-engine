@@ -1,0 +1,132 @@
+version: '1.0'
+provider: aws
+service: edr
+services:
+  client: edr
+  module: boto3.client
+discovery:
+- discovery_id: aws.edr.listCases
+  calls:
+  - action: listCases
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      caseId: '{{ item.caseId }}'
+      lastUpdatedDate: '{{ item.lastUpdatedDate }}'
+      title: '{{ item.title }}'
+      caseArn: '{{ item.caseArn }}'
+      engagementType: '{{ item.engagementType }}'
+      caseStatus: '{{ item.caseStatus }}'
+      createdDate: '{{ item.createdDate }}'
+      closedDate: '{{ item.closedDate }}'
+      resolverType: '{{ item.resolverType }}'
+      pendingAction: '{{ item.pendingAction }}'
+- discovery_id: aws.edr.listMemberships
+  calls:
+  - action: listMemberships
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      membershipId: '{{ item.membershipId }}'
+      accountId: '{{ item.accountId }}'
+      region: '{{ item.region }}'
+      membershipArn: '{{ item.membershipArn }}'
+      membershipStatus: '{{ item.membershipStatus }}'
+- discovery_id: aws.edr.getCase
+  calls:
+  - action: getCase
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.impactedAwsRegions }}'
+    item:
+      region: '{{ item.region }}'
+- discovery_id: aws.edr.getCaseAttachmentDownloadUrl
+  calls:
+  - action: getCaseAttachmentDownloadUrl
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.attachmentPresignedUrl }}'
+- discovery_id: aws.edr.getCaseAttachmentUploadUrl
+  calls:
+  - action: getCaseAttachmentUploadUrl
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.attachmentPresignedUrl }}'
+- discovery_id: aws.edr.getMembership
+  calls:
+  - action: getMembership
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.incidentResponseTeam }}'
+    item:
+      name: '{{ item.name }}'
+      jobTitle: '{{ item.jobTitle }}'
+      email: '{{ item.email }}'
+      communicationPreferences: '{{ item.communicationPreferences }}'
+- discovery_id: aws.edr.listCaseEdits
+  calls:
+  - action: listCaseEdits
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      eventTimestamp: '{{ item.eventTimestamp }}'
+      principal: '{{ item.principal }}'
+      action: '{{ item.action }}'
+      message: '{{ item.message }}'
+- discovery_id: aws.edr.listComments
+  calls:
+  - action: listComments
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      commentId: '{{ item.commentId }}'
+      createdDate: '{{ item.createdDate }}'
+      lastUpdatedDate: '{{ item.lastUpdatedDate }}'
+      creator: '{{ item.creator }}'
+      lastUpdatedBy: '{{ item.lastUpdatedBy }}'
+      body: '{{ item.body }}'
+- discovery_id: aws.edr.listInvestigations
+  calls:
+  - action: listInvestigations
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.investigationActions }}'
+    item:
+      investigationId: '{{ item.investigationId }}'
+      actionType: '{{ item.actionType }}'
+      title: '{{ item.title }}'
+      content: '{{ item.content }}'
+      status: '{{ item.status }}'
+      lastUpdated: '{{ item.lastUpdated }}'
+      feedback: '{{ item.feedback }}'
+- discovery_id: aws.edr.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.tags }}'
+checks: []

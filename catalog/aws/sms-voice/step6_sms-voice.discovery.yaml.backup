@@ -1,0 +1,31 @@
+version: '1.0'
+provider: aws
+service: sms-voice
+services:
+  client: sms-voice
+  module: boto3.client
+discovery:
+- discovery_id: aws.sms-voice.listConfigurationSets
+  calls:
+  - action: listConfigurationSets
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ConfigurationSets }}'
+- discovery_id: aws.sms-voice.getConfigurationSetEventDestinations
+  calls:
+  - action: getConfigurationSetEventDestinations
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.EventDestinations }}'
+    item:
+      CloudWatchLogsDestination: '{{ item.CloudWatchLogsDestination }}'
+      Enabled: '{{ item.Enabled }}'
+      KinesisFirehoseDestination: '{{ item.KinesisFirehoseDestination }}'
+      MatchingEventTypes: '{{ item.MatchingEventTypes }}'
+      Name: '{{ item.Name }}'
+      SnsDestination: '{{ item.SnsDestination }}'
+checks: []

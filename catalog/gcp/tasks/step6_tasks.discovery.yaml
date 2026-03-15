@@ -1,0 +1,125 @@
+# ============================================================
+# Discovery YAML — tasks (v1)
+# Generated: 2026-02-21T03:06:41Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 4 | independent: 1 | dependent: 3
+# ops with fields: 4/4 | dep ops with chain: 3/3
+# ============================================================
+version: '1.0'
+provider: gcp
+service: tasks
+
+services:
+  client: tasks
+  module: "googleapiclient.discovery.build('tasks', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Returns all the authenticated user's task lists. A user can have up to 2000 lists at a time.
+  # ── gcp.tasks.tasklists.list ──
+  - discovery_id: gcp.tasks.tasklists.list
+    # python: svc.tasklists().list(**params).execute()
+    calls:
+      - action: tasklists.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.tasklists }}'
+      item:
+        id: '{{ item.id }}'
+        title: '{{ item.title }}'
+        updated: '{{ item.updated }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Returns the authenticated user's specified task list.
+  # ── gcp.tasks.tasklists.get [dependent] ──
+  - discovery_id: gcp.tasks.tasklists.get
+    for_each: gcp.tasks.tasklists.list
+    # python: svc.tasklists().get(**params).execute()
+    calls:
+      - action: tasklists.get
+        params:
+          tasklist: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        id: '{{ response.id }}'
+        title: '{{ response.title }}'
+        updated: '{{ response.updated }}'
+    # required_params: ['tasklist']
+  # Returns the specified task.
+  # ── gcp.tasks.tasks.get [dependent] ──
+  - discovery_id: gcp.tasks.tasks.get
+    for_each: gcp.tasks.tasks.list
+    # python: svc.tasks().get(**params).execute()
+    calls:
+      - action: tasks.get
+        params:
+          task: '{{ item.selfLink }}'
+          tasklist: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        assignmentInfo: '{{ response.assignmentInfo }}'
+        completed: '{{ response.completed }}'
+        deleted: '{{ response.deleted }}'
+        due: '{{ response.due }}'
+        hidden: '{{ response.hidden }}'
+        id: '{{ response.id }}'
+        links: '{{ response.links }}'
+        notes: '{{ response.notes }}'
+        parent: '{{ response.parent }}'
+        position: '{{ response.position }}'
+        status: '{{ response.status }}'
+        title: '{{ response.title }}'
+        updated: '{{ response.updated }}'
+        webViewLink: '{{ response.webViewLink }}'
+    # required_params: ['task', 'tasklist']
+  # Returns all tasks in the specified task list. Doesn't return assigned tasks by default (from Docs, C
+  # ── gcp.tasks.tasks.list [dependent] ──
+  - discovery_id: gcp.tasks.tasks.list
+    for_each: gcp.tasks.tasklists.list
+    # python: svc.tasks().list(**params).execute()
+    calls:
+      - action: tasks.list
+        params:
+          tasklist: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.tasks }}'
+      item:
+        assignmentInfo: '{{ item.assignmentInfo }}'
+        completed: '{{ item.completed }}'
+        deleted: '{{ item.deleted }}'
+        due: '{{ item.due }}'
+        hidden: '{{ item.hidden }}'
+        id: '{{ item.id }}'
+        links: '{{ item.links }}'
+        notes: '{{ item.notes }}'
+        parent: '{{ item.parent }}'
+        position: '{{ item.position }}'
+        status: '{{ item.status }}'
+        title: '{{ item.title }}'
+        updated: '{{ item.updated }}'
+        webViewLink: '{{ item.webViewLink }}'
+    # required_params: ['tasklist']

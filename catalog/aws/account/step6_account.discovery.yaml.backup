@@ -1,0 +1,80 @@
+version: '1.0'
+provider: aws
+service: account
+services:
+  client: account
+  module: boto3.client
+discovery:
+- discovery_id: aws.account.getAccountInformation
+  calls:
+  - action: getAccountInformation
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.AccountCreatedDate }}'
+- discovery_id: aws.account.getContactInformation
+  calls:
+  - action: getContactInformation
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ContactInformation }}'
+    item:
+      AddressLine1: '{{ item.AddressLine1 }}'
+      AddressLine2: '{{ item.AddressLine2 }}'
+      AddressLine3: '{{ item.AddressLine3 }}'
+      City: '{{ item.City }}'
+      CompanyName: '{{ item.CompanyName }}'
+      CountryCode: '{{ item.CountryCode }}'
+      DistrictOrCounty: '{{ item.DistrictOrCounty }}'
+      FullName: '{{ item.FullName }}'
+      PhoneNumber: '{{ item.PhoneNumber }}'
+      PostalCode: '{{ item.PostalCode }}'
+      StateOrRegion: '{{ item.StateOrRegion }}'
+      WebsiteUrl: '{{ item.WebsiteUrl }}'
+- discovery_id: aws.account.listRegions
+  calls:
+  - action: listRegions
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Regions }}'
+    item:
+      RegionName: '{{ item.RegionName }}'
+      RegionOptStatus: '{{ item.RegionOptStatus }}'
+- discovery_id: aws.account.getAlternateContact
+  calls:
+  - action: getAlternateContact
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.AlternateContact }}'
+    item:
+      AlternateContactType: '{{ item.AlternateContactType }}'
+      EmailAddress: '{{ item.EmailAddress }}'
+      Name: '{{ item.Name }}'
+      PhoneNumber: '{{ item.PhoneNumber }}'
+      Title: '{{ item.Title }}'
+- discovery_id: aws.account.getPrimaryEmail
+  calls:
+  - action: getPrimaryEmail
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.PrimaryEmail }}'
+- discovery_id: aws.account.getRegionOptStatus
+  calls:
+  - action: getRegionOptStatus
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.RegionName }}'
+checks: []

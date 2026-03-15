@@ -1,0 +1,494 @@
+# ============================================================
+# Discovery YAML — eks (AWS)
+# Generated: 2026-02-21T04:56:58Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: eks
+services:
+  client: eks
+  module: boto3.client
+discovery:
+  # ── DescribeAddonVersions ──
+  - discovery_id: aws.eks.describe_addon_versions
+    calls:
+      - action: describe_addon_versions
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.addons }}'
+      item:
+        addonName: '{{ item.addonName }}'
+        addonVersions: '{{ item.addonVersions }}'
+        addons: '{{ item.addons }}'
+        defaultNamespace: '{{ item.defaultNamespace }}'
+        marketplaceInformation: '{{ item.marketplaceInformation }}'
+        owner: '{{ item.owner }}'
+        publisher: '{{ item.publisher }}'
+        type: '{{ item.type }}'
+  # ── DescribeClusterVersions ──
+  - discovery_id: aws.eks.describe_cluster_versions
+    calls:
+      - action: describe_cluster_versions
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.clusterVersions }}'
+      item:
+        clusterType: '{{ item.clusterType }}'
+        clusterVersion: '{{ item.clusterVersion }}'
+        clusterVersions: '{{ item.clusterVersions }}'
+        defaultPlatformVersion: '{{ item.defaultPlatformVersion }}'
+        defaultVersion: '{{ item.defaultVersion }}'
+        endOfExtendedSupportDate: '{{ item.endOfExtendedSupportDate }}'
+        endOfStandardSupportDate: '{{ item.endOfStandardSupportDate }}'
+        kubernetesPatchVersion: '{{ item.kubernetesPatchVersion }}'
+        releaseDate: '{{ item.releaseDate }}'
+        status: '{{ item.status }}'
+        versionStatus: '{{ item.versionStatus }}'
+  # ── ListAccessPolicies ──
+  - discovery_id: aws.eks.list_access_policies
+    calls:
+      - action: list_access_policies
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.accessPolicies }}'
+      item:
+        arn: '{{ item.arn }}'
+        name: '{{ item.name }}'
+  # ── ListClusters ──
+  - discovery_id: aws.eks.list_clusters
+    calls:
+      - action: list_clusters
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.clusters }}'
+  # ── ListEksAnywhereSubscriptions ──
+  - discovery_id: aws.eks.list_eks_anywhere_subscriptions
+    calls:
+      - action: list_eks_anywhere_subscriptions
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.subscriptions }}'
+      item:
+        arn: '{{ item.arn }}'
+        autoRenew: '{{ item.autoRenew }}'
+        createdAt: '{{ item.createdAt }}'
+        effectiveDate: '{{ item.effectiveDate }}'
+        expirationDate: '{{ item.expirationDate }}'
+        id: '{{ item.id }}'
+        licenseArns: '{{ item.licenseArns }}'
+        licenseQuantity: '{{ item.licenseQuantity }}'
+        licenseType: '{{ item.licenseType }}'
+        licenses: '{{ item.licenses }}'
+        status: '{{ item.status }}'
+        tags: '{{ item.tags }}'
+        term: '{{ item.term }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── DescribeAccessEntry ──
+  - discovery_id: aws.eks.describe_access_entry
+    calls:
+      - action: describe_access_entry
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.accessEntry }}'
+      item:
+        accessEntryArn: '{{ item.accessEntryArn }}'
+        clusterName: '{{ item.clusterName }}'
+        createdAt: '{{ item.createdAt }}'
+        kubernetesGroups: '{{ item.kubernetesGroups }}'
+        modifiedAt: '{{ item.modifiedAt }}'
+        principalArn: '{{ item.principalArn }}'
+        tags: '{{ item.tags }}'
+        type: '{{ item.type }}'
+        username: '{{ item.username }}'
+  # ── DescribeAddon ──
+  - discovery_id: aws.eks.describe_addon
+    for_each: aws.eks.describe_addon_versions
+    calls:
+      - action: describe_addon
+        params:
+          clusterName: '{{ item.clusterName }}'
+          addonName: '{{ item.addonName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.addon }}'
+      item:
+        addonArn: '{{ item.addonArn }}'
+        addonName: '{{ item.addonName }}'
+        addonVersion: '{{ item.addonVersion }}'
+        clusterName: '{{ item.clusterName }}'
+        configurationValues: '{{ item.configurationValues }}'
+        createdAt: '{{ item.createdAt }}'
+        health: '{{ item.health }}'
+        marketplaceInformation: '{{ item.marketplaceInformation }}'
+        modifiedAt: '{{ item.modifiedAt }}'
+        namespaceConfig: '{{ item.namespaceConfig }}'
+        owner: '{{ item.owner }}'
+        podIdentityAssociations: '{{ item.podIdentityAssociations }}'
+        publisher: '{{ item.publisher }}'
+        serviceAccountRoleArn: '{{ item.serviceAccountRoleArn }}'
+        status: '{{ item.status }}'
+        tags: '{{ item.tags }}'
+  # ── DescribeAddonConfiguration ──
+  - discovery_id: aws.eks.describe_addon_configuration
+    for_each: aws.eks.describe_addon_versions
+    calls:
+      - action: describe_addon_configuration
+        params:
+          addonName: '{{ item.addonName }}'
+          addonVersion: '{{ item.addonVersion }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.podIdentityConfiguration }}'
+      item:
+        podIdentityConfiguration: '{{ item.podIdentityConfiguration }}'
+        recommendedManagedPolicies: '{{ item.recommendedManagedPolicies }}'
+        serviceAccount: '{{ item.serviceAccount }}'
+  # ── DescribeCluster ──
+  - discovery_id: aws.eks.describe_cluster
+    for_each: aws.eks.list_access_policies
+    calls:
+      - action: describe_cluster
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.cluster }}'
+      item:
+        accessConfig: '{{ item.accessConfig }}'
+        arn: '{{ item.arn }}'
+        certificateAuthority: '{{ item.certificateAuthority }}'
+        clientRequestToken: '{{ item.clientRequestToken }}'
+        computeConfig: '{{ item.computeConfig }}'
+        connectorConfig: '{{ item.connectorConfig }}'
+        controlPlaneScalingConfig: '{{ item.controlPlaneScalingConfig }}'
+        createdAt: '{{ item.createdAt }}'
+        deletionProtection: '{{ item.deletionProtection }}'
+        encryptionConfig: '{{ item.encryptionConfig }}'
+        endpoint: '{{ item.endpoint }}'
+        health: '{{ item.health }}'
+        id: '{{ item.id }}'
+        identity: '{{ item.identity }}'
+        kubernetesNetworkConfig: '{{ item.kubernetesNetworkConfig }}'
+        logging: '{{ item.logging }}'
+        name: '{{ item.name }}'
+        outpostConfig: '{{ item.outpostConfig }}'
+        platformVersion: '{{ item.platformVersion }}'
+        remoteNetworkConfig: '{{ item.remoteNetworkConfig }}'
+        resourcesVpcConfig: '{{ item.resourcesVpcConfig }}'
+        roleArn: '{{ item.roleArn }}'
+        status: '{{ item.status }}'
+        storageConfig: '{{ item.storageConfig }}'
+        tags: '{{ item.tags }}'
+        upgradePolicy: '{{ item.upgradePolicy }}'
+        version: '{{ item.version }}'
+        zonalShiftConfig: '{{ item.zonalShiftConfig }}'
+  # ── DescribeEksAnywhereSubscription ──
+  - discovery_id: aws.eks.describe_eks_anywhere_subscription
+    for_each: aws.eks.list_eks_anywhere_subscriptions
+    calls:
+      - action: describe_eks_anywhere_subscription
+        params:
+          id: '{{ item.id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.accessPolicies }}'
+      item:
+        arn: '{{ item.arn }}'
+        autoRenew: '{{ item.autoRenew }}'
+        createdAt: '{{ item.createdAt }}'
+        effectiveDate: '{{ item.effectiveDate }}'
+        expirationDate: '{{ item.expirationDate }}'
+        id: '{{ item.id }}'
+        licenseArns: '{{ item.licenseArns }}'
+        licenseQuantity: '{{ item.licenseQuantity }}'
+        licenseType: '{{ item.licenseType }}'
+        licenses: '{{ item.licenses }}'
+        status: '{{ item.status }}'
+        tags: '{{ item.tags }}'
+        term: '{{ item.term }}'
+  # ── DescribeFargateProfile ──
+  - discovery_id: aws.eks.describe_fargate_profile
+    calls:
+      - action: describe_fargate_profile
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.accessEntry }}'
+      item:
+        clusterName: '{{ item.clusterName }}'
+        createdAt: '{{ item.createdAt }}'
+        fargateProfileArn: '{{ item.fargateProfileArn }}'
+        fargateProfileName: '{{ item.fargateProfileName }}'
+        health: '{{ item.health }}'
+        podExecutionRoleArn: '{{ item.podExecutionRoleArn }}'
+        selectors: '{{ item.selectors }}'
+        status: '{{ item.status }}'
+        subnets: '{{ item.subnets }}'
+        tags: '{{ item.tags }}'
+  # ── DescribeIdentityProviderConfig ──
+  - discovery_id: aws.eks.describe_identity_provider_config
+    calls:
+      - action: describe_identity_provider_config
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.identityProviderConfig }}'
+      item:
+        oidc: '{{ item.oidc }}'
+  # ── DescribeInsight ──
+  - discovery_id: aws.eks.describe_insight
+    for_each: aws.eks.list_eks_anywhere_subscriptions
+    calls:
+      - action: describe_insight
+        params:
+          clusterName: '{{ item.clusterName }}'
+          id: '{{ item.id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.insight }}'
+      item:
+        additionalInfo: '{{ item.additionalInfo }}'
+        category: '{{ item.category }}'
+        categorySpecificSummary: '{{ item.categorySpecificSummary }}'
+        description: '{{ item.description }}'
+        id: '{{ item.id }}'
+        insight: '{{ item.insight }}'
+        insightStatus: '{{ item.insightStatus }}'
+        kubernetesVersion: '{{ item.kubernetesVersion }}'
+        lastRefreshTime: '{{ item.lastRefreshTime }}'
+        lastTransitionTime: '{{ item.lastTransitionTime }}'
+        name: '{{ item.name }}'
+        recommendation: '{{ item.recommendation }}'
+        resources: '{{ item.resources }}'
+  # ── DescribeInsightsRefresh ──
+  - discovery_id: aws.eks.describe_insights_refresh
+    calls:
+      - action: describe_insights_refresh
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.message }}'
+      item:
+        message: '{{ item.message }}'
+  # ── DescribeNodegroup ──
+  - discovery_id: aws.eks.describe_nodegroup
+    calls:
+      - action: describe_nodegroup
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.nodegroup }}'
+      item:
+        amiType: '{{ item.amiType }}'
+        capacityType: '{{ item.capacityType }}'
+        clusterName: '{{ item.clusterName }}'
+        createdAt: '{{ item.createdAt }}'
+        diskSize: '{{ item.diskSize }}'
+        health: '{{ item.health }}'
+        instanceTypes: '{{ item.instanceTypes }}'
+        labels: '{{ item.labels }}'
+        launchTemplate: '{{ item.launchTemplate }}'
+        modifiedAt: '{{ item.modifiedAt }}'
+        nodeRepairConfig: '{{ item.nodeRepairConfig }}'
+        nodeRole: '{{ item.nodeRole }}'
+        nodegroupArn: '{{ item.nodegroupArn }}'
+        nodegroupName: '{{ item.nodegroupName }}'
+        releaseVersion: '{{ item.releaseVersion }}'
+        remoteAccess: '{{ item.remoteAccess }}'
+        resources: '{{ item.resources }}'
+        scalingConfig: '{{ item.scalingConfig }}'
+        status: '{{ item.status }}'
+        subnets: '{{ item.subnets }}'
+        tags: '{{ item.tags }}'
+        taints: '{{ item.taints }}'
+        updateConfig: '{{ item.updateConfig }}'
+        version: '{{ item.version }}'
+  # ── DescribePodIdentityAssociation ──
+  - discovery_id: aws.eks.describe_pod_identity_association
+    calls:
+      - action: describe_pod_identity_association
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.association }}'
+      item:
+        associationArn: '{{ item.associationArn }}'
+        associationId: '{{ item.associationId }}'
+        clusterName: '{{ item.clusterName }}'
+        createdAt: '{{ item.createdAt }}'
+        disableSessionTags: '{{ item.disableSessionTags }}'
+        externalId: '{{ item.externalId }}'
+        modifiedAt: '{{ item.modifiedAt }}'
+        namespace: '{{ item.namespace }}'
+        ownerArn: '{{ item.ownerArn }}'
+        roleArn: '{{ item.roleArn }}'
+        serviceAccount: '{{ item.serviceAccount }}'
+        tags: '{{ item.tags }}'
+        targetRoleArn: '{{ item.targetRoleArn }}'
+  # ── DescribeUpdate ──
+  - discovery_id: aws.eks.describe_update
+    for_each: aws.eks.list_access_policies
+    calls:
+      - action: describe_update
+        params:
+          name: '{{ item.name }}'
+          updateId: '{{ item.updateId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.subscriptions }}'
+      item:
+        createdAt: '{{ item.createdAt }}'
+        errors: '{{ item.errors }}'
+        id: '{{ item.id }}'
+        params: '{{ item.params }}'
+        status: '{{ item.status }}'
+        type: '{{ item.type }}'
+  # ── ListAccessEntries ──
+  - discovery_id: aws.eks.list_access_entries
+    calls:
+      - action: list_access_entries
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.accessEntries }}'
+  # ── ListAddons ──
+  - discovery_id: aws.eks.list_addons
+    calls:
+      - action: list_addons
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.addons }}'
+  # ── ListAssociatedAccessPolicies ──
+  - discovery_id: aws.eks.list_associated_access_policies
+    calls:
+      - action: list_associated_access_policies
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.associatedAccessPolicies }}'
+      item:
+        accessScope: '{{ item.accessScope }}'
+        associatedAt: '{{ item.associatedAt }}'
+        modifiedAt: '{{ item.modifiedAt }}'
+        policyArn: '{{ item.policyArn }}'
+  # ── ListFargateProfiles ──
+  - discovery_id: aws.eks.list_fargate_profiles
+    calls:
+      - action: list_fargate_profiles
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.fargateProfileNames }}'
+  # ── ListIdentityProviderConfigs ──
+  - discovery_id: aws.eks.list_identity_provider_configs
+    calls:
+      - action: list_identity_provider_configs
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.identityProviderConfigs }}'
+      item:
+        name: '{{ item.name }}'
+        type: '{{ item.type }}'
+  # ── ListInsights ──
+  - discovery_id: aws.eks.list_insights
+    calls:
+      - action: list_insights
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.insights }}'
+      item:
+        category: '{{ item.category }}'
+        description: '{{ item.description }}'
+        id: '{{ item.id }}'
+        insight: '{{ item.insight }}'
+        insightStatus: '{{ item.insightStatus }}'
+        kubernetesVersion: '{{ item.kubernetesVersion }}'
+        lastRefreshTime: '{{ item.lastRefreshTime }}'
+        lastTransitionTime: '{{ item.lastTransitionTime }}'
+        name: '{{ item.name }}'
+  # ── ListNodegroups ──
+  - discovery_id: aws.eks.list_nodegroups
+    calls:
+      - action: list_nodegroups
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.nodegroups }}'
+  # ── ListPodIdentityAssociations ──
+  - discovery_id: aws.eks.list_pod_identity_associations
+    calls:
+      - action: list_pod_identity_associations
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.associations }}'
+      item:
+        associationArn: '{{ item.associationArn }}'
+        associationId: '{{ item.associationId }}'
+        clusterName: '{{ item.clusterName }}'
+        namespace: '{{ item.namespace }}'
+        ownerArn: '{{ item.ownerArn }}'
+        serviceAccount: '{{ item.serviceAccount }}'
+  # ── ListTagsForResource ──
+  - discovery_id: aws.eks.list_tags_for_resource
+    calls:
+      - action: list_tags_for_resource
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        tags: '{{ response.tags }}'
+  # ── ListUpdates ──
+  - discovery_id: aws.eks.list_updates
+    for_each: aws.eks.list_access_policies
+    calls:
+      - action: list_updates
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.updateIds }}'

@@ -1,0 +1,68 @@
+# ============================================================
+# Discovery YAML — appsmarket (v2)
+# Generated: 2026-02-21T03:06:38Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 2 | independent: 0 | dependent: 2
+# ops with fields: 2/2 | dep ops with chain: 0/2
+# ============================================================
+version: '1.0'
+provider: gcp
+service: appsmarket
+
+services:
+  client: appsmarket
+  module: "googleapiclient.discovery.build('appsmarket', 'v2')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets the customer's licensing status to determine if they have access to a given app. For more infor
+  # ── gcp.appsmarket.customerLicense.get [dependent] ──
+  - discovery_id: gcp.appsmarket.customerLicense.get
+    # python: svc.customerLicense().get(**params).execute()
+    calls:
+      - action: customerLicense.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        applicationId: '{{ response.applicationId }}'
+        customerId: '{{ response.customerId }}'
+        editions: '{{ response.editions }}'
+        id: '{{ response.id }}'
+        state: '{{ response.state }}'
+    # required_params: ['applicationId', 'customerId']
+  # Gets the user's licensing status to determine if they have permission to use a given app. For more i
+  # ── gcp.appsmarket.userLicense.get [dependent] ──
+  - discovery_id: gcp.appsmarket.userLicense.get
+    # python: svc.userLicense().get(**params).execute()
+    calls:
+      - action: userLicense.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        applicationId: '{{ response.applicationId }}'
+        customerId: '{{ response.customerId }}'
+        editionId: '{{ response.editionId }}'
+        enabled: '{{ response.enabled }}'
+        id: '{{ response.id }}'
+        state: '{{ response.state }}'
+        userId: '{{ response.userId }}'
+    # required_params: ['applicationId', 'userId']

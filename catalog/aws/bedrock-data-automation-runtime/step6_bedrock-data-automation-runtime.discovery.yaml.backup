@@ -1,0 +1,29 @@
+version: '1.0'
+provider: aws
+service: bedrock-data-automation-runtime
+services:
+  client: bedrock-data-automation-runtime
+  module: boto3.client
+discovery:
+- discovery_id: aws.bedrock-data-automation-runtime.getDataAutomationStatus
+  calls:
+  - action: getDataAutomationStatus
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.outputConfiguration }}'
+    item:
+      s3Uri: '{{ item.s3Uri }}'
+- discovery_id: aws.bedrock-data-automation-runtime.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.tags }}'
+    item:
+      key: '{{ item.key }}'
+      value: '{{ item.value }}'
+checks: []

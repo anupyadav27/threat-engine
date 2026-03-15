@@ -1,0 +1,37 @@
+version: '1.0'
+provider: aws
+service: cloudfront-keyvaluestore
+services:
+  client: cloudfront-keyvaluestore
+  module: boto3.client
+discovery:
+- discovery_id: aws.cloudfront-keyvaluestore.describeKeyValueStore
+  calls:
+  - action: describeKeyValueStore
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ItemCount }}'
+- discovery_id: aws.cloudfront-keyvaluestore.getKey
+  calls:
+  - action: getKey
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Key }}'
+- discovery_id: aws.cloudfront-keyvaluestore.listKeys
+  calls:
+  - action: listKeys
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Items }}'
+    item:
+      Key: '{{ item.Key }}'
+      Value: '{{ item.Value }}'
+checks: []

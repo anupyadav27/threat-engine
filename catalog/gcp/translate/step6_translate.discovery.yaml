@@ -1,0 +1,172 @@
+# ============================================================
+# Discovery YAML — translate (v3beta1)
+# Generated: 2026-02-21T03:06:41Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 8 | independent: 6 | dependent: 2
+# ops with fields: 8/8 | dep ops with chain: 2/2
+# ============================================================
+version: '1.0'
+provider: gcp
+service: translate
+
+services:
+  client: translate
+  module: "googleapiclient.discovery.build('translate', 'v3beta1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Returns a list of supported languages for translation.
+  # ── gcp.translate.projects.getSupportedLanguages ──
+  - discovery_id: gcp.translate.projects.getSupportedLanguages
+    # python: svc.projects().getSupportedLanguages(**params).execute()
+    calls:
+      - action: projects.getSupportedLanguages
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        languages: '{{ response.languages }}'
+  # Gets information about a location.
+  # ── gcp.translate.projects.locations.get ──
+  - discovery_id: gcp.translate.projects.locations.get
+    # python: svc.projects().locations().get(**params).execute()
+    calls:
+      - action: projects.locations.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        displayName: '{{ response.displayName }}'
+        labels: '{{ response.labels }}'
+        locationId: '{{ response.locationId }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+  # Returns a list of supported languages for translation.
+  # ── gcp.translate.projects.locations.getSupportedLanguages ──
+  - discovery_id: gcp.translate.projects.locations.getSupportedLanguages
+    # python: svc.projects().locations().getSupportedLanguages(**params).execute()
+    calls:
+      - action: projects.locations.getSupportedLanguages
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        languages: '{{ response.languages }}'
+  # Lists glossaries in a project. Returns NOT_FOUND, if the project doesn't exist.
+  # ── gcp.translate.projects.locations.glossaries.list ──
+  - discovery_id: gcp.translate.projects.locations.glossaries.list
+    # python: svc.projects().locations().glossaries().list(**params).execute()
+    calls:
+      - action: projects.locations.glossaries.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.glossaries }}'
+      item:
+        endTime: '{{ item.endTime }}'
+        entryCount: '{{ item.entryCount }}'
+        inputConfig: '{{ item.inputConfig }}'
+        languageCodesSet: '{{ item.languageCodesSet }}'
+        languagePair: '{{ item.languagePair }}'
+        name: '{{ item.name }}'
+        submitTime: '{{ item.submitTime }}'
+  # Lists information about the supported locations for this service. This method can be called in two w
+  # ── gcp.translate.projects.locations.list ──
+  - discovery_id: gcp.translate.projects.locations.list
+    # python: svc.projects().locations().list(**params).execute()
+    calls:
+      - action: projects.locations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.locations }}'
+      item:
+        displayName: '{{ item.displayName }}'
+        labels: '{{ item.labels }}'
+        locationId: '{{ item.locationId }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+  # Lists operations that match the specified filter in the request. If the server doesn't support this 
+  # ── gcp.translate.projects.locations.operations.list ──
+  - discovery_id: gcp.translate.projects.locations.operations.list
+    # python: svc.projects().locations().operations().list(**params).execute()
+    calls:
+      - action: projects.locations.operations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.operations }}'
+      item:
+        done: '{{ item.done }}'
+        error: '{{ item.error }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+        response: '{{ item.response }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets a glossary. Returns NOT_FOUND, if the glossary doesn't exist.
+  # ── gcp.translate.projects.locations.glossaries.get [dependent] ──
+  - discovery_id: gcp.translate.projects.locations.glossaries.get
+    for_each: gcp.translate.projects.locations.glossaries.list
+    # python: svc.projects().locations().glossaries().get(**params).execute()
+    calls:
+      - action: projects.locations.glossaries.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        endTime: '{{ response.endTime }}'
+        entryCount: '{{ response.entryCount }}'
+        inputConfig: '{{ response.inputConfig }}'
+        languageCodesSet: '{{ response.languageCodesSet }}'
+        languagePair: '{{ response.languagePair }}'
+        name: '{{ response.name }}'
+        submitTime: '{{ response.submitTime }}'
+    # required_params: ['name']
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.translate.projects.locations.operations.get [dependent] ──
+  - discovery_id: gcp.translate.projects.locations.operations.get
+    for_each: gcp.translate.projects.locations.operations.list
+    # python: svc.projects().locations().operations().get(**params).execute()
+    calls:
+      - action: projects.locations.operations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']

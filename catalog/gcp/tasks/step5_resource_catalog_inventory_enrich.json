@@ -1,0 +1,423 @@
+{
+  "csp": "gcp",
+  "generated_at": "2026-02-19T14:43:28.457349+00:00",
+  "anchors": {
+    "fixed": [
+      "project_id",
+      "org_id",
+      "folder_id",
+      "location",
+      "zone",
+      "region"
+    ]
+  },
+  "services": {
+    "tasks": {
+      "version": "v1",
+      "resources": {
+        "tasklists": {
+          "resource_type": "tasklists",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "v1/users/@me/lists/{tasklist}",
+              "built_from_parts": [
+                "tasklist"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [
+              "tasklist"
+            ],
+            "part_sources": {
+              "tasklist": {
+                "op": "gcp.tasks.tasklists.list",
+                "field_path": "items[].selfLink",
+                "transform": null
+              }
+            },
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.tasks.tasklists.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/tasks/v1/users/@me/lists"
+                },
+                "python_call": "svc.tasklists().list(**params).execute()",
+                "produces": {
+                  "selfLink": "items[].selfLink",
+                  "id": "items[].id",
+                  "updated": "items[].updated",
+                  "title": "items[].title"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.tasks.tasklists.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/tasks/v1/users/@me/lists/{tasklist}"
+                },
+                "python_call": "svc.tasklists().get(**params).execute()",
+                "required_params": {
+                  "tasklist": {
+                    "from_identifier": "tasklist"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.tasks.tasklists.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.tasks.tasklists.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.tasklists().list(**params).execute()",
+                      "path": "/tasks/v1/users/@me/lists",
+                      "required_params": {},
+                      "output_list_field": "items",
+                      "output_id_field": "selfLink",
+                      "produces": {
+                        "tasklistId": {
+                          "via_list_field": "items",
+                          "from_id_field": "selfLink",
+                          "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"tasklistId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: tasklistId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.tasks.tasklists.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.tasklists().get(**params).execute()",
+                      "path": "/tasks/v1/users/@me/lists/{tasklist}",
+                      "required_params": {
+                        "tasklist": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Task list identifier."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "tasklist": {
+                          "from_step": 1,
+                          "from_op": "gcp.tasks.tasklists.list",
+                          "field": "selfLink"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        },
+        "tasks": {
+          "resource_type": "tasks",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "v1/lists/{tasklist}/tasks/{task}",
+              "built_from_parts": [
+                "tasklist",
+                "task"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [
+              "tasklist",
+              "task"
+            ],
+            "part_sources": {
+              "tasklist": {
+                "op": "gcp.tasks.tasklists.list",
+                "field_path": "items[].selfLink",
+                "transform": null
+              },
+              "task": {
+                "op": "gcp.tasks.tasklists.list",
+                "field_path": "items[].selfLink",
+                "transform": null
+              }
+            },
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.tasks.tasklists.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/tasks/v1/users/@me/lists"
+                },
+                "python_call": "svc.tasklists().list(**params).execute()",
+                "produces": {
+                  "selfLink": "items[].selfLink",
+                  "id": "items[].id",
+                  "updated": "items[].updated",
+                  "title": "items[].title"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.tasks.tasks.list",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/tasks/v1/lists/{tasklist}/tasks"
+                },
+                "python_call": "svc.tasks().list(**params).execute()",
+                "produces": {
+                  "selfLink": "items[].selfLink",
+                  "updated": "items[].updated",
+                  "id": "items[].id",
+                  "assignmentInfo": "items[].assignmentInfo",
+                  "position": "items[].position",
+                  "hidden": "items[].hidden",
+                  "deleted": "items[].deleted",
+                  "status": "items[].status",
+                  "due": "items[].due",
+                  "webViewLink": "items[].webViewLink",
+                  "completed": "items[].completed",
+                  "notes": "items[].notes",
+                  "parent": "items[].parent",
+                  "links": "items[].links",
+                  "title": "items[].title"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.tasks.tasks.list",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.tasks.tasklists.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.tasklists().list(**params).execute()",
+                      "path": "/tasks/v1/users/@me/lists",
+                      "required_params": {},
+                      "output_list_field": "items",
+                      "output_id_field": "selfLink",
+                      "produces": {
+                        "tasklistId": {
+                          "via_list_field": "items",
+                          "from_id_field": "selfLink",
+                          "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"tasklistId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: tasklistId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.tasks.tasks.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.tasks().list(**params).execute()",
+                      "path": "/tasks/v1/lists/{tasklist}/tasks",
+                      "required_params": {
+                        "tasklist": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Task list identifier."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "selfLink",
+                      "produces": {
+                        "taskId": {
+                          "via_list_field": "items",
+                          "from_id_field": "selfLink",
+                          "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"taskId\""
+                        }
+                      },
+                      "param_sources": {
+                        "tasklist": {
+                          "from_step": 1,
+                          "from_op": "gcp.tasks.tasklists.list",
+                          "field": "selfLink"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.tasks.tasks.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/tasks/v1/lists/{tasklist}/tasks/{task}"
+                },
+                "python_call": "svc.tasks().get(**params).execute()",
+                "required_params": {
+                  "task": {
+                    "from_identifier": "task"
+                  },
+                  "tasklist": {
+                    "from_identifier": "tasklist"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.tasks.tasks.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 3,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.tasks.tasklists.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.tasklists().list(**params).execute()",
+                      "path": "/tasks/v1/users/@me/lists",
+                      "required_params": {},
+                      "output_list_field": "items",
+                      "output_id_field": "selfLink",
+                      "produces": {
+                        "tasklistId": {
+                          "via_list_field": "items",
+                          "from_id_field": "selfLink",
+                          "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"tasklistId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: tasklistId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.tasks.tasks.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.tasks().list(**params).execute()",
+                      "path": "/tasks/v1/lists/{tasklist}/tasks",
+                      "required_params": {
+                        "tasklist": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Task list identifier."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "selfLink",
+                      "produces": {
+                        "taskId": {
+                          "via_list_field": "items",
+                          "from_id_field": "selfLink",
+                          "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"taskId\""
+                        }
+                      },
+                      "param_sources": {
+                        "tasklist": {
+                          "from_step": 1,
+                          "from_op": "gcp.tasks.tasklists.list",
+                          "field": "selfLink"
+                        }
+                      },
+                      "purpose": "Provides: taskId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.tasks.tasks.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.tasks().get(**params).execute()",
+                      "path": "/tasks/v1/lists/{tasklist}/tasks/{task}",
+                      "required_params": {
+                        "task": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Task identifier."
+                        },
+                        "tasklist": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Task list identifier."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "task": {
+                          "from_step": 2,
+                          "from_op": "gcp.tasks.tasks.list",
+                          "field": "selfLink"
+                        },
+                        "tasklist": {
+                          "from_step": 1,
+                          "from_op": "gcp.tasks.tasklists.list",
+                          "field": "selfLink"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        }
+      }
+    }
+  }
+}

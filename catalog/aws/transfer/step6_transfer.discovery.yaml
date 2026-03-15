@@ -1,0 +1,570 @@
+# ============================================================
+# Discovery YAML — transfer (AWS)
+# Generated: 2026-02-21T04:57:00Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: transfer
+services:
+  client: transfer
+  module: boto3.client
+discovery:
+  # ── ListCertificates ──
+  - discovery_id: aws.transfer.list_certificates
+    calls:
+      - action: list_certificates
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Certificates }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        Status: '{{ item.Status }}'
+        ActiveDate: '{{ item.ActiveDate }}'
+        Certificate: '{{ item.Certificate }}'
+        CertificateId: '{{ item.CertificateId }}'
+        Description: '{{ item.Description }}'
+        InactiveDate: '{{ item.InactiveDate }}'
+        NotAfterDate: '{{ item.NotAfterDate }}'
+        NotBeforeDate: '{{ item.NotBeforeDate }}'
+        Serial: '{{ item.Serial }}'
+        Type: '{{ item.Type }}'
+        Usage: '{{ item.Usage }}'
+  # ── ListConnectors ──
+  - discovery_id: aws.transfer.list_connectors
+    calls:
+      - action: list_connectors
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Connectors }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        As2Config: '{{ item.As2Config }}'
+        Connector: '{{ item.Connector }}'
+        ConnectorId: '{{ item.ConnectorId }}'
+        EgressConfig: '{{ item.EgressConfig }}'
+        EgressType: '{{ item.EgressType }}'
+        ErrorMessage: '{{ item.ErrorMessage }}'
+        SecurityPolicyName: '{{ item.SecurityPolicyName }}'
+        ServiceManagedEgressIpAddresses: '{{ item.ServiceManagedEgressIpAddresses }}'
+        SftpConfig: '{{ item.SftpConfig }}'
+        Url: '{{ item.Url }}'
+  # ── ListProfiles ──
+  - discovery_id: aws.transfer.list_profiles
+    calls:
+      - action: list_profiles
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Profiles }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        As2Id: '{{ item.As2Id }}'
+        Profile: '{{ item.Profile }}'
+        ProfileId: '{{ item.ProfileId }}'
+        ProfileType: '{{ item.ProfileType }}'
+  # ── ListSecurityPolicies ──
+  - discovery_id: aws.transfer.list_security_policies
+    calls:
+      - action: list_security_policies
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.SecurityPolicyNames }}'
+      item:
+        Statement: '{{ item.Statement }}'
+        Version: '{{ item.Version }}'
+  # ── ListServers ──
+  - discovery_id: aws.transfer.list_servers
+    calls:
+      - action: list_servers
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Servers }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        State: '{{ item.State }}'
+        Domain: '{{ item.Domain }}'
+        EndpointType: '{{ item.EndpointType }}'
+        IdentityProviderType: '{{ item.IdentityProviderType }}'
+        LoggingRole: '{{ item.LoggingRole }}'
+        Server: '{{ item.Server }}'
+        ServerId: '{{ item.ServerId }}'
+        UserCount: '{{ item.UserCount }}'
+  # ── ListWebApps ──
+  - discovery_id: aws.transfer.list_web_apps
+    calls:
+      - action: list_web_apps
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.WebApps }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        AccessEndpoint: '{{ item.AccessEndpoint }}'
+        EndpointType: '{{ item.EndpointType }}'
+        WebAppEndpoint: '{{ item.WebAppEndpoint }}'
+        WebAppId: '{{ item.WebAppId }}'
+  # ── ListWorkflows ──
+  - discovery_id: aws.transfer.list_workflows
+    calls:
+      - action: list_workflows
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Workflows }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        Description: '{{ item.Description }}'
+        Workflow: '{{ item.Workflow }}'
+        WorkflowId: '{{ item.WorkflowId }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── DescribeAccess ──
+  - discovery_id: aws.transfer.describe_access
+    for_each: aws.transfer.list_servers
+    calls:
+      - action: describe_access
+        params:
+          ServerId: '{{ item.ServerId }}'
+          ExternalId: '{{ item.ExternalId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.NextToken }}'
+      item:
+        Policy: '{{ item.Policy }}'
+        Access: '{{ item.Access }}'
+        ExternalId: '{{ item.ExternalId }}'
+        HomeDirectory: '{{ item.HomeDirectory }}'
+        HomeDirectoryMappings: '{{ item.HomeDirectoryMappings }}'
+        HomeDirectoryType: '{{ item.HomeDirectoryType }}'
+        PosixProfile: '{{ item.PosixProfile }}'
+        Role: '{{ item.Role }}'
+  # ── DescribeAgreement ──
+  - discovery_id: aws.transfer.describe_agreement
+    for_each: aws.transfer.list_servers
+    calls:
+      - action: describe_agreement
+        params:
+          AgreementId: '{{ item.AgreementId }}'
+          ServerId: '{{ item.ServerId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Agreement }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        Status: '{{ item.Status }}'
+        Tags: '{{ item.Tags }}'
+        AccessRole: '{{ item.AccessRole }}'
+        AgreementId: '{{ item.AgreementId }}'
+        BaseDirectory: '{{ item.BaseDirectory }}'
+        CustomDirectories: '{{ item.CustomDirectories }}'
+        Description: '{{ item.Description }}'
+        EnforceMessageSigning: '{{ item.EnforceMessageSigning }}'
+        LocalProfileId: '{{ item.LocalProfileId }}'
+        PartnerProfileId: '{{ item.PartnerProfileId }}'
+        PreserveFilename: '{{ item.PreserveFilename }}'
+        ServerId: '{{ item.ServerId }}'
+  # ── DescribeCertificate ──
+  - discovery_id: aws.transfer.describe_certificate
+    for_each: aws.transfer.list_certificates
+    calls:
+      - action: describe_certificate
+        params:
+          CertificateId: '{{ item.CertificateId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Certificates }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        Status: '{{ item.Status }}'
+        Tags: '{{ item.Tags }}'
+        ActiveDate: '{{ item.ActiveDate }}'
+        Certificate: '{{ item.Certificate }}'
+        CertificateChain: '{{ item.CertificateChain }}'
+        CertificateId: '{{ item.CertificateId }}'
+        Description: '{{ item.Description }}'
+        InactiveDate: '{{ item.InactiveDate }}'
+        NotAfterDate: '{{ item.NotAfterDate }}'
+        NotBeforeDate: '{{ item.NotBeforeDate }}'
+        Serial: '{{ item.Serial }}'
+        Type: '{{ item.Type }}'
+        Usage: '{{ item.Usage }}'
+  # ── DescribeConnector ──
+  - discovery_id: aws.transfer.describe_connector
+    for_each: aws.transfer.list_connectors
+    calls:
+      - action: describe_connector
+        params:
+          ConnectorId: '{{ item.ConnectorId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Agreement }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        Status: '{{ item.Status }}'
+        Tags: '{{ item.Tags }}'
+        AccessRole: '{{ item.AccessRole }}'
+        As2Config: '{{ item.As2Config }}'
+        Connector: '{{ item.Connector }}'
+        ConnectorId: '{{ item.ConnectorId }}'
+        EgressConfig: '{{ item.EgressConfig }}'
+        EgressType: '{{ item.EgressType }}'
+        ErrorMessage: '{{ item.ErrorMessage }}'
+        LoggingRole: '{{ item.LoggingRole }}'
+        SecurityPolicyName: '{{ item.SecurityPolicyName }}'
+        ServiceManagedEgressIpAddresses: '{{ item.ServiceManagedEgressIpAddresses }}'
+        SftpConfig: '{{ item.SftpConfig }}'
+        Url: '{{ item.Url }}'
+  # ── DescribeExecution ──
+  - discovery_id: aws.transfer.describe_execution
+    for_each: aws.transfer.list_workflows
+    calls:
+      - action: describe_execution
+        params:
+          ExecutionId: '{{ item.ExecutionId }}'
+          WorkflowId: '{{ item.WorkflowId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.NextToken }}'
+      item:
+        Status: '{{ item.Status }}'
+        Enabled: '{{ item.Enabled }}'
+        Execution: '{{ item.Execution }}'
+        ExecutionId: '{{ item.ExecutionId }}'
+        ExecutionRole: '{{ item.ExecutionRole }}'
+        InitialFileLocation: '{{ item.InitialFileLocation }}'
+        LoggingConfiguration: '{{ item.LoggingConfiguration }}'
+        PosixProfile: '{{ item.PosixProfile }}'
+        Results: '{{ item.Results }}'
+        ServiceMetadata: '{{ item.ServiceMetadata }}'
+  # ── DescribeHostKey ──
+  - discovery_id: aws.transfer.describe_host_key
+    for_each: aws.transfer.list_servers
+    calls:
+      - action: describe_host_key
+        params:
+          ServerId: '{{ item.ServerId }}'
+          HostKeyId: '{{ item.HostKeyId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Certificates }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        Tags: '{{ item.Tags }}'
+        DateImported: '{{ item.DateImported }}'
+        Description: '{{ item.Description }}'
+        HostKeyFingerprint: '{{ item.HostKeyFingerprint }}'
+        HostKeyId: '{{ item.HostKeyId }}'
+        Type: '{{ item.Type }}'
+  # ── DescribeProfile ──
+  - discovery_id: aws.transfer.describe_profile
+    for_each: aws.transfer.list_profiles
+    calls:
+      - action: describe_profile
+        params:
+          ProfileId: '{{ item.ProfileId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Certificates }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        Tags: '{{ item.Tags }}'
+        As2Id: '{{ item.As2Id }}'
+        CertificateIds: '{{ item.CertificateIds }}'
+        Profile: '{{ item.Profile }}'
+        ProfileId: '{{ item.ProfileId }}'
+        ProfileType: '{{ item.ProfileType }}'
+  # ── DescribeSecurityPolicy ──
+  - discovery_id: aws.transfer.describe_security_policy
+    calls:
+      - action: describe_security_policy
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.SecurityPolicy }}'
+      item:
+        Fips: '{{ item.Fips }}'
+        Protocols: '{{ item.Protocols }}'
+        SecurityPolicyName: '{{ item.SecurityPolicyName }}'
+        SshCiphers: '{{ item.SshCiphers }}'
+        SshHostKeyAlgorithms: '{{ item.SshHostKeyAlgorithms }}'
+        SshKexs: '{{ item.SshKexs }}'
+        SshMacs: '{{ item.SshMacs }}'
+        TlsCiphers: '{{ item.TlsCiphers }}'
+        Type: '{{ item.Type }}'
+  # ── DescribeServer ──
+  - discovery_id: aws.transfer.describe_server
+    for_each: aws.transfer.list_servers
+    calls:
+      - action: describe_server
+        params:
+          ServerId: '{{ item.ServerId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Certificates }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        State: '{{ item.State }}'
+        Tags: '{{ item.Tags }}'
+        As2ServiceManagedEgressIpAddresses: '{{ item.As2ServiceManagedEgressIpAddresses }}'
+        Certificate: '{{ item.Certificate }}'
+        Domain: '{{ item.Domain }}'
+        EndpointDetails: '{{ item.EndpointDetails }}'
+        EndpointType: '{{ item.EndpointType }}'
+        HostKeyFingerprint: '{{ item.HostKeyFingerprint }}'
+        IdentityProviderDetails: '{{ item.IdentityProviderDetails }}'
+        IdentityProviderType: '{{ item.IdentityProviderType }}'
+        IpAddressType: '{{ item.IpAddressType }}'
+        LoggingRole: '{{ item.LoggingRole }}'
+        PostAuthenticationLoginBanner: '{{ item.PostAuthenticationLoginBanner }}'
+        PreAuthenticationLoginBanner: '{{ item.PreAuthenticationLoginBanner }}'
+        ProtocolDetails: '{{ item.ProtocolDetails }}'
+        Protocols: '{{ item.Protocols }}'
+        S3StorageOptions: '{{ item.S3StorageOptions }}'
+        SecurityPolicyName: '{{ item.SecurityPolicyName }}'
+        Server: '{{ item.Server }}'
+        ServerId: '{{ item.ServerId }}'
+        StructuredLogDestinations: '{{ item.StructuredLogDestinations }}'
+        UserCount: '{{ item.UserCount }}'
+        WorkflowDetails: '{{ item.WorkflowDetails }}'
+  # ── DescribeUser ──
+  - discovery_id: aws.transfer.describe_user
+    for_each: aws.transfer.list_servers
+    calls:
+      - action: describe_user
+        params:
+          ServerId: '{{ item.ServerId }}'
+          UserName: '{{ item.UserName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Certificates }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        Policy: '{{ item.Policy }}'
+        Tags: '{{ item.Tags }}'
+        HomeDirectory: '{{ item.HomeDirectory }}'
+        HomeDirectoryMappings: '{{ item.HomeDirectoryMappings }}'
+        HomeDirectoryType: '{{ item.HomeDirectoryType }}'
+        PosixProfile: '{{ item.PosixProfile }}'
+        Role: '{{ item.Role }}'
+        SshPublicKeys: '{{ item.SshPublicKeys }}'
+        User: '{{ item.User }}'
+        UserName: '{{ item.UserName }}'
+  # ── DescribeWebApp ──
+  - discovery_id: aws.transfer.describe_web_app
+    for_each: aws.transfer.list_web_apps
+    calls:
+      - action: describe_web_app
+        params:
+          WebAppId: '{{ item.WebAppId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.WebApps }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        Tags: '{{ item.Tags }}'
+        AccessEndpoint: '{{ item.AccessEndpoint }}'
+        DescribedEndpointDetails: '{{ item.DescribedEndpointDetails }}'
+        DescribedIdentityProviderDetails: '{{ item.DescribedIdentityProviderDetails }}'
+        EndpointType: '{{ item.EndpointType }}'
+        WebAppEndpoint: '{{ item.WebAppEndpoint }}'
+        WebAppEndpointPolicy: '{{ item.WebAppEndpointPolicy }}'
+        WebAppId: '{{ item.WebAppId }}'
+        WebAppUnits: '{{ item.WebAppUnits }}'
+  # ── DescribeWebAppCustomization ──
+  - discovery_id: aws.transfer.describe_web_app_customization
+    for_each: aws.transfer.list_web_apps
+    calls:
+      - action: describe_web_app_customization
+        params:
+          WebAppId: '{{ item.WebAppId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Certificates }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        FaviconFile: '{{ item.FaviconFile }}'
+        LogoFile: '{{ item.LogoFile }}'
+        Title: '{{ item.Title }}'
+        WebAppId: '{{ item.WebAppId }}'
+  # ── DescribeWorkflow ──
+  - discovery_id: aws.transfer.describe_workflow
+    for_each: aws.transfer.list_workflows
+    calls:
+      - action: describe_workflow
+        params:
+          WorkflowId: '{{ item.WorkflowId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Certificates }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        Tags: '{{ item.Tags }}'
+        Description: '{{ item.Description }}'
+        OnExceptionSteps: '{{ item.OnExceptionSteps }}'
+        Steps: '{{ item.Steps }}'
+        Workflow: '{{ item.Workflow }}'
+        WorkflowId: '{{ item.WorkflowId }}'
+  # ── ListAccesses ──
+  - discovery_id: aws.transfer.list_accesses
+    for_each: aws.transfer.list_servers
+    calls:
+      - action: list_accesses
+        params:
+          ServerId: '{{ item.ServerId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Accesses }}'
+      item:
+        Access: '{{ item.Access }}'
+        ExternalId: '{{ item.ExternalId }}'
+        HomeDirectory: '{{ item.HomeDirectory }}'
+        HomeDirectoryType: '{{ item.HomeDirectoryType }}'
+        Role: '{{ item.Role }}'
+  # ── ListAgreements ──
+  - discovery_id: aws.transfer.list_agreements
+    for_each: aws.transfer.list_servers
+    calls:
+      - action: list_agreements
+        params:
+          ServerId: '{{ item.ServerId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Agreements }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        Status: '{{ item.Status }}'
+        AgreementId: '{{ item.AgreementId }}'
+        Description: '{{ item.Description }}'
+        LocalProfileId: '{{ item.LocalProfileId }}'
+        PartnerProfileId: '{{ item.PartnerProfileId }}'
+        ServerId: '{{ item.ServerId }}'
+  # ── ListExecutions ──
+  - discovery_id: aws.transfer.list_executions
+    for_each: aws.transfer.list_workflows
+    calls:
+      - action: list_executions
+        params:
+          WorkflowId: '{{ item.WorkflowId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Executions }}'
+      item:
+        Status: '{{ item.Status }}'
+        Execution: '{{ item.Execution }}'
+        ExecutionId: '{{ item.ExecutionId }}'
+        InitialFileLocation: '{{ item.InitialFileLocation }}'
+        ServiceMetadata: '{{ item.ServiceMetadata }}'
+  # ── ListFileTransferResults ──
+  - discovery_id: aws.transfer.list_file_transfer_results
+    for_each: aws.transfer.list_connectors
+    calls:
+      - action: list_file_transfer_results
+        params:
+          ConnectorId: '{{ item.ConnectorId }}'
+          TransferId: '{{ item.TransferId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.FileTransferResults }}'
+      item:
+        FailureCode: '{{ item.FailureCode }}'
+        FailureMessage: '{{ item.FailureMessage }}'
+        FilePath: '{{ item.FilePath }}'
+        StatusCode: '{{ item.StatusCode }}'
+  # ── ListHostKeys ──
+  - discovery_id: aws.transfer.list_host_keys
+    for_each: aws.transfer.list_servers
+    calls:
+      - action: list_host_keys
+        params:
+          ServerId: '{{ item.ServerId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.HostKeys }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        DateImported: '{{ item.DateImported }}'
+        Description: '{{ item.Description }}'
+        Fingerprint: '{{ item.Fingerprint }}'
+        HostKeyId: '{{ item.HostKeyId }}'
+        Type: '{{ item.Type }}'
+  # ── ListTagsForResource ──
+  - discovery_id: aws.transfer.list_tags_for_resource
+    for_each: aws.transfer.list_certificates
+    calls:
+      - action: list_tags_for_resource
+        params:
+          Arn: '{{ item.Arn }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Tags }}'
+      item:
+        Key: '{{ item.Key }}'
+        Value: '{{ item.Value }}'
+  # ── ListUsers ──
+  - discovery_id: aws.transfer.list_users
+    for_each: aws.transfer.list_servers
+    calls:
+      - action: list_users
+        params:
+          ServerId: '{{ item.ServerId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Users }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        HomeDirectory: '{{ item.HomeDirectory }}'
+        HomeDirectoryType: '{{ item.HomeDirectoryType }}'
+        Role: '{{ item.Role }}'
+        SshPublicKeyCount: '{{ item.SshPublicKeyCount }}'
+        User: '{{ item.User }}'
+        UserName: '{{ item.UserName }}'

@@ -1,0 +1,125 @@
+# ============================================================
+# Discovery YAML — transcoder (v1)
+# Generated: 2026-02-21T03:06:41Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 4 | independent: 2 | dependent: 2
+# ops with fields: 4/4 | dep ops with chain: 2/2
+# ============================================================
+version: '1.0'
+provider: gcp
+service: transcoder
+
+services:
+  client: transcoder
+  module: "googleapiclient.discovery.build('transcoder', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists job templates in the specified region.
+  # ── gcp.transcoder.projects.locations.jobTemplates.list ──
+  - discovery_id: gcp.transcoder.projects.locations.jobTemplates.list
+    # python: svc.projects().locations().jobTemplates().list(**params).execute()
+    calls:
+      - action: projects.locations.jobTemplates.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.jobTemplates }}'
+      item:
+        config: '{{ item.config }}'
+        labels: '{{ item.labels }}'
+        name: '{{ item.name }}'
+  # Lists jobs in the specified region.
+  # ── gcp.transcoder.projects.locations.jobs.list ──
+  - discovery_id: gcp.transcoder.projects.locations.jobs.list
+    # python: svc.projects().locations().jobs().list(**params).execute()
+    calls:
+      - action: projects.locations.jobs.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.jobs }}'
+      item:
+        batchModePriority: '{{ item.batchModePriority }}'
+        config: '{{ item.config }}'
+        createTime: '{{ item.createTime }}'
+        endTime: '{{ item.endTime }}'
+        error: '{{ item.error }}'
+        fillContentGaps: '{{ item.fillContentGaps }}'
+        inputUri: '{{ item.inputUri }}'
+        labels: '{{ item.labels }}'
+        mode: '{{ item.mode }}'
+        name: '{{ item.name }}'
+        optimization: '{{ item.optimization }}'
+        outputUri: '{{ item.outputUri }}'
+        startTime: '{{ item.startTime }}'
+        state: '{{ item.state }}'
+        templateId: '{{ item.templateId }}'
+        ttlAfterCompletionDays: '{{ item.ttlAfterCompletionDays }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Returns the job template data.
+  # ── gcp.transcoder.projects.locations.jobTemplates.get [dependent] ──
+  - discovery_id: gcp.transcoder.projects.locations.jobTemplates.get
+    for_each: gcp.transcoder.projects.locations.jobTemplates.list
+    # python: svc.projects().locations().jobTemplates().get(**params).execute()
+    calls:
+      - action: projects.locations.jobTemplates.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        config: '{{ response.config }}'
+        labels: '{{ response.labels }}'
+        name: '{{ response.name }}'
+    # required_params: ['name']
+  # Returns the job data.
+  # ── gcp.transcoder.projects.locations.jobs.get [dependent] ──
+  - discovery_id: gcp.transcoder.projects.locations.jobs.get
+    for_each: gcp.transcoder.projects.locations.jobs.list
+    # python: svc.projects().locations().jobs().get(**params).execute()
+    calls:
+      - action: projects.locations.jobs.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        batchModePriority: '{{ response.batchModePriority }}'
+        config: '{{ response.config }}'
+        createTime: '{{ response.createTime }}'
+        endTime: '{{ response.endTime }}'
+        error: '{{ response.error }}'
+        fillContentGaps: '{{ response.fillContentGaps }}'
+        inputUri: '{{ response.inputUri }}'
+        labels: '{{ response.labels }}'
+        mode: '{{ response.mode }}'
+        name: '{{ response.name }}'
+        optimization: '{{ response.optimization }}'
+        outputUri: '{{ response.outputUri }}'
+        startTime: '{{ response.startTime }}'
+        state: '{{ response.state }}'
+        templateId: '{{ response.templateId }}'
+        ttlAfterCompletionDays: '{{ response.ttlAfterCompletionDays }}'
+    # required_params: ['name']

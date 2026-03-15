@@ -1,0 +1,27 @@
+version: '1.0'
+provider: oci
+service: opensearch
+services:
+  client: opensearch
+  module: oci.opensearch
+discovery:
+- discovery_id: oci.opensearch.get_opensearch_cluster_pipeline
+  calls:
+  - action: get_opensearch_cluster_pipeline
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.opensearch.list_opensearch_cluster_pipelines
+  for_each: oci.opensearch.get_opensearch_cluster_pipeline
+  calls:
+  - action: list_opensearch_cluster_pipelines
+    save_as: response
+    on_error: continue
+    params:
+      compartment_id: '{{ item.compartment_id }}'
+  emit:
+    as: item
+    items_for: '{{ response }}'
+checks: []

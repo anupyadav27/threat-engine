@@ -1,0 +1,37 @@
+version: '1.0'
+provider: aws
+service: codeartifact
+services:
+  client: codeartifact
+  module: boto3.client
+discovery:
+- discovery_id: aws.codeartifact.list_domains
+  calls:
+  - action: list_domains
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.domains }}'
+    as: item
+- discovery_id: aws.codeartifact.list_repositories_in_domain
+  for_each: aws.codeartifact.list_domains
+  calls:
+  - action: list_repositories_in_domain
+    params:
+      domain: '{{ item.name }}'
+      MaxResults: 1000
+    save_as: response
+  emit:
+    items_for: '{{ response.repositories }}'
+    as: item
+- discovery_id: aws.codeartifact.describe_repository
+  for_each: aws.codeartifact.list_repositories_in_domain
+  calls:
+  - action: describe_repository
+    params:
+      domain: '{{ item.domainName }}'
+      repository: '{{ item.name }}'
+      MaxResults: 1000
+    save_as: response
+  emit: {}

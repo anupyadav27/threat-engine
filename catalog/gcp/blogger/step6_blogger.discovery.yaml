@@ -1,0 +1,457 @@
+# ============================================================
+# Discovery YAML — blogger (v3)
+# Generated: 2026-02-21T03:06:38Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 17 | independent: 0 | dependent: 17
+# ops with fields: 17/17 | dep ops with chain: 14/17
+# ============================================================
+version: '1.0'
+provider: gcp
+service: blogger
+
+services:
+  client: blogger
+  module: "googleapiclient.discovery.build('blogger', 'v3')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets one blog and user info pair by blog id and user id.
+  # ── gcp.blogger.blogUserInfos.get [dependent] ──
+  - discovery_id: gcp.blogger.blogUserInfos.get
+    for_each: gcp.blogger.postUserInfos.list
+    # python: svc.blogUserInfos().get(**params).execute()
+    calls:
+      - action: blogUserInfos.get
+        params:
+          blogId: '{{ item.name }}'
+          userId: '{{ item.kind }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        blog: '{{ response.blog }}'
+        blog_user_info: '{{ response.blog_user_info }}'
+    # required_params: ['userId', 'blogId']
+  # Gets a blog by id.
+  # ── gcp.blogger.blogs.get [dependent] ──
+  - discovery_id: gcp.blogger.blogs.get
+    for_each: gcp.blogger.blogs.listByUser
+    # python: svc.blogs().get(**params).execute()
+    calls:
+      - action: blogs.get
+        params:
+          blogId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        customMetaData: '{{ response.customMetaData }}'
+        description: '{{ response.description }}'
+        id: '{{ response.id }}'
+        locale: '{{ response.locale }}'
+        name: '{{ response.name }}'
+        pages: '{{ response.pages }}'
+        posts: '{{ response.posts }}'
+        published: '{{ response.published }}'
+        status: '{{ response.status }}'
+        updated: '{{ response.updated }}'
+        url: '{{ response.url }}'
+    # required_params: ['blogId']
+  # Gets a blog by url.
+  # ── gcp.blogger.blogs.getByUrl [dependent] ──
+  - discovery_id: gcp.blogger.blogs.getByUrl
+    for_each: gcp.blogger.pages.list
+    # python: svc.blogs().getByUrl(**params).execute()
+    calls:
+      - action: blogs.getByUrl
+        params:
+          url: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        customMetaData: '{{ response.customMetaData }}'
+        description: '{{ response.description }}'
+        id: '{{ response.id }}'
+        locale: '{{ response.locale }}'
+        name: '{{ response.name }}'
+        pages: '{{ response.pages }}'
+        posts: '{{ response.posts }}'
+        published: '{{ response.published }}'
+        status: '{{ response.status }}'
+        updated: '{{ response.updated }}'
+        url: '{{ response.url }}'
+    # required_params: ['url']
+  # Lists blogs by user.
+  # ── gcp.blogger.blogs.listByUser [dependent] ──
+  - discovery_id: gcp.blogger.blogs.listByUser
+    for_each: gcp.blogger.postUserInfos.list
+    # python: svc.blogs().listByUser(**params).execute()
+    calls:
+      - action: blogs.listByUser
+        params:
+          userId: '{{ item.kind }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.blogs }}'
+      item:
+        customMetaData: '{{ item.customMetaData }}'
+        description: '{{ item.description }}'
+        id: '{{ item.id }}'
+        locale: '{{ item.locale }}'
+        name: '{{ item.name }}'
+        pages: '{{ item.pages }}'
+        posts: '{{ item.posts }}'
+        published: '{{ item.published }}'
+        status: '{{ item.status }}'
+        updated: '{{ item.updated }}'
+        url: '{{ item.url }}'
+    # required_params: ['userId']
+  # Gets a comment by id.
+  # ── gcp.blogger.comments.get [dependent] ──
+  - discovery_id: gcp.blogger.comments.get
+    for_each: gcp.blogger.comments.list
+    # python: svc.comments().get(**params).execute()
+    calls:
+      - action: comments.get
+        params:
+          blogId: '{{ item.name }}'
+          commentId: '{{ item.selfLink }}'
+          postId: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        author: '{{ response.author }}'
+        blog: '{{ response.blog }}'
+        content: '{{ response.content }}'
+        id: '{{ response.id }}'
+        inReplyTo: '{{ response.inReplyTo }}'
+        post: '{{ response.post }}'
+        published: '{{ response.published }}'
+        status: '{{ response.status }}'
+        updated: '{{ response.updated }}'
+    # required_params: ['blogId', 'postId', 'commentId']
+  # Lists comments.
+  # ── gcp.blogger.comments.list [dependent] ──
+  - discovery_id: gcp.blogger.comments.list
+    for_each: gcp.blogger.posts.list
+    # python: svc.comments().list(**params).execute()
+    calls:
+      - action: comments.list
+        params:
+          blogId: '{{ item.name }}'
+          postId: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.comments }}'
+      item:
+        author: '{{ item.author }}'
+        blog: '{{ item.blog }}'
+        content: '{{ item.content }}'
+        id: '{{ item.id }}'
+        inReplyTo: '{{ item.inReplyTo }}'
+        post: '{{ item.post }}'
+        published: '{{ item.published }}'
+        status: '{{ item.status }}'
+        updated: '{{ item.updated }}'
+    # required_params: ['blogId', 'postId']
+  # Lists comments by blog.
+  # ── gcp.blogger.comments.listByBlog [dependent] ──
+  - discovery_id: gcp.blogger.comments.listByBlog
+    for_each: gcp.blogger.blogs.listByUser
+    # python: svc.comments().listByBlog(**params).execute()
+    calls:
+      - action: comments.listByBlog
+        params:
+          blogId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.comments }}'
+      item:
+        author: '{{ item.author }}'
+        blog: '{{ item.blog }}'
+        content: '{{ item.content }}'
+        id: '{{ item.id }}'
+        inReplyTo: '{{ item.inReplyTo }}'
+        post: '{{ item.post }}'
+        published: '{{ item.published }}'
+        status: '{{ item.status }}'
+        updated: '{{ item.updated }}'
+    # required_params: ['blogId']
+  # Gets page views by blog id.
+  # ── gcp.blogger.pageViews.get [dependent] ──
+  - discovery_id: gcp.blogger.pageViews.get
+    for_each: gcp.blogger.blogs.listByUser
+    # python: svc.pageViews().get(**params).execute()
+    calls:
+      - action: pageViews.get
+        params:
+          blogId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        blogId: '{{ response.blogId }}'
+        counts: '{{ response.counts }}'
+    # required_params: ['blogId']
+  # Gets a page by blog id and page id.
+  # ── gcp.blogger.pages.get [dependent] ──
+  - discovery_id: gcp.blogger.pages.get
+    for_each: gcp.blogger.pages.list
+    # python: svc.pages().get(**params).execute()
+    calls:
+      - action: pages.get
+        params:
+          blogId: '{{ item.name }}'
+          pageId: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        author: '{{ response.author }}'
+        blog: '{{ response.blog }}'
+        content: '{{ response.content }}'
+        id: '{{ response.id }}'
+        published: '{{ response.published }}'
+        status: '{{ response.status }}'
+        title: '{{ response.title }}'
+        trashed: '{{ response.trashed }}'
+        updated: '{{ response.updated }}'
+        url: '{{ response.url }}'
+    # required_params: ['blogId', 'pageId']
+  # Lists pages.
+  # ── gcp.blogger.pages.list [dependent] ──
+  - discovery_id: gcp.blogger.pages.list
+    for_each: gcp.blogger.blogs.listByUser
+    # python: svc.pages().list(**params).execute()
+    calls:
+      - action: pages.list
+        params:
+          blogId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.pages }}'
+      item:
+        author: '{{ item.author }}'
+        blog: '{{ item.blog }}'
+        content: '{{ item.content }}'
+        id: '{{ item.id }}'
+        published: '{{ item.published }}'
+        status: '{{ item.status }}'
+        title: '{{ item.title }}'
+        trashed: '{{ item.trashed }}'
+        updated: '{{ item.updated }}'
+        url: '{{ item.url }}'
+    # required_params: ['blogId']
+  # Gets one post and user info pair, by post_id and user_id.
+  # ── gcp.blogger.postUserInfos.get [dependent] ──
+  - discovery_id: gcp.blogger.postUserInfos.get
+    for_each: gcp.blogger.posts.list
+    # python: svc.postUserInfos().get(**params).execute()
+    calls:
+      - action: postUserInfos.get
+        params:
+          blogId: '{{ item.name }}'
+          postId: '{{ item.selfLink }}'
+          userId: '{{ item.kind }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        post: '{{ response.post }}'
+        post_user_info: '{{ response.post_user_info }}'
+    # required_params: ['userId', 'blogId', 'postId']
+  # Lists post and user info pairs.
+  # ── gcp.blogger.postUserInfos.list [dependent] ──
+  - discovery_id: gcp.blogger.postUserInfos.list
+    # python: svc.postUserInfos().list(**params).execute()
+    calls:
+      - action: postUserInfos.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.postUserInfos }}'
+      item:
+        post: '{{ item.post }}'
+        post_user_info: '{{ item.post_user_info }}'
+    # required_params: ['userId', 'blogId']
+  # Gets a post by blog id and post id
+  # ── gcp.blogger.posts.get [dependent] ──
+  - discovery_id: gcp.blogger.posts.get
+    for_each: gcp.blogger.posts.list
+    # python: svc.posts().get(**params).execute()
+    calls:
+      - action: posts.get
+        params:
+          blogId: '{{ item.name }}'
+          postId: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        author: '{{ response.author }}'
+        blog: '{{ response.blog }}'
+        content: '{{ response.content }}'
+        customMetaData: '{{ response.customMetaData }}'
+        id: '{{ response.id }}'
+        images: '{{ response.images }}'
+        labels: '{{ response.labels }}'
+        location: '{{ response.location }}'
+        published: '{{ response.published }}'
+        readerComments: '{{ response.readerComments }}'
+        replies: '{{ response.replies }}'
+        status: '{{ response.status }}'
+        title: '{{ response.title }}'
+        titleLink: '{{ response.titleLink }}'
+        trashed: '{{ response.trashed }}'
+        updated: '{{ response.updated }}'
+        url: '{{ response.url }}'
+    # required_params: ['blogId', 'postId']
+  # Gets a post by path.
+  # ── gcp.blogger.posts.getByPath [dependent] ──
+  - discovery_id: gcp.blogger.posts.getByPath
+    # python: svc.posts().getByPath(**params).execute()
+    calls:
+      - action: posts.getByPath
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        author: '{{ response.author }}'
+        blog: '{{ response.blog }}'
+        content: '{{ response.content }}'
+        customMetaData: '{{ response.customMetaData }}'
+        id: '{{ response.id }}'
+        images: '{{ response.images }}'
+        labels: '{{ response.labels }}'
+        location: '{{ response.location }}'
+        published: '{{ response.published }}'
+        readerComments: '{{ response.readerComments }}'
+        replies: '{{ response.replies }}'
+        status: '{{ response.status }}'
+        title: '{{ response.title }}'
+        titleLink: '{{ response.titleLink }}'
+        trashed: '{{ response.trashed }}'
+        updated: '{{ response.updated }}'
+        url: '{{ response.url }}'
+    # required_params: ['blogId', 'path']
+  # Lists posts.
+  # ── gcp.blogger.posts.list [dependent] ──
+  - discovery_id: gcp.blogger.posts.list
+    for_each: gcp.blogger.blogs.listByUser
+    # python: svc.posts().list(**params).execute()
+    calls:
+      - action: posts.list
+        params:
+          blogId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.posts }}'
+      item:
+        author: '{{ item.author }}'
+        blog: '{{ item.blog }}'
+        content: '{{ item.content }}'
+        customMetaData: '{{ item.customMetaData }}'
+        id: '{{ item.id }}'
+        images: '{{ item.images }}'
+        labels: '{{ item.labels }}'
+        location: '{{ item.location }}'
+        published: '{{ item.published }}'
+        readerComments: '{{ item.readerComments }}'
+        replies: '{{ item.replies }}'
+        status: '{{ item.status }}'
+        title: '{{ item.title }}'
+        titleLink: '{{ item.titleLink }}'
+        trashed: '{{ item.trashed }}'
+        updated: '{{ item.updated }}'
+        url: '{{ item.url }}'
+    # required_params: ['blogId']
+  # Searches for posts matching given query terms in the specified blog.
+  # ── gcp.blogger.posts.search [dependent] ──
+  - discovery_id: gcp.blogger.posts.search
+    # python: svc.posts().search(**params).execute()
+    calls:
+      - action: posts.search
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.posts }}'
+      item:
+        author: '{{ item.author }}'
+        blog: '{{ item.blog }}'
+        content: '{{ item.content }}'
+        customMetaData: '{{ item.customMetaData }}'
+        id: '{{ item.id }}'
+        images: '{{ item.images }}'
+        labels: '{{ item.labels }}'
+        location: '{{ item.location }}'
+        published: '{{ item.published }}'
+        readerComments: '{{ item.readerComments }}'
+        replies: '{{ item.replies }}'
+        status: '{{ item.status }}'
+        title: '{{ item.title }}'
+        titleLink: '{{ item.titleLink }}'
+        trashed: '{{ item.trashed }}'
+        updated: '{{ item.updated }}'
+        url: '{{ item.url }}'
+    # required_params: ['blogId', 'q']
+  # Gets one user by user_id.
+  # ── gcp.blogger.users.get [dependent] ──
+  - discovery_id: gcp.blogger.users.get
+    for_each: gcp.blogger.postUserInfos.list
+    # python: svc.users().get(**params).execute()
+    calls:
+      - action: users.get
+        params:
+          userId: '{{ item.kind }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        about: '{{ response.about }}'
+        blogs: '{{ response.blogs }}'
+        created: '{{ response.created }}'
+        displayName: '{{ response.displayName }}'
+        id: '{{ response.id }}'
+        locale: '{{ response.locale }}'
+        url: '{{ response.url }}'
+    # required_params: ['userId']

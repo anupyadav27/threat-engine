@@ -1,0 +1,113 @@
+version: '1.0'
+provider: aws
+service: mediapackage
+services:
+  client: mediapackage
+  module: boto3.client
+discovery:
+- discovery_id: aws.mediapackage.listChannels
+  calls:
+  - action: listChannels
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Channels }}'
+    item:
+      Arn: '{{ item.Arn }}'
+      CreatedAt: '{{ item.CreatedAt }}'
+      Description: '{{ item.Description }}'
+      EgressAccessLogs: '{{ item.EgressAccessLogs }}'
+      HlsIngest: '{{ item.HlsIngest }}'
+      Id: '{{ item.Id }}'
+      IngressAccessLogs: '{{ item.IngressAccessLogs }}'
+      Tags: '{{ item.Tags }}'
+- discovery_id: aws.mediapackage.listHarvestJobs
+  calls:
+  - action: listHarvestJobs
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.HarvestJobs }}'
+    item:
+      Arn: '{{ item.Arn }}'
+      ChannelId: '{{ item.ChannelId }}'
+      CreatedAt: '{{ item.CreatedAt }}'
+      EndTime: '{{ item.EndTime }}'
+      Id: '{{ item.Id }}'
+      OriginEndpointId: '{{ item.OriginEndpointId }}'
+      S3Destination: '{{ item.S3Destination }}'
+      StartTime: '{{ item.StartTime }}'
+      Status: '{{ item.Status }}'
+- discovery_id: aws.mediapackage.listOriginEndpoints
+  calls:
+  - action: listOriginEndpoints
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.OriginEndpoints }}'
+    item:
+      Arn: '{{ item.Arn }}'
+      Authorization: '{{ item.Authorization }}'
+      ChannelId: '{{ item.ChannelId }}'
+      CmafPackage: '{{ item.CmafPackage }}'
+      CreatedAt: '{{ item.CreatedAt }}'
+      DashPackage: '{{ item.DashPackage }}'
+      Description: '{{ item.Description }}'
+      HlsPackage: '{{ item.HlsPackage }}'
+      Id: '{{ item.Id }}'
+      ManifestName: '{{ item.ManifestName }}'
+      MssPackage: '{{ item.MssPackage }}'
+      Origination: '{{ item.Origination }}'
+      StartoverWindowSeconds: '{{ item.StartoverWindowSeconds }}'
+      Tags: '{{ item.Tags }}'
+      TimeDelaySeconds: '{{ item.TimeDelaySeconds }}'
+      Url: '{{ item.Url }}'
+      Whitelist: '{{ item.Whitelist }}'
+- discovery_id: aws.mediapackage.describeChannel
+  calls:
+  - action: describeChannel
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.EgressAccessLogs }}'
+    item:
+      LogGroupName: '{{ item.LogGroupName }}'
+- discovery_id: aws.mediapackage.describeHarvestJob
+  calls:
+  - action: describeHarvestJob
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.S3Destination }}'
+    item:
+      BucketName: '{{ item.BucketName }}'
+      ManifestKey: '{{ item.ManifestKey }}'
+      RoleArn: '{{ item.RoleArn }}'
+- discovery_id: aws.mediapackage.describeOriginEndpoint
+  calls:
+  - action: describeOriginEndpoint
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Whitelist }}'
+- discovery_id: aws.mediapackage.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+checks: []

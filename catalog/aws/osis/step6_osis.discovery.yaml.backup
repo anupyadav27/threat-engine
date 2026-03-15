@@ -1,0 +1,150 @@
+version: '1.0'
+provider: aws
+service: osis
+services:
+  client: osis
+  module: boto3.client
+discovery:
+- discovery_id: aws.osis.listPipelineBlueprints
+  calls:
+  - action: listPipelineBlueprints
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Blueprints }}'
+    item:
+      BlueprintName: '{{ item.BlueprintName }}'
+      DisplayName: '{{ item.DisplayName }}'
+      DisplayDescription: '{{ item.DisplayDescription }}'
+      Service: '{{ item.Service }}'
+      UseCase: '{{ item.UseCase }}'
+- discovery_id: aws.osis.listPipelineEndpointConnections
+  calls:
+  - action: listPipelineEndpointConnections
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.PipelineEndpointConnections }}'
+    item:
+      PipelineArn: '{{ item.PipelineArn }}'
+      EndpointId: '{{ item.EndpointId }}'
+      Status: '{{ item.Status }}'
+      VpcEndpointOwner: '{{ item.VpcEndpointOwner }}'
+- discovery_id: aws.osis.listPipelineEndpoints
+  calls:
+  - action: listPipelineEndpoints
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.PipelineEndpoints }}'
+    item:
+      PipelineArn: '{{ item.PipelineArn }}'
+      EndpointId: '{{ item.EndpointId }}'
+      Status: '{{ item.Status }}'
+      VpcId: '{{ item.VpcId }}'
+      VpcOptions: '{{ item.VpcOptions }}'
+      IngestEndpointUrl: '{{ item.IngestEndpointUrl }}'
+- discovery_id: aws.osis.listPipelines
+  calls:
+  - action: listPipelines
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Pipelines }}'
+    item:
+      Status: '{{ item.Status }}'
+      StatusReason: '{{ item.StatusReason }}'
+      PipelineName: '{{ item.PipelineName }}'
+      PipelineArn: '{{ item.PipelineArn }}'
+      MinUnits: '{{ item.MinUnits }}'
+      MaxUnits: '{{ item.MaxUnits }}'
+      CreatedAt: '{{ item.CreatedAt }}'
+      LastUpdatedAt: '{{ item.LastUpdatedAt }}'
+      Destinations: '{{ item.Destinations }}'
+      Tags: '{{ item.Tags }}'
+- discovery_id: aws.osis.getPipeline
+  calls:
+  - action: getPipeline
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Pipeline }}'
+    item:
+      PipelineName: '{{ item.PipelineName }}'
+      PipelineArn: '{{ item.PipelineArn }}'
+      MinUnits: '{{ item.MinUnits }}'
+      MaxUnits: '{{ item.MaxUnits }}'
+      Status: '{{ item.Status }}'
+      StatusReason: '{{ item.StatusReason }}'
+      PipelineConfigurationBody: '{{ item.PipelineConfigurationBody }}'
+      CreatedAt: '{{ item.CreatedAt }}'
+      LastUpdatedAt: '{{ item.LastUpdatedAt }}'
+      IngestEndpointUrls: '{{ item.IngestEndpointUrls }}'
+      LogPublishingOptions: '{{ item.LogPublishingOptions }}'
+      VpcEndpoints: '{{ item.VpcEndpoints }}'
+      BufferOptions: '{{ item.BufferOptions }}'
+      EncryptionAtRestOptions: '{{ item.EncryptionAtRestOptions }}'
+      VpcEndpointService: '{{ item.VpcEndpointService }}'
+      ServiceVpcEndpoints: '{{ item.ServiceVpcEndpoints }}'
+      Destinations: '{{ item.Destinations }}'
+      Tags: '{{ item.Tags }}'
+      PipelineRoleArn: '{{ item.PipelineRoleArn }}'
+- discovery_id: aws.osis.getPipelineBlueprint
+  calls:
+  - action: getPipelineBlueprint
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Blueprint }}'
+    item:
+      BlueprintName: '{{ item.BlueprintName }}'
+      PipelineConfigurationBody: '{{ item.PipelineConfigurationBody }}'
+      DisplayName: '{{ item.DisplayName }}'
+      DisplayDescription: '{{ item.DisplayDescription }}'
+      Service: '{{ item.Service }}'
+      UseCase: '{{ item.UseCase }}'
+- discovery_id: aws.osis.getPipelineChangeProgress
+  calls:
+  - action: getPipelineChangeProgress
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ChangeProgressStatuses }}'
+    item:
+      StartTime: '{{ item.StartTime }}'
+      Status: '{{ item.Status }}'
+      TotalNumberOfStages: '{{ item.TotalNumberOfStages }}'
+      ChangeProgressStages: '{{ item.ChangeProgressStages }}'
+- discovery_id: aws.osis.getResourcePolicy
+  calls:
+  - action: getResourcePolicy
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ResourceArn }}'
+- discovery_id: aws.osis.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+    item:
+      Key: '{{ item.Key }}'
+      Value: '{{ item.Value }}'
+checks: []

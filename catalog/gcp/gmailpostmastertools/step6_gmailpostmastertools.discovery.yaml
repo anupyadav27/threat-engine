@@ -1,0 +1,119 @@
+# ============================================================
+# Discovery YAML — gmailpostmastertools (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 4 | independent: 2 | dependent: 2
+# ops with fields: 4/4 | dep ops with chain: 2/2
+# ============================================================
+version: '1.0'
+provider: gcp
+service: gmailpostmastertools
+
+services:
+  client: gmailpostmastertools
+  module: "googleapiclient.discovery.build('gmailpostmastertools', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists the domains that have been registered by the client. The order of domains in the response is u
+  # ── gcp.gmailpostmastertools.domains.list ──
+  - discovery_id: gcp.gmailpostmastertools.domains.list
+    # python: svc.domains().list(**params).execute()
+    calls:
+      - action: domains.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.domains }}'
+      item:
+        createTime: '{{ item.createTime }}'
+        name: '{{ item.name }}'
+        permission: '{{ item.permission }}'
+  # List traffic statistics for all available days. Returns PERMISSION_DENIED if user does not have perm
+  # ── gcp.gmailpostmastertools.domains.trafficStats.list ──
+  - discovery_id: gcp.gmailpostmastertools.domains.trafficStats.list
+    # python: svc.domains().trafficStats().list(**params).execute()
+    calls:
+      - action: domains.trafficStats.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.trafficStats }}'
+      item:
+        deliveryErrors: '{{ item.deliveryErrors }}'
+        dkimSuccessRatio: '{{ item.dkimSuccessRatio }}'
+        dmarcSuccessRatio: '{{ item.dmarcSuccessRatio }}'
+        domainReputation: '{{ item.domainReputation }}'
+        inboundEncryptionRatio: '{{ item.inboundEncryptionRatio }}'
+        ipReputations: '{{ item.ipReputations }}'
+        name: '{{ item.name }}'
+        outboundEncryptionRatio: '{{ item.outboundEncryptionRatio }}'
+        spammyFeedbackLoops: '{{ item.spammyFeedbackLoops }}'
+        spfSuccessRatio: '{{ item.spfSuccessRatio }}'
+        userReportedSpamRatio: '{{ item.userReportedSpamRatio }}'
+        userReportedSpamRatioLowerBound: '{{ item.userReportedSpamRatioLowerBound }}'
+        userReportedSpamRatioUpperBound: '{{ item.userReportedSpamRatioUpperBound }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets a specific domain registered by the client. Returns NOT_FOUND if the domain does not exist.
+  # ── gcp.gmailpostmastertools.domains.get [dependent] ──
+  - discovery_id: gcp.gmailpostmastertools.domains.get
+    for_each: gcp.gmailpostmastertools.domains.list
+    # python: svc.domains().get(**params).execute()
+    calls:
+      - action: domains.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        createTime: '{{ response.createTime }}'
+        name: '{{ response.name }}'
+        permission: '{{ response.permission }}'
+    # required_params: ['name']
+  # Get traffic statistics for a domain on a specific date. Returns PERMISSION_DENIED if user does not h
+  # ── gcp.gmailpostmastertools.domains.trafficStats.get [dependent] ──
+  - discovery_id: gcp.gmailpostmastertools.domains.trafficStats.get
+    for_each: gcp.gmailpostmastertools.domains.trafficStats.list
+    # python: svc.domains().trafficStats().get(**params).execute()
+    calls:
+      - action: domains.trafficStats.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        deliveryErrors: '{{ response.deliveryErrors }}'
+        dkimSuccessRatio: '{{ response.dkimSuccessRatio }}'
+        dmarcSuccessRatio: '{{ response.dmarcSuccessRatio }}'
+        domainReputation: '{{ response.domainReputation }}'
+        inboundEncryptionRatio: '{{ response.inboundEncryptionRatio }}'
+        ipReputations: '{{ response.ipReputations }}'
+        name: '{{ response.name }}'
+        outboundEncryptionRatio: '{{ response.outboundEncryptionRatio }}'
+        spammyFeedbackLoops: '{{ response.spammyFeedbackLoops }}'
+        spfSuccessRatio: '{{ response.spfSuccessRatio }}'
+        userReportedSpamRatio: '{{ response.userReportedSpamRatio }}'
+        userReportedSpamRatioLowerBound: '{{ response.userReportedSpamRatioLowerBound }}'
+        userReportedSpamRatioUpperBound: '{{ response.userReportedSpamRatioUpperBound }}'
+    # required_params: ['name']

@@ -1,0 +1,101 @@
+# ============================================================
+# Discovery YAML — datapipelines (v1)
+# Generated: 2026-02-21T03:06:39Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 3 | independent: 2 | dependent: 1
+# ops with fields: 3/3 | dep ops with chain: 1/1
+# ============================================================
+version: '1.0'
+provider: gcp
+service: datapipelines
+
+services:
+  client: datapipelines
+  module: "googleapiclient.discovery.build('datapipelines', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists jobs for a given pipeline. Throws a "FORBIDDEN" error if the caller doesn't have permission to
+  # ── gcp.datapipelines.projects.locations.pipelines.jobs.list ──
+  - discovery_id: gcp.datapipelines.projects.locations.pipelines.jobs.list
+    # python: svc.projects().locations().pipelines().jobs().list(**params).execute()
+    calls:
+      - action: projects.locations.pipelines.jobs.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.jobs }}'
+      item:
+        createTime: '{{ item.createTime }}'
+        dataflowJobDetails: '{{ item.dataflowJobDetails }}'
+        endTime: '{{ item.endTime }}'
+        id: '{{ item.id }}'
+        name: '{{ item.name }}'
+        state: '{{ item.state }}'
+        status: '{{ item.status }}'
+  # Lists pipelines. Returns a "FORBIDDEN" error if the caller doesn't have permission to access it.
+  # ── gcp.datapipelines.projects.locations.pipelines.list ──
+  - discovery_id: gcp.datapipelines.projects.locations.pipelines.list
+    # python: svc.projects().locations().pipelines().list(**params).execute()
+    calls:
+      - action: projects.locations.pipelines.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.pipelines }}'
+      item:
+        createTime: '{{ item.createTime }}'
+        displayName: '{{ item.displayName }}'
+        jobCount: '{{ item.jobCount }}'
+        lastUpdateTime: '{{ item.lastUpdateTime }}'
+        name: '{{ item.name }}'
+        pipelineSources: '{{ item.pipelineSources }}'
+        scheduleInfo: '{{ item.scheduleInfo }}'
+        schedulerServiceAccountEmail: '{{ item.schedulerServiceAccountEmail }}'
+        state: '{{ item.state }}'
+        type: '{{ item.type }}'
+        workload: '{{ item.workload }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Looks up a single pipeline. Returns a "NOT_FOUND" error if no such pipeline exists. Returns a "FORBI
+  # ── gcp.datapipelines.projects.locations.pipelines.get [dependent] ──
+  - discovery_id: gcp.datapipelines.projects.locations.pipelines.get
+    for_each: gcp.datapipelines.projects.locations.pipelines.list
+    # python: svc.projects().locations().pipelines().get(**params).execute()
+    calls:
+      - action: projects.locations.pipelines.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        createTime: '{{ response.createTime }}'
+        displayName: '{{ response.displayName }}'
+        jobCount: '{{ response.jobCount }}'
+        lastUpdateTime: '{{ response.lastUpdateTime }}'
+        name: '{{ response.name }}'
+        pipelineSources: '{{ response.pipelineSources }}'
+        scheduleInfo: '{{ response.scheduleInfo }}'
+        schedulerServiceAccountEmail: '{{ response.schedulerServiceAccountEmail }}'
+        state: '{{ response.state }}'
+        type: '{{ response.type }}'
+        workload: '{{ response.workload }}'
+    # required_params: ['name']

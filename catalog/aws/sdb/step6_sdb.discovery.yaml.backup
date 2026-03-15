@@ -1,0 +1,29 @@
+version: '1.0'
+provider: aws
+service: sdb
+services:
+  client: sdb
+  module: boto3.client
+discovery:
+- discovery_id: aws.sdb.listDomains
+  calls:
+  - action: listDomains
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.DomainNames }}'
+- discovery_id: aws.sdb.getAttributes
+  calls:
+  - action: getAttributes
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Attributes }}'
+    item:
+      Name: '{{ item.Name }}'
+      AlternateNameEncoding: '{{ item.AlternateNameEncoding }}'
+      Value: '{{ item.Value }}'
+      AlternateValueEncoding: '{{ item.AlternateValueEncoding }}'
+checks: []

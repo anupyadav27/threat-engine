@@ -1,0 +1,65 @@
+# ============================================================
+# Discovery YAML — cloudtrace (v1)
+# Generated: 2026-02-21T03:06:39Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 2 | independent: 1 | dependent: 1
+# ops with fields: 2/2 | dep ops with chain: 1/1
+# ============================================================
+version: '1.0'
+provider: gcp
+service: cloudtrace
+
+services:
+  client: cloudtrace
+  module: "googleapiclient.discovery.build('cloudtrace', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Returns a list of traces that match the specified filter conditions.
+  # ── gcp.cloudtrace.projects.traces.list ──
+  - discovery_id: gcp.cloudtrace.projects.traces.list
+    # python: svc.projects().traces().list(**params).execute()
+    calls:
+      - action: projects.traces.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.traces }}'
+      item:
+        projectId: '{{ item.projectId }}'
+        spans: '{{ item.spans }}'
+        traceId: '{{ item.traceId }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets a single trace by its ID.
+  # ── gcp.cloudtrace.projects.traces.get [dependent] ──
+  - discovery_id: gcp.cloudtrace.projects.traces.get
+    for_each: gcp.cloudtrace.projects.traces.list
+    # python: svc.projects().traces().get(**params).execute()
+    calls:
+      - action: projects.traces.get
+        params:
+          traceId: '{{ item.traceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        projectId: '{{ response.projectId }}'
+        spans: '{{ response.spans }}'
+        traceId: '{{ response.traceId }}'
+    # required_params: ['projectId', 'traceId']

@@ -1,0 +1,124 @@
+{
+  "service": "billingbudgets",
+  "version": "v1",
+  "total_ops": 2,
+  "total_chains": 2,
+  "independent_ops": 1,
+  "dependent_ops": 1,
+  "chains": {
+    "gcp.billingbudgets.billingAccounts.budgets.list": {
+      "target_op": "gcp.billingbudgets.billingAccounts.budgets.list",
+      "kind": "read_list",
+      "independent": true,
+      "hop_distance": 0,
+      "chain_length": 1,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.billingbudgets.billingAccounts.budgets.list",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.billingAccounts().budgets().list(**params).execute()",
+          "path": "/v1/{+parent}/budgets",
+          "required_params": {
+            "parent": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^billingAccounts/[^/]+$",
+              "description": "Required. Name of billing account to list budgets under. Values are of the form `billingAccounts/{billingAccountId}`."
+            }
+          },
+          "output_list_field": "budgets",
+          "output_id_field": "name",
+          "produces": {
+            "budgetId": {
+              "via_list_field": "budgets",
+              "from_id_field": "name",
+              "note": "Iterate response[\"budgets\"][], extract item[\"name\"] \u2192 pass as \"budgetId\""
+            }
+          },
+          "param_sources": {
+            "parent": "always_available"
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [
+        "parent"
+      ],
+      "unresolved_params": []
+    },
+    "gcp.billingbudgets.billingAccounts.budgets.get": {
+      "target_op": "gcp.billingbudgets.billingAccounts.budgets.get",
+      "kind": "read_get",
+      "independent": false,
+      "hop_distance": 1,
+      "chain_length": 2,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.billingbudgets.billingAccounts.budgets.list",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.billingAccounts().budgets().list(**params).execute()",
+          "path": "/v1/{+parent}/budgets",
+          "required_params": {
+            "parent": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^billingAccounts/[^/]+$",
+              "description": "Required. Name of billing account to list budgets under. Values are of the form `billingAccounts/{billingAccountId}`."
+            }
+          },
+          "output_list_field": "budgets",
+          "output_id_field": "name",
+          "produces": {
+            "budgetId": {
+              "via_list_field": "budgets",
+              "from_id_field": "name",
+              "note": "Iterate response[\"budgets\"][], extract item[\"name\"] \u2192 pass as \"budgetId\""
+            }
+          },
+          "param_sources": {
+            "parent": "always_available"
+          },
+          "purpose": "Provides: budgetId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.billingbudgets.billingAccounts.budgets.get",
+          "kind": "read_get",
+          "independent": false,
+          "python_call": "svc.billingAccounts().budgets().get(**params).execute()",
+          "path": "/v1/{+name}",
+          "required_params": {
+            "name": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^billingAccounts/[^/]+/budgets/[^/]+$",
+              "description": "Required. Name of budget to get. Values are of the form `billingAccounts/{billingAccountId}/budgets/{budgetId}`."
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "name": {
+              "budgetId": {
+                "from_step": 1,
+                "from_op": "gcp.billingbudgets.billingAccounts.budgets.list",
+                "field": "name"
+              }
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    }
+  }
+}

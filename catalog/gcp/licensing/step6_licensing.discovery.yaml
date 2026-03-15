@@ -1,0 +1,95 @@
+# ============================================================
+# Discovery YAML — licensing (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 3 | independent: 0 | dependent: 3
+# ops with fields: 3/3 | dep ops with chain: 2/3
+# ============================================================
+version: '1.0'
+provider: gcp
+service: licensing
+
+services:
+  client: licensing
+  module: "googleapiclient.discovery.build('licensing', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Get a specific user's license by product SKU.
+  # ── gcp.licensing.licenseAssignments.get [dependent] ──
+  - discovery_id: gcp.licensing.licenseAssignments.get
+    for_each: gcp.licensing.licenseAssignments.listForProductAndSku
+    # python: svc.licenseAssignments().get(**params).execute()
+    calls:
+      - action: licenseAssignments.get
+        params:
+          productId: '{{ item.selfLink }}'
+          skuId: '{{ item.selfLink }}'
+          userId: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        etags: '{{ response.etags }}'
+        productId: '{{ response.productId }}'
+        productName: '{{ response.productName }}'
+        skuId: '{{ response.skuId }}'
+        skuName: '{{ response.skuName }}'
+        userId: '{{ response.userId }}'
+    # required_params: ['productId', 'skuId', 'userId']
+  # List all users assigned licenses for a specific product SKU.
+  # ── gcp.licensing.licenseAssignments.listForProduct [dependent] ──
+  - discovery_id: gcp.licensing.licenseAssignments.listForProduct
+    for_each: gcp.licensing.licenseAssignments.listForProductAndSku
+    # python: svc.licenseAssignments().listForProduct(**params).execute()
+    calls:
+      - action: licenseAssignments.listForProduct
+        params:
+          productId: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.licenseAssignments }}'
+      item:
+        etags: '{{ item.etags }}'
+        productId: '{{ item.productId }}'
+        productName: '{{ item.productName }}'
+        skuId: '{{ item.skuId }}'
+        skuName: '{{ item.skuName }}'
+        userId: '{{ item.userId }}'
+    # required_params: ['customerId', 'productId']
+  # List all users assigned licenses for a specific product SKU.
+  # ── gcp.licensing.licenseAssignments.listForProductAndSku [dependent] ──
+  - discovery_id: gcp.licensing.licenseAssignments.listForProductAndSku
+    # python: svc.licenseAssignments().listForProductAndSku(**params).execute()
+    calls:
+      - action: licenseAssignments.listForProductAndSku
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.licenseAssignments }}'
+      item:
+        etags: '{{ item.etags }}'
+        productId: '{{ item.productId }}'
+        productName: '{{ item.productName }}'
+        skuId: '{{ item.skuId }}'
+        skuName: '{{ item.skuName }}'
+        userId: '{{ item.userId }}'
+    # required_params: ['customerId', 'productId', 'skuId']

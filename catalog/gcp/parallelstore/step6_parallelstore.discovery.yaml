@@ -1,0 +1,162 @@
+# ============================================================
+# Discovery YAML — parallelstore (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 6 | independent: 4 | dependent: 2
+# ops with fields: 6/6 | dep ops with chain: 2/2
+# ============================================================
+version: '1.0'
+provider: gcp
+service: parallelstore
+
+services:
+  client: parallelstore
+  module: "googleapiclient.discovery.build('parallelstore', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Gets information about a location.
+  # ── gcp.parallelstore.projects.locations.get ──
+  - discovery_id: gcp.parallelstore.projects.locations.get
+    # python: svc.projects().locations().get(**params).execute()
+    calls:
+      - action: projects.locations.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        displayName: '{{ response.displayName }}'
+        labels: '{{ response.labels }}'
+        locationId: '{{ response.locationId }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+  # Lists all instances in a given project and location.
+  # ── gcp.parallelstore.projects.locations.instances.list ──
+  - discovery_id: gcp.parallelstore.projects.locations.instances.list
+    # python: svc.projects().locations().instances().list(**params).execute()
+    calls:
+      - action: projects.locations.instances.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.instances }}'
+      item:
+        accessPoints: '{{ item.accessPoints }}'
+        capacityGib: '{{ item.capacityGib }}'
+        createTime: '{{ item.createTime }}'
+        daosVersion: '{{ item.daosVersion }}'
+        deploymentType: '{{ item.deploymentType }}'
+        description: '{{ item.description }}'
+        directoryStripeLevel: '{{ item.directoryStripeLevel }}'
+        effectiveReservedIpRange: '{{ item.effectiveReservedIpRange }}'
+        fileStripeLevel: '{{ item.fileStripeLevel }}'
+        labels: '{{ item.labels }}'
+        name: '{{ item.name }}'
+        network: '{{ item.network }}'
+        reservedIpRange: '{{ item.reservedIpRange }}'
+        state: '{{ item.state }}'
+        updateTime: '{{ item.updateTime }}'
+  # Lists information about the supported locations for this service.
+  # ── gcp.parallelstore.projects.locations.list ──
+  - discovery_id: gcp.parallelstore.projects.locations.list
+    # python: svc.projects().locations().list(**params).execute()
+    calls:
+      - action: projects.locations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.locations }}'
+      item:
+        displayName: '{{ item.displayName }}'
+        labels: '{{ item.labels }}'
+        locationId: '{{ item.locationId }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+  # Lists operations that match the specified filter in the request. If the server doesn't support this 
+  # ── gcp.parallelstore.projects.locations.operations.list ──
+  - discovery_id: gcp.parallelstore.projects.locations.operations.list
+    # python: svc.projects().locations().operations().list(**params).execute()
+    calls:
+      - action: projects.locations.operations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.operations }}'
+      item:
+        done: '{{ item.done }}'
+        error: '{{ item.error }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+        response: '{{ item.response }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets details of a single instance.
+  # ── gcp.parallelstore.projects.locations.instances.get [dependent] ──
+  - discovery_id: gcp.parallelstore.projects.locations.instances.get
+    for_each: gcp.parallelstore.projects.locations.instances.list
+    # python: svc.projects().locations().instances().get(**params).execute()
+    calls:
+      - action: projects.locations.instances.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accessPoints: '{{ response.accessPoints }}'
+        capacityGib: '{{ response.capacityGib }}'
+        createTime: '{{ response.createTime }}'
+        daosVersion: '{{ response.daosVersion }}'
+        deploymentType: '{{ response.deploymentType }}'
+        description: '{{ response.description }}'
+        directoryStripeLevel: '{{ response.directoryStripeLevel }}'
+        effectiveReservedIpRange: '{{ response.effectiveReservedIpRange }}'
+        fileStripeLevel: '{{ response.fileStripeLevel }}'
+        labels: '{{ response.labels }}'
+        name: '{{ response.name }}'
+        network: '{{ response.network }}'
+        reservedIpRange: '{{ response.reservedIpRange }}'
+        state: '{{ response.state }}'
+        updateTime: '{{ response.updateTime }}'
+    # required_params: ['name']
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.parallelstore.projects.locations.operations.get [dependent] ──
+  - discovery_id: gcp.parallelstore.projects.locations.operations.get
+    for_each: gcp.parallelstore.projects.locations.operations.list
+    # python: svc.projects().locations().operations().get(**params).execute()
+    calls:
+      - action: projects.locations.operations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']

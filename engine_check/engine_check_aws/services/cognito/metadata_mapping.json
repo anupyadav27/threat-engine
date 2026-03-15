@@ -1,0 +1,182 @@
+{
+  "cognito_metadata_mapping": [
+    {
+      "rule_id": "aws.cognito.userpool.access_keys_rotated_90_days_or_less_when_present",
+      "python_method": "list_users",
+      "response_path": "Users",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "UserLastModifiedDate",
+          "expected_value": 90,
+          "operator": "less_than_or_equal_to"
+        }
+      ]
+    },
+    {
+      "rule_id": "aws.cognito.userpool.cognito_inactive_90_days_disabled",
+      "python_method": "list_users",
+      "response_path": "Users",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "UserLastModifiedDate",
+          "expected_value": "90 days ago",
+          "operator": "less_than"
+        },
+        {
+          "field_path": "Enabled",
+          "expected_value": false,
+          "operator": "equals"
+        }
+      ]
+    },
+    {
+      "rule_id": "aws.cognito.userpool.cognito_no_inline_policies_enabled",
+      "python_method": "describe_user_pool",
+      "response_path": "UserPool",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "UserPool.Policies",
+          "expected_value": null,
+          "operator": "exists"
+        }
+      ]
+    },
+    {
+      "rule_id": "aws.cognito.userpool.cognito_store_encrypted",
+      "python_method": "describe_user_pool",
+      "response_path": "UserPool",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "UserPool.UserPoolAddOns",
+          "expected_value": true,
+          "operator": "exists"
+        }
+      ]
+    },
+    {
+      "rule_id": "aws.cognito.userpool.cognito_workflow_storage_encrypted",
+      "python_method": "describe_user_pool",
+      "response_path": "UserPool",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "UserPool.UserPoolAddOns",
+          "expected_value": {
+            "AdvancedSecurityMode": "ENFORCED"
+          },
+          "operator": "equals"
+        }
+      ]
+    },
+    {
+      "rule_id": "aws.cognito.userpool.console_password_present_only_if_required",
+      "python_method": "describe_user_pool",
+      "response_path": "UserPool",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "UserPool.AdminCreateUserConfig.AllowAdminCreateUserOnly",
+          "expected_value": true,
+          "operator": "equals"
+        }
+      ]
+    },
+    {
+      "rule_id": "aws.cognito.userpool.execution_roles_least_privilege",
+      "python_method": "describe_user_pool",
+      "response_path": "UserPool",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "UserPool.LambdaConfig",
+          "expected_value": null,
+          "operator": "exists"
+        },
+        {
+          "field_path": "UserPool.Arn",
+          "expected_value": null,
+          "operator": "exists"
+        }
+      ]
+    },
+    {
+      "rule_id": "aws.cognito.userpool.mfa_required",
+      "python_method": "describe_user_pool",
+      "response_path": "UserPool",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "MfaConfiguration",
+          "expected_value": "ON",
+          "operator": "equals"
+        }
+      ]
+    },
+    {
+      "rule_id": "aws.cognito.userpool.rbac_least_privilege",
+      "python_method": "describe_user_pool_client",
+      "response_path": "UserPoolClient",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "UserPoolClient.ReadAttributes",
+          "expected_value": [],
+          "operator": "exists"
+        },
+        {
+          "field_path": "UserPoolClient.WriteAttributes",
+          "expected_value": [],
+          "operator": "exists"
+        },
+        {
+          "field_path": "UserPoolClient.AllowedOAuthScopes",
+          "expected_value": [],
+          "operator": "exists"
+        }
+      ]
+    },
+    {
+      "rule_id": "aws.cognito.userpoolgroup.cognito_attached_policies_not_admin_star_configured",
+      "python_method": "list_groups",
+      "response_path": "Groups",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "Groups[].RoleArn",
+          "expected_value": "arn:aws:iam::aws:policy/AdministratorAccess",
+          "operator": "not_equals"
+        }
+      ]
+    },
+    {
+      "rule_id": "aws.cognito.userpoolgroup.cognito_membership_review_enabled_if_supported",
+      "python_method": "admin_list_groups_for_user",
+      "response_path": "Groups",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "Groups[].GroupName",
+          "expected_value": null,
+          "operator": "exists"
+        }
+      ]
+    },
+    {
+      "rule_id": "aws.cognito.userpoolgroup.cognito_no_inline_policies_configured",
+      "python_method": "list_groups",
+      "response_path": "Groups",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "Groups[].RoleArn",
+          "expected_value": null,
+          "operator": "not_exists"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,90 @@
+# ============================================================
+# Discovery YAML — slides (v1)
+# Generated: 2026-02-21T03:06:41Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 3 | independent: 0 | dependent: 3
+# ops with fields: 3/3 | dep ops with chain: 0/3
+# ============================================================
+version: '1.0'
+provider: gcp
+service: slides
+
+services:
+  client: slides
+  module: "googleapiclient.discovery.build('slides', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets the latest version of the specified presentation.
+  # ── gcp.slides.presentations.get [dependent] ──
+  - discovery_id: gcp.slides.presentations.get
+    # python: svc.presentations().get(**params).execute()
+    calls:
+      - action: presentations.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        layouts: '{{ response.layouts }}'
+        locale: '{{ response.locale }}'
+        masters: '{{ response.masters }}'
+        notesMaster: '{{ response.notesMaster }}'
+        pageSize: '{{ response.pageSize }}'
+        presentationId: '{{ response.presentationId }}'
+        revisionId: '{{ response.revisionId }}'
+        slides: '{{ response.slides }}'
+        title: '{{ response.title }}'
+    # required_params: ['presentationId']
+  # Gets the latest version of the specified page in the presentation.
+  # ── gcp.slides.presentations.pages.get [dependent] ──
+  - discovery_id: gcp.slides.presentations.pages.get
+    # python: svc.presentations().pages().get(**params).execute()
+    calls:
+      - action: presentations.pages.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        layoutProperties: '{{ response.layoutProperties }}'
+        masterProperties: '{{ response.masterProperties }}'
+        notesProperties: '{{ response.notesProperties }}'
+        objectId: '{{ response.objectId }}'
+        pageElements: '{{ response.pageElements }}'
+        pageProperties: '{{ response.pageProperties }}'
+        pageType: '{{ response.pageType }}'
+        revisionId: '{{ response.revisionId }}'
+        slideProperties: '{{ response.slideProperties }}'
+    # required_params: ['presentationId', 'pageObjectId']
+  # Generates a thumbnail of the latest version of the specified page in the presentation and returns a 
+  # ── gcp.slides.presentations.pages.getThumbnail [dependent] ──
+  - discovery_id: gcp.slides.presentations.pages.getThumbnail
+    # python: svc.presentations().pages().getThumbnail(**params).execute()
+    calls:
+      - action: presentations.pages.getThumbnail
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        contentUrl: '{{ response.contentUrl }}'
+        height: '{{ response.height }}'
+        width: '{{ response.width }}'
+    # required_params: ['presentationId', 'pageObjectId']

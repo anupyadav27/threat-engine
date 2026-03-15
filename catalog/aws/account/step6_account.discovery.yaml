@@ -1,0 +1,105 @@
+# ============================================================
+# Discovery YAML — account (AWS)
+# Generated: 2026-02-21T04:56:57Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: account
+services:
+  client: account
+  module: boto3.client
+discovery:
+  # ── GetAccountInformation ──
+  - discovery_id: aws.account.get_account_information
+    calls:
+      - action: get_account_information
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.AccountCreatedDate }}'
+      item:
+        AccountId: '{{ item.AccountId }}'
+        AccountCreatedDate: '{{ item.AccountCreatedDate }}'
+        AccountName: '{{ item.AccountName }}'
+        PrimaryEmail: '{{ item.PrimaryEmail }}'
+  # ── GetContactInformation ──
+  - discovery_id: aws.account.get_contact_information
+    calls:
+      - action: get_contact_information
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ContactInformation }}'
+      item:
+        AddressLine1: '{{ item.AddressLine1 }}'
+        AddressLine2: '{{ item.AddressLine2 }}'
+        AddressLine3: '{{ item.AddressLine3 }}'
+        City: '{{ item.City }}'
+        CompanyName: '{{ item.CompanyName }}'
+        ContactInformation: '{{ item.ContactInformation }}'
+        CountryCode: '{{ item.CountryCode }}'
+        DistrictOrCounty: '{{ item.DistrictOrCounty }}'
+        FullName: '{{ item.FullName }}'
+        PhoneNumber: '{{ item.PhoneNumber }}'
+        PostalCode: '{{ item.PostalCode }}'
+        StateOrRegion: '{{ item.StateOrRegion }}'
+        WebsiteUrl: '{{ item.WebsiteUrl }}'
+  # ── ListRegions ──
+  - discovery_id: aws.account.list_regions
+    calls:
+      - action: list_regions
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Regions }}'
+      item:
+        RegionName: '{{ item.RegionName }}'
+        RegionOptStatus: '{{ item.RegionOptStatus }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── GetAlternateContact ──
+  - discovery_id: aws.account.get_alternate_contact
+    calls:
+      - action: get_alternate_contact
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.AlternateContact }}'
+      item:
+        Name: '{{ item.Name }}'
+        AlternateContactType: '{{ item.AlternateContactType }}'
+        EmailAddress: '{{ item.EmailAddress }}'
+        PhoneNumber: '{{ item.PhoneNumber }}'
+        Title: '{{ item.Title }}'
+  # ── GetPrimaryEmail ──
+  - discovery_id: aws.account.get_primary_email
+    for_each: aws.account.get_account_information
+    calls:
+      - action: get_primary_email
+        params:
+          AccountId: '{{ item.AccountId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.AccountCreatedDate }}'
+      item:
+        PrimaryEmail: '{{ item.PrimaryEmail }}'
+  # ── GetRegionOptStatus ──
+  - discovery_id: aws.account.get_region_opt_status
+    for_each: aws.account.list_regions
+    calls:
+      - action: get_region_opt_status
+        params:
+          RegionName: '{{ item.RegionName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        RegionName: '{{ response.RegionName }}'
+        RegionOptStatus: '{{ response.RegionOptStatus }}'

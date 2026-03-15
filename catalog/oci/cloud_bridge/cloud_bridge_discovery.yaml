@@ -1,0 +1,51 @@
+version: '1.0'
+provider: oci
+service: cloud_bridge
+services:
+  client: cloud_bridge
+  module: oci.cloud_bridge
+discovery:
+- discovery_id: oci.cloud_bridge.get_agent_dependency
+  calls:
+  - action: get_agent_dependency
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.cloud_bridge.get_environment
+  calls:
+  - action: get_environment
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.cloud_bridge.get_plugin
+  calls:
+  - action: get_plugin
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.cloud_bridge.get_agent
+  calls:
+  - action: get_agent
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.cloud_bridge.list_appliance_images
+  for_each: oci.cloud_bridge.get_agent_dependency
+  calls:
+  - action: list_appliance_images
+    save_as: response
+    on_error: continue
+    params:
+      compartment_id: '{{ item.compartment_id }}'
+  emit:
+    as: item
+    items_for: '{{ response }}'
+checks: []

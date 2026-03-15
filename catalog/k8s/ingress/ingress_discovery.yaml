@@ -1,0 +1,34 @@
+version: '1.0'
+provider: k8s
+service: ingress
+services:
+  client: ingress
+  module: boto3.client
+discovery:
+- discovery_id: k8s.ingress.list
+  calls:
+  - action: list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+    item:
+      metadata: '{{ item.metadata }}'
+      spec: '{{ item.spec }}'
+      spec.rules: '{{ item.spec.rules }}'
+      spec.tls: '{{ item.spec.tls }}'
+- discovery_id: k8s.ingress.get
+  calls:
+  - action: get
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+    item:
+      metadata: '{{ item.metadata }}'
+      spec: '{{ item.spec }}'
+      spec.rules: '{{ item.spec.rules }}'
+      spec.tls: '{{ item.spec.tls }}'
+checks: []

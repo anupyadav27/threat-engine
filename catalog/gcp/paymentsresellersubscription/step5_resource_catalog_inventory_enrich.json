@@ -1,0 +1,201 @@
+{
+  "csp": "gcp",
+  "generated_at": "2026-02-19T14:43:27.742063+00:00",
+  "anchors": {
+    "fixed": [
+      "project_id",
+      "org_id",
+      "folder_id",
+      "location",
+      "zone",
+      "region"
+    ]
+  },
+  "services": {
+    "paymentsresellersubscription": {
+      "version": "v1",
+      "resources": {
+        "promotions": {
+          "resource_type": "promotions",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "",
+              "built_from_parts": [],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.paymentsresellersubscription.partners.promotions.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/promotions"
+                },
+                "python_call": "svc.partners().promotions().list(**params).execute()",
+                "produces": {
+                  "name": "promotions[].name",
+                  "freeTrialDuration": "promotions[].freeTrialDuration",
+                  "introductoryPricingDetails": "promotions[].introductoryPricingDetails",
+                  "regionCodes": "promotions[].regionCodes",
+                  "titles": "promotions[].titles",
+                  "promotionType": "promotions[].promotionType",
+                  "applicableProducts": "promotions[].applicableProducts",
+                  "startTime": "promotions[].startTime",
+                  "endTime": "promotions[].endTime"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": []
+          },
+          "confidence": 0.5,
+          "notes": "No enrich (get) ops found; inventory only."
+        },
+        "subscriptions": {
+          "resource_type": "subscriptions",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.paymentsresellersubscription.partners.products.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/products"
+                },
+                "python_call": "svc.partners().products().list(**params).execute()",
+                "produces": {
+                  "name": "products[].name",
+                  "bundleDetails": "products[].bundleDetails",
+                  "regionCodes": "products[].regionCodes",
+                  "priceConfigs": "products[].priceConfigs",
+                  "finiteBillingCycleDetails": "products[].finiteBillingCycleDetails",
+                  "titles": "products[].titles",
+                  "productType": "products[].productType",
+                  "subscriptionBillingCycleDuration": "products[].subscriptionBillingCycleDuration"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.paymentsresellersubscription.partners.subscriptions.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.partners().subscriptions().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.paymentsresellersubscription.partners.subscriptions.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.paymentsresellersubscription.partners.products.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.partners().products().list(**params).execute()",
+                      "path": "/v1/{+parent}/products",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^partners/[^/]+$",
+                          "description": "Required. The parent, the partner that can resell. Format: partners/{partner}"
+                        }
+                      },
+                      "output_list_field": "products",
+                      "output_id_field": "name",
+                      "produces": {
+                        "productId": {
+                          "via_list_field": "products",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"products\"][], extract item[\"name\"] \u2192 pass as \"productId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: productId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.paymentsresellersubscription.partners.subscriptions.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.partners().subscriptions().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^partners/[^/]+/subscriptions/[^/]+$",
+                          "description": "Required. The name of the subscription resource to retrieve. It will have the format of \"partners/{partner_id}/subscript"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "subscriptionId": {
+                            "from_step": 1,
+                            "from_op": "gcp.paymentsresellersubscription.partners.products.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        }
+      }
+    }
+  }
+}

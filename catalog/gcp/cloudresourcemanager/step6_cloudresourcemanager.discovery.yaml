@@ -1,0 +1,167 @@
+# ============================================================
+# Discovery YAML — cloudresourcemanager (v1)
+# Generated: 2026-02-21T03:06:39Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 7 | independent: 5 | dependent: 2
+# ops with fields: 7/7 | dep ops with chain: 1/2
+# ============================================================
+version: '1.0'
+provider: gcp
+service: cloudresourcemanager
+
+services:
+  client: cloudresourcemanager
+  module: "googleapiclient.discovery.build('cloudresourcemanager', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # List all Liens applied to the `parent` resource. Callers of this method will require permission on t
+  # ── gcp.cloudresourcemanager.liens.list ──
+  - discovery_id: gcp.cloudresourcemanager.liens.list
+    # python: svc.liens().list(**params).execute()
+    calls:
+      - action: liens.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.liens }}'
+      item:
+        createTime: '{{ item.createTime }}'
+        name: '{{ item.name }}'
+        origin: '{{ item.origin }}'
+        parent: '{{ item.parent }}'
+        reason: '{{ item.reason }}'
+        restrictions: '{{ item.restrictions }}'
+  # Fetches an Organization resource identified by the specified resource name.
+  # ── gcp.cloudresourcemanager.organizations.get ──
+  - discovery_id: gcp.cloudresourcemanager.organizations.get
+    # python: svc.organizations().get(**params).execute()
+    calls:
+      - action: organizations.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        creationTime: '{{ response.creationTime }}'
+        displayName: '{{ response.displayName }}'
+        lifecycleState: '{{ response.lifecycleState }}'
+        name: '{{ response.name }}'
+        owner: '{{ response.owner }}'
+  # Searches Organization resources that are visible to the user and satisfy the specified filter. This 
+  # ── gcp.cloudresourcemanager.organizations.search ──
+  - discovery_id: gcp.cloudresourcemanager.organizations.search
+    # python: svc.organizations().search(**params).execute()
+    calls:
+      - action: organizations.search
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.organizations }}'
+      item:
+        creationTime: '{{ item.creationTime }}'
+        displayName: '{{ item.displayName }}'
+        lifecycleState: '{{ item.lifecycleState }}'
+        name: '{{ item.name }}'
+        owner: '{{ item.owner }}'
+  # Retrieves the Project identified by the specified `project_id` (for example, `my-project-123`). The 
+  # ── gcp.cloudresourcemanager.projects.get ──
+  - discovery_id: gcp.cloudresourcemanager.projects.get
+    # python: svc.projects().get(**params).execute()
+    calls:
+      - action: projects.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        configuredCapabilities: '{{ response.configuredCapabilities }}'
+        createTime: '{{ response.createTime }}'
+        labels: '{{ response.labels }}'
+        lifecycleState: '{{ response.lifecycleState }}'
+        name: '{{ response.name }}'
+        parent: '{{ response.parent }}'
+        projectId: '{{ response.projectId }}'
+        projectNumber: '{{ response.projectNumber }}'
+        tags: '{{ response.tags }}'
+  # Lists Projects that the caller has the `resourcemanager.projects.get` permission on and satisfy the 
+  # ── gcp.cloudresourcemanager.projects.list ──
+  - discovery_id: gcp.cloudresourcemanager.projects.list
+    # python: svc.projects().list(**params).execute()
+    calls:
+      - action: projects.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.projects }}'
+      item:
+        configuredCapabilities: '{{ item.configuredCapabilities }}'
+        createTime: '{{ item.createTime }}'
+        labels: '{{ item.labels }}'
+        lifecycleState: '{{ item.lifecycleState }}'
+        name: '{{ item.name }}'
+        parent: '{{ item.parent }}'
+        projectId: '{{ item.projectId }}'
+        projectNumber: '{{ item.projectNumber }}'
+        tags: '{{ item.tags }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Retrieve a Lien by `name`. Callers of this method will require permission on the `parent` resource. 
+  # ── gcp.cloudresourcemanager.liens.get [dependent] ──
+  - discovery_id: gcp.cloudresourcemanager.liens.get
+    for_each: gcp.cloudresourcemanager.liens.list
+    # python: svc.liens().get(**params).execute()
+    calls:
+      - action: liens.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        createTime: '{{ response.createTime }}'
+        name: '{{ response.name }}'
+        origin: '{{ response.origin }}'
+        parent: '{{ response.parent }}'
+        reason: '{{ response.reason }}'
+        restrictions: '{{ response.restrictions }}'
+    # required_params: ['name']
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.cloudresourcemanager.operations.get [dependent] ──
+  - discovery_id: gcp.cloudresourcemanager.operations.get
+    # python: svc.operations().get(**params).execute()
+    calls:
+      - action: operations.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']

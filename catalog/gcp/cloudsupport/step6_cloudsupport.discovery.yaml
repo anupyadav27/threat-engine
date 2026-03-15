@@ -1,0 +1,214 @@
+# ============================================================
+# Discovery YAML — cloudsupport (v2)
+# Generated: 2026-02-21T03:06:39Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 7 | independent: 5 | dependent: 2
+# ops with fields: 7/7 | dep ops with chain: 2/2
+# ============================================================
+version: '1.0'
+provider: gcp
+service: cloudsupport
+
+services:
+  client: cloudsupport
+  module: "googleapiclient.discovery.build('cloudsupport', 'v2')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Retrieve valid classifications to use when creating a support case. Classifications are hierarchical
+  # ── gcp.cloudsupport.caseClassifications.search ──
+  - discovery_id: gcp.cloudsupport.caseClassifications.search
+    # python: svc.caseClassifications().search(**params).execute()
+    calls:
+      - action: caseClassifications.search
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.caseClassifications }}'
+      item:
+        displayName: '{{ item.displayName }}'
+        id: '{{ item.id }}'
+  # List all the attachments associated with a support case. EXAMPLES: cURL: ```shell case="projects/som
+  # ── gcp.cloudsupport.cases.attachments.list ──
+  - discovery_id: gcp.cloudsupport.cases.attachments.list
+    # python: svc.cases().attachments().list(**params).execute()
+    calls:
+      - action: cases.attachments.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.attachments }}'
+      item:
+        createTime: '{{ item.createTime }}'
+        creator: '{{ item.creator }}'
+        filename: '{{ item.filename }}'
+        mimeType: '{{ item.mimeType }}'
+        name: '{{ item.name }}'
+        sizeBytes: '{{ item.sizeBytes }}'
+  # List all the comments associated with a case. EXAMPLES: cURL: ```shell case="projects/some-project/c
+  # ── gcp.cloudsupport.cases.comments.list ──
+  - discovery_id: gcp.cloudsupport.cases.comments.list
+    # python: svc.cases().comments().list(**params).execute()
+    calls:
+      - action: cases.comments.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.comments }}'
+      item:
+        body: '{{ item.body }}'
+        createTime: '{{ item.createTime }}'
+        creator: '{{ item.creator }}'
+        name: '{{ item.name }}'
+        plainTextBody: '{{ item.plainTextBody }}'
+  # Retrieve all cases under a parent, but not its children. For example, listing cases under an organiz
+  # ── gcp.cloudsupport.cases.list ──
+  - discovery_id: gcp.cloudsupport.cases.list
+    # python: svc.cases().list(**params).execute()
+    calls:
+      - action: cases.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.cases }}'
+      item:
+        classification: '{{ item.classification }}'
+        contactEmail: '{{ item.contactEmail }}'
+        createTime: '{{ item.createTime }}'
+        creator: '{{ item.creator }}'
+        description: '{{ item.description }}'
+        displayName: '{{ item.displayName }}'
+        escalated: '{{ item.escalated }}'
+        languageCode: '{{ item.languageCode }}'
+        name: '{{ item.name }}'
+        priority: '{{ item.priority }}'
+        state: '{{ item.state }}'
+        subscriberEmailAddresses: '{{ item.subscriberEmailAddresses }}'
+        testCase: '{{ item.testCase }}'
+        timeZone: '{{ item.timeZone }}'
+        updateTime: '{{ item.updateTime }}'
+  # Search for cases using a query. EXAMPLES: cURL: ```shell parent="projects/some-project" curl \ --hea
+  # ── gcp.cloudsupport.cases.search ──
+  - discovery_id: gcp.cloudsupport.cases.search
+    # python: svc.cases().search(**params).execute()
+    calls:
+      - action: cases.search
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.cases }}'
+      item:
+        classification: '{{ item.classification }}'
+        contactEmail: '{{ item.contactEmail }}'
+        createTime: '{{ item.createTime }}'
+        creator: '{{ item.creator }}'
+        description: '{{ item.description }}'
+        displayName: '{{ item.displayName }}'
+        escalated: '{{ item.escalated }}'
+        languageCode: '{{ item.languageCode }}'
+        name: '{{ item.name }}'
+        priority: '{{ item.priority }}'
+        state: '{{ item.state }}'
+        subscriberEmailAddresses: '{{ item.subscriberEmailAddresses }}'
+        testCase: '{{ item.testCase }}'
+        timeZone: '{{ item.timeZone }}'
+        updateTime: '{{ item.updateTime }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Retrieve a case. EXAMPLES: cURL: ```shell case="projects/some-project/cases/16033687" curl \ --heade
+  # ── gcp.cloudsupport.cases.get [dependent] ──
+  - discovery_id: gcp.cloudsupport.cases.get
+    for_each: gcp.cloudsupport.cases.list
+    # python: svc.cases().get(**params).execute()
+    calls:
+      - action: cases.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        classification: '{{ response.classification }}'
+        contactEmail: '{{ response.contactEmail }}'
+        createTime: '{{ response.createTime }}'
+        creator: '{{ response.creator }}'
+        description: '{{ response.description }}'
+        displayName: '{{ response.displayName }}'
+        escalated: '{{ response.escalated }}'
+        languageCode: '{{ response.languageCode }}'
+        name: '{{ response.name }}'
+        priority: '{{ response.priority }}'
+        state: '{{ response.state }}'
+        subscriberEmailAddresses: '{{ response.subscriberEmailAddresses }}'
+        testCase: '{{ response.testCase }}'
+        timeZone: '{{ response.timeZone }}'
+        updateTime: '{{ response.updateTime }}'
+    # required_params: ['name']
+  # Download a file attached to a case. When this endpoint is called, no "response body" will be returne
+  # ── gcp.cloudsupport.media.download [dependent] ──
+  - discovery_id: gcp.cloudsupport.media.download
+    for_each: gcp.cloudsupport.cases.attachments.list
+    # python: svc.media().download(**params).execute()
+    calls:
+      - action: media.download
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        algorithm: '{{ response.algorithm }}'
+        bigstoreObjectRef: '{{ response.bigstoreObjectRef }}'
+        blobRef: '{{ response.blobRef }}'
+        blobstore2Info: '{{ response.blobstore2Info }}'
+        compositeMedia: '{{ response.compositeMedia }}'
+        contentType: '{{ response.contentType }}'
+        contentTypeInfo: '{{ response.contentTypeInfo }}'
+        cosmoBinaryReference: '{{ response.cosmoBinaryReference }}'
+        crc32cHash: '{{ response.crc32cHash }}'
+        diffChecksumsResponse: '{{ response.diffChecksumsResponse }}'
+        diffDownloadResponse: '{{ response.diffDownloadResponse }}'
+        diffUploadRequest: '{{ response.diffUploadRequest }}'
+        diffUploadResponse: '{{ response.diffUploadResponse }}'
+        diffVersionResponse: '{{ response.diffVersionResponse }}'
+        downloadParameters: '{{ response.downloadParameters }}'
+        filename: '{{ response.filename }}'
+        hash: '{{ response.hash }}'
+        hashVerified: '{{ response.hashVerified }}'
+        inline: '{{ response.inline }}'
+        isPotentialRetry: '{{ response.isPotentialRetry }}'
+        length: '{{ response.length }}'
+        md5Hash: '{{ response.md5Hash }}'
+        mediaId: '{{ response.mediaId }}'
+        objectId: '{{ response.objectId }}'
+        path: '{{ response.path }}'
+        referenceType: '{{ response.referenceType }}'
+        sha1Hash: '{{ response.sha1Hash }}'
+        sha256Hash: '{{ response.sha256Hash }}'
+        timestamp: '{{ response.timestamp }}'
+        token: '{{ response.token }}'
+    # required_params: ['name']

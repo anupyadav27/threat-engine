@@ -1,0 +1,147 @@
+# ============================================================
+# Discovery YAML — route53profiles (AWS)
+# Generated: 2026-02-21T04:56:59Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: route53profiles
+services:
+  client: route53profiles
+  module: boto3.client
+discovery:
+  # ── ListProfileAssociations ──
+  - discovery_id: aws.route53profiles.list_profile_associations
+    calls:
+      - action: list_profile_associations
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ProfileAssociations }}'
+      item:
+        CreationTime: '{{ item.CreationTime }}'
+        Id: '{{ item.Id }}'
+        Name: '{{ item.Name }}'
+        OwnerId: '{{ item.OwnerId }}'
+        ResourceId: '{{ item.ResourceId }}'
+        Status: '{{ item.Status }}'
+        ClientToken: '{{ item.ClientToken }}'
+        ModificationTime: '{{ item.ModificationTime }}'
+        ProfileId: '{{ item.ProfileId }}'
+        ResourceProperties: '{{ item.ResourceProperties }}'
+        ResourceType: '{{ item.ResourceType }}'
+        StatusMessage: '{{ item.StatusMessage }}'
+  # ── ListProfiles ──
+  - discovery_id: aws.route53profiles.list_profiles
+    calls:
+      - action: list_profiles
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ProfileSummaries }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        Id: '{{ item.Id }}'
+        Name: '{{ item.Name }}'
+        ShareStatus: '{{ item.ShareStatus }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── GetProfile ──
+  - discovery_id: aws.route53profiles.get_profile
+    for_each: aws.route53profiles.list_profile_associations
+    calls:
+      - action: get_profile
+        params:
+          ProfileId: '{{ item.ProfileId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ProfileSummaries }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        CreationTime: '{{ item.CreationTime }}'
+        Id: '{{ item.Id }}'
+        Name: '{{ item.Name }}'
+        OwnerId: '{{ item.OwnerId }}'
+        Status: '{{ item.Status }}'
+        ClientToken: '{{ item.ClientToken }}'
+        ModificationTime: '{{ item.ModificationTime }}'
+        ShareStatus: '{{ item.ShareStatus }}'
+        StatusMessage: '{{ item.StatusMessage }}'
+  # ── GetProfileAssociation ──
+  - discovery_id: aws.route53profiles.get_profile_association
+    for_each: aws.route53profiles.list_profile_associations
+    calls:
+      - action: get_profile_association
+        params:
+          ProfileAssociationId: '{{ item.ProfileAssociationId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ProfileAssociations }}'
+      item:
+        CreationTime: '{{ item.CreationTime }}'
+        Id: '{{ item.Id }}'
+        Name: '{{ item.Name }}'
+        OwnerId: '{{ item.OwnerId }}'
+        ResourceId: '{{ item.ResourceId }}'
+        Status: '{{ item.Status }}'
+        ModificationTime: '{{ item.ModificationTime }}'
+        ProfileId: '{{ item.ProfileId }}'
+        StatusMessage: '{{ item.StatusMessage }}'
+  # ── GetProfileResourceAssociation ──
+  - discovery_id: aws.route53profiles.get_profile_resource_association
+    calls:
+      - action: get_profile_resource_association
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ProfileAssociations }}'
+      item:
+        CreationTime: '{{ item.CreationTime }}'
+        Id: '{{ item.Id }}'
+        Name: '{{ item.Name }}'
+        OwnerId: '{{ item.OwnerId }}'
+        ResourceArn: '{{ item.ResourceArn }}'
+        Status: '{{ item.Status }}'
+        ModificationTime: '{{ item.ModificationTime }}'
+        ProfileId: '{{ item.ProfileId }}'
+        StatusMessage: '{{ item.StatusMessage }}'
+  # ── ListProfileResourceAssociations ──
+  - discovery_id: aws.route53profiles.list_profile_resource_associations
+    for_each: aws.route53profiles.list_profile_associations
+    calls:
+      - action: list_profile_resource_associations
+        params:
+          ProfileId: '{{ item.ProfileId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ProfileResourceAssociations }}'
+      item:
+        CreationTime: '{{ item.CreationTime }}'
+        Id: '{{ item.Id }}'
+        Name: '{{ item.Name }}'
+        OwnerId: '{{ item.OwnerId }}'
+        ResourceArn: '{{ item.ResourceArn }}'
+        Status: '{{ item.Status }}'
+        ModificationTime: '{{ item.ModificationTime }}'
+        ProfileId: '{{ item.ProfileId }}'
+        ResourceProperties: '{{ item.ResourceProperties }}'
+        ResourceType: '{{ item.ResourceType }}'
+        StatusMessage: '{{ item.StatusMessage }}'
+  # ── ListTagsForResource ──
+  - discovery_id: aws.route53profiles.list_tags_for_resource
+    calls:
+      - action: list_tags_for_resource
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        Tags: '{{ response.Tags }}'

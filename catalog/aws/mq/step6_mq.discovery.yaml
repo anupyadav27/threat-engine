@@ -1,0 +1,198 @@
+# ============================================================
+# Discovery YAML — mq (AWS)
+# Generated: 2026-02-21T04:56:59Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: mq
+services:
+  client: mq
+  module: boto3.client
+discovery:
+  # ── DescribeBrokerEngineTypes ──
+  - discovery_id: aws.mq.describe_broker_engine_types
+    calls:
+      - action: describe_broker_engine_types
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.BrokerEngineTypes }}'
+      item:
+        BrokerEngineTypes: '{{ item.BrokerEngineTypes }}'
+        EngineType: '{{ item.EngineType }}'
+        EngineVersions: '{{ item.EngineVersions }}'
+  # ── DescribeBrokerInstanceOptions ──
+  - discovery_id: aws.mq.describe_broker_instance_options
+    calls:
+      - action: describe_broker_instance_options
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.BrokerInstanceOptions }}'
+      item:
+        AvailabilityZones: '{{ item.AvailabilityZones }}'
+        BrokerInstanceOptions: '{{ item.BrokerInstanceOptions }}'
+        EngineType: '{{ item.EngineType }}'
+        HostInstanceType: '{{ item.HostInstanceType }}'
+        StorageType: '{{ item.StorageType }}'
+        SupportedDeploymentModes: '{{ item.SupportedDeploymentModes }}'
+        SupportedEngineVersions: '{{ item.SupportedEngineVersions }}'
+  # ── ListBrokers ──
+  - discovery_id: aws.mq.list_brokers
+    calls:
+      - action: list_brokers
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.BrokerSummaries }}'
+      item:
+        BrokerArn: '{{ item.BrokerArn }}'
+        BrokerId: '{{ item.BrokerId }}'
+        BrokerName: '{{ item.BrokerName }}'
+        BrokerState: '{{ item.BrokerState }}'
+        Created: '{{ item.Created }}'
+        DeploymentMode: '{{ item.DeploymentMode }}'
+        EngineType: '{{ item.EngineType }}'
+        HostInstanceType: '{{ item.HostInstanceType }}'
+        PendingAuthenticationStrategy: '{{ item.PendingAuthenticationStrategy }}'
+        PendingHostInstanceType: '{{ item.PendingHostInstanceType }}'
+  # ── ListConfigurations ──
+  - discovery_id: aws.mq.list_configurations
+    calls:
+      - action: list_configurations
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Configurations }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        Id: '{{ item.Id }}'
+        Name: '{{ item.Name }}'
+        Status: '{{ item.Status }}'
+        Tags: '{{ item.Tags }}'
+        AuthenticationStrategy: '{{ item.AuthenticationStrategy }}'
+        ConfigurationId: '{{ item.ConfigurationId }}'
+        Configurations: '{{ item.Configurations }}'
+        Created: '{{ item.Created }}'
+        Data: '{{ item.Data }}'
+        Description: '{{ item.Description }}'
+        Enabled: '{{ item.Enabled }}'
+        EngineType: '{{ item.EngineType }}'
+        EngineVersion: '{{ item.EngineVersion }}'
+        LatestRevision: '{{ item.LatestRevision }}'
+        PendingAuthenticationStrategy: '{{ item.PendingAuthenticationStrategy }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── DescribeBroker ──
+  - discovery_id: aws.mq.describe_broker
+    for_each: aws.mq.list_brokers
+    calls:
+      - action: describe_broker
+        params:
+          BrokerId: '{{ item.BrokerId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ActionsRequired }}'
+      item:
+        ActionRequiredCode: '{{ item.ActionRequiredCode }}'
+        ActionRequiredInfo: '{{ item.ActionRequiredInfo }}'
+        Logs: '{{ item.Logs }}'
+        PendingAuthenticationStrategy: '{{ item.PendingAuthenticationStrategy }}'
+        PendingHostInstanceType: '{{ item.PendingHostInstanceType }}'
+  # ── DescribeConfiguration ──
+  - discovery_id: aws.mq.describe_configuration
+    for_each: aws.mq.list_configurations
+    calls:
+      - action: describe_configuration
+        params:
+          ConfigurationId: '{{ item.ConfigurationId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.BrokerSummaries }}'
+      item:
+        Created: '{{ item.Created }}'
+        Description: '{{ item.Description }}'
+        Revision: '{{ item.Revision }}'
+  # ── DescribeConfigurationRevision ──
+  - discovery_id: aws.mq.describe_configuration_revision
+    for_each: aws.mq.list_configurations
+    calls:
+      - action: describe_configuration_revision
+        params:
+          ConfigurationRevision: '{{ item.ConfigurationRevision }}'
+          ConfigurationId: '{{ item.ConfigurationId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Configurations }}'
+      item:
+        Data: '{{ item.Data }}'
+  # ── DescribeUser ──
+  - discovery_id: aws.mq.describe_user
+    for_each: aws.mq.list_brokers
+    calls:
+      - action: describe_user
+        params:
+          Username: '{{ item.Username }}'
+          BrokerId: '{{ item.BrokerId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Groups }}'
+      item:
+        Groups: '{{ item.Groups }}'
+        Pending: '{{ item.Pending }}'
+  # ── ListConfigurationRevisions ──
+  - discovery_id: aws.mq.list_configuration_revisions
+    for_each: aws.mq.list_configurations
+    calls:
+      - action: list_configuration_revisions
+        params:
+          ConfigurationId: '{{ item.ConfigurationId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Revisions }}'
+      item:
+        Created: '{{ item.Created }}'
+        Data: '{{ item.Data }}'
+        Description: '{{ item.Description }}'
+        Revision: '{{ item.Revision }}'
+  # ── ListTags ──
+  - discovery_id: aws.mq.list_tags
+    calls:
+      - action: list_tags
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        Tags: '{{ response.Tags }}'
+  # ── ListUsers ──
+  - discovery_id: aws.mq.list_users
+    for_each: aws.mq.list_brokers
+    calls:
+      - action: list_users
+        params:
+          BrokerId: '{{ item.BrokerId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Users }}'
+      item:
+        Groups: '{{ item.Groups }}'
+        Pending: '{{ item.Pending }}'
+        PendingChange: '{{ item.PendingChange }}'
+        Username: '{{ item.Username }}'

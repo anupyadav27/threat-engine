@@ -1,0 +1,41 @@
+# ============================================================
+# Discovery YAML — kgsearch (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 1 | independent: 1 | dependent: 0
+# ops with fields: 0/1 | dep ops with chain: 0/0
+# ============================================================
+version: '1.0'
+provider: gcp
+service: kgsearch
+
+services:
+  client: kgsearch
+  module: "googleapiclient.discovery.build('kgsearch', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Searches Knowledge Graph for entities that match the constraints. A list of matched entities will be
+  # ── gcp.kgsearch.entities.search ──
+  - discovery_id: gcp.kgsearch.entities.search
+    # python: svc.entities().search(**params).execute()
+    calls:
+      - action: entities.search
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.entities }}'

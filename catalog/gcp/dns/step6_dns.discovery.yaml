@@ -1,0 +1,414 @@
+# ============================================================
+# Discovery YAML — dns (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 17 | independent: 4 | dependent: 13
+# ops with fields: 17/17 | dep ops with chain: 12/13
+# ============================================================
+version: '1.0'
+provider: gcp
+service: dns
+
+services:
+  client: dns
+  module: "googleapiclient.discovery.build('dns', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Enumerates ManagedZones that have been created but not yet deleted.
+  # ── gcp.dns.managedZones.list ──
+  - discovery_id: gcp.dns.managedZones.list
+    # python: svc.managedZones().list(**params).execute()
+    calls:
+      - action: managedZones.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.managedZones }}'
+      item:
+        cloudLoggingConfig: '{{ item.cloudLoggingConfig }}'
+        creationTime: '{{ item.creationTime }}'
+        description: '{{ item.description }}'
+        dnsName: '{{ item.dnsName }}'
+        dnssecConfig: '{{ item.dnssecConfig }}'
+        forwardingConfig: '{{ item.forwardingConfig }}'
+        id: '{{ item.id }}'
+        labels: '{{ item.labels }}'
+        name: '{{ item.name }}'
+        nameServerSet: '{{ item.nameServerSet }}'
+        nameServers: '{{ item.nameServers }}'
+        peeringConfig: '{{ item.peeringConfig }}'
+        privateVisibilityConfig: '{{ item.privateVisibilityConfig }}'
+        reverseLookupConfig: '{{ item.reverseLookupConfig }}'
+        serviceDirectoryConfig: '{{ item.serviceDirectoryConfig }}'
+        visibility: '{{ item.visibility }}'
+  # Enumerates all policies associated with a project.
+  # ── gcp.dns.policies.list ──
+  - discovery_id: gcp.dns.policies.list
+    # python: svc.policies().list(**params).execute()
+    calls:
+      - action: policies.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.policies }}'
+      item:
+        alternativeNameServerConfig: '{{ item.alternativeNameServerConfig }}'
+        description: '{{ item.description }}'
+        dns64Config: '{{ item.dns64Config }}'
+        enableInboundForwarding: '{{ item.enableInboundForwarding }}'
+        enableLogging: '{{ item.enableLogging }}'
+        id: '{{ item.id }}'
+        name: '{{ item.name }}'
+        networks: '{{ item.networks }}'
+  # Fetches the representation of an existing Project.
+  # ── gcp.dns.projects.get ──
+  - discovery_id: gcp.dns.projects.get
+    # python: svc.projects().get(**params).execute()
+    calls:
+      - action: projects.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        id: '{{ response.id }}'
+        number: '{{ response.number }}'
+        quota: '{{ response.quota }}'
+  # Enumerates all Response Policies associated with a project.
+  # ── gcp.dns.responsePolicies.list ──
+  - discovery_id: gcp.dns.responsePolicies.list
+    # python: svc.responsePolicies().list(**params).execute()
+    calls:
+      - action: responsePolicies.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.responsePolicies }}'
+      item:
+        description: '{{ item.description }}'
+        gkeClusters: '{{ item.gkeClusters }}'
+        id: '{{ item.id }}'
+        labels: '{{ item.labels }}'
+        networks: '{{ item.networks }}'
+        responsePolicyName: '{{ item.responsePolicyName }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Fetches the representation of an existing Change.
+  # ── gcp.dns.changes.get [dependent] ──
+  - discovery_id: gcp.dns.changes.get
+    for_each: gcp.dns.changes.list
+    # python: svc.changes().get(**params).execute()
+    calls:
+      - action: changes.get
+        params:
+          changeId: '{{ item.id }}'
+          managedZone: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        additions: '{{ response.additions }}'
+        deletions: '{{ response.deletions }}'
+        id: '{{ response.id }}'
+        isServing: '{{ response.isServing }}'
+        startTime: '{{ response.startTime }}'
+        status: '{{ response.status }}'
+    # required_params: ['changeId', 'project', 'managedZone']
+  # Enumerates Changes to a ResourceRecordSet collection.
+  # ── gcp.dns.changes.list [dependent] ──
+  - discovery_id: gcp.dns.changes.list
+    for_each: gcp.dns.managedZones.list
+    # python: svc.changes().list(**params).execute()
+    calls:
+      - action: changes.list
+        params:
+          managedZone: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.changes }}'
+      item:
+        additions: '{{ item.additions }}'
+        deletions: '{{ item.deletions }}'
+        id: '{{ item.id }}'
+        isServing: '{{ item.isServing }}'
+        startTime: '{{ item.startTime }}'
+        status: '{{ item.status }}'
+    # required_params: ['managedZone', 'project']
+  # Fetches the representation of an existing DnsKey.
+  # ── gcp.dns.dnsKeys.get [dependent] ──
+  - discovery_id: gcp.dns.dnsKeys.get
+    for_each: gcp.dns.dnsKeys.list
+    # python: svc.dnsKeys().get(**params).execute()
+    calls:
+      - action: dnsKeys.get
+        params:
+          dnsKeyId: '{{ item.id }}'
+          managedZone: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        algorithm: '{{ response.algorithm }}'
+        creationTime: '{{ response.creationTime }}'
+        description: '{{ response.description }}'
+        digests: '{{ response.digests }}'
+        id: '{{ response.id }}'
+        isActive: '{{ response.isActive }}'
+        keyLength: '{{ response.keyLength }}'
+        keyTag: '{{ response.keyTag }}'
+        publicKey: '{{ response.publicKey }}'
+        type: '{{ response.type }}'
+    # required_params: ['project', 'dnsKeyId', 'managedZone']
+  # Enumerates DnsKeys to a ResourceRecordSet collection.
+  # ── gcp.dns.dnsKeys.list [dependent] ──
+  - discovery_id: gcp.dns.dnsKeys.list
+    for_each: gcp.dns.managedZones.list
+    # python: svc.dnsKeys().list(**params).execute()
+    calls:
+      - action: dnsKeys.list
+        params:
+          managedZone: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.dnsKeys }}'
+      item:
+        algorithm: '{{ item.algorithm }}'
+        creationTime: '{{ item.creationTime }}'
+        description: '{{ item.description }}'
+        digests: '{{ item.digests }}'
+        id: '{{ item.id }}'
+        isActive: '{{ item.isActive }}'
+        keyLength: '{{ item.keyLength }}'
+        keyTag: '{{ item.keyTag }}'
+        publicKey: '{{ item.publicKey }}'
+        type: '{{ item.type }}'
+    # required_params: ['managedZone', 'project']
+  # Fetches the representation of an existing Operation.
+  # ── gcp.dns.managedZoneOperations.get [dependent] ──
+  - discovery_id: gcp.dns.managedZoneOperations.get
+    # python: svc.managedZoneOperations().get(**params).execute()
+    calls:
+      - action: managedZoneOperations.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        dnsKeyContext: '{{ response.dnsKeyContext }}'
+        id: '{{ response.id }}'
+        startTime: '{{ response.startTime }}'
+        status: '{{ response.status }}'
+        type: '{{ response.type }}'
+        user: '{{ response.user }}'
+        zoneContext: '{{ response.zoneContext }}'
+    # required_params: ['project', 'operation', 'managedZone']
+  # Enumerates Operations for the given ManagedZone.
+  # ── gcp.dns.managedZoneOperations.list [dependent] ──
+  - discovery_id: gcp.dns.managedZoneOperations.list
+    for_each: gcp.dns.managedZones.list
+    # python: svc.managedZoneOperations().list(**params).execute()
+    calls:
+      - action: managedZoneOperations.list
+        params:
+          managedZone: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.managedZoneOperations }}'
+      item:
+        dnsKeyContext: '{{ item.dnsKeyContext }}'
+        id: '{{ item.id }}'
+        startTime: '{{ item.startTime }}'
+        status: '{{ item.status }}'
+        type: '{{ item.type }}'
+        user: '{{ item.user }}'
+        zoneContext: '{{ item.zoneContext }}'
+    # required_params: ['project', 'managedZone']
+  # Fetches the representation of an existing ManagedZone.
+  # ── gcp.dns.managedZones.get [dependent] ──
+  - discovery_id: gcp.dns.managedZones.get
+    for_each: gcp.dns.managedZones.list
+    # python: svc.managedZones().get(**params).execute()
+    calls:
+      - action: managedZones.get
+        params:
+          managedZone: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        cloudLoggingConfig: '{{ response.cloudLoggingConfig }}'
+        creationTime: '{{ response.creationTime }}'
+        description: '{{ response.description }}'
+        dnsName: '{{ response.dnsName }}'
+        dnssecConfig: '{{ response.dnssecConfig }}'
+        forwardingConfig: '{{ response.forwardingConfig }}'
+        id: '{{ response.id }}'
+        labels: '{{ response.labels }}'
+        name: '{{ response.name }}'
+        nameServerSet: '{{ response.nameServerSet }}'
+        nameServers: '{{ response.nameServers }}'
+        peeringConfig: '{{ response.peeringConfig }}'
+        privateVisibilityConfig: '{{ response.privateVisibilityConfig }}'
+        reverseLookupConfig: '{{ response.reverseLookupConfig }}'
+        serviceDirectoryConfig: '{{ response.serviceDirectoryConfig }}'
+        visibility: '{{ response.visibility }}'
+    # required_params: ['managedZone', 'project']
+  # Fetches the representation of an existing policy.
+  # ── gcp.dns.policies.get [dependent] ──
+  - discovery_id: gcp.dns.policies.get
+    for_each: gcp.dns.policies.list
+    # python: svc.policies().get(**params).execute()
+    calls:
+      - action: policies.get
+        params:
+          policy: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        alternativeNameServerConfig: '{{ response.alternativeNameServerConfig }}'
+        description: '{{ response.description }}'
+        dns64Config: '{{ response.dns64Config }}'
+        enableInboundForwarding: '{{ response.enableInboundForwarding }}'
+        enableLogging: '{{ response.enableLogging }}'
+        id: '{{ response.id }}'
+        name: '{{ response.name }}'
+        networks: '{{ response.networks }}'
+    # required_params: ['project', 'policy']
+  # Fetches the representation of an existing ResourceRecordSet.
+  # ── gcp.dns.resourceRecordSets.get [dependent] ──
+  - discovery_id: gcp.dns.resourceRecordSets.get
+    for_each: gcp.dns.policies.list
+    # python: svc.resourceRecordSets().get(**params).execute()
+    calls:
+      - action: resourceRecordSets.get
+        params:
+          managedZone: '{{ item.name }}'
+          name: '{{ item.name }}'
+          type: '{{ item.id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        name: '{{ response.name }}'
+        routingPolicy: '{{ response.routingPolicy }}'
+        rrdatas: '{{ response.rrdatas }}'
+        signatureRrdatas: '{{ response.signatureRrdatas }}'
+        ttl: '{{ response.ttl }}'
+        type: '{{ response.type }}'
+    # required_params: ['type', 'managedZone', 'name', 'project']
+  # Enumerates ResourceRecordSets that you have created but not yet deleted.
+  # ── gcp.dns.resourceRecordSets.list [dependent] ──
+  - discovery_id: gcp.dns.resourceRecordSets.list
+    for_each: gcp.dns.managedZones.list
+    # python: svc.resourceRecordSets().list(**params).execute()
+    calls:
+      - action: resourceRecordSets.list
+        params:
+          managedZone: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.resourceRecordSets }}'
+      item:
+        name: '{{ item.name }}'
+        routingPolicy: '{{ item.routingPolicy }}'
+        rrdatas: '{{ item.rrdatas }}'
+        signatureRrdatas: '{{ item.signatureRrdatas }}'
+        ttl: '{{ item.ttl }}'
+        type: '{{ item.type }}'
+    # required_params: ['project', 'managedZone']
+  # Fetches the representation of an existing Response Policy.
+  # ── gcp.dns.responsePolicies.get [dependent] ──
+  - discovery_id: gcp.dns.responsePolicies.get
+    for_each: gcp.dns.responsePolicies.list
+    # python: svc.responsePolicies().get(**params).execute()
+    calls:
+      - action: responsePolicies.get
+        params:
+          responsePolicy: '{{ item.id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        description: '{{ response.description }}'
+        gkeClusters: '{{ response.gkeClusters }}'
+        id: '{{ response.id }}'
+        labels: '{{ response.labels }}'
+        networks: '{{ response.networks }}'
+        responsePolicyName: '{{ response.responsePolicyName }}'
+    # required_params: ['project', 'responsePolicy']
+  # Fetches the representation of an existing Response Policy Rule.
+  # ── gcp.dns.responsePolicyRules.get [dependent] ──
+  - discovery_id: gcp.dns.responsePolicyRules.get
+    for_each: gcp.dns.responsePolicyRules.list
+    # python: svc.responsePolicyRules().get(**params).execute()
+    calls:
+      - action: responsePolicyRules.get
+        params:
+          responsePolicy: '{{ item.id }}'
+          responsePolicyRule: '{{ item.behavior }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        behavior: '{{ response.behavior }}'
+        dnsName: '{{ response.dnsName }}'
+        localData: '{{ response.localData }}'
+        ruleName: '{{ response.ruleName }}'
+    # required_params: ['responsePolicy', 'responsePolicyRule', 'project']
+  # Enumerates all Response Policy Rules associated with a project.
+  # ── gcp.dns.responsePolicyRules.list [dependent] ──
+  - discovery_id: gcp.dns.responsePolicyRules.list
+    for_each: gcp.dns.responsePolicies.list
+    # python: svc.responsePolicyRules().list(**params).execute()
+    calls:
+      - action: responsePolicyRules.list
+        params:
+          responsePolicy: '{{ item.id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.responsePolicyRules }}'
+      item:
+        behavior: '{{ item.behavior }}'
+        dnsName: '{{ item.dnsName }}'
+        localData: '{{ item.localData }}'
+        ruleName: '{{ item.ruleName }}'
+    # required_params: ['project', 'responsePolicy']

@@ -1,0 +1,36 @@
+version: '1.0'
+provider: aws
+service: bedrock-runtime
+services:
+  client: bedrock-runtime
+  module: boto3.client
+discovery:
+- discovery_id: aws.bedrock-runtime.listAsyncInvokes
+  calls:
+  - action: listAsyncInvokes
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.asyncInvokeSummaries }}'
+    item:
+      invocationArn: '{{ item.invocationArn }}'
+      modelArn: '{{ item.modelArn }}'
+      clientRequestToken: '{{ item.clientRequestToken }}'
+      status: '{{ item.status }}'
+      failureMessage: '{{ item.failureMessage }}'
+      submitTime: '{{ item.submitTime }}'
+      lastModifiedTime: '{{ item.lastModifiedTime }}'
+      endTime: '{{ item.endTime }}'
+      outputDataConfig: '{{ item.outputDataConfig }}'
+- discovery_id: aws.bedrock-runtime.getAsyncInvoke
+  calls:
+  - action: getAsyncInvoke
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.outputDataConfig }}'
+    item:
+      s3OutputDataConfig: '{{ item.s3OutputDataConfig }}'
+checks: []

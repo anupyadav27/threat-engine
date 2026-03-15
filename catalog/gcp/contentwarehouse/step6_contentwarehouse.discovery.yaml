@@ -1,0 +1,266 @@
+# ============================================================
+# Discovery YAML — contentwarehouse (v1)
+# Generated: 2026-02-21T03:06:39Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 11 | independent: 5 | dependent: 6
+# ops with fields: 11/11 | dep ops with chain: 4/6
+# ============================================================
+version: '1.0'
+provider: gcp
+service: contentwarehouse
+
+services:
+  client: contentwarehouse
+  module: "googleapiclient.discovery.build('contentwarehouse', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists document schemas.
+  # ── gcp.contentwarehouse.projects.locations.documentSchemas.list ──
+  - discovery_id: gcp.contentwarehouse.projects.locations.documentSchemas.list
+    # python: svc.projects().locations().documentSchemas().list(**params).execute()
+    calls:
+      - action: projects.locations.documentSchemas.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.documentSchemas }}'
+      item:
+        createTime: '{{ item.createTime }}'
+        description: '{{ item.description }}'
+        displayName: '{{ item.displayName }}'
+        documentIsFolder: '{{ item.documentIsFolder }}'
+        name: '{{ item.name }}'
+        propertyDefinitions: '{{ item.propertyDefinitions }}'
+        updateTime: '{{ item.updateTime }}'
+  # Searches for documents using provided SearchDocumentsRequest. This call only returns documents that 
+  # ── gcp.contentwarehouse.projects.locations.documents.search ──
+  - discovery_id: gcp.contentwarehouse.projects.locations.documents.search
+    # python: svc.projects().locations().documents().search(**params).execute()
+    calls:
+      - action: projects.locations.documents.search
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.documents }}'
+      item:
+        document: '{{ item.document }}'
+        matchedTokenPageIndices: '{{ item.matchedTokenPageIndices }}'
+        qaResult: '{{ item.qaResult }}'
+        searchTextSnippet: '{{ item.searchTextSnippet }}'
+  # Get the project status.
+  # ── gcp.contentwarehouse.projects.locations.getStatus ──
+  - discovery_id: gcp.contentwarehouse.projects.locations.getStatus
+    # python: svc.projects().locations().getStatus(**params).execute()
+    calls:
+      - action: projects.locations.getStatus
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accessControlMode: '{{ response.accessControlMode }}'
+        databaseType: '{{ response.databaseType }}'
+        documentCreatorDefaultRole: '{{ response.documentCreatorDefaultRole }}'
+        location: '{{ response.location }}'
+        qaEnabled: '{{ response.qaEnabled }}'
+        state: '{{ response.state }}'
+  # Lists rulesets.
+  # ── gcp.contentwarehouse.projects.locations.ruleSets.list ──
+  - discovery_id: gcp.contentwarehouse.projects.locations.ruleSets.list
+    # python: svc.projects().locations().ruleSets().list(**params).execute()
+    calls:
+      - action: projects.locations.ruleSets.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ruleSets }}'
+      item:
+        description: '{{ item.description }}'
+        name: '{{ item.name }}'
+        rules: '{{ item.rules }}'
+        source: '{{ item.source }}'
+  # Returns all SynonymSets (for all contexts) for the specified location.
+  # ── gcp.contentwarehouse.projects.locations.synonymSets.list ──
+  - discovery_id: gcp.contentwarehouse.projects.locations.synonymSets.list
+    # python: svc.projects().locations().synonymSets().list(**params).execute()
+    calls:
+      - action: projects.locations.synonymSets.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.synonymSets }}'
+      item:
+        context: '{{ item.context }}'
+        name: '{{ item.name }}'
+        synonyms: '{{ item.synonyms }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets a document schema. Returns NOT_FOUND if the document schema does not exist.
+  # ── gcp.contentwarehouse.projects.locations.documentSchemas.get [dependent] ──
+  - discovery_id: gcp.contentwarehouse.projects.locations.documentSchemas.get
+    for_each: gcp.contentwarehouse.projects.locations.documentSchemas.list
+    # python: svc.projects().locations().documentSchemas().get(**params).execute()
+    calls:
+      - action: projects.locations.documentSchemas.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        createTime: '{{ response.createTime }}'
+        description: '{{ response.description }}'
+        displayName: '{{ response.displayName }}'
+        documentIsFolder: '{{ response.documentIsFolder }}'
+        name: '{{ response.name }}'
+        propertyDefinitions: '{{ response.propertyDefinitions }}'
+        updateTime: '{{ response.updateTime }}'
+    # required_params: ['name']
+  # Gets a document. Returns NOT_FOUND if the document does not exist.
+  # ── gcp.contentwarehouse.projects.locations.documents.get [dependent] ──
+  - discovery_id: gcp.contentwarehouse.projects.locations.documents.get
+    for_each: gcp.contentwarehouse.projects.locations.documents.search
+    # python: svc.projects().locations().documents().get(**params).execute()
+    calls:
+      - action: projects.locations.documents.get
+        params:
+          name: '{{ item.qaResult }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        cloudAiDocument: '{{ response.cloudAiDocument }}'
+        contentCategory: '{{ response.contentCategory }}'
+        createTime: '{{ response.createTime }}'
+        creator: '{{ response.creator }}'
+        displayName: '{{ response.displayName }}'
+        displayUri: '{{ response.displayUri }}'
+        dispositionTime: '{{ response.dispositionTime }}'
+        documentSchemaName: '{{ response.documentSchemaName }}'
+        inlineRawDocument: '{{ response.inlineRawDocument }}'
+        legalHold: '{{ response.legalHold }}'
+        name: '{{ response.name }}'
+        plainText: '{{ response.plainText }}'
+        properties: '{{ response.properties }}'
+        rawDocumentFileType: '{{ response.rawDocumentFileType }}'
+        rawDocumentPath: '{{ response.rawDocumentPath }}'
+        referenceId: '{{ response.referenceId }}'
+        textExtractionDisabled: '{{ response.textExtractionDisabled }}'
+        textExtractionEnabled: '{{ response.textExtractionEnabled }}'
+        title: '{{ response.title }}'
+        updateTime: '{{ response.updateTime }}'
+        updater: '{{ response.updater }}'
+    # required_params: ['name']
+  # Gets a document. Returns NOT_FOUND if the document does not exist.
+  # ── gcp.contentwarehouse.projects.locations.documents.referenceId.get [dependent] ──
+  - discovery_id: gcp.contentwarehouse.projects.locations.documents.referenceId.get
+    # python: svc.projects().locations().documents().referenceId().get(**params).execute()
+    calls:
+      - action: projects.locations.documents.referenceId.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        cloudAiDocument: '{{ response.cloudAiDocument }}'
+        contentCategory: '{{ response.contentCategory }}'
+        createTime: '{{ response.createTime }}'
+        creator: '{{ response.creator }}'
+        displayName: '{{ response.displayName }}'
+        displayUri: '{{ response.displayUri }}'
+        dispositionTime: '{{ response.dispositionTime }}'
+        documentSchemaName: '{{ response.documentSchemaName }}'
+        inlineRawDocument: '{{ response.inlineRawDocument }}'
+        legalHold: '{{ response.legalHold }}'
+        name: '{{ response.name }}'
+        plainText: '{{ response.plainText }}'
+        properties: '{{ response.properties }}'
+        rawDocumentFileType: '{{ response.rawDocumentFileType }}'
+        rawDocumentPath: '{{ response.rawDocumentPath }}'
+        referenceId: '{{ response.referenceId }}'
+        textExtractionDisabled: '{{ response.textExtractionDisabled }}'
+        textExtractionEnabled: '{{ response.textExtractionEnabled }}'
+        title: '{{ response.title }}'
+        updateTime: '{{ response.updateTime }}'
+        updater: '{{ response.updater }}'
+    # required_params: ['name']
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.contentwarehouse.projects.locations.operations.get [dependent] ──
+  - discovery_id: gcp.contentwarehouse.projects.locations.operations.get
+    # python: svc.projects().locations().operations().get(**params).execute()
+    calls:
+      - action: projects.locations.operations.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']
+  # Gets a ruleset. Returns NOT_FOUND if the ruleset does not exist.
+  # ── gcp.contentwarehouse.projects.locations.ruleSets.get [dependent] ──
+  - discovery_id: gcp.contentwarehouse.projects.locations.ruleSets.get
+    for_each: gcp.contentwarehouse.projects.locations.ruleSets.list
+    # python: svc.projects().locations().ruleSets().get(**params).execute()
+    calls:
+      - action: projects.locations.ruleSets.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        description: '{{ response.description }}'
+        name: '{{ response.name }}'
+        rules: '{{ response.rules }}'
+        source: '{{ response.source }}'
+    # required_params: ['name']
+  # Gets a SynonymSet for a particular context. Throws a NOT_FOUND exception if the Synonymset does not 
+  # ── gcp.contentwarehouse.projects.locations.synonymSets.get [dependent] ──
+  - discovery_id: gcp.contentwarehouse.projects.locations.synonymSets.get
+    for_each: gcp.contentwarehouse.projects.locations.synonymSets.list
+    # python: svc.projects().locations().synonymSets().get(**params).execute()
+    calls:
+      - action: projects.locations.synonymSets.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        context: '{{ response.context }}'
+        name: '{{ response.name }}'
+        synonyms: '{{ response.synonyms }}'
+    # required_params: ['name']

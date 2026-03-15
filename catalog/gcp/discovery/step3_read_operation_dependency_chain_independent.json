@@ -1,0 +1,108 @@
+{
+  "service": "discovery",
+  "version": "v1",
+  "total_ops": 2,
+  "total_chains": 2,
+  "independent_ops": 1,
+  "dependent_ops": 1,
+  "chains": {
+    "gcp.discovery.apis.list": {
+      "target_op": "gcp.discovery.apis.list",
+      "kind": "read_list",
+      "independent": true,
+      "hop_distance": 0,
+      "chain_length": 1,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.discovery.apis.list",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.apis().list(**params).execute()",
+          "path": "/apis",
+          "required_params": {},
+          "output_list_field": "items",
+          "output_id_field": null,
+          "produces": {
+            "apiId": {
+              "via_list_field": "items",
+              "from_id_field": null,
+              "note": "Iterate response[\"items\"][], extract item[\"None\"] \u2192 pass as \"apiId\""
+            }
+          },
+          "param_sources": {},
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.discovery.apis.getRest": {
+      "target_op": "gcp.discovery.apis.getRest",
+      "kind": "read_get",
+      "independent": false,
+      "hop_distance": 1,
+      "chain_length": 2,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.discovery.apis.list",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.apis().list(**params).execute()",
+          "path": "/apis",
+          "required_params": {},
+          "output_list_field": "items",
+          "output_id_field": null,
+          "produces": {
+            "apiId": {
+              "via_list_field": "items",
+              "from_id_field": null,
+              "note": "Iterate response[\"items\"][], extract item[\"None\"] \u2192 pass as \"apiId\""
+            }
+          },
+          "param_sources": {},
+          "purpose": "Provides: apiId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.discovery.apis.getRest",
+          "kind": "read_get",
+          "independent": false,
+          "python_call": "svc.apis().getRest(**params).execute()",
+          "path": "/apis/{api}/{version}/rest",
+          "required_params": {
+            "version": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": "The version of the API."
+            },
+            "api": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": "The name of the API."
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "version": "unresolved",
+            "api": "unresolved"
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": [
+        "version",
+        "api"
+      ]
+    }
+  }
+}

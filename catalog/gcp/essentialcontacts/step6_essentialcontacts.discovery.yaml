@@ -1,0 +1,190 @@
+# ============================================================
+# Discovery YAML — essentialcontacts (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 9 | independent: 6 | dependent: 3
+# ops with fields: 9/9 | dep ops with chain: 3/3
+# ============================================================
+version: '1.0'
+provider: gcp
+service: essentialcontacts
+
+services:
+  client: essentialcontacts
+  module: "googleapiclient.discovery.build('essentialcontacts', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists all contacts for the resource that are subscribed to the specified notification categories, in
+  # ── gcp.essentialcontacts.folders.contacts.compute ──
+  - discovery_id: gcp.essentialcontacts.folders.contacts.compute
+    # python: svc.folders().contacts().compute(**params).execute()
+    calls:
+      - action: folders.contacts.compute
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        contacts: '{{ response.contacts }}'
+  # Lists the contacts that have been set on a resource.
+  # ── gcp.essentialcontacts.folders.contacts.list ──
+  - discovery_id: gcp.essentialcontacts.folders.contacts.list
+    # python: svc.folders().contacts().list(**params).execute()
+    calls:
+      - action: folders.contacts.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.contacts }}'
+      item:
+        email: '{{ item.email }}'
+        languageTag: '{{ item.languageTag }}'
+        name: '{{ item.name }}'
+        notificationCategorySubscriptions: '{{ item.notificationCategorySubscriptions }}'
+        validateTime: '{{ item.validateTime }}'
+        validationState: '{{ item.validationState }}'
+  # Lists all contacts for the resource that are subscribed to the specified notification categories, in
+  # ── gcp.essentialcontacts.organizations.contacts.compute ──
+  - discovery_id: gcp.essentialcontacts.organizations.contacts.compute
+    # python: svc.organizations().contacts().compute(**params).execute()
+    calls:
+      - action: organizations.contacts.compute
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        contacts: '{{ response.contacts }}'
+  # Lists the contacts that have been set on a resource.
+  # ── gcp.essentialcontacts.organizations.contacts.list ──
+  - discovery_id: gcp.essentialcontacts.organizations.contacts.list
+    # python: svc.organizations().contacts().list(**params).execute()
+    calls:
+      - action: organizations.contacts.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.contacts }}'
+      item:
+        email: '{{ item.email }}'
+        languageTag: '{{ item.languageTag }}'
+        name: '{{ item.name }}'
+        notificationCategorySubscriptions: '{{ item.notificationCategorySubscriptions }}'
+        validateTime: '{{ item.validateTime }}'
+        validationState: '{{ item.validationState }}'
+  # Lists all contacts for the resource that are subscribed to the specified notification categories, in
+  # ── gcp.essentialcontacts.projects.contacts.compute ──
+  - discovery_id: gcp.essentialcontacts.projects.contacts.compute
+    # python: svc.projects().contacts().compute(**params).execute()
+    calls:
+      - action: projects.contacts.compute
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        contacts: '{{ response.contacts }}'
+  # Lists the contacts that have been set on a resource.
+  # ── gcp.essentialcontacts.projects.contacts.list ──
+  - discovery_id: gcp.essentialcontacts.projects.contacts.list
+    # python: svc.projects().contacts().list(**params).execute()
+    calls:
+      - action: projects.contacts.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.contacts }}'
+      item:
+        email: '{{ item.email }}'
+        languageTag: '{{ item.languageTag }}'
+        name: '{{ item.name }}'
+        notificationCategorySubscriptions: '{{ item.notificationCategorySubscriptions }}'
+        validateTime: '{{ item.validateTime }}'
+        validationState: '{{ item.validationState }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets a single contact.
+  # ── gcp.essentialcontacts.folders.contacts.get [dependent] ──
+  - discovery_id: gcp.essentialcontacts.folders.contacts.get
+    for_each: gcp.essentialcontacts.organizations.contacts.list
+    # python: svc.folders().contacts().get(**params).execute()
+    calls:
+      - action: folders.contacts.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        email: '{{ response.email }}'
+        languageTag: '{{ response.languageTag }}'
+        name: '{{ response.name }}'
+        notificationCategorySubscriptions: '{{ response.notificationCategorySubscriptions }}'
+        validateTime: '{{ response.validateTime }}'
+        validationState: '{{ response.validationState }}'
+    # required_params: ['name']
+  # Gets a single contact.
+  # ── gcp.essentialcontacts.organizations.contacts.get [dependent] ──
+  - discovery_id: gcp.essentialcontacts.organizations.contacts.get
+    for_each: gcp.essentialcontacts.organizations.contacts.list
+    # python: svc.organizations().contacts().get(**params).execute()
+    calls:
+      - action: organizations.contacts.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        email: '{{ response.email }}'
+        languageTag: '{{ response.languageTag }}'
+        name: '{{ response.name }}'
+        notificationCategorySubscriptions: '{{ response.notificationCategorySubscriptions }}'
+        validateTime: '{{ response.validateTime }}'
+        validationState: '{{ response.validationState }}'
+    # required_params: ['name']
+  # Gets a single contact.
+  # ── gcp.essentialcontacts.projects.contacts.get [dependent] ──
+  - discovery_id: gcp.essentialcontacts.projects.contacts.get
+    for_each: gcp.essentialcontacts.organizations.contacts.list
+    # python: svc.projects().contacts().get(**params).execute()
+    calls:
+      - action: projects.contacts.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        email: '{{ response.email }}'
+        languageTag: '{{ response.languageTag }}'
+        name: '{{ response.name }}'
+        notificationCategorySubscriptions: '{{ response.notificationCategorySubscriptions }}'
+        validateTime: '{{ response.validateTime }}'
+        validationState: '{{ response.validationState }}'
+    # required_params: ['name']

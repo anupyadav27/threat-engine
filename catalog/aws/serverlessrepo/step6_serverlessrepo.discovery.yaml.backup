@@ -1,0 +1,84 @@
+version: '1.0'
+provider: aws
+service: serverlessrepo
+services:
+  client: serverlessrepo
+  module: boto3.client
+discovery:
+- discovery_id: aws.serverlessrepo.listApplications
+  calls:
+  - action: listApplications
+    save_as: response
+    on_error: continue
+    params:
+      MaxItems: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Applications }}'
+    item:
+      ApplicationId: '{{ item.ApplicationId }}'
+      Author: '{{ item.Author }}'
+      CreationTime: '{{ item.CreationTime }}'
+      Description: '{{ item.Description }}'
+      HomePageUrl: '{{ item.HomePageUrl }}'
+      Labels: '{{ item.Labels }}'
+      Name: '{{ item.Name }}'
+      SpdxLicenseId: '{{ item.SpdxLicenseId }}'
+- discovery_id: aws.serverlessrepo.getApplication
+  calls:
+  - action: getApplication
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Labels }}'
+- discovery_id: aws.serverlessrepo.getApplicationPolicy
+  calls:
+  - action: getApplicationPolicy
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Statements }}'
+    item:
+      Actions: '{{ item.Actions }}'
+      PrincipalOrgIDs: '{{ item.PrincipalOrgIDs }}'
+      Principals: '{{ item.Principals }}'
+      StatementId: '{{ item.StatementId }}'
+- discovery_id: aws.serverlessrepo.getCloudFormationTemplate
+  calls:
+  - action: getCloudFormationTemplate
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ApplicationId }}'
+- discovery_id: aws.serverlessrepo.listApplicationDependencies
+  calls:
+  - action: listApplicationDependencies
+    save_as: response
+    on_error: continue
+    params:
+      MaxItems: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Dependencies }}'
+    item:
+      ApplicationId: '{{ item.ApplicationId }}'
+      SemanticVersion: '{{ item.SemanticVersion }}'
+- discovery_id: aws.serverlessrepo.listApplicationVersions
+  calls:
+  - action: listApplicationVersions
+    save_as: response
+    on_error: continue
+    params:
+      MaxItems: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Versions }}'
+    item:
+      ApplicationId: '{{ item.ApplicationId }}'
+      CreationTime: '{{ item.CreationTime }}'
+      SemanticVersion: '{{ item.SemanticVersion }}'
+      SourceCodeUrl: '{{ item.SourceCodeUrl }}'
+checks: []

@@ -1,0 +1,116 @@
+# ============================================================
+# Discovery YAML — sheets (v4)
+# Generated: 2026-02-21T03:06:41Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 5 | independent: 0 | dependent: 5
+# ops with fields: 5/5 | dep ops with chain: 0/5
+# ============================================================
+version: '1.0'
+provider: gcp
+service: sheets
+
+services:
+  client: sheets
+  module: "googleapiclient.discovery.build('sheets', 'v4')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Returns the developer metadata with the specified ID. The caller must specify the spreadsheet ID and
+  # ── gcp.sheets.spreadsheets.developerMetadata.get [dependent] ──
+  - discovery_id: gcp.sheets.spreadsheets.developerMetadata.get
+    # python: svc.spreadsheets().developerMetadata().get(**params).execute()
+    calls:
+      - action: spreadsheets.developerMetadata.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        location: '{{ response.location }}'
+        metadataId: '{{ response.metadataId }}'
+        metadataKey: '{{ response.metadataKey }}'
+        metadataValue: '{{ response.metadataValue }}'
+        visibility: '{{ response.visibility }}'
+    # required_params: ['metadataId', 'spreadsheetId']
+  # Returns all developer metadata matching the specified DataFilter. If the provided DataFilter represe
+  # ── gcp.sheets.spreadsheets.developerMetadata.search [dependent] ──
+  - discovery_id: gcp.sheets.spreadsheets.developerMetadata.search
+    # python: svc.spreadsheets().developerMetadata().search(**params).execute()
+    calls:
+      - action: spreadsheets.developerMetadata.search
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.developerMetadata }}'
+      item:
+        dataFilters: '{{ item.dataFilters }}'
+        developerMetadata: '{{ item.developerMetadata }}'
+    # required_params: ['spreadsheetId']
+  # Returns the spreadsheet at the given ID. The caller must specify the spreadsheet ID. By default, dat
+  # ── gcp.sheets.spreadsheets.get [dependent] ──
+  - discovery_id: gcp.sheets.spreadsheets.get
+    # python: svc.spreadsheets().get(**params).execute()
+    calls:
+      - action: spreadsheets.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        dataSourceSchedules: '{{ response.dataSourceSchedules }}'
+        dataSources: '{{ response.dataSources }}'
+        developerMetadata: '{{ response.developerMetadata }}'
+        namedRanges: '{{ response.namedRanges }}'
+        properties: '{{ response.properties }}'
+        sheets: '{{ response.sheets }}'
+        spreadsheetId: '{{ response.spreadsheetId }}'
+        spreadsheetUrl: '{{ response.spreadsheetUrl }}'
+    # required_params: ['spreadsheetId']
+  # Returns one or more ranges of values from a spreadsheet. The caller must specify the spreadsheet ID 
+  # ── gcp.sheets.spreadsheets.values.batchGet [dependent] ──
+  - discovery_id: gcp.sheets.spreadsheets.values.batchGet
+    # python: svc.spreadsheets().values().batchGet(**params).execute()
+    calls:
+      - action: spreadsheets.values.batchGet
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        spreadsheetId: '{{ response.spreadsheetId }}'
+        valueRanges: '{{ response.valueRanges }}'
+    # required_params: ['spreadsheetId']
+  # Returns a range of values from a spreadsheet. The caller must specify the spreadsheet ID and a range
+  # ── gcp.sheets.spreadsheets.values.get [dependent] ──
+  - discovery_id: gcp.sheets.spreadsheets.values.get
+    # python: svc.spreadsheets().values().get(**params).execute()
+    calls:
+      - action: spreadsheets.values.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        majorDimension: '{{ response.majorDimension }}'
+        range: '{{ response.range }}'
+        values: '{{ response.values }}'
+    # required_params: ['range', 'spreadsheetId']

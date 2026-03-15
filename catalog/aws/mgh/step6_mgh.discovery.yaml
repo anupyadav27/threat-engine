@@ -1,0 +1,155 @@
+# ============================================================
+# Discovery YAML — mgh (AWS)
+# Generated: 2026-02-21T04:56:59Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: mgh
+services:
+  client: mgh
+  module: boto3.client
+discovery:
+  # ── ListApplicationStates ──
+  - discovery_id: aws.mgh.list_application_states
+    calls:
+      - action: list_application_states
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ApplicationStateList }}'
+      item:
+        ApplicationId: '{{ item.ApplicationId }}'
+        ApplicationStatus: '{{ item.ApplicationStatus }}'
+        LastUpdatedTime: '{{ item.LastUpdatedTime }}'
+  # ── ListMigrationTasks ──
+  - discovery_id: aws.mgh.list_migration_tasks
+    calls:
+      - action: list_migration_tasks
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.MigrationTaskSummaryList }}'
+      item:
+        Status: '{{ item.Status }}'
+        MigrationTask: '{{ item.MigrationTask }}'
+        MigrationTaskName: '{{ item.MigrationTaskName }}'
+        ProgressPercent: '{{ item.ProgressPercent }}'
+        ProgressUpdateStream: '{{ item.ProgressUpdateStream }}'
+        StatusDetail: '{{ item.StatusDetail }}'
+        UpdateDateTime: '{{ item.UpdateDateTime }}'
+  # ── ListProgressUpdateStreams ──
+  - discovery_id: aws.mgh.list_progress_update_streams
+    calls:
+      - action: list_progress_update_streams
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ProgressUpdateStreamSummaryList }}'
+      item:
+        ProgressUpdateStreamName: '{{ item.ProgressUpdateStreamName }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── DescribeApplicationState ──
+  - discovery_id: aws.mgh.describe_application_state
+    for_each: aws.mgh.list_application_states
+    calls:
+      - action: describe_application_state
+        params:
+          ApplicationId: '{{ item.ApplicationId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        ApplicationStatus: '{{ response.ApplicationStatus }}'
+        LastUpdatedTime: '{{ response.LastUpdatedTime }}'
+  # ── DescribeMigrationTask ──
+  - discovery_id: aws.mgh.describe_migration_task
+    for_each: aws.mgh.list_migration_tasks
+    calls:
+      - action: describe_migration_task
+        params:
+          ProgressUpdateStream: '{{ item.ProgressUpdateStream }}'
+          MigrationTaskName: '{{ item.MigrationTaskName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.NextToken }}'
+      item:
+        MigrationTask: '{{ item.MigrationTask }}'
+        MigrationTaskName: '{{ item.MigrationTaskName }}'
+        ProgressUpdateStream: '{{ item.ProgressUpdateStream }}'
+        ResourceAttributeList: '{{ item.ResourceAttributeList }}'
+        Task: '{{ item.Task }}'
+        UpdateDateTime: '{{ item.UpdateDateTime }}'
+  # ── ListCreatedArtifacts ──
+  - discovery_id: aws.mgh.list_created_artifacts
+    for_each: aws.mgh.list_migration_tasks
+    calls:
+      - action: list_created_artifacts
+        params:
+          ProgressUpdateStream: '{{ item.ProgressUpdateStream }}'
+          MigrationTaskName: '{{ item.MigrationTaskName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.CreatedArtifactList }}'
+      item:
+        Name: '{{ item.Name }}'
+        Description: '{{ item.Description }}'
+  # ── ListDiscoveredResources ──
+  - discovery_id: aws.mgh.list_discovered_resources
+    for_each: aws.mgh.list_migration_tasks
+    calls:
+      - action: list_discovered_resources
+        params:
+          ProgressUpdateStream: '{{ item.ProgressUpdateStream }}'
+          MigrationTaskName: '{{ item.MigrationTaskName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.DiscoveredResourceList }}'
+      item:
+        ConfigurationId: '{{ item.ConfigurationId }}'
+        Description: '{{ item.Description }}'
+        Enabled: '{{ item.Enabled }}'
+  # ── ListMigrationTaskUpdates ──
+  - discovery_id: aws.mgh.list_migration_task_updates
+    for_each: aws.mgh.list_migration_tasks
+    calls:
+      - action: list_migration_task_updates
+        params:
+          ProgressUpdateStream: '{{ item.ProgressUpdateStream }}'
+          MigrationTaskName: '{{ item.MigrationTaskName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.MigrationTaskUpdateList }}'
+      item:
+        MigrationTaskState: '{{ item.MigrationTaskState }}'
+        UpdateDateTime: '{{ item.UpdateDateTime }}'
+        UpdateType: '{{ item.UpdateType }}'
+  # ── ListSourceResources ──
+  - discovery_id: aws.mgh.list_source_resources
+    for_each: aws.mgh.list_migration_tasks
+    calls:
+      - action: list_source_resources
+        params:
+          ProgressUpdateStream: '{{ item.ProgressUpdateStream }}'
+          MigrationTaskName: '{{ item.MigrationTaskName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.SourceResourceList }}'
+      item:
+        Name: '{{ item.Name }}'
+        Description: '{{ item.Description }}'
+        StatusDetail: '{{ item.StatusDetail }}'

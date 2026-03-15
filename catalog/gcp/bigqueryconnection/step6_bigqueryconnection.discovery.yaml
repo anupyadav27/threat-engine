@@ -1,0 +1,89 @@
+# ============================================================
+# Discovery YAML — bigqueryconnection (v1)
+# Generated: 2026-02-21T03:06:38Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 2 | independent: 1 | dependent: 1
+# ops with fields: 2/2 | dep ops with chain: 1/1
+# ============================================================
+version: '1.0'
+provider: gcp
+service: bigqueryconnection
+
+services:
+  client: bigqueryconnection
+  module: "googleapiclient.discovery.build('bigqueryconnection', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Returns a list of connections in the given project.
+  # ── gcp.bigqueryconnection.projects.locations.connections.list ──
+  - discovery_id: gcp.bigqueryconnection.projects.locations.connections.list
+    # python: svc.projects().locations().connections().list(**params).execute()
+    calls:
+      - action: projects.locations.connections.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.connections }}'
+      item:
+        aws: '{{ item.aws }}'
+        azure: '{{ item.azure }}'
+        cloudResource: '{{ item.cloudResource }}'
+        cloudSpanner: '{{ item.cloudSpanner }}'
+        cloudSql: '{{ item.cloudSql }}'
+        configuration: '{{ item.configuration }}'
+        creationTime: '{{ item.creationTime }}'
+        description: '{{ item.description }}'
+        friendlyName: '{{ item.friendlyName }}'
+        hasCredential: '{{ item.hasCredential }}'
+        kmsKeyName: '{{ item.kmsKeyName }}'
+        lastModifiedTime: '{{ item.lastModifiedTime }}'
+        name: '{{ item.name }}'
+        salesforceDataCloud: '{{ item.salesforceDataCloud }}'
+        spark: '{{ item.spark }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Returns specified connection.
+  # ── gcp.bigqueryconnection.projects.locations.connections.get [dependent] ──
+  - discovery_id: gcp.bigqueryconnection.projects.locations.connections.get
+    for_each: gcp.bigqueryconnection.projects.locations.connections.list
+    # python: svc.projects().locations().connections().get(**params).execute()
+    calls:
+      - action: projects.locations.connections.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        aws: '{{ response.aws }}'
+        azure: '{{ response.azure }}'
+        cloudResource: '{{ response.cloudResource }}'
+        cloudSpanner: '{{ response.cloudSpanner }}'
+        cloudSql: '{{ response.cloudSql }}'
+        configuration: '{{ response.configuration }}'
+        creationTime: '{{ response.creationTime }}'
+        description: '{{ response.description }}'
+        friendlyName: '{{ response.friendlyName }}'
+        hasCredential: '{{ response.hasCredential }}'
+        kmsKeyName: '{{ response.kmsKeyName }}'
+        lastModifiedTime: '{{ response.lastModifiedTime }}'
+        name: '{{ response.name }}'
+        salesforceDataCloud: '{{ response.salesforceDataCloud }}'
+        spark: '{{ response.spark }}'
+    # required_params: ['name']

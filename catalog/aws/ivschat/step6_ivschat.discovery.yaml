@@ -1,0 +1,81 @@
+# ============================================================
+# Discovery YAML — ivschat (AWS)
+# Generated: 2026-02-21T04:56:58Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: ivschat
+services:
+  client: ivschat
+  module: boto3.client
+discovery:
+  # ── ListLoggingConfigurations ──
+  - discovery_id: aws.ivschat.list_logging_configurations
+    calls:
+      - action: list_logging_configurations
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.loggingConfigurations }}'
+      item:
+        arn: '{{ item.arn }}'
+        createTime: '{{ item.createTime }}'
+        destinationConfiguration: '{{ item.destinationConfiguration }}'
+        id: '{{ item.id }}'
+        name: '{{ item.name }}'
+        state: '{{ item.state }}'
+        tags: '{{ item.tags }}'
+        updateTime: '{{ item.updateTime }}'
+  # ── ListRooms ──
+  - discovery_id: aws.ivschat.list_rooms
+    calls:
+      - action: list_rooms
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.rooms }}'
+      item:
+        arn: '{{ item.arn }}'
+        createTime: '{{ item.createTime }}'
+        id: '{{ item.id }}'
+        loggingConfigurationIdentifiers: '{{ item.loggingConfigurationIdentifiers }}'
+        messageReviewHandler: '{{ item.messageReviewHandler }}'
+        name: '{{ item.name }}'
+        tags: '{{ item.tags }}'
+        updateTime: '{{ item.updateTime }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── GetLoggingConfiguration ──
+  - discovery_id: aws.ivschat.get_logging_configuration
+    calls:
+      - action: get_logging_configuration
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.destinationConfiguration }}'
+      item:
+        cloudWatchLogs: '{{ item.cloudWatchLogs }}'
+        firehose: '{{ item.firehose }}'
+        s3: '{{ item.s3 }}'
+  # ── GetRoom ──
+  - discovery_id: aws.ivschat.get_room
+    calls:
+      - action: get_room
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.loggingConfigurationIdentifiers }}'
+  # ── ListTagsForResource ──
+  - discovery_id: aws.ivschat.list_tags_for_resource
+    calls:
+      - action: list_tags_for_resource
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        tags: '{{ response.tags }}'

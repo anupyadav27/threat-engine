@@ -1,0 +1,128 @@
+# ============================================================
+# Discovery YAML — reseller (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 4 | independent: 3 | dependent: 1
+# ops with fields: 4/4 | dep ops with chain: 1/1
+# ============================================================
+version: '1.0'
+provider: gcp
+service: reseller
+
+services:
+  client: reseller
+  module: "googleapiclient.discovery.build('reseller', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Gets a customer account. Use this operation to see a customer account already in your reseller manag
+  # ── gcp.reseller.customers.get ──
+  - discovery_id: gcp.reseller.customers.get
+    # python: svc.customers().get(**params).execute()
+    calls:
+      - action: customers.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        alternateEmail: '{{ response.alternateEmail }}'
+        customerDomain: '{{ response.customerDomain }}'
+        customerDomainVerified: '{{ response.customerDomainVerified }}'
+        customerId: '{{ response.customerId }}'
+        customerType: '{{ response.customerType }}'
+        phoneNumber: '{{ response.phoneNumber }}'
+        postalAddress: '{{ response.postalAddress }}'
+        primaryAdmin: '{{ response.primaryAdmin }}'
+        resourceUiUrl: '{{ response.resourceUiUrl }}'
+  # Returns all the details of the watch corresponding to the reseller.
+  # ── gcp.reseller.resellernotify.getwatchdetails ──
+  - discovery_id: gcp.reseller.resellernotify.getwatchdetails
+    # python: svc.resellernotify().getwatchdetails(**params).execute()
+    calls:
+      - action: resellernotify.getwatchdetails
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        serviceAccountEmailAddresses: '{{ response.serviceAccountEmailAddresses }}'
+        topicName: '{{ response.topicName }}'
+  # Lists of subscriptions managed by the reseller. The list can be all subscriptions, all of a customer
+  # ── gcp.reseller.subscriptions.list ──
+  - discovery_id: gcp.reseller.subscriptions.list
+    # python: svc.subscriptions().list(**params).execute()
+    calls:
+      - action: subscriptions.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.subscriptions }}'
+      item:
+        billingMethod: '{{ item.billingMethod }}'
+        creationTime: '{{ item.creationTime }}'
+        customerDomain: '{{ item.customerDomain }}'
+        customerId: '{{ item.customerId }}'
+        dealCode: '{{ item.dealCode }}'
+        plan: '{{ item.plan }}'
+        purchaseOrderId: '{{ item.purchaseOrderId }}'
+        renewalSettings: '{{ item.renewalSettings }}'
+        resourceUiUrl: '{{ item.resourceUiUrl }}'
+        seats: '{{ item.seats }}'
+        skuId: '{{ item.skuId }}'
+        skuName: '{{ item.skuName }}'
+        status: '{{ item.status }}'
+        subscriptionId: '{{ item.subscriptionId }}'
+        suspensionReasons: '{{ item.suspensionReasons }}'
+        transferInfo: '{{ item.transferInfo }}'
+        trialSettings: '{{ item.trialSettings }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets a specific subscription. The `subscriptionId` can be found using the [Retrieve all reseller sub
+  # ── gcp.reseller.subscriptions.get [dependent] ──
+  - discovery_id: gcp.reseller.subscriptions.get
+    for_each: gcp.reseller.subscriptions.list
+    # python: svc.subscriptions().get(**params).execute()
+    calls:
+      - action: subscriptions.get
+        params:
+          subscriptionId: '{{ item.status }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        billingMethod: '{{ response.billingMethod }}'
+        creationTime: '{{ response.creationTime }}'
+        customerDomain: '{{ response.customerDomain }}'
+        customerId: '{{ response.customerId }}'
+        dealCode: '{{ response.dealCode }}'
+        plan: '{{ response.plan }}'
+        purchaseOrderId: '{{ response.purchaseOrderId }}'
+        renewalSettings: '{{ response.renewalSettings }}'
+        resourceUiUrl: '{{ response.resourceUiUrl }}'
+        seats: '{{ response.seats }}'
+        skuId: '{{ response.skuId }}'
+        skuName: '{{ response.skuName }}'
+        status: '{{ response.status }}'
+        subscriptionId: '{{ response.subscriptionId }}'
+        suspensionReasons: '{{ response.suspensionReasons }}'
+        transferInfo: '{{ response.transferInfo }}'
+        trialSettings: '{{ response.trialSettings }}'
+    # required_params: ['customerId', 'subscriptionId']

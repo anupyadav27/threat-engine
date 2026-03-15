@@ -1,0 +1,207 @@
+# ============================================================
+# Discovery YAML — analyticsdata (v1alpha)
+# Generated: 2026-02-21T03:06:38Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 9 | independent: 3 | dependent: 6
+# ops with fields: 9/9 | dep ops with chain: 3/6
+# ============================================================
+version: '1.0'
+provider: gcp
+service: analyticsdata
+
+services:
+  client: analyticsdata
+  module: "googleapiclient.discovery.build('analyticsdata', 'v1alpha')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists all audience lists for a property. This method can be used for you to find and reuse existing 
+  # ── gcp.analyticsdata.properties.audienceLists.list ──
+  - discovery_id: gcp.analyticsdata.properties.audienceLists.list
+    # python: svc.properties().audienceLists().list(**params).execute()
+    calls:
+      - action: properties.audienceLists.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.audienceLists }}'
+      item:
+        audience: '{{ item.audience }}'
+        audienceDisplayName: '{{ item.audienceDisplayName }}'
+        beginCreatingTime: '{{ item.beginCreatingTime }}'
+        creationQuotaTokensCharged: '{{ item.creationQuotaTokensCharged }}'
+        dimensions: '{{ item.dimensions }}'
+        errorMessage: '{{ item.errorMessage }}'
+        name: '{{ item.name }}'
+        percentageCompleted: '{{ item.percentageCompleted }}'
+        recurringAudienceList: '{{ item.recurringAudienceList }}'
+        rowCount: '{{ item.rowCount }}'
+        state: '{{ item.state }}'
+        webhookNotification: '{{ item.webhookNotification }}'
+  # Lists all recurring audience lists for a property. This method can be used for you to find and reuse
+  # ── gcp.analyticsdata.properties.recurringAudienceLists.list ──
+  - discovery_id: gcp.analyticsdata.properties.recurringAudienceLists.list
+    # python: svc.properties().recurringAudienceLists().list(**params).execute()
+    calls:
+      - action: properties.recurringAudienceLists.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.recurringAudienceLists }}'
+      item:
+        activeDaysRemaining: '{{ item.activeDaysRemaining }}'
+        audience: '{{ item.audience }}'
+        audienceDisplayName: '{{ item.audienceDisplayName }}'
+        audienceLists: '{{ item.audienceLists }}'
+        dimensions: '{{ item.dimensions }}'
+        name: '{{ item.name }}'
+        webhookNotification: '{{ item.webhookNotification }}'
+  # Lists all report tasks for a property.
+  # ── gcp.analyticsdata.properties.reportTasks.list ──
+  - discovery_id: gcp.analyticsdata.properties.reportTasks.list
+    # python: svc.properties().reportTasks().list(**params).execute()
+    calls:
+      - action: properties.reportTasks.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.reportTasks }}'
+      item:
+        name: '{{ item.name }}'
+        reportDefinition: '{{ item.reportDefinition }}'
+        reportMetadata: '{{ item.reportMetadata }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets configuration metadata about a specific audience list. This method can be used to understand an
+  # ── gcp.analyticsdata.properties.audienceLists.get [dependent] ──
+  - discovery_id: gcp.analyticsdata.properties.audienceLists.get
+    for_each: gcp.analyticsdata.properties.audienceLists.query
+    # python: svc.properties().audienceLists().get(**params).execute()
+    calls:
+      - action: properties.audienceLists.get
+        params:
+          name: '{{ item.dimensionValues }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        audience: '{{ response.audience }}'
+        audienceDisplayName: '{{ response.audienceDisplayName }}'
+        beginCreatingTime: '{{ response.beginCreatingTime }}'
+        creationQuotaTokensCharged: '{{ response.creationQuotaTokensCharged }}'
+        dimensions: '{{ response.dimensions }}'
+        errorMessage: '{{ response.errorMessage }}'
+        name: '{{ response.name }}'
+        percentageCompleted: '{{ response.percentageCompleted }}'
+        recurringAudienceList: '{{ response.recurringAudienceList }}'
+        rowCount: '{{ response.rowCount }}'
+        state: '{{ response.state }}'
+        webhookNotification: '{{ response.webhookNotification }}'
+    # required_params: ['name']
+  # Retrieves an audience list of users. After creating an audience, the users are not immediately avail
+  # ── gcp.analyticsdata.properties.audienceLists.query [dependent] ──
+  - discovery_id: gcp.analyticsdata.properties.audienceLists.query
+    # python: svc.properties().audienceLists().query(**params).execute()
+    calls:
+      - action: properties.audienceLists.query
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.audienceLists }}'
+      item:
+        dimensionValues: '{{ item.dimensionValues }}'
+    # required_params: ['name']
+  # Get all property quotas organized by quota category for a given property. This will charge 1 propert
+  # ── gcp.analyticsdata.properties.getPropertyQuotasSnapshot [dependent] ──
+  - discovery_id: gcp.analyticsdata.properties.getPropertyQuotasSnapshot
+    # python: svc.properties().getPropertyQuotasSnapshot(**params).execute()
+    calls:
+      - action: properties.getPropertyQuotasSnapshot
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        corePropertyQuota: '{{ response.corePropertyQuota }}'
+        funnelPropertyQuota: '{{ response.funnelPropertyQuota }}'
+        name: '{{ response.name }}'
+        realtimePropertyQuota: '{{ response.realtimePropertyQuota }}'
+    # required_params: ['name']
+  # Gets configuration metadata about a specific recurring audience list. This method can be used to und
+  # ── gcp.analyticsdata.properties.recurringAudienceLists.get [dependent] ──
+  - discovery_id: gcp.analyticsdata.properties.recurringAudienceLists.get
+    for_each: gcp.analyticsdata.properties.recurringAudienceLists.list
+    # python: svc.properties().recurringAudienceLists().get(**params).execute()
+    calls:
+      - action: properties.recurringAudienceLists.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        activeDaysRemaining: '{{ response.activeDaysRemaining }}'
+        audience: '{{ response.audience }}'
+        audienceDisplayName: '{{ response.audienceDisplayName }}'
+        audienceLists: '{{ response.audienceLists }}'
+        dimensions: '{{ response.dimensions }}'
+        name: '{{ response.name }}'
+        webhookNotification: '{{ response.webhookNotification }}'
+    # required_params: ['name']
+  # Gets report metadata about a specific report task. After creating a report task, use this method to 
+  # ── gcp.analyticsdata.properties.reportTasks.get [dependent] ──
+  - discovery_id: gcp.analyticsdata.properties.reportTasks.get
+    for_each: gcp.analyticsdata.properties.reportTasks.query
+    # python: svc.properties().reportTasks().get(**params).execute()
+    calls:
+      - action: properties.reportTasks.get
+        params:
+          name: '{{ item.dimensionValues }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        name: '{{ response.name }}'
+        reportDefinition: '{{ response.reportDefinition }}'
+        reportMetadata: '{{ response.reportMetadata }}'
+    # required_params: ['name']
+  # Retrieves a report task's content. After requesting the `CreateReportTask`, you are able to retrieve
+  # ── gcp.analyticsdata.properties.reportTasks.query [dependent] ──
+  - discovery_id: gcp.analyticsdata.properties.reportTasks.query
+    # python: svc.properties().reportTasks().query(**params).execute()
+    calls:
+      - action: properties.reportTasks.query
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.reportTasks }}'
+      item:
+        dimensionValues: '{{ item.dimensionValues }}'
+        metricValues: '{{ item.metricValues }}'
+    # required_params: ['name']

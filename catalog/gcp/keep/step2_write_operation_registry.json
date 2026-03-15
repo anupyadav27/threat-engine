@@ -1,0 +1,109 @@
+{
+  "service": "keep",
+  "version": "v1",
+  "csp": "gcp",
+  "title": "Google Keep API",
+  "base_url": "https://keep.googleapis.com/",
+  "total_operations": 2,
+  "operations": {
+    "gcp.keep.notes.delete": {
+      "op": "gcp.keep.notes.delete",
+      "service": "keep",
+      "kind": "write_delete",
+      "http": {
+        "verb": "DELETE",
+        "path": "/v1/{+name}"
+      },
+      "python_call": "svc.notes().delete(**params).execute()",
+      "description": "Deletes a note. Caller must have the `OWNER` role on the note to delete. Deleting a note removes the resource immediately and cannot be undone. Any collaborators will lose access to the note.",
+      "inputs": {
+        "required": [
+          {
+            "param": "name",
+            "type": "string",
+            "location": "path",
+            "template": "notes/{noteId}",
+            "slots": [
+              {
+                "slot": "noteId",
+                "source": "from_list_op",
+                "after_segment": "notes"
+              }
+            ],
+            "pattern": "^notes/[^/]+$",
+            "description": "Required. Name of the note to delete."
+          }
+        ],
+        "optional": []
+      },
+      "outputs": {
+        "response_schema": "Empty",
+        "list_field": null,
+        "id_field": null,
+        "id_is_full_resource_name": false,
+        "produces_fields": []
+      },
+      "independent": false,
+      "dependency_hints": [
+        {
+          "param": "name",
+          "can_come_from": [
+            {
+              "kind": "known_format",
+              "template": "notes/{noteId}",
+              "slots": [
+                {
+                  "slot": "noteId",
+                  "source": "from_list_op",
+                  "after_segment": "notes"
+                }
+              ]
+            },
+            {
+              "kind": "from_list_op",
+              "op": "gcp.keep.notes.list",
+              "match_tier": 1,
+              "match_confidence": "exact",
+              "list_field": "notes",
+              "id_field": "name",
+              "produces_slot": "noteId",
+              "note": "[tier 1/exact] call gcp.keep.notes.list, iterate response[\"notes\"][], extract item[\"name\"] \u2192 fill {noteId}"
+            }
+          ]
+        }
+      ],
+      "scopes": [
+        "https://www.googleapis.com/auth/keep"
+      ],
+      "paginated": false
+    },
+    "gcp.keep.notes.create": {
+      "op": "gcp.keep.notes.create",
+      "service": "keep",
+      "kind": "write_create",
+      "http": {
+        "verb": "POST",
+        "path": "/v1/notes"
+      },
+      "python_call": "svc.notes().create(**params).execute()",
+      "description": "Creates a new note.",
+      "inputs": {
+        "required": [],
+        "optional": []
+      },
+      "outputs": {
+        "response_schema": "Note",
+        "list_field": null,
+        "id_field": null,
+        "id_is_full_resource_name": false,
+        "produces_fields": []
+      },
+      "independent": true,
+      "dependency_hints": [],
+      "scopes": [
+        "https://www.googleapis.com/auth/keep"
+      ],
+      "paginated": false
+    }
+  }
+}

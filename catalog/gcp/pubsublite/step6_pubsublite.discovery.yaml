@@ -1,0 +1,234 @@
+# ============================================================
+# Discovery YAML — pubsublite (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 12 | independent: 5 | dependent: 7
+# ops with fields: 10/12 | dep ops with chain: 7/7
+# ============================================================
+version: '1.0'
+provider: gcp
+service: pubsublite
+
+services:
+  client: pubsublite
+  module: "googleapiclient.discovery.build('pubsublite', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists operations that match the specified filter in the request. If the server doesn't support this 
+  # ── gcp.pubsublite.admin.projects.locations.operations.list ──
+  - discovery_id: gcp.pubsublite.admin.projects.locations.operations.list
+    # python: svc.admin().projects().locations().operations().list(**params).execute()
+    calls:
+      - action: admin.projects.locations.operations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.operations }}'
+      item:
+        done: '{{ item.done }}'
+        error: '{{ item.error }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+        response: '{{ item.response }}'
+  # Returns the list of reservations for the given project.
+  # ── gcp.pubsublite.admin.projects.locations.reservations.list ──
+  - discovery_id: gcp.pubsublite.admin.projects.locations.reservations.list
+    # python: svc.admin().projects().locations().reservations().list(**params).execute()
+    calls:
+      - action: admin.projects.locations.reservations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.reservations }}'
+      item:
+        name: '{{ item.name }}'
+        throughputCapacity: '{{ item.throughputCapacity }}'
+  # Returns the list of subscriptions for the given project.
+  # ── gcp.pubsublite.admin.projects.locations.subscriptions.list ──
+  - discovery_id: gcp.pubsublite.admin.projects.locations.subscriptions.list
+    # python: svc.admin().projects().locations().subscriptions().list(**params).execute()
+    calls:
+      - action: admin.projects.locations.subscriptions.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.subscriptions }}'
+      item:
+        deliveryConfig: '{{ item.deliveryConfig }}'
+        exportConfig: '{{ item.exportConfig }}'
+        name: '{{ item.name }}'
+        topic: '{{ item.topic }}'
+  # Returns the list of topics for the given project.
+  # ── gcp.pubsublite.admin.projects.locations.topics.list ──
+  - discovery_id: gcp.pubsublite.admin.projects.locations.topics.list
+    # python: svc.admin().projects().locations().topics().list(**params).execute()
+    calls:
+      - action: admin.projects.locations.topics.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.topics }}'
+      item:
+        name: '{{ item.name }}'
+        partitionConfig: '{{ item.partitionConfig }}'
+        reservationConfig: '{{ item.reservationConfig }}'
+        retentionConfig: '{{ item.retentionConfig }}'
+  # Returns all committed cursor information for a subscription.
+  # ── gcp.pubsublite.cursor.projects.locations.subscriptions.cursors.list ──
+  - discovery_id: gcp.pubsublite.cursor.projects.locations.subscriptions.cursors.list
+    # python: svc.cursor().projects().locations().subscriptions().cursors().list(**params).execute()
+    calls:
+      - action: cursor.projects.locations.subscriptions.cursors.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.cursors }}'
+      item:
+        cursor: '{{ item.cursor }}'
+        partition: '{{ item.partition }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.pubsublite.admin.projects.locations.operations.get [dependent] ──
+  - discovery_id: gcp.pubsublite.admin.projects.locations.operations.get
+    for_each: gcp.pubsublite.admin.projects.locations.operations.list
+    # python: svc.admin().projects().locations().operations().get(**params).execute()
+    calls:
+      - action: admin.projects.locations.operations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']
+  # Returns the reservation configuration.
+  # ── gcp.pubsublite.admin.projects.locations.reservations.get [dependent] ──
+  - discovery_id: gcp.pubsublite.admin.projects.locations.reservations.get
+    for_each: gcp.pubsublite.admin.projects.locations.reservations.list
+    # python: svc.admin().projects().locations().reservations().get(**params).execute()
+    calls:
+      - action: admin.projects.locations.reservations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        name: '{{ response.name }}'
+        throughputCapacity: '{{ response.throughputCapacity }}'
+    # required_params: ['name']
+  # Lists the topics attached to the specified reservation.
+  # ── gcp.pubsublite.admin.projects.locations.reservations.topics.list [dependent] ──
+  - discovery_id: gcp.pubsublite.admin.projects.locations.reservations.topics.list
+    for_each: gcp.pubsublite.admin.projects.locations.reservations.list
+    # python: svc.admin().projects().locations().reservations().topics().list(**params).execute()
+    calls:
+      - action: admin.projects.locations.reservations.topics.list
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.topics }}'
+    # required_params: ['name']
+  # Returns the subscription configuration.
+  # ── gcp.pubsublite.admin.projects.locations.subscriptions.get [dependent] ──
+  - discovery_id: gcp.pubsublite.admin.projects.locations.subscriptions.get
+    for_each: gcp.pubsublite.admin.projects.locations.subscriptions.list
+    # python: svc.admin().projects().locations().subscriptions().get(**params).execute()
+    calls:
+      - action: admin.projects.locations.subscriptions.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        deliveryConfig: '{{ response.deliveryConfig }}'
+        exportConfig: '{{ response.exportConfig }}'
+        name: '{{ response.name }}'
+        topic: '{{ response.topic }}'
+    # required_params: ['name']
+  # Returns the topic configuration.
+  # ── gcp.pubsublite.admin.projects.locations.topics.get [dependent] ──
+  - discovery_id: gcp.pubsublite.admin.projects.locations.topics.get
+    for_each: gcp.pubsublite.admin.projects.locations.topics.list
+    # python: svc.admin().projects().locations().topics().get(**params).execute()
+    calls:
+      - action: admin.projects.locations.topics.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        name: '{{ response.name }}'
+        partitionConfig: '{{ response.partitionConfig }}'
+        reservationConfig: '{{ response.reservationConfig }}'
+        retentionConfig: '{{ response.retentionConfig }}'
+    # required_params: ['name']
+  # Returns the partition information for the requested topic.
+  # ── gcp.pubsublite.admin.projects.locations.topics.getPartitions [dependent] ──
+  - discovery_id: gcp.pubsublite.admin.projects.locations.topics.getPartitions
+    for_each: gcp.pubsublite.admin.projects.locations.topics.list
+    # python: svc.admin().projects().locations().topics().getPartitions(**params).execute()
+    calls:
+      - action: admin.projects.locations.topics.getPartitions
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        partitionCount: '{{ response.partitionCount }}'
+    # required_params: ['name']
+  # Lists the subscriptions attached to the specified topic.
+  # ── gcp.pubsublite.admin.projects.locations.topics.subscriptions.list [dependent] ──
+  - discovery_id: gcp.pubsublite.admin.projects.locations.topics.subscriptions.list
+    for_each: gcp.pubsublite.admin.projects.locations.topics.list
+    # python: svc.admin().projects().locations().topics().subscriptions().list(**params).execute()
+    calls:
+      - action: admin.projects.locations.topics.subscriptions.list
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.subscriptions }}'
+    # required_params: ['name']

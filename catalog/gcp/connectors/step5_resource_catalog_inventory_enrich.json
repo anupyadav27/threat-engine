@@ -1,0 +1,3397 @@
+{
+  "csp": "gcp",
+  "generated_at": "2026-02-19T14:43:25.317079+00:00",
+  "anchors": {
+    "fixed": [
+      "project_id",
+      "org_id",
+      "folder_id",
+      "location",
+      "zone",
+      "region"
+    ]
+  },
+  "services": {
+    "connectors": {
+      "version": "v1",
+      "resources": {
+        "connectionSchemaMetadata": {
+          "resource_type": "connectionSchemaMetadata",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "constructed",
+            "full_identifier": {
+              "template": "projects/{url_encoded_connection}",
+              "built_from_parts": [
+                "connections[].connection"
+              ],
+              "notes": ""
+            },
+            "parts": [
+              "connection"
+            ],
+            "part_sources": {
+              "connection": {
+                "op": "gcp.connectors.projects.locations.connections.search",
+                "field_path": "connections[].connection",
+                "transform": null
+              }
+            },
+            "transforms": [
+              {
+                "from": "connections[].connection",
+                "fn": "url_encode",
+                "to": "url_encoded_connection"
+              },
+              {
+                "from": "url_encoded_connection",
+                "fn": "prefix:projects/",
+                "to": "name"
+              },
+              {
+                "build": "full_id",
+                "template": "projects/{url_encoded_connection}"
+              }
+            ]
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.connectors.projects.locations.connections.search",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}:search"
+                },
+                "python_call": "svc.projects().locations().connections().search(**params).execute()",
+                "produces": {
+                  "connection": "connections[].connection",
+                  "actionSchema": "connections[].actionSchema",
+                  "entitySchema": "connections[].entitySchema"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.connectors.projects.locations.connections.connectionSchemaMetadata.listActions",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}:listActions"
+                },
+                "python_call": "svc.projects().locations().connections().connectionSchemaMetadata().listActions(**params).execute()",
+                "produces": {
+                  "action": "actions[].action",
+                  "displayName": "actions[].displayName",
+                  "resultMetadata": "actions[].resultMetadata",
+                  "inputParameters": "actions[].inputParameters",
+                  "description": "actions[].description",
+                  "inputSchemaAsString": "actions[].inputSchemaAsString",
+                  "resultJsonSchema": "actions[].resultJsonSchema",
+                  "resultSchemaAsString": "actions[].resultSchemaAsString",
+                  "inputJsonSchema": "actions[].inputJsonSchema"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.connectors.projects.locations.connections.connectionSchemaMetadata.listActions",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.connectors.projects.locations.connections.search",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().connections().search(**params).execute()",
+                      "path": "/v1/{+name}:search",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/connections$",
+                          "description": "Required. Parent resource of the Connection, of the form: `projects/*/locations/*/connections`"
+                        }
+                      },
+                      "output_list_field": "connections",
+                      "output_id_field": "connection",
+                      "produces": {
+                        "connectionId": {
+                          "via_list_field": "connections",
+                          "from_id_field": "connection",
+                          "note": "Iterate response[\"connections\"][], extract item[\"connection\"] \u2192 pass as \"connectionId\""
+                        }
+                      },
+                      "param_sources": {
+                        "name": "always_available"
+                      },
+                      "purpose": "Provides: connectionId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.connectors.projects.locations.connections.connectionSchemaMetadata.listActions",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().connections().connectionSchemaMetadata().listActions(**params).execute()",
+                      "path": "/v1/{+name}:listActions",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/connections/[^/]+/connectionSchemaMetadata$",
+                          "description": "Required. Resource name format. projects/{project}/locations/{location}/connections/{connection}/connectionSchemaMetadat"
+                        }
+                      },
+                      "output_list_field": "actions",
+                      "output_id_field": "action",
+                      "produces": {
+                        "connectionSchemaMetadataId": {
+                          "via_list_field": "actions",
+                          "from_id_field": "action",
+                          "note": "Iterate response[\"actions\"][], extract item[\"action\"] \u2192 pass as \"connectionSchemaMetadataId\""
+                        }
+                      },
+                      "param_sources": {
+                        "name": {
+                          "connectionId": {
+                            "from_step": 1,
+                            "from_op": "gcp.connectors.projects.locations.connections.search",
+                            "field": "connection"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.connectors.projects.locations.connections.connectionSchemaMetadata.listEntityTypes",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}:listEntityTypes"
+                },
+                "python_call": "svc.projects().locations().connections().connectionSchemaMetadata().listEntityTypes(**params).execute()",
+                "produces": {
+                  "jsonSchema": "entityTypes[].jsonSchema",
+                  "entity": "entityTypes[].entity",
+                  "operations": "entityTypes[].operations",
+                  "fields": "entityTypes[].fields"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.connectors.projects.locations.connections.connectionSchemaMetadata.listEntityTypes",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.connectors.projects.locations.connections.search",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().connections().search(**params).execute()",
+                      "path": "/v1/{+name}:search",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/connections$",
+                          "description": "Required. Parent resource of the Connection, of the form: `projects/*/locations/*/connections`"
+                        }
+                      },
+                      "output_list_field": "connections",
+                      "output_id_field": "connection",
+                      "produces": {
+                        "connectionId": {
+                          "via_list_field": "connections",
+                          "from_id_field": "connection",
+                          "note": "Iterate response[\"connections\"][], extract item[\"connection\"] \u2192 pass as \"connectionId\""
+                        }
+                      },
+                      "param_sources": {
+                        "name": "always_available"
+                      },
+                      "purpose": "Provides: connectionId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.connectors.projects.locations.connections.connectionSchemaMetadata.listEntityTypes",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().connections().connectionSchemaMetadata().listEntityTypes(**params).execute()",
+                      "path": "/v1/{+name}:listEntityTypes",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/connections/[^/]+/connectionSchemaMetadata$",
+                          "description": "Required. Resource name format: projects/{project}/locations/{location}/connections/{connection}/connectionSchemaMetadat"
+                        }
+                      },
+                      "output_list_field": "entityTypes",
+                      "output_id_field": "jsonSchema",
+                      "produces": {
+                        "connectionSchemaMetadataId": {
+                          "via_list_field": "entityTypes",
+                          "from_id_field": "jsonSchema",
+                          "note": "Iterate response[\"entityTypes\"][], extract item[\"jsonSchema\"] \u2192 pass as \"connectionSchemaMetadataId\""
+                        }
+                      },
+                      "param_sources": {
+                        "name": {
+                          "connectionId": {
+                            "from_step": 1,
+                            "from_op": "gcp.connectors.projects.locations.connections.search",
+                            "field": "connection"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.connectors.projects.locations.connections.connectionSchemaMetadata.getAction",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}:getAction"
+                },
+                "python_call": "svc.projects().locations().connections().connectionSchemaMetadata().getAction(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "transforms \u2192 name"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.connectors.projects.locations.connections.connectionSchemaMetadata.getAction",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.connectors.projects.locations.connections.search",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().connections().search(**params).execute()",
+                      "path": "/v1/{+name}:search",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/connections$",
+                          "description": "Required. Parent resource of the Connection, of the form: `projects/*/locations/*/connections`"
+                        }
+                      },
+                      "output_list_field": "connections",
+                      "output_id_field": "connection",
+                      "produces": {
+                        "connectionId": {
+                          "via_list_field": "connections",
+                          "from_id_field": "connection",
+                          "note": "Iterate response[\"connections\"][], extract item[\"connection\"] \u2192 pass as \"connectionId\""
+                        }
+                      },
+                      "param_sources": {
+                        "name": "always_available"
+                      },
+                      "purpose": "Provides: connectionId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.connectors.projects.locations.connections.connectionSchemaMetadata.getAction",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().connections().connectionSchemaMetadata().getAction(**params).execute()",
+                      "path": "/v1/{+name}:getAction",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/connections/[^/]+/connectionSchemaMetadata$",
+                          "description": "Required. Resource name format: projects/{project}/locations/{location}/connections/{connection}/connectionSchemaMetadat"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "connectionId": {
+                            "from_step": 1,
+                            "from_op": "gcp.connectors.projects.locations.connections.search",
+                            "field": "connection"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.connectors.projects.locations.connections.connectionSchemaMetadata.getEntityType",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}:getEntityType"
+                },
+                "python_call": "svc.projects().locations().connections().connectionSchemaMetadata().getEntityType(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "transforms \u2192 name"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.connectors.projects.locations.connections.connectionSchemaMetadata.getEntityType",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.connectors.projects.locations.connections.search",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().connections().search(**params).execute()",
+                      "path": "/v1/{+name}:search",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/connections$",
+                          "description": "Required. Parent resource of the Connection, of the form: `projects/*/locations/*/connections`"
+                        }
+                      },
+                      "output_list_field": "connections",
+                      "output_id_field": "connection",
+                      "produces": {
+                        "connectionId": {
+                          "via_list_field": "connections",
+                          "from_id_field": "connection",
+                          "note": "Iterate response[\"connections\"][], extract item[\"connection\"] \u2192 pass as \"connectionId\""
+                        }
+                      },
+                      "param_sources": {
+                        "name": "always_available"
+                      },
+                      "purpose": "Provides: connectionId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.connectors.projects.locations.connections.connectionSchemaMetadata.getEntityType",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().connections().connectionSchemaMetadata().getEntityType(**params).execute()",
+                      "path": "/v1/{+name}:getEntityType",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/connections/[^/]+/connectionSchemaMetadata$",
+                          "description": "Required. Resource name format: projects/{project}/locations/{location}/connections/{connection}/connectionSchemaMetadat"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "connectionId": {
+                            "from_step": 1,
+                            "from_op": "gcp.connectors.projects.locations.connections.search",
+                            "field": "connection"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        },
+        "connections": {
+          "resource_type": "connections",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "constructed",
+            "full_identifier": {
+              "template": "projects/{url_encoded_connection}",
+              "built_from_parts": [
+                "connections[].connection"
+              ],
+              "notes": ""
+            },
+            "parts": [
+              "connection"
+            ],
+            "part_sources": {
+              "connection": {
+                "op": "gcp.connectors.projects.locations.connections.search",
+                "field_path": "connections[].connection",
+                "transform": null
+              }
+            },
+            "transforms": [
+              {
+                "from": "connections[].connection",
+                "fn": "url_encode",
+                "to": "url_encoded_connection"
+              },
+              {
+                "from": "url_encoded_connection",
+                "fn": "prefix:projects/",
+                "to": "name"
+              },
+              {
+                "build": "full_id",
+                "template": "projects/{url_encoded_connection}"
+              }
+            ]
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.connectors.projects.locations.connections.search",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}:search"
+                },
+                "python_call": "svc.projects().locations().connections().search(**params).execute()",
+                "produces": {
+                  "connection": "connections[].connection",
+                  "actionSchema": "connections[].actionSchema",
+                  "entitySchema": "connections[].entitySchema"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.connectors.projects.locations.connections.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/connections"
+                },
+                "python_call": "svc.projects().locations().connections().list(**params).execute()",
+                "produces": {
+                  "name": "connections[].name",
+                  "destinationConfigs": "connections[].destinationConfigs",
+                  "tlsServiceDirectory": "connections[].tlsServiceDirectory",
+                  "host": "connections[].host",
+                  "eventingRuntimeData": "connections[].eventingRuntimeData",
+                  "createTime": "connections[].createTime",
+                  "sslConfig": "connections[].sslConfig",
+                  "connectionRevision": "connections[].connectionRevision",
+                  "authConfig": "connections[].authConfig",
+                  "labels": "connections[].labels",
+                  "serviceAccount": "connections[].serviceAccount",
+                  "connectorVersion": "connections[].connectorVersion",
+                  "serviceDirectory": "connections[].serviceDirectory",
+                  "imageLocation": "connections[].imageLocation",
+                  "suspended": "connections[].suspended",
+                  "connectorVersionInfraConfig": "connections[].connectorVersionInfraConfig",
+                  "nodeConfig": "connections[].nodeConfig",
+                  "updateTime": "connections[].updateTime",
+                  "authOverrideEnabled": "connections[].authOverrideEnabled",
+                  "status": "connections[].status",
+                  "billingConfig": "connections[].billingConfig",
+                  "eventingEnablementType": "connections[].eventingEnablementType",
+                  "isTrustedTester": "connections[].isTrustedTester",
+                  "lockConfig": "connections[].lockConfig",
+                  "logConfig": "connections[].logConfig",
+                  "euaOauthAuthConfig": "connections[].euaOauthAuthConfig",
+                  "connectorVersionLaunchStage": "connections[].connectorVersionLaunchStage",
+                  "fallbackOnAdminCredentials": "connections[].fallbackOnAdminCredentials",
+                  "subscriptionType": "connections[].subscriptionType",
+                  "envoyImageLocation": "connections[].envoyImageLocation",
+                  "configVariables": "connections[].configVariables",
+                  "eventingConfig": "connections[].eventingConfig",
+                  "asyncOperationsEnabled": "connections[].asyncOperationsEnabled",
+                  "trafficShapingConfigs": "connections[].trafficShapingConfigs",
+                  "description": "connections[].description"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.connectors.projects.locations.connections.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().connections().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "transforms \u2192 name"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.connectors.projects.locations.connections.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.connectors.projects.locations.connections.search",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().connections().search(**params).execute()",
+                      "path": "/v1/{+name}:search",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/connections$",
+                          "description": "Required. Parent resource of the Connection, of the form: `projects/*/locations/*/connections`"
+                        }
+                      },
+                      "output_list_field": "connections",
+                      "output_id_field": "connection",
+                      "produces": {
+                        "connectionId": {
+                          "via_list_field": "connections",
+                          "from_id_field": "connection",
+                          "note": "Iterate response[\"connections\"][], extract item[\"connection\"] \u2192 pass as \"connectionId\""
+                        }
+                      },
+                      "param_sources": {
+                        "name": "always_available"
+                      },
+                      "purpose": "Provides: connectionId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.connectors.projects.locations.connections.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().connections().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/connections/[^/]+$",
+                          "description": "Required. Resource name of the form: `projects/*/locations/*/connections/*`"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "connectionId": {
+                            "from_step": 1,
+                            "from_op": "gcp.connectors.projects.locations.connections.search",
+                            "field": "connection"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.connectors.projects.locations.connections.getConnectionSchemaMetadata",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().connections().getConnectionSchemaMetadata(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "transforms \u2192 name"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.connectors.projects.locations.connections.getConnectionSchemaMetadata",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.connectors.projects.locations.connections.search",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().connections().search(**params).execute()",
+                      "path": "/v1/{+name}:search",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/connections$",
+                          "description": "Required. Parent resource of the Connection, of the form: `projects/*/locations/*/connections`"
+                        }
+                      },
+                      "output_list_field": "connections",
+                      "output_id_field": "connection",
+                      "produces": {
+                        "connectionId": {
+                          "via_list_field": "connections",
+                          "from_id_field": "connection",
+                          "note": "Iterate response[\"connections\"][], extract item[\"connection\"] \u2192 pass as \"connectionId\""
+                        }
+                      },
+                      "param_sources": {
+                        "name": "always_available"
+                      },
+                      "purpose": "Provides: connectionId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.connectors.projects.locations.connections.getConnectionSchemaMetadata",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().connections().getConnectionSchemaMetadata(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/connections/[^/]+/connectionSchemaMetadata$",
+                          "description": "Required. Connection name Format: projects/{project}/locations/{location}/connections/{connection}/connectionSchemaMetad"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "connectionId": {
+                            "from_step": 1,
+                            "from_op": "gcp.connectors.projects.locations.connections.search",
+                            "field": "connection"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.connectors.projects.locations.connections.getIamPolicy",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+resource}:getIamPolicy"
+                },
+                "python_call": "svc.projects().locations().connections().getIamPolicy(**params).execute()",
+                "required_params": {
+                  "resource": {
+                    "from_identifier": "gcp.connectors.projects.locations.connections.search \u2192 connections[].connection"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.connectors.projects.locations.connections.getIamPolicy",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.connectors.projects.locations.connections.search",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().connections().search(**params).execute()",
+                      "path": "/v1/{+name}:search",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/connections$",
+                          "description": "Required. Parent resource of the Connection, of the form: `projects/*/locations/*/connections`"
+                        }
+                      },
+                      "output_list_field": "connections",
+                      "output_id_field": "connection",
+                      "produces": {
+                        "connectionId": {
+                          "via_list_field": "connections",
+                          "from_id_field": "connection",
+                          "note": "Iterate response[\"connections\"][], extract item[\"connection\"] \u2192 pass as \"connectionId\""
+                        }
+                      },
+                      "param_sources": {
+                        "name": "always_available"
+                      },
+                      "purpose": "Provides: connectionId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.connectors.projects.locations.connections.getIamPolicy",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().connections().getIamPolicy(**params).execute()",
+                      "path": "/v1/{+resource}:getIamPolicy",
+                      "required_params": {
+                        "resource": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/connections/[^/]+$",
+                          "description": "REQUIRED: The resource for which the policy is being requested. See [Resource names](https://cloud.google.com/apis/desig"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "resource": {
+                          "connectionId": {
+                            "from_step": 1,
+                            "from_op": "gcp.connectors.projects.locations.connections.search",
+                            "field": "connection"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        },
+        "connectors": {
+          "resource_type": "connectors",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.connectors.projects.locations.providers.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/providers"
+                },
+                "python_call": "svc.projects().locations().providers().list(**params).execute()",
+                "produces": {
+                  "name": "providers[].name",
+                  "labels": "providers[].labels",
+                  "displayName": "providers[].displayName",
+                  "launchStage": "providers[].launchStage",
+                  "createTime": "providers[].createTime",
+                  "documentationUri": "providers[].documentationUri",
+                  "description": "providers[].description",
+                  "updateTime": "providers[].updateTime",
+                  "externalUri": "providers[].externalUri",
+                  "webAssetsLocation": "providers[].webAssetsLocation"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.connectors.projects.locations.providers.connectors.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/connectors"
+                },
+                "python_call": "svc.projects().locations().providers().connectors().list(**params).execute()",
+                "produces": {
+                  "name": "connectors[].name",
+                  "connectorType": "connectors[].connectorType",
+                  "description": "connectors[].description",
+                  "createTime": "connectors[].createTime",
+                  "category": "connectors[].category",
+                  "externalUri": "connectors[].externalUri",
+                  "launchStage": "connectors[].launchStage",
+                  "documentationUri": "connectors[].documentationUri",
+                  "labels": "connectors[].labels",
+                  "marketplaceConnectorDetails": "connectors[].marketplaceConnectorDetails",
+                  "displayName": "connectors[].displayName",
+                  "updateTime": "connectors[].updateTime",
+                  "webAssetsLocation": "connectors[].webAssetsLocation",
+                  "eventingDetails": "connectors[].eventingDetails",
+                  "tags": "connectors[].tags"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.connectors.projects.locations.providers.connectors.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().providers().connectors().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.connectors.projects.locations.providers.connectors.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 3,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.connectors.projects.locations.providers.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().providers().list(**params).execute()",
+                      "path": "/v1/{+parent}/providers",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. Parent resource of the API, of the form: `projects/*/locations/*` Only global location is supported for Provid"
+                        }
+                      },
+                      "output_list_field": "providers",
+                      "output_id_field": "name",
+                      "produces": {
+                        "providerId": {
+                          "via_list_field": "providers",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"providers\"][], extract item[\"name\"] \u2192 pass as \"providerId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: providerId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.connectors.projects.locations.providers.connectors.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().providers().connectors().list(**params).execute()",
+                      "path": "/v1/{+parent}/connectors",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/providers/[^/]+$",
+                          "description": "Required. Parent resource of the connectors, of the form: `projects/*/locations/*/providers/*` Only global location is s"
+                        }
+                      },
+                      "output_list_field": "connectors",
+                      "output_id_field": "name",
+                      "produces": {
+                        "connectorId": {
+                          "via_list_field": "connectors",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"connectors\"][], extract item[\"name\"] \u2192 pass as \"connectorId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: connectorId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.connectors.projects.locations.providers.connectors.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().providers().connectors().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/providers/[^/]+/connectors/[^/]+$",
+                          "description": "Required. Resource name of the form: `projects/*/locations/*/providers/*/connectors/*` Only global location is supported"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "providerId": {
+                            "from_step": 1,
+                            "from_op": "gcp.connectors.projects.locations.providers.list",
+                            "field": "name"
+                          },
+                          "connectorId": {
+                            "from_step": 2,
+                            "from_op": "gcp.connectors.projects.locations.providers.connectors.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "customConnectorVersions": {
+          "resource_type": "customConnectorVersions",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.connectors.projects.locations.global.customConnectors.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/customConnectors"
+                },
+                "python_call": "svc.projects().locations().global().customConnectors().list(**params).execute()",
+                "produces": {
+                  "name": "customConnectors[].name",
+                  "activeConnectorVersions": "customConnectors[].activeConnectorVersions",
+                  "createTime": "customConnectors[].createTime",
+                  "allMarketplaceVersions": "customConnectors[].allMarketplaceVersions",
+                  "customConnectorType": "customConnectors[].customConnectorType",
+                  "labels": "customConnectors[].labels",
+                  "displayName": "customConnectors[].displayName",
+                  "description": "customConnectors[].description",
+                  "allConnectorVersions": "customConnectors[].allConnectorVersions",
+                  "publishedMarketplaceVersions": "customConnectors[].publishedMarketplaceVersions",
+                  "logo": "customConnectors[].logo",
+                  "updateTime": "customConnectors[].updateTime"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.connectors.projects.locations.global.customConnectors.customConnectorVersions.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/customConnectorVersions"
+                },
+                "python_call": "svc.projects().locations().global().customConnectors().customConnectorVersions().list(**params).execute()",
+                "produces": {
+                  "name": "customConnectorVersions[].name",
+                  "destinationConfigs": "customConnectorVersions[].destinationConfigs",
+                  "labels": "customConnectorVersions[].labels",
+                  "serviceAccount": "customConnectorVersions[].serviceAccount",
+                  "backendVariableTemplates": "customConnectorVersions[].backendVariableTemplates",
+                  "state": "customConnectorVersions[].state",
+                  "publishStatus": "customConnectorVersions[].publishStatus",
+                  "enableBackendDestinationConfig": "customConnectorVersions[].enableBackendDestinationConfig",
+                  "createTime": "customConnectorVersions[].createTime",
+                  "authConfig": "customConnectorVersions[].authConfig",
+                  "asyncOperationsSupport": "customConnectorVersions[].asyncOperationsSupport",
+                  "specLocation": "customConnectorVersions[].specLocation",
+                  "authOverrideSupport": "customConnectorVersions[].authOverrideSupport",
+                  "specServerUrls": "customConnectorVersions[].specServerUrls",
+                  "updateTime": "customConnectorVersions[].updateTime",
+                  "partnerMetadata": "customConnectorVersions[].partnerMetadata",
+                  "authConfigTemplates": "customConnectorVersions[].authConfigTemplates"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.connectors.projects.locations.global.customConnectors.customConnectorVersions.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().global().customConnectors().customConnectorVersions().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.connectors.projects.locations.global.customConnectors.customConnectorVersions.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 3,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.connectors.projects.locations.global.customConnectors.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().global().customConnectors().list(**params).execute()",
+                      "path": "/v1/{+parent}/customConnectors",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/global$",
+                          "description": "Required. Parent resource of the custom connectors, of the form: `projects/*/locations/*` Only global location is suppor"
+                        }
+                      },
+                      "output_list_field": "customConnectors",
+                      "output_id_field": "name",
+                      "produces": {
+                        "customConnectorId": {
+                          "via_list_field": "customConnectors",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"customConnectors\"][], extract item[\"name\"] \u2192 pass as \"customConnectorId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: customConnectorId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.connectors.projects.locations.global.customConnectors.customConnectorVersions.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().global().customConnectors().customConnectorVersions().list(**params).execute()",
+                      "path": "/v1/{+parent}/customConnectorVersions",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/global/customConnectors/[^/]+$",
+                          "description": "Required. Parent resource of the connectors, of the form: `projects/*/locations/{location}/customConnectors/*/customConn"
+                        }
+                      },
+                      "output_list_field": "customConnectorVersions",
+                      "output_id_field": "name",
+                      "produces": {
+                        "customConnectorVersionId": {
+                          "via_list_field": "customConnectorVersions",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"customConnectorVersions\"][], extract item[\"name\"] \u2192 pass as \"customConnectorVersionId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: customConnectorVersionId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.connectors.projects.locations.global.customConnectors.customConnectorVersions.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().global().customConnectors().customConnectorVersions().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/global/customConnectors/[^/]+/customConnectorVersions/[^/]+$",
+                          "description": "Required. Resource name of the form: `projects/*/locations/{location}/customConnectors/*/customConnectorVersions/*`"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "customConnectorId": {
+                            "from_step": 1,
+                            "from_op": "gcp.connectors.projects.locations.global.customConnectors.list",
+                            "field": "name"
+                          },
+                          "customConnectorVersionId": {
+                            "from_step": 2,
+                            "from_op": "gcp.connectors.projects.locations.global.customConnectors.customConnectorVersions.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "customConnectors": {
+          "resource_type": "customConnectors",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.connectors.projects.locations.global.customConnectors.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/customConnectors"
+                },
+                "python_call": "svc.projects().locations().global().customConnectors().list(**params).execute()",
+                "produces": {
+                  "name": "customConnectors[].name",
+                  "activeConnectorVersions": "customConnectors[].activeConnectorVersions",
+                  "createTime": "customConnectors[].createTime",
+                  "allMarketplaceVersions": "customConnectors[].allMarketplaceVersions",
+                  "customConnectorType": "customConnectors[].customConnectorType",
+                  "labels": "customConnectors[].labels",
+                  "displayName": "customConnectors[].displayName",
+                  "description": "customConnectors[].description",
+                  "allConnectorVersions": "customConnectors[].allConnectorVersions",
+                  "publishedMarketplaceVersions": "customConnectors[].publishedMarketplaceVersions",
+                  "logo": "customConnectors[].logo",
+                  "updateTime": "customConnectors[].updateTime"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.connectors.projects.locations.global.customConnectors.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().global().customConnectors().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.connectors.projects.locations.global.customConnectors.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.connectors.projects.locations.global.customConnectors.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().global().customConnectors().list(**params).execute()",
+                      "path": "/v1/{+parent}/customConnectors",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/global$",
+                          "description": "Required. Parent resource of the custom connectors, of the form: `projects/*/locations/*` Only global location is suppor"
+                        }
+                      },
+                      "output_list_field": "customConnectors",
+                      "output_id_field": "name",
+                      "produces": {
+                        "customConnectorId": {
+                          "via_list_field": "customConnectors",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"customConnectors\"][], extract item[\"name\"] \u2192 pass as \"customConnectorId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: customConnectorId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.connectors.projects.locations.global.customConnectors.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().global().customConnectors().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/global/customConnectors/[^/]+$",
+                          "description": "Required. Resource name of the form: `projects/*/locations/*/customConnectors/*`"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "customConnectorId": {
+                            "from_step": 1,
+                            "from_op": "gcp.connectors.projects.locations.global.customConnectors.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "endUserAuthentications": {
+          "resource_type": "endUserAuthentications",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "constructed",
+            "full_identifier": {
+              "template": "projects/{url_encoded_connection}",
+              "built_from_parts": [
+                "connections[].connection"
+              ],
+              "notes": ""
+            },
+            "parts": [
+              "connection"
+            ],
+            "part_sources": {
+              "connection": {
+                "op": "gcp.connectors.projects.locations.connections.search",
+                "field_path": "connections[].connection",
+                "transform": null
+              }
+            },
+            "transforms": [
+              {
+                "from": "connections[].connection",
+                "fn": "url_encode",
+                "to": "url_encoded_connection"
+              },
+              {
+                "from": "url_encoded_connection",
+                "fn": "prefix:projects/",
+                "to": "name"
+              },
+              {
+                "build": "full_id",
+                "template": "projects/{url_encoded_connection}"
+              }
+            ]
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.connectors.projects.locations.connections.search",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}:search"
+                },
+                "python_call": "svc.projects().locations().connections().search(**params).execute()",
+                "produces": {
+                  "connection": "connections[].connection",
+                  "actionSchema": "connections[].actionSchema",
+                  "entitySchema": "connections[].entitySchema"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.connectors.projects.locations.connections.endUserAuthentications.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/endUserAuthentications"
+                },
+                "python_call": "svc.projects().locations().connections().endUserAuthentications().list(**params).execute()",
+                "produces": {
+                  "name": "endUserAuthentications[].name",
+                  "configVariables": "endUserAuthentications[].configVariables",
+                  "roles": "endUserAuthentications[].roles",
+                  "userId": "endUserAuthentications[].userId",
+                  "destinationConfigs": "endUserAuthentications[].destinationConfigs",
+                  "endUserAuthenticationConfig": "endUserAuthentications[].endUserAuthenticationConfig",
+                  "createTime": "endUserAuthentications[].createTime",
+                  "status": "endUserAuthentications[].status",
+                  "notifyEndpointDestination": "endUserAuthentications[].notifyEndpointDestination",
+                  "labels": "endUserAuthentications[].labels",
+                  "updateTime": "endUserAuthentications[].updateTime"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.connectors.projects.locations.connections.endUserAuthentications.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().connections().endUserAuthentications().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "transforms \u2192 name"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.connectors.projects.locations.connections.endUserAuthentications.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 3,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.connectors.projects.locations.connections.search",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().connections().search(**params).execute()",
+                      "path": "/v1/{+name}:search",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/connections$",
+                          "description": "Required. Parent resource of the Connection, of the form: `projects/*/locations/*/connections`"
+                        }
+                      },
+                      "output_list_field": "connections",
+                      "output_id_field": "connection",
+                      "produces": {
+                        "connectionId": {
+                          "via_list_field": "connections",
+                          "from_id_field": "connection",
+                          "note": "Iterate response[\"connections\"][], extract item[\"connection\"] \u2192 pass as \"connectionId\""
+                        }
+                      },
+                      "param_sources": {
+                        "name": "always_available"
+                      },
+                      "purpose": "Provides: connectionId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.connectors.projects.locations.connections.endUserAuthentications.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().connections().endUserAuthentications().list(**params).execute()",
+                      "path": "/v1/{+parent}/endUserAuthentications",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/connections/[^/]+$",
+                          "description": "Required. Parent resource of the EndUserAuthentication, of the form: `projects/*/locations/*/connections/*`"
+                        }
+                      },
+                      "output_list_field": "endUserAuthentications",
+                      "output_id_field": "name",
+                      "produces": {
+                        "endUserAuthenticationId": {
+                          "via_list_field": "endUserAuthentications",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"endUserAuthentications\"][], extract item[\"name\"] \u2192 pass as \"endUserAuthenticationId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: endUserAuthenticationId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.connectors.projects.locations.connections.endUserAuthentications.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().connections().endUserAuthentications().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/connections/[^/]+/endUserAuthentications/[^/]+$",
+                          "description": "Required. Resource name of the form: `projects/*/locations/*/connections/*/EndUserAuthentications/*`"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "connectionId": {
+                            "from_step": 1,
+                            "from_op": "gcp.connectors.projects.locations.connections.search",
+                            "field": "connection"
+                          },
+                          "endUserAuthenticationId": {
+                            "from_step": 2,
+                            "from_op": "gcp.connectors.projects.locations.connections.endUserAuthentications.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        },
+        "endpointAttachments": {
+          "resource_type": "endpointAttachments",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.connectors.projects.locations.endpointAttachments.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/endpointAttachments"
+                },
+                "python_call": "svc.projects().locations().endpointAttachments().list(**params).execute()",
+                "produces": {
+                  "name": "endpointAttachments[].name",
+                  "endpointIp": "endpointAttachments[].endpointIp",
+                  "updateTime": "endpointAttachments[].updateTime",
+                  "labels": "endpointAttachments[].labels",
+                  "serviceAttachment": "endpointAttachments[].serviceAttachment",
+                  "createTime": "endpointAttachments[].createTime",
+                  "description": "endpointAttachments[].description",
+                  "endpointGlobalAccess": "endpointAttachments[].endpointGlobalAccess",
+                  "state": "endpointAttachments[].state"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.connectors.projects.locations.endpointAttachments.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().endpointAttachments().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.connectors.projects.locations.endpointAttachments.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.connectors.projects.locations.endpointAttachments.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().endpointAttachments().list(**params).execute()",
+                      "path": "/v1/{+parent}/endpointAttachments",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. Parent resource od the EndpointAttachment, of the form: `projects/*/locations/*`"
+                        }
+                      },
+                      "output_list_field": "endpointAttachments",
+                      "output_id_field": "name",
+                      "produces": {
+                        "endpointAttachmentId": {
+                          "via_list_field": "endpointAttachments",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"endpointAttachments\"][], extract item[\"name\"] \u2192 pass as \"endpointAttachmentId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: endpointAttachmentId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.connectors.projects.locations.endpointAttachments.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().endpointAttachments().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/endpointAttachments/[^/]+$",
+                          "description": "Required. Resource name of the form: `projects/*/locations/*/endpointAttachments/*`"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "endpointAttachmentId": {
+                            "from_step": 1,
+                            "from_op": "gcp.connectors.projects.locations.endpointAttachments.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "eventSubscriptions": {
+          "resource_type": "eventSubscriptions",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "constructed",
+            "full_identifier": {
+              "template": "projects/{url_encoded_connection}",
+              "built_from_parts": [
+                "connections[].connection"
+              ],
+              "notes": ""
+            },
+            "parts": [
+              "connection"
+            ],
+            "part_sources": {
+              "connection": {
+                "op": "gcp.connectors.projects.locations.connections.search",
+                "field_path": "connections[].connection",
+                "transform": null
+              }
+            },
+            "transforms": [
+              {
+                "from": "connections[].connection",
+                "fn": "url_encode",
+                "to": "url_encoded_connection"
+              },
+              {
+                "from": "url_encoded_connection",
+                "fn": "prefix:projects/",
+                "to": "name"
+              },
+              {
+                "build": "full_id",
+                "template": "projects/{url_encoded_connection}"
+              }
+            ]
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.connectors.projects.locations.connections.search",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}:search"
+                },
+                "python_call": "svc.projects().locations().connections().search(**params).execute()",
+                "produces": {
+                  "connection": "connections[].connection",
+                  "actionSchema": "connections[].actionSchema",
+                  "entitySchema": "connections[].entitySchema"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.connectors.projects.locations.connections.eventSubscriptions.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/eventSubscriptions"
+                },
+                "python_call": "svc.projects().locations().connections().eventSubscriptions().list(**params).execute()",
+                "produces": {
+                  "name": "eventSubscriptions[].name",
+                  "eventTypeId": "eventSubscriptions[].eventTypeId",
+                  "jms": "eventSubscriptions[].jms",
+                  "subscriber": "eventSubscriptions[].subscriber",
+                  "triggerConfigVariables": "eventSubscriptions[].triggerConfigVariables",
+                  "status": "eventSubscriptions[].status",
+                  "subscriberLink": "eventSubscriptions[].subscriberLink",
+                  "createTime": "eventSubscriptions[].createTime",
+                  "destinations": "eventSubscriptions[].destinations",
+                  "updateTime": "eventSubscriptions[].updateTime"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.connectors.projects.locations.connections.eventSubscriptions.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().connections().eventSubscriptions().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "transforms \u2192 name"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.connectors.projects.locations.connections.eventSubscriptions.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 3,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.connectors.projects.locations.connections.search",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().connections().search(**params).execute()",
+                      "path": "/v1/{+name}:search",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/connections$",
+                          "description": "Required. Parent resource of the Connection, of the form: `projects/*/locations/*/connections`"
+                        }
+                      },
+                      "output_list_field": "connections",
+                      "output_id_field": "connection",
+                      "produces": {
+                        "connectionId": {
+                          "via_list_field": "connections",
+                          "from_id_field": "connection",
+                          "note": "Iterate response[\"connections\"][], extract item[\"connection\"] \u2192 pass as \"connectionId\""
+                        }
+                      },
+                      "param_sources": {
+                        "name": "always_available"
+                      },
+                      "purpose": "Provides: connectionId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.connectors.projects.locations.connections.eventSubscriptions.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().connections().eventSubscriptions().list(**params).execute()",
+                      "path": "/v1/{+parent}/eventSubscriptions",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/connections/[^/]+$",
+                          "description": "Required. Parent resource of the EventSubscription, of the form: `projects/*/locations/*/connections/*`"
+                        }
+                      },
+                      "output_list_field": "eventSubscriptions",
+                      "output_id_field": "name",
+                      "produces": {
+                        "eventSubscriptionId": {
+                          "via_list_field": "eventSubscriptions",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"eventSubscriptions\"][], extract item[\"name\"] \u2192 pass as \"eventSubscriptionId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: eventSubscriptionId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.connectors.projects.locations.connections.eventSubscriptions.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().connections().eventSubscriptions().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/connections/[^/]+/eventSubscriptions/[^/]+$",
+                          "description": "Required. Resource name of the form: `projects/*/locations/*/connections/*/eventSubscriptions/*`"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "connectionId": {
+                            "from_step": 1,
+                            "from_op": "gcp.connectors.projects.locations.connections.search",
+                            "field": "connection"
+                          },
+                          "eventSubscriptionId": {
+                            "from_step": 2,
+                            "from_op": "gcp.connectors.projects.locations.connections.eventSubscriptions.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        },
+        "eventtypes": {
+          "resource_type": "eventtypes",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.connectors.projects.locations.providers.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/providers"
+                },
+                "python_call": "svc.projects().locations().providers().list(**params).execute()",
+                "produces": {
+                  "name": "providers[].name",
+                  "labels": "providers[].labels",
+                  "displayName": "providers[].displayName",
+                  "launchStage": "providers[].launchStage",
+                  "createTime": "providers[].createTime",
+                  "documentationUri": "providers[].documentationUri",
+                  "description": "providers[].description",
+                  "updateTime": "providers[].updateTime",
+                  "externalUri": "providers[].externalUri",
+                  "webAssetsLocation": "providers[].webAssetsLocation"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.connectors.projects.locations.providers.connectors.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/connectors"
+                },
+                "python_call": "svc.projects().locations().providers().connectors().list(**params).execute()",
+                "produces": {
+                  "name": "connectors[].name",
+                  "connectorType": "connectors[].connectorType",
+                  "description": "connectors[].description",
+                  "createTime": "connectors[].createTime",
+                  "category": "connectors[].category",
+                  "externalUri": "connectors[].externalUri",
+                  "launchStage": "connectors[].launchStage",
+                  "documentationUri": "connectors[].documentationUri",
+                  "labels": "connectors[].labels",
+                  "marketplaceConnectorDetails": "connectors[].marketplaceConnectorDetails",
+                  "displayName": "connectors[].displayName",
+                  "updateTime": "connectors[].updateTime",
+                  "webAssetsLocation": "connectors[].webAssetsLocation",
+                  "eventingDetails": "connectors[].eventingDetails",
+                  "tags": "connectors[].tags"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.connectors.projects.locations.providers.connectors.versions.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/versions"
+                },
+                "python_call": "svc.projects().locations().providers().connectors().versions().list(**params).execute()",
+                "produces": {
+                  "name": "connectorVersions[].name",
+                  "isCustomEntitiesSupported": "connectorVersions[].isCustomEntitiesSupported",
+                  "launchStage": "connectorVersions[].launchStage",
+                  "configVariableTemplates": "connectorVersions[].configVariableTemplates",
+                  "createTime": "connectorVersions[].createTime",
+                  "supportedRuntimeFeatures": "connectorVersions[].supportedRuntimeFeatures",
+                  "isCustomActionsSupported": "connectorVersions[].isCustomActionsSupported",
+                  "eventingConfigTemplate": "connectorVersions[].eventingConfigTemplate",
+                  "authOverrideEnabled": "connectorVersions[].authOverrideEnabled",
+                  "sslConfigTemplate": "connectorVersions[].sslConfigTemplate",
+                  "connectorInfraConfig": "connectorVersions[].connectorInfraConfig",
+                  "schemaRefreshConfig": "connectorVersions[].schemaRefreshConfig",
+                  "authConfigTemplates": "connectorVersions[].authConfigTemplates",
+                  "updateTime": "connectorVersions[].updateTime",
+                  "roleGrant": "connectorVersions[].roleGrant",
+                  "supportedStandardActions": "connectorVersions[].supportedStandardActions",
+                  "egressControlConfig": "connectorVersions[].egressControlConfig",
+                  "labels": "connectorVersions[].labels",
+                  "roleGrants": "connectorVersions[].roleGrants",
+                  "supportedStandardEntities": "connectorVersions[].supportedStandardEntities",
+                  "vpcscConfig": "connectorVersions[].vpcscConfig",
+                  "destinationConfigTemplates": "connectorVersions[].destinationConfigTemplates",
+                  "unsupportedConnectionTypes": "connectorVersions[].unsupportedConnectionTypes",
+                  "displayName": "connectorVersions[].displayName",
+                  "releaseVersion": "connectorVersions[].releaseVersion"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.connectors.projects.locations.providers.connectors.versions.eventtypes.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/eventtypes"
+                },
+                "python_call": "svc.projects().locations().providers().connectors().versions().eventtypes().list(**params).execute()",
+                "produces": {
+                  "name": "eventTypes[].name",
+                  "entityType": "eventTypes[].entityType",
+                  "updateTime": "eventTypes[].updateTime",
+                  "createTime": "eventTypes[].createTime",
+                  "enrichedEventPayloadSchema": "eventTypes[].enrichedEventPayloadSchema",
+                  "idPath": "eventTypes[].idPath",
+                  "eventPayloadSchema": "eventTypes[].eventPayloadSchema",
+                  "eventTypeId": "eventTypes[].eventTypeId"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.connectors.projects.locations.providers.connectors.versions.eventtypes.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().providers().connectors().versions().eventtypes().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.connectors.projects.locations.providers.connectors.versions.eventtypes.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 5,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.connectors.projects.locations.providers.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().providers().list(**params).execute()",
+                      "path": "/v1/{+parent}/providers",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. Parent resource of the API, of the form: `projects/*/locations/*` Only global location is supported for Provid"
+                        }
+                      },
+                      "output_list_field": "providers",
+                      "output_id_field": "name",
+                      "produces": {
+                        "providerId": {
+                          "via_list_field": "providers",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"providers\"][], extract item[\"name\"] \u2192 pass as \"providerId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: providerId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.connectors.projects.locations.providers.connectors.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().providers().connectors().list(**params).execute()",
+                      "path": "/v1/{+parent}/connectors",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/providers/[^/]+$",
+                          "description": "Required. Parent resource of the connectors, of the form: `projects/*/locations/*/providers/*` Only global location is s"
+                        }
+                      },
+                      "output_list_field": "connectors",
+                      "output_id_field": "name",
+                      "produces": {
+                        "connectorId": {
+                          "via_list_field": "connectors",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"connectors\"][], extract item[\"name\"] \u2192 pass as \"connectorId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: connectorId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.connectors.projects.locations.providers.connectors.versions.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().providers().connectors().versions().list(**params).execute()",
+                      "path": "/v1/{+parent}/versions",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/providers/[^/]+/connectors/[^/]+$",
+                          "description": ""
+                        }
+                      },
+                      "output_list_field": "connectorVersions",
+                      "output_id_field": "name",
+                      "produces": {
+                        "versionId": {
+                          "via_list_field": "connectorVersions",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"connectorVersions\"][], extract item[\"name\"] \u2192 pass as \"versionId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: versionId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 4,
+                      "op": "gcp.connectors.projects.locations.providers.connectors.versions.eventtypes.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().providers().connectors().versions().eventtypes().list(**params).execute()",
+                      "path": "/v1/{+parent}/eventtypes",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/providers/[^/]+/connectors/[^/]+/versions/[^/]+$",
+                          "description": "Required. Parent resource of the connectors, of the form: `projects/*/locations/*/providers/*/connectors/*/versions/*` O"
+                        }
+                      },
+                      "output_list_field": "eventTypes",
+                      "output_id_field": "name",
+                      "produces": {
+                        "eventtypeId": {
+                          "via_list_field": "eventTypes",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"eventTypes\"][], extract item[\"name\"] \u2192 pass as \"eventtypeId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: eventtypeId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 5,
+                      "op": "gcp.connectors.projects.locations.providers.connectors.versions.eventtypes.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().providers().connectors().versions().eventtypes().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/providers/[^/]+/connectors/[^/]+/versions/[^/]+/eventtypes/[^/]+$",
+                          "description": "Required. Resource name of the form: `projects/*/locations/*/providers/*/connectors/*/versions/*/eventtypes/*` Only glob"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "providerId": {
+                            "from_step": 1,
+                            "from_op": "gcp.connectors.projects.locations.providers.list",
+                            "field": "name"
+                          },
+                          "connectorId": {
+                            "from_step": 2,
+                            "from_op": "gcp.connectors.projects.locations.providers.connectors.list",
+                            "field": "name"
+                          },
+                          "versionId": {
+                            "from_step": 3,
+                            "from_op": "gcp.connectors.projects.locations.providers.connectors.versions.list",
+                            "field": "name"
+                          },
+                          "eventtypeId": {
+                            "from_step": 4,
+                            "from_op": "gcp.connectors.projects.locations.providers.connectors.versions.eventtypes.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "global": {
+          "resource_type": "global",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "tuple",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [],
+              "notes": "Tuple identifier; anchor parts are user-provided."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": []
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.connectors.projects.locations.global.getSettings",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().global().getSettings(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "name"
+                  }
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "confidence": 0.4,
+          "notes": "No inventory (list) ops found; enrich only."
+        },
+        "locations": {
+          "resource_type": "locations",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.connectors.projects.locations.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}/locations"
+                },
+                "python_call": "svc.projects().locations().list(**params).execute()",
+                "produces": {
+                  "name": "locations[].name",
+                  "displayName": "locations[].displayName",
+                  "metadata": "locations[].metadata",
+                  "labels": "locations[].labels",
+                  "locationId": "locations[].locationId"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.connectors.projects.locations.get",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.connectors.projects.locations.getRegionalSettings",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().getRegionalSettings(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.connectors.projects.locations.getRuntimeConfig",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().getRuntimeConfig(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "managedZones": {
+          "resource_type": "managedZones",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.connectors.projects.locations.global.managedZones.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/managedZones"
+                },
+                "python_call": "svc.projects().locations().global().managedZones().list(**params).execute()",
+                "produces": {
+                  "name": "managedZones[].name",
+                  "dns": "managedZones[].dns",
+                  "updateTime": "managedZones[].updateTime",
+                  "createTime": "managedZones[].createTime",
+                  "description": "managedZones[].description",
+                  "targetVpc": "managedZones[].targetVpc",
+                  "targetProject": "managedZones[].targetProject",
+                  "labels": "managedZones[].labels"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.connectors.projects.locations.global.managedZones.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().global().managedZones().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.connectors.projects.locations.global.managedZones.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.connectors.projects.locations.global.managedZones.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().global().managedZones().list(**params).execute()",
+                      "path": "/v1/{+parent}/managedZones",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/global$",
+                          "description": "Required. Parent resource of the Managed Zone, of the form: `projects/*/locations/global`"
+                        }
+                      },
+                      "output_list_field": "managedZones",
+                      "output_id_field": "name",
+                      "produces": {
+                        "managedZoneId": {
+                          "via_list_field": "managedZones",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"managedZones\"][], extract item[\"name\"] \u2192 pass as \"managedZoneId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: managedZoneId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.connectors.projects.locations.global.managedZones.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().global().managedZones().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/global/managedZones/[^/]+$",
+                          "description": "Required. Resource name of the form: `projects/*/locations/global/managedZones/*`"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "managedZoneId": {
+                            "from_step": 1,
+                            "from_op": "gcp.connectors.projects.locations.global.managedZones.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "operations": {
+          "resource_type": "operations",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.connectors.projects.locations.operations.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}/operations"
+                },
+                "python_call": "svc.projects().locations().operations().list(**params).execute()",
+                "produces": {
+                  "name": "operations[].name",
+                  "response": "operations[].response",
+                  "done": "operations[].done",
+                  "metadata": "operations[].metadata",
+                  "error": "operations[].error"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.connectors.projects.locations.operations.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().operations().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.connectors.projects.locations.operations.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.connectors.projects.locations.operations.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().operations().list(**params).execute()",
+                      "path": "/v1/{+name}/operations",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "The name of the operation's parent resource."
+                        }
+                      },
+                      "output_list_field": "operations",
+                      "output_id_field": "name",
+                      "produces": {
+                        "operationId": {
+                          "via_list_field": "operations",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"operations\"][], extract item[\"name\"] \u2192 pass as \"operationId\""
+                        }
+                      },
+                      "param_sources": {
+                        "name": "always_available"
+                      },
+                      "purpose": "Provides: operationId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.connectors.projects.locations.operations.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().operations().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/operations/[^/]+$",
+                          "description": "The name of the operation resource."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "operationId": {
+                            "from_step": 1,
+                            "from_op": "gcp.connectors.projects.locations.operations.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "providers": {
+          "resource_type": "providers",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.connectors.projects.locations.providers.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/providers"
+                },
+                "python_call": "svc.projects().locations().providers().list(**params).execute()",
+                "produces": {
+                  "name": "providers[].name",
+                  "labels": "providers[].labels",
+                  "displayName": "providers[].displayName",
+                  "launchStage": "providers[].launchStage",
+                  "createTime": "providers[].createTime",
+                  "documentationUri": "providers[].documentationUri",
+                  "description": "providers[].description",
+                  "updateTime": "providers[].updateTime",
+                  "externalUri": "providers[].externalUri",
+                  "webAssetsLocation": "providers[].webAssetsLocation"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.connectors.projects.locations.providers.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().providers().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.connectors.projects.locations.providers.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.connectors.projects.locations.providers.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().providers().list(**params).execute()",
+                      "path": "/v1/{+parent}/providers",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. Parent resource of the API, of the form: `projects/*/locations/*` Only global location is supported for Provid"
+                        }
+                      },
+                      "output_list_field": "providers",
+                      "output_id_field": "name",
+                      "produces": {
+                        "providerId": {
+                          "via_list_field": "providers",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"providers\"][], extract item[\"name\"] \u2192 pass as \"providerId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: providerId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.connectors.projects.locations.providers.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().providers().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/providers/[^/]+$",
+                          "description": "Required. Resource name of the form: `projects/*/locations/*/providers/*` Only global location is supported for Provider"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "providerId": {
+                            "from_step": 1,
+                            "from_op": "gcp.connectors.projects.locations.providers.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.connectors.projects.locations.providers.getIamPolicy",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+resource}:getIamPolicy"
+                },
+                "python_call": "svc.projects().locations().providers().getIamPolicy(**params).execute()",
+                "required_params": {
+                  "resource": {
+                    "from_identifier": "gcp.connectors.projects.locations.providers.list \u2192 providers[].name"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.connectors.projects.locations.providers.getIamPolicy",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.connectors.projects.locations.providers.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().providers().list(**params).execute()",
+                      "path": "/v1/{+parent}/providers",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. Parent resource of the API, of the form: `projects/*/locations/*` Only global location is supported for Provid"
+                        }
+                      },
+                      "output_list_field": "providers",
+                      "output_id_field": "name",
+                      "produces": {
+                        "providerId": {
+                          "via_list_field": "providers",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"providers\"][], extract item[\"name\"] \u2192 pass as \"providerId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: providerId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.connectors.projects.locations.providers.getIamPolicy",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().providers().getIamPolicy(**params).execute()",
+                      "path": "/v1/{+resource}:getIamPolicy",
+                      "required_params": {
+                        "resource": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/providers/[^/]+$",
+                          "description": "REQUIRED: The resource for which the policy is being requested. See [Resource names](https://cloud.google.com/apis/desig"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "resource": {
+                          "providerId": {
+                            "from_step": 1,
+                            "from_op": "gcp.connectors.projects.locations.providers.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "runtimeActionSchemas": {
+          "resource_type": "runtimeActionSchemas",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "tuple",
+            "full_identifier": {
+              "template": "",
+              "built_from_parts": [],
+              "notes": "Tuple identifier; anchor parts are user-provided."
+            },
+            "parts": [
+              "action"
+            ],
+            "part_sources": {
+              "action": {
+                "op": "gcp.connectors.projects.locations.connections.runtimeActionSchemas.list",
+                "field_path": "runtimeActionSchemas[].action",
+                "transform": null
+              }
+            },
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.connectors.projects.locations.connections.runtimeActionSchemas.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/runtimeActionSchemas"
+                },
+                "python_call": "svc.projects().locations().connections().runtimeActionSchemas().list(**params).execute()",
+                "produces": {
+                  "action": "runtimeActionSchemas[].action",
+                  "displayName": "runtimeActionSchemas[].displayName",
+                  "resultMetadata": "runtimeActionSchemas[].resultMetadata",
+                  "inputParameters": "runtimeActionSchemas[].inputParameters",
+                  "description": "runtimeActionSchemas[].description",
+                  "inputSchemaAsString": "runtimeActionSchemas[].inputSchemaAsString",
+                  "resultJsonSchema": "runtimeActionSchemas[].resultJsonSchema",
+                  "resultSchemaAsString": "runtimeActionSchemas[].resultSchemaAsString",
+                  "inputJsonSchema": "runtimeActionSchemas[].inputJsonSchema"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": []
+          },
+          "confidence": 0.4,
+          "notes": "No enrich (get) ops found; inventory only."
+        },
+        "runtimeEntitySchemas": {
+          "resource_type": "runtimeEntitySchemas",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "tuple",
+            "full_identifier": {
+              "template": "",
+              "built_from_parts": [],
+              "notes": "Tuple identifier; anchor parts are user-provided."
+            },
+            "parts": [
+              "jsonSchema"
+            ],
+            "part_sources": {
+              "jsonSchema": {
+                "op": "gcp.connectors.projects.locations.connections.runtimeEntitySchemas.list",
+                "field_path": "runtimeEntitySchemas[].jsonSchema",
+                "transform": null
+              }
+            },
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.connectors.projects.locations.connections.runtimeEntitySchemas.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/runtimeEntitySchemas"
+                },
+                "python_call": "svc.projects().locations().connections().runtimeEntitySchemas().list(**params).execute()",
+                "produces": {
+                  "jsonSchema": "runtimeEntitySchemas[].jsonSchema",
+                  "entity": "runtimeEntitySchemas[].entity",
+                  "operations": "runtimeEntitySchemas[].operations",
+                  "fields": "runtimeEntitySchemas[].fields"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": []
+          },
+          "confidence": 0.4,
+          "notes": "No enrich (get) ops found; inventory only."
+        },
+        "versions": {
+          "resource_type": "versions",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}:fetchAuthSchema",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.connectors.projects.locations.providers.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/providers"
+                },
+                "python_call": "svc.projects().locations().providers().list(**params).execute()",
+                "produces": {
+                  "name": "providers[].name",
+                  "labels": "providers[].labels",
+                  "displayName": "providers[].displayName",
+                  "launchStage": "providers[].launchStage",
+                  "createTime": "providers[].createTime",
+                  "documentationUri": "providers[].documentationUri",
+                  "description": "providers[].description",
+                  "updateTime": "providers[].updateTime",
+                  "externalUri": "providers[].externalUri",
+                  "webAssetsLocation": "providers[].webAssetsLocation"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.connectors.projects.locations.providers.connectors.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/connectors"
+                },
+                "python_call": "svc.projects().locations().providers().connectors().list(**params).execute()",
+                "produces": {
+                  "name": "connectors[].name",
+                  "connectorType": "connectors[].connectorType",
+                  "description": "connectors[].description",
+                  "createTime": "connectors[].createTime",
+                  "category": "connectors[].category",
+                  "externalUri": "connectors[].externalUri",
+                  "launchStage": "connectors[].launchStage",
+                  "documentationUri": "connectors[].documentationUri",
+                  "labels": "connectors[].labels",
+                  "marketplaceConnectorDetails": "connectors[].marketplaceConnectorDetails",
+                  "displayName": "connectors[].displayName",
+                  "updateTime": "connectors[].updateTime",
+                  "webAssetsLocation": "connectors[].webAssetsLocation",
+                  "eventingDetails": "connectors[].eventingDetails",
+                  "tags": "connectors[].tags"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.connectors.projects.locations.providers.connectors.versions.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/versions"
+                },
+                "python_call": "svc.projects().locations().providers().connectors().versions().list(**params).execute()",
+                "produces": {
+                  "name": "connectorVersions[].name",
+                  "isCustomEntitiesSupported": "connectorVersions[].isCustomEntitiesSupported",
+                  "launchStage": "connectorVersions[].launchStage",
+                  "configVariableTemplates": "connectorVersions[].configVariableTemplates",
+                  "createTime": "connectorVersions[].createTime",
+                  "supportedRuntimeFeatures": "connectorVersions[].supportedRuntimeFeatures",
+                  "isCustomActionsSupported": "connectorVersions[].isCustomActionsSupported",
+                  "eventingConfigTemplate": "connectorVersions[].eventingConfigTemplate",
+                  "authOverrideEnabled": "connectorVersions[].authOverrideEnabled",
+                  "sslConfigTemplate": "connectorVersions[].sslConfigTemplate",
+                  "connectorInfraConfig": "connectorVersions[].connectorInfraConfig",
+                  "schemaRefreshConfig": "connectorVersions[].schemaRefreshConfig",
+                  "authConfigTemplates": "connectorVersions[].authConfigTemplates",
+                  "updateTime": "connectorVersions[].updateTime",
+                  "roleGrant": "connectorVersions[].roleGrant",
+                  "supportedStandardActions": "connectorVersions[].supportedStandardActions",
+                  "egressControlConfig": "connectorVersions[].egressControlConfig",
+                  "labels": "connectorVersions[].labels",
+                  "roleGrants": "connectorVersions[].roleGrants",
+                  "supportedStandardEntities": "connectorVersions[].supportedStandardEntities",
+                  "vpcscConfig": "connectorVersions[].vpcscConfig",
+                  "destinationConfigTemplates": "connectorVersions[].destinationConfigTemplates",
+                  "unsupportedConnectionTypes": "connectorVersions[].unsupportedConnectionTypes",
+                  "displayName": "connectorVersions[].displayName",
+                  "releaseVersion": "connectorVersions[].releaseVersion"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.connectors.projects.locations.providers.connectors.versions.fetchAuthSchema",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}:fetchAuthSchema"
+                },
+                "python_call": "svc.projects().locations().providers().connectors().versions().fetchAuthSchema(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.connectors.projects.locations.providers.connectors.versions.fetchAuthSchema",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 4,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.connectors.projects.locations.providers.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().providers().list(**params).execute()",
+                      "path": "/v1/{+parent}/providers",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. Parent resource of the API, of the form: `projects/*/locations/*` Only global location is supported for Provid"
+                        }
+                      },
+                      "output_list_field": "providers",
+                      "output_id_field": "name",
+                      "produces": {
+                        "providerId": {
+                          "via_list_field": "providers",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"providers\"][], extract item[\"name\"] \u2192 pass as \"providerId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: providerId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.connectors.projects.locations.providers.connectors.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().providers().connectors().list(**params).execute()",
+                      "path": "/v1/{+parent}/connectors",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/providers/[^/]+$",
+                          "description": "Required. Parent resource of the connectors, of the form: `projects/*/locations/*/providers/*` Only global location is s"
+                        }
+                      },
+                      "output_list_field": "connectors",
+                      "output_id_field": "name",
+                      "produces": {
+                        "connectorId": {
+                          "via_list_field": "connectors",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"connectors\"][], extract item[\"name\"] \u2192 pass as \"connectorId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: connectorId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.connectors.projects.locations.providers.connectors.versions.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().providers().connectors().versions().list(**params).execute()",
+                      "path": "/v1/{+parent}/versions",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/providers/[^/]+/connectors/[^/]+$",
+                          "description": ""
+                        }
+                      },
+                      "output_list_field": "connectorVersions",
+                      "output_id_field": "name",
+                      "produces": {
+                        "versionId": {
+                          "via_list_field": "connectorVersions",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"connectorVersions\"][], extract item[\"name\"] \u2192 pass as \"versionId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: versionId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 4,
+                      "op": "gcp.connectors.projects.locations.providers.connectors.versions.fetchAuthSchema",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().providers().connectors().versions().fetchAuthSchema(**params).execute()",
+                      "path": "/v1/{+name}:fetchAuthSchema",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/providers/[^/]+/connectors/[^/]+/versions/[^/]+$",
+                          "description": "Required. Parent resource of the Connector Version, of the form: `projects/*/locations/*/providers/*/connectors/*/versio"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "providerId": {
+                            "from_step": 1,
+                            "from_op": "gcp.connectors.projects.locations.providers.list",
+                            "field": "name"
+                          },
+                          "connectorId": {
+                            "from_step": 2,
+                            "from_op": "gcp.connectors.projects.locations.providers.connectors.list",
+                            "field": "name"
+                          },
+                          "versionId": {
+                            "from_step": 3,
+                            "from_op": "gcp.connectors.projects.locations.providers.connectors.versions.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.connectors.projects.locations.providers.connectors.versions.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().providers().connectors().versions().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.connectors.projects.locations.providers.connectors.versions.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 4,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.connectors.projects.locations.providers.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().providers().list(**params).execute()",
+                      "path": "/v1/{+parent}/providers",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. Parent resource of the API, of the form: `projects/*/locations/*` Only global location is supported for Provid"
+                        }
+                      },
+                      "output_list_field": "providers",
+                      "output_id_field": "name",
+                      "produces": {
+                        "providerId": {
+                          "via_list_field": "providers",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"providers\"][], extract item[\"name\"] \u2192 pass as \"providerId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: providerId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.connectors.projects.locations.providers.connectors.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().providers().connectors().list(**params).execute()",
+                      "path": "/v1/{+parent}/connectors",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/providers/[^/]+$",
+                          "description": "Required. Parent resource of the connectors, of the form: `projects/*/locations/*/providers/*` Only global location is s"
+                        }
+                      },
+                      "output_list_field": "connectors",
+                      "output_id_field": "name",
+                      "produces": {
+                        "connectorId": {
+                          "via_list_field": "connectors",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"connectors\"][], extract item[\"name\"] \u2192 pass as \"connectorId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: connectorId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.connectors.projects.locations.providers.connectors.versions.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().providers().connectors().versions().list(**params).execute()",
+                      "path": "/v1/{+parent}/versions",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/providers/[^/]+/connectors/[^/]+$",
+                          "description": ""
+                        }
+                      },
+                      "output_list_field": "connectorVersions",
+                      "output_id_field": "name",
+                      "produces": {
+                        "versionId": {
+                          "via_list_field": "connectorVersions",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"connectorVersions\"][], extract item[\"name\"] \u2192 pass as \"versionId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: versionId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 4,
+                      "op": "gcp.connectors.projects.locations.providers.connectors.versions.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().providers().connectors().versions().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/providers/[^/]+/connectors/[^/]+/versions/[^/]+$",
+                          "description": "Required. Resource name of the form: `projects/*/locations/*/providers/*/connectors/*/versions/*` Only global location i"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "providerId": {
+                            "from_step": 1,
+                            "from_op": "gcp.connectors.projects.locations.providers.list",
+                            "field": "name"
+                          },
+                          "connectorId": {
+                            "from_step": 2,
+                            "from_op": "gcp.connectors.projects.locations.providers.connectors.list",
+                            "field": "name"
+                          },
+                          "versionId": {
+                            "from_step": 3,
+                            "from_op": "gcp.connectors.projects.locations.providers.connectors.versions.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        }
+      }
+    }
+  }
+}

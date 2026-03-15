@@ -1,0 +1,73 @@
+version: '1.0'
+provider: aws
+service: resourcegroupstaggingapi
+services:
+  client: resourcegroupstaggingapi
+  module: boto3.client
+discovery:
+- discovery_id: aws.resourcegroupstaggingapi.describeReportCreation
+  calls:
+  - action: describeReportCreation
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Status }}'
+- discovery_id: aws.resourcegroupstaggingapi.getComplianceSummary
+  calls:
+  - action: getComplianceSummary
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.SummaryList }}'
+    item:
+      LastUpdated: '{{ item.LastUpdated }}'
+      TargetId: '{{ item.TargetId }}'
+      TargetIdType: '{{ item.TargetIdType }}'
+      Region: '{{ item.Region }}'
+      ResourceType: '{{ item.ResourceType }}'
+      NonCompliantResources: '{{ item.NonCompliantResources }}'
+- discovery_id: aws.resourcegroupstaggingapi.getResources
+  calls:
+  - action: getResources
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ResourceTagMappingList }}'
+    item:
+      ResourceARN: '{{ item.ResourceARN }}'
+      Tags: '{{ item.Tags }}'
+      ComplianceDetails: '{{ item.ComplianceDetails }}'
+- discovery_id: aws.resourcegroupstaggingapi.getTagKeys
+  calls:
+  - action: getTagKeys
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.TagKeys }}'
+- discovery_id: aws.resourcegroupstaggingapi.listRequiredTags
+  calls:
+  - action: listRequiredTags
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.RequiredTags }}'
+    item:
+      ResourceType: '{{ item.ResourceType }}'
+      CloudFormationResourceTypes: '{{ item.CloudFormationResourceTypes }}'
+      ReportingTagKeys: '{{ item.ReportingTagKeys }}'
+- discovery_id: aws.resourcegroupstaggingapi.getTagValues
+  calls:
+  - action: getTagValues
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.TagValues }}'
+checks: []

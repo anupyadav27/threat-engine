@@ -1,0 +1,135 @@
+# ============================================================
+# Discovery YAML — advisorynotifications (v1)
+# Generated: 2026-02-21T03:06:38Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 6 | independent: 4 | dependent: 2
+# ops with fields: 6/6 | dep ops with chain: 2/2
+# ============================================================
+version: '1.0'
+provider: gcp
+service: advisorynotifications
+
+services:
+  client: advisorynotifications
+  module: "googleapiclient.discovery.build('advisorynotifications', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Get notification settings.
+  # ── gcp.advisorynotifications.organizations.locations.getSettings ──
+  - discovery_id: gcp.advisorynotifications.organizations.locations.getSettings
+    # python: svc.organizations().locations().getSettings(**params).execute()
+    calls:
+      - action: organizations.locations.getSettings
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        name: '{{ response.name }}'
+        notificationSettings: '{{ response.notificationSettings }}'
+  # Lists notifications under a given parent.
+  # ── gcp.advisorynotifications.organizations.locations.notifications.list ──
+  - discovery_id: gcp.advisorynotifications.organizations.locations.notifications.list
+    # python: svc.organizations().locations().notifications().list(**params).execute()
+    calls:
+      - action: organizations.locations.notifications.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.notifications }}'
+      item:
+        createTime: '{{ item.createTime }}'
+        messages: '{{ item.messages }}'
+        name: '{{ item.name }}'
+        notificationType: '{{ item.notificationType }}'
+        subject: '{{ item.subject }}'
+  # Get notification settings.
+  # ── gcp.advisorynotifications.projects.locations.getSettings ──
+  - discovery_id: gcp.advisorynotifications.projects.locations.getSettings
+    # python: svc.projects().locations().getSettings(**params).execute()
+    calls:
+      - action: projects.locations.getSettings
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        name: '{{ response.name }}'
+        notificationSettings: '{{ response.notificationSettings }}'
+  # Lists notifications under a given parent.
+  # ── gcp.advisorynotifications.projects.locations.notifications.list ──
+  - discovery_id: gcp.advisorynotifications.projects.locations.notifications.list
+    # python: svc.projects().locations().notifications().list(**params).execute()
+    calls:
+      - action: projects.locations.notifications.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.notifications }}'
+      item:
+        createTime: '{{ item.createTime }}'
+        messages: '{{ item.messages }}'
+        name: '{{ item.name }}'
+        notificationType: '{{ item.notificationType }}'
+        subject: '{{ item.subject }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets a notification.
+  # ── gcp.advisorynotifications.organizations.locations.notifications.get [dependent] ──
+  - discovery_id: gcp.advisorynotifications.organizations.locations.notifications.get
+    for_each: gcp.advisorynotifications.projects.locations.notifications.list
+    # python: svc.organizations().locations().notifications().get(**params).execute()
+    calls:
+      - action: organizations.locations.notifications.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        createTime: '{{ response.createTime }}'
+        messages: '{{ response.messages }}'
+        name: '{{ response.name }}'
+        notificationType: '{{ response.notificationType }}'
+        subject: '{{ response.subject }}'
+    # required_params: ['name']
+  # Gets a notification.
+  # ── gcp.advisorynotifications.projects.locations.notifications.get [dependent] ──
+  - discovery_id: gcp.advisorynotifications.projects.locations.notifications.get
+    for_each: gcp.advisorynotifications.projects.locations.notifications.list
+    # python: svc.projects().locations().notifications().get(**params).execute()
+    calls:
+      - action: projects.locations.notifications.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        createTime: '{{ response.createTime }}'
+        messages: '{{ response.messages }}'
+        name: '{{ response.name }}'
+        notificationType: '{{ response.notificationType }}'
+        subject: '{{ response.subject }}'
+    # required_params: ['name']

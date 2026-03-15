@@ -1,0 +1,54 @@
+version: '1.0'
+provider: aws
+service: iotsecuretunneling
+services:
+  client: iotsecuretunneling
+  module: boto3.client
+discovery:
+- discovery_id: aws.iotsecuretunneling.listTunnels
+  calls:
+  - action: listTunnels
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.tunnelSummaries }}'
+    item:
+      tunnelId: '{{ item.tunnelId }}'
+      tunnelArn: '{{ item.tunnelArn }}'
+      status: '{{ item.status }}'
+      description: '{{ item.description }}'
+      createdAt: '{{ item.createdAt }}'
+      lastUpdatedAt: '{{ item.lastUpdatedAt }}'
+- discovery_id: aws.iotsecuretunneling.describeTunnel
+  calls:
+  - action: describeTunnel
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.tunnel }}'
+    item:
+      tunnelId: '{{ item.tunnelId }}'
+      tunnelArn: '{{ item.tunnelArn }}'
+      status: '{{ item.status }}'
+      sourceConnectionState: '{{ item.sourceConnectionState }}'
+      destinationConnectionState: '{{ item.destinationConnectionState }}'
+      description: '{{ item.description }}'
+      destinationConfig: '{{ item.destinationConfig }}'
+      timeoutConfig: '{{ item.timeoutConfig }}'
+      tags: '{{ item.tags }}'
+      createdAt: '{{ item.createdAt }}'
+      lastUpdatedAt: '{{ item.lastUpdatedAt }}'
+- discovery_id: aws.iotsecuretunneling.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.tags }}'
+    item:
+      key: '{{ item.key }}'
+      value: '{{ item.value }}'
+checks: []

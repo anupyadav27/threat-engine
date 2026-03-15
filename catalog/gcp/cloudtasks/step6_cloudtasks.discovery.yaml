@@ -1,0 +1,174 @@
+# ============================================================
+# Discovery YAML — cloudtasks (v2beta2)
+# Generated: 2026-02-21T03:06:39Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 7 | independent: 5 | dependent: 2
+# ops with fields: 7/7 | dep ops with chain: 2/2
+# ============================================================
+version: '1.0'
+provider: gcp
+service: cloudtasks
+
+services:
+  client: cloudtasks
+  module: "googleapiclient.discovery.build('cloudtasks', 'v2beta2')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Gets information about a location.
+  # ── gcp.cloudtasks.projects.locations.get ──
+  - discovery_id: gcp.cloudtasks.projects.locations.get
+    # python: svc.projects().locations().get(**params).execute()
+    calls:
+      - action: projects.locations.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        displayName: '{{ response.displayName }}'
+        labels: '{{ response.labels }}'
+        locationId: '{{ response.locationId }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+  # Gets the CMEK config. Gets the Customer Managed Encryption Key configured with the Cloud Tasks lcoat
+  # ── gcp.cloudtasks.projects.locations.getCmekConfig ──
+  - discovery_id: gcp.cloudtasks.projects.locations.getCmekConfig
+    # python: svc.projects().locations().getCmekConfig(**params).execute()
+    calls:
+      - action: projects.locations.getCmekConfig
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        kmsKey: '{{ response.kmsKey }}'
+        name: '{{ response.name }}'
+  # Lists information about the supported locations for this service.
+  # ── gcp.cloudtasks.projects.locations.list ──
+  - discovery_id: gcp.cloudtasks.projects.locations.list
+    # python: svc.projects().locations().list(**params).execute()
+    calls:
+      - action: projects.locations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.locations }}'
+      item:
+        displayName: '{{ item.displayName }}'
+        labels: '{{ item.labels }}'
+        locationId: '{{ item.locationId }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+  # Lists queues. Queues are returned in lexicographical order.
+  # ── gcp.cloudtasks.projects.locations.queues.list ──
+  - discovery_id: gcp.cloudtasks.projects.locations.queues.list
+    # python: svc.projects().locations().queues().list(**params).execute()
+    calls:
+      - action: projects.locations.queues.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.queues }}'
+      item:
+        appEngineHttpTarget: '{{ item.appEngineHttpTarget }}'
+        httpTarget: '{{ item.httpTarget }}'
+        name: '{{ item.name }}'
+        pullTarget: '{{ item.pullTarget }}'
+        purgeTime: '{{ item.purgeTime }}'
+        rateLimits: '{{ item.rateLimits }}'
+        retryConfig: '{{ item.retryConfig }}'
+        state: '{{ item.state }}'
+        stats: '{{ item.stats }}'
+        taskTtl: '{{ item.taskTtl }}'
+        tombstoneTtl: '{{ item.tombstoneTtl }}'
+  # Lists the tasks in a queue. By default, only the BASIC view is retrieved due to performance consider
+  # ── gcp.cloudtasks.projects.locations.queues.tasks.list ──
+  - discovery_id: gcp.cloudtasks.projects.locations.queues.tasks.list
+    # python: svc.projects().locations().queues().tasks().list(**params).execute()
+    calls:
+      - action: projects.locations.queues.tasks.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.tasks }}'
+      item:
+        appEngineHttpRequest: '{{ item.appEngineHttpRequest }}'
+        createTime: '{{ item.createTime }}'
+        httpRequest: '{{ item.httpRequest }}'
+        name: '{{ item.name }}'
+        pullMessage: '{{ item.pullMessage }}'
+        scheduleTime: '{{ item.scheduleTime }}'
+        status: '{{ item.status }}'
+        view: '{{ item.view }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets a queue.
+  # ── gcp.cloudtasks.projects.locations.queues.get [dependent] ──
+  - discovery_id: gcp.cloudtasks.projects.locations.queues.get
+    for_each: gcp.cloudtasks.projects.locations.queues.list
+    # python: svc.projects().locations().queues().get(**params).execute()
+    calls:
+      - action: projects.locations.queues.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        appEngineHttpTarget: '{{ response.appEngineHttpTarget }}'
+        httpTarget: '{{ response.httpTarget }}'
+        name: '{{ response.name }}'
+        pullTarget: '{{ response.pullTarget }}'
+        purgeTime: '{{ response.purgeTime }}'
+        rateLimits: '{{ response.rateLimits }}'
+        retryConfig: '{{ response.retryConfig }}'
+        state: '{{ response.state }}'
+        stats: '{{ response.stats }}'
+        taskTtl: '{{ response.taskTtl }}'
+        tombstoneTtl: '{{ response.tombstoneTtl }}'
+    # required_params: ['name']
+  # Gets a task.
+  # ── gcp.cloudtasks.projects.locations.queues.tasks.get [dependent] ──
+  - discovery_id: gcp.cloudtasks.projects.locations.queues.tasks.get
+    for_each: gcp.cloudtasks.projects.locations.queues.tasks.list
+    # python: svc.projects().locations().queues().tasks().get(**params).execute()
+    calls:
+      - action: projects.locations.queues.tasks.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        appEngineHttpRequest: '{{ response.appEngineHttpRequest }}'
+        createTime: '{{ response.createTime }}'
+        httpRequest: '{{ response.httpRequest }}'
+        name: '{{ response.name }}'
+        pullMessage: '{{ response.pullMessage }}'
+        scheduleTime: '{{ response.scheduleTime }}'
+        status: '{{ response.status }}'
+        view: '{{ response.view }}'
+    # required_params: ['name']

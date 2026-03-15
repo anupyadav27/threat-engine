@@ -11,7 +11,7 @@ spec:
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxSurge: 2
+      maxSurge: 0
       maxUnavailable: 1
   selector:
     matchLabels:
@@ -23,32 +23,9 @@ spec:
         tier: engine
     spec:
       serviceAccountName: engine-sa
-      # Spot affinity + toleration — UNCOMMENT when running scans to use spot instances
-      # affinity:
-      #   nodeAffinity:
-      #     preferredDuringSchedulingIgnoredDuringExecution:
-      #     - weight: 100
-      #       preference:
-      #         matchExpressions:
-      #         - key: workload-type
-      #           operator: In
-      #           values:
-      #           - scan
-      # tolerations:
-      # - key: "spot-scanner"
-      #   operator: "Equal"
-      #   value: "true"
-      #   effect: "NoSchedule"
-      # topologySpreadConstraints:
-      # - maxSkew: 1
-      #   topologyKey: kubernetes.io/hostname
-      #   whenUnsatisfiable: DoNotSchedule
-      #   labelSelector:
-      #     matchLabels:
-      #       app: engine-discoveries
       containers:
       - name: engine-discoveries
-        image: yadavanup84/engine-discoveries:v-unified-uid
+        image: yadavanup84/engine-discoveries-aws:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 8001
@@ -63,39 +40,6 @@ spec:
           value: /app
         - name: LOG_LEVEL
           value: "INFO"
-        # ── OpenTelemetry ─────────────────────────────────────────────────
-        - name: OTEL_SERVICE_NAME
-          value: "engine-discoveries"
-        - name: OTEL_ENABLED
-          valueFrom:
-            configMapKeyRef:
-              name: otel-config
-              key: OTEL_ENABLED
-              optional: true
-        - name: OTEL_EXPORTER_OTLP_ENDPOINT
-          valueFrom:
-            configMapKeyRef:
-              name: otel-config
-              key: OTEL_EXPORTER_OTLP_ENDPOINT
-              optional: true
-        - name: OTEL_EXPORTER_OTLP_INSECURE
-          valueFrom:
-            configMapKeyRef:
-              name: otel-config
-              key: OTEL_EXPORTER_OTLP_INSECURE
-              optional: true
-        - name: OTEL_TRACES_SAMPLER
-          valueFrom:
-            configMapKeyRef:
-              name: otel-config
-              key: OTEL_TRACES_SAMPLER
-              optional: true
-        - name: OTEL_PROPAGATORS
-          valueFrom:
-            configMapKeyRef:
-              name: otel-config
-              key: OTEL_PROPAGATORS
-              optional: true
         - name: S3_BUCKET
           valueFrom:
             configMapKeyRef:
@@ -116,40 +60,10 @@ spec:
           value: "database"
         - name: DISCOVERY_CONFIG_SOURCE
           value: "database"
-        # Level 1: services run concurrently via asyncio semaphore (no extra threads)
         - name: MAX_SERVICE_WORKERS
-          value: "10"
-        # Level 2: regions per service run concurrently via asyncio semaphore (no extra threads)
+          value: "5"
         - name: MAX_REGION_WORKERS
-          value: "5"
-        # Level 3: sub-discoveries within a region use a thread pool (boto3 is blocking)
-        # Peak threads = MAX_SERVICE_WORKERS * MAX_DISCOVERY_WORKERS = 10 * 20 = 200
-        - name: MAX_DISCOVERY_WORKERS
-          value: "20"
-        # for_each expansions: nested inside MAX_DISCOVERY_WORKERS threads
-        # 200 outer * 5 inner = 1000 max concurrent API calls — kept low to avoid throttling
-        - name: FOR_EACH_MAX_WORKERS
-          value: "5"
-        # Boto3 timeout tuning — short timeouts so unsupported-region calls fail fast
-        # Default was 120s read + 10s connect → kills parallelism with 17 regions
-        - name: BOTO_READ_TIMEOUT
-          value: "10"          # 10s is plenty for healthy APIs; fail fast on unavailable endpoints
-        - name: BOTO_CONNECT_TIMEOUT
-          value: "5"
-        - name: BOTO_MAX_ATTEMPTS
-          value: "2"           # botocore retries; 2 = 1 attempt + 1 retry only
-        - name: OPERATION_TIMEOUT
-          value: "60"          # per-API-call hard cap (was 600s)
-        # Thread pool for concurrent service-region scans
-        # 10 services × 5 regions = 50 concurrent scans; 100 threads for headroom
-        - name: SCAN_EXECUTOR_THREADS
-          value: "100"
-        # DB connection pool — must exceed concurrent DB-writing threads
-        # 50 scan threads + DB executor threads + status updates → 60 connections
-        - name: DB_POOL_MIN
-          value: "5"
-        - name: DB_POOL_MAX
-          value: "60"
+          value: "3"
         # Onboarding database environment variables for orchestration integration
         # MOVED: scan_orchestration table moved from shared to onboarding DB
         - name: ONBOARDING_DB_HOST
@@ -174,11 +88,11 @@ spec:
           mountPath: /input
         resources:
           requests:
-            memory: "512Mi"
-            cpu: "250m"
+            memory: "1Gi"
+            cpu: "500m"
           limits:
-            memory: "2Gi"
-            cpu: "2000m"
+            memory: "3500Mi"
+            cpu: "1500m"
         livenessProbe:
           httpGet:
             path: /api/v1/health/live

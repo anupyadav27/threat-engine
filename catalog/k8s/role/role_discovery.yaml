@@ -1,0 +1,36 @@
+version: '1.0'
+provider: k8s
+service: role
+services:
+  client: role
+  module: boto3.client
+discovery:
+- discovery_id: k8s.role.list
+  calls:
+  - action: list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+    item:
+      metadata: '{{ item.metadata }}'
+      rules: '{{ item.rules }}'
+      rules[].apiGroups: '{{ item.rules[].apiGroups }}'
+      rules[].resources: '{{ item.rules[].resources }}'
+      rules[].verbs: '{{ item.rules[].verbs }}'
+- discovery_id: k8s.role.get
+  calls:
+  - action: get
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+    item:
+      metadata: '{{ item.metadata }}'
+      rules: '{{ item.rules }}'
+      rules[].apiGroups: '{{ item.rules[].apiGroups }}'
+      rules[].resources: '{{ item.rules[].resources }}'
+      rules[].verbs: '{{ item.rules[].verbs }}'
+checks: []

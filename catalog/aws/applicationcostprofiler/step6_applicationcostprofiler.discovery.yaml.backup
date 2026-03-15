@@ -1,0 +1,35 @@
+version: '1.0'
+provider: aws
+service: applicationcostprofiler
+services:
+  client: applicationcostprofiler
+  module: boto3.client
+discovery:
+- discovery_id: aws.applicationcostprofiler.listReportDefinitions
+  calls:
+  - action: listReportDefinitions
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.reportDefinitions }}'
+    item:
+      reportId: '{{ item.reportId }}'
+      reportDescription: '{{ item.reportDescription }}'
+      reportFrequency: '{{ item.reportFrequency }}'
+      format: '{{ item.format }}'
+      destinationS3Location: '{{ item.destinationS3Location }}'
+      createdAt: '{{ item.createdAt }}'
+      lastUpdatedAt: '{{ item.lastUpdatedAt }}'
+- discovery_id: aws.applicationcostprofiler.getReportDefinition
+  calls:
+  - action: getReportDefinition
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.destinationS3Location }}'
+    item:
+      bucket: '{{ item.bucket }}'
+      prefix: '{{ item.prefix }}'
+checks: []

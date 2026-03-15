@@ -1,0 +1,43 @@
+version: '1.0'
+provider: aws
+service: ebs
+services:
+  client: ebs
+  module: boto3.client
+discovery:
+- discovery_id: aws.ebs.getSnapshotBlock
+  calls:
+  - action: getSnapshotBlock
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.DataLength }}'
+- discovery_id: aws.ebs.listChangedBlocks
+  calls:
+  - action: listChangedBlocks
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ChangedBlocks }}'
+    item:
+      BlockIndex: '{{ item.BlockIndex }}'
+      FirstBlockToken: '{{ item.FirstBlockToken }}'
+      SecondBlockToken: '{{ item.SecondBlockToken }}'
+- discovery_id: aws.ebs.listSnapshotBlocks
+  calls:
+  - action: listSnapshotBlocks
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Blocks }}'
+    item:
+      BlockIndex: '{{ item.BlockIndex }}'
+      BlockToken: '{{ item.BlockToken }}'
+checks: []

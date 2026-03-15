@@ -1,0 +1,421 @@
+# ============================================================
+# Discovery YAML — kendra (AWS)
+# Generated: 2026-02-21T04:56:58Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: kendra
+services:
+  client: kendra
+  module: boto3.client
+discovery:
+  # ── ListIndices ──
+  - discovery_id: aws.kendra.list_indices
+    calls:
+      - action: list_indices
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.IndexConfigurationSummaryItems }}'
+      item:
+        Id: '{{ item.Id }}'
+        Name: '{{ item.Name }}'
+        Status: '{{ item.Status }}'
+        CreatedAt: '{{ item.CreatedAt }}'
+        Edition: '{{ item.Edition }}'
+        Enabled: '{{ item.Enabled }}'
+        UpdatedAt: '{{ item.UpdatedAt }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── DescribeAccessControlConfiguration ──
+  - discovery_id: aws.kendra.describe_access_control_configuration
+    for_each: aws.kendra.list_indices
+    calls:
+      - action: describe_access_control_configuration
+        params:
+          IndexId: '{{ item.IndexId }}'
+          Id: '{{ item.Id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.AccessControlList }}'
+      item:
+        Name: '{{ item.Name }}'
+        Access: '{{ item.Access }}'
+        DataSourceId: '{{ item.DataSourceId }}'
+        Type: '{{ item.Type }}'
+  # ── DescribeDataSource ──
+  - discovery_id: aws.kendra.describe_data_source
+    for_each: aws.kendra.list_indices
+    calls:
+      - action: describe_data_source
+        params:
+          Id: '{{ item.Id }}'
+          IndexId: '{{ item.IndexId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Configuration }}'
+      item:
+        AlfrescoConfiguration: '{{ item.AlfrescoConfiguration }}'
+        BoxConfiguration: '{{ item.BoxConfiguration }}'
+        Configuration: '{{ item.Configuration }}'
+        ConfluenceConfiguration: '{{ item.ConfluenceConfiguration }}'
+        DatabaseConfiguration: '{{ item.DatabaseConfiguration }}'
+        FsxConfiguration: '{{ item.FsxConfiguration }}'
+        GitHubConfiguration: '{{ item.GitHubConfiguration }}'
+        GoogleDriveConfiguration: '{{ item.GoogleDriveConfiguration }}'
+        JiraConfiguration: '{{ item.JiraConfiguration }}'
+        OneDriveConfiguration: '{{ item.OneDriveConfiguration }}'
+        QuipConfiguration: '{{ item.QuipConfiguration }}'
+        S3Configuration: '{{ item.S3Configuration }}'
+        SalesforceConfiguration: '{{ item.SalesforceConfiguration }}'
+        ServiceNowConfiguration: '{{ item.ServiceNowConfiguration }}'
+        SharePointConfiguration: '{{ item.SharePointConfiguration }}'
+        SlackConfiguration: '{{ item.SlackConfiguration }}'
+        TemplateConfiguration: '{{ item.TemplateConfiguration }}'
+        WebCrawlerConfiguration: '{{ item.WebCrawlerConfiguration }}'
+        WorkDocsConfiguration: '{{ item.WorkDocsConfiguration }}'
+  # ── DescribeExperience ──
+  - discovery_id: aws.kendra.describe_experience
+    for_each: aws.kendra.list_indices
+    calls:
+      - action: describe_experience
+        params:
+          Id: '{{ item.Id }}'
+          IndexId: '{{ item.IndexId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Endpoints }}'
+      item:
+        Endpoint: '{{ item.Endpoint }}'
+        EndpointType: '{{ item.EndpointType }}'
+  # ── DescribeFaq ──
+  - discovery_id: aws.kendra.describe_faq
+    for_each: aws.kendra.list_indices
+    calls:
+      - action: describe_faq
+        params:
+          Id: '{{ item.Id }}'
+          IndexId: '{{ item.IndexId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.S3Path }}'
+      item:
+        Bucket: '{{ item.Bucket }}'
+        Key: '{{ item.Key }}'
+  # ── DescribeFeaturedResultsSet ──
+  - discovery_id: aws.kendra.describe_featured_results_set
+    calls:
+      - action: describe_featured_results_set
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.QueryTexts }}'
+  # ── DescribeIndex ──
+  - discovery_id: aws.kendra.describe_index
+    for_each: aws.kendra.list_indices
+    calls:
+      - action: describe_index
+        params:
+          Id: '{{ item.Id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.DocumentMetadataConfigurations }}'
+      item:
+        Name: '{{ item.Name }}'
+        Relevance: '{{ item.Relevance }}'
+        Search: '{{ item.Search }}'
+        Statement: '{{ item.Statement }}'
+        Type: '{{ item.Type }}'
+        Version: '{{ item.Version }}'
+  # ── DescribePrincipalMapping ──
+  - discovery_id: aws.kendra.describe_principal_mapping
+    calls:
+      - action: describe_principal_mapping
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.GroupOrderingIdSummaries }}'
+      item:
+        Status: '{{ item.Status }}'
+        FailureReason: '{{ item.FailureReason }}'
+        LastUpdatedAt: '{{ item.LastUpdatedAt }}'
+        OrderingId: '{{ item.OrderingId }}'
+        ReceivedAt: '{{ item.ReceivedAt }}'
+  # ── DescribeQuerySuggestionsBlockList ──
+  - discovery_id: aws.kendra.describe_query_suggestions_block_list
+    for_each: aws.kendra.list_indices
+    calls:
+      - action: describe_query_suggestions_block_list
+        params:
+          IndexId: '{{ item.IndexId }}'
+          Id: '{{ item.Id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.S3Path }}'
+      item:
+        Bucket: '{{ item.Bucket }}'
+        Key: '{{ item.Key }}'
+  # ── DescribeQuerySuggestionsConfig ──
+  - discovery_id: aws.kendra.describe_query_suggestions_config
+    calls:
+      - action: describe_query_suggestions_config
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.AttributeSuggestionsConfig }}'
+      item:
+        AttributeSuggestionsMode: '{{ item.AttributeSuggestionsMode }}'
+        SuggestableConfigList: '{{ item.SuggestableConfigList }}'
+  # ── DescribeThesaurus ──
+  - discovery_id: aws.kendra.describe_thesaurus
+    for_each: aws.kendra.list_indices
+    calls:
+      - action: describe_thesaurus
+        params:
+          Id: '{{ item.Id }}'
+          IndexId: '{{ item.IndexId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.S3Path }}'
+      item:
+        Bucket: '{{ item.Bucket }}'
+        Key: '{{ item.Key }}'
+  # ── GetQuerySuggestions ──
+  - discovery_id: aws.kendra.get_query_suggestions
+    calls:
+      - action: get_query_suggestions
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Suggestions }}'
+      item:
+        Id: '{{ item.Id }}'
+        SourceDocuments: '{{ item.SourceDocuments }}'
+        Suggestions: '{{ item.Suggestions }}'
+        Value: '{{ item.Value }}'
+  # ── GetSnapshots ──
+  - discovery_id: aws.kendra.get_snapshots
+    calls:
+      - action: get_snapshots
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.SnapshotsDataHeader }}'
+  # ── ListAccessControlConfigurations ──
+  - discovery_id: aws.kendra.list_access_control_configurations
+    calls:
+      - action: list_access_control_configurations
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.AccessControlConfigurations }}'
+      item:
+        Id: '{{ item.Id }}'
+  # ── ListDataSourceSyncJobs ──
+  - discovery_id: aws.kendra.list_data_source_sync_jobs
+    for_each: aws.kendra.list_indices
+    calls:
+      - action: list_data_source_sync_jobs
+        params:
+          Id: '{{ item.Id }}'
+          IndexId: '{{ item.IndexId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.History }}'
+      item:
+        Status: '{{ item.Status }}'
+        Configuration: '{{ item.Configuration }}'
+        DataSourceErrorCode: '{{ item.DataSourceErrorCode }}'
+        EndTime: '{{ item.EndTime }}'
+        ErrorCode: '{{ item.ErrorCode }}'
+        ErrorMessage: '{{ item.ErrorMessage }}'
+        ExecutionId: '{{ item.ExecutionId }}'
+        Metrics: '{{ item.Metrics }}'
+        StartTime: '{{ item.StartTime }}'
+  # ── ListDataSources ──
+  - discovery_id: aws.kendra.list_data_sources
+    calls:
+      - action: list_data_sources
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.SummaryItems }}'
+      item:
+        Id: '{{ item.Id }}'
+        Name: '{{ item.Name }}'
+        Status: '{{ item.Status }}'
+        CreatedAt: '{{ item.CreatedAt }}'
+        LanguageCode: '{{ item.LanguageCode }}'
+        Type: '{{ item.Type }}'
+        UpdatedAt: '{{ item.UpdatedAt }}'
+  # ── ListEntityPersonas ──
+  - discovery_id: aws.kendra.list_entity_personas
+    for_each: aws.kendra.list_indices
+    calls:
+      - action: list_entity_personas
+        params:
+          Id: '{{ item.Id }}'
+          IndexId: '{{ item.IndexId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.SummaryItems }}'
+      item:
+        CreatedAt: '{{ item.CreatedAt }}'
+        EntityId: '{{ item.EntityId }}'
+        Persona: '{{ item.Persona }}'
+        UpdatedAt: '{{ item.UpdatedAt }}'
+  # ── ListExperienceEntities ──
+  - discovery_id: aws.kendra.list_experience_entities
+    for_each: aws.kendra.list_indices
+    calls:
+      - action: list_experience_entities
+        params:
+          Id: '{{ item.Id }}'
+          IndexId: '{{ item.IndexId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.SummaryItems }}'
+      item:
+        DisplayData: '{{ item.DisplayData }}'
+        EntityId: '{{ item.EntityId }}'
+        EntityType: '{{ item.EntityType }}'
+  # ── ListExperiences ──
+  - discovery_id: aws.kendra.list_experiences
+    calls:
+      - action: list_experiences
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.SummaryItems }}'
+      item:
+        Id: '{{ item.Id }}'
+        Name: '{{ item.Name }}'
+        Status: '{{ item.Status }}'
+        CreatedAt: '{{ item.CreatedAt }}'
+        Endpoints: '{{ item.Endpoints }}'
+  # ── ListFaqs ──
+  - discovery_id: aws.kendra.list_faqs
+    calls:
+      - action: list_faqs
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.FaqSummaryItems }}'
+      item:
+        Id: '{{ item.Id }}'
+        Name: '{{ item.Name }}'
+        Status: '{{ item.Status }}'
+        CreatedAt: '{{ item.CreatedAt }}'
+        FileFormat: '{{ item.FileFormat }}'
+        LanguageCode: '{{ item.LanguageCode }}'
+        UpdatedAt: '{{ item.UpdatedAt }}'
+  # ── ListFeaturedResultsSets ──
+  - discovery_id: aws.kendra.list_featured_results_sets
+    calls:
+      - action: list_featured_results_sets
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.FeaturedResultsSetSummaryItems }}'
+      item:
+        Status: '{{ item.Status }}'
+        CreationTimestamp: '{{ item.CreationTimestamp }}'
+        FeaturedResultsSetId: '{{ item.FeaturedResultsSetId }}'
+        FeaturedResultsSetName: '{{ item.FeaturedResultsSetName }}'
+        LastUpdatedTimestamp: '{{ item.LastUpdatedTimestamp }}'
+  # ── ListGroupsOlderThanOrderingId ──
+  - discovery_id: aws.kendra.list_groups_older_than_ordering_id
+    calls:
+      - action: list_groups_older_than_ordering_id
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.GroupsSummaries }}'
+      item:
+        GroupId: '{{ item.GroupId }}'
+        OrderingId: '{{ item.OrderingId }}'
+  # ── ListQuerySuggestionsBlockLists ──
+  - discovery_id: aws.kendra.list_query_suggestions_block_lists
+    calls:
+      - action: list_query_suggestions_block_lists
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.BlockListSummaryItems }}'
+      item:
+        Id: '{{ item.Id }}'
+        Name: '{{ item.Name }}'
+        Status: '{{ item.Status }}'
+        CreatedAt: '{{ item.CreatedAt }}'
+        ItemCount: '{{ item.ItemCount }}'
+        Suggestions: '{{ item.Suggestions }}'
+        UpdatedAt: '{{ item.UpdatedAt }}'
+  # ── ListTagsForResource ──
+  - discovery_id: aws.kendra.list_tags_for_resource
+    calls:
+      - action: list_tags_for_resource
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Tags }}'
+      item:
+        Key: '{{ item.Key }}'
+        Value: '{{ item.Value }}'
+  # ── ListThesauri ──
+  - discovery_id: aws.kendra.list_thesauri
+    calls:
+      - action: list_thesauri
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ThesaurusSummaryItems }}'
+      item:
+        Id: '{{ item.Id }}'
+        Name: '{{ item.Name }}'
+        Status: '{{ item.Status }}'
+        CreatedAt: '{{ item.CreatedAt }}'
+        UpdatedAt: '{{ item.UpdatedAt }}'
+  # ── Query ──
+  - discovery_id: aws.kendra.query
+    calls:
+      - action: query
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ResultItems }}'

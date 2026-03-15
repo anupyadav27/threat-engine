@@ -1,0 +1,92 @@
+# ============================================================
+# Discovery YAML — airquality (v1)
+# Generated: 2026-02-21T03:06:38Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 4 | independent: 3 | dependent: 1
+# ops with fields: 4/4 | dep ops with chain: 0/1
+# ============================================================
+version: '1.0'
+provider: gcp
+service: airquality
+
+services:
+  client: airquality
+  module: "googleapiclient.discovery.build('airquality', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # The Current Conditions endpoint provides hourly air quality information in more than 100 countries, 
+  # ── gcp.airquality.currentConditions.lookup ──
+  - discovery_id: gcp.airquality.currentConditions.lookup
+    # python: svc.currentConditions().lookup(**params).execute()
+    calls:
+      - action: currentConditions.lookup
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        dateTime: '{{ response.dateTime }}'
+        healthRecommendations: '{{ response.healthRecommendations }}'
+        indexes: '{{ response.indexes }}'
+        pollutants: '{{ response.pollutants }}'
+        regionCode: '{{ response.regionCode }}'
+  # Returns air quality forecast for a specific location for a given time range.
+  # ── gcp.airquality.forecast.lookup ──
+  - discovery_id: gcp.airquality.forecast.lookup
+    # python: svc.forecast().lookup(**params).execute()
+    calls:
+      - action: forecast.lookup
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        hourlyForecasts: '{{ response.hourlyForecasts }}'
+        regionCode: '{{ response.regionCode }}'
+  # Returns air quality history for a specific location for a given time range.
+  # ── gcp.airquality.history.lookup ──
+  - discovery_id: gcp.airquality.history.lookup
+    # python: svc.history().lookup(**params).execute()
+    calls:
+      - action: history.lookup
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        hoursInfo: '{{ response.hoursInfo }}'
+        regionCode: '{{ response.regionCode }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Returns a bytes array containing the data of the tile PNG image.
+  # ── gcp.airquality.mapTypes.heatmapTiles.lookupHeatmapTile [dependent] ──
+  - discovery_id: gcp.airquality.mapTypes.heatmapTiles.lookupHeatmapTile
+    # python: svc.mapTypes().heatmapTiles().lookupHeatmapTile(**params).execute()
+    calls:
+      - action: mapTypes.heatmapTiles.lookupHeatmapTile
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        contentType: '{{ response.contentType }}'
+        data: '{{ response.data }}'
+        extensions: '{{ response.extensions }}'
+    # required_params: ['mapType', 'zoom', 'x', 'y']

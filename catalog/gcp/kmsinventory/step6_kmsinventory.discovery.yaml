@@ -1,0 +1,123 @@
+# ============================================================
+# Discovery YAML — kmsinventory (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 4 | independent: 3 | dependent: 1
+# ops with fields: 4/4 | dep ops with chain: 1/1
+# ============================================================
+version: '1.0'
+provider: gcp
+service: kmsinventory
+
+services:
+  client: kmsinventory
+  module: "googleapiclient.discovery.build('kmsinventory', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Returns metadata about the resources protected by the given Cloud KMS CryptoKey in the given Cloud o
+  # ── gcp.kmsinventory.organizations.protectedResources.search ──
+  - discovery_id: gcp.kmsinventory.organizations.protectedResources.search
+    # python: svc.organizations().protectedResources().search(**params).execute()
+    calls:
+      - action: organizations.protectedResources.search
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.protectedResources }}'
+      item:
+        cloudProduct: '{{ item.cloudProduct }}'
+        createTime: '{{ item.createTime }}'
+        cryptoKeyVersion: '{{ item.cryptoKeyVersion }}'
+        cryptoKeyVersions: '{{ item.cryptoKeyVersions }}'
+        labels: '{{ item.labels }}'
+        location: '{{ item.location }}'
+        name: '{{ item.name }}'
+        project: '{{ item.project }}'
+        projectId: '{{ item.projectId }}'
+        resourceType: '{{ item.resourceType }}'
+  # Returns cryptographic keys managed by Cloud KMS in a given Cloud project. Note that this data is sou
+  # ── gcp.kmsinventory.projects.cryptoKeys.list ──
+  - discovery_id: gcp.kmsinventory.projects.cryptoKeys.list
+    # python: svc.projects().cryptoKeys().list(**params).execute()
+    calls:
+      - action: projects.cryptoKeys.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.cryptoKeys }}'
+      item:
+        createTime: '{{ item.createTime }}'
+        cryptoKeyBackend: '{{ item.cryptoKeyBackend }}'
+        destroyScheduledDuration: '{{ item.destroyScheduledDuration }}'
+        importOnly: '{{ item.importOnly }}'
+        keyAccessJustificationsPolicy: '{{ item.keyAccessJustificationsPolicy }}'
+        labels: '{{ item.labels }}'
+        name: '{{ item.name }}'
+        nextRotationTime: '{{ item.nextRotationTime }}'
+        primary: '{{ item.primary }}'
+        purpose: '{{ item.purpose }}'
+        rotationPeriod: '{{ item.rotationPeriod }}'
+        versionTemplate: '{{ item.versionTemplate }}'
+  # Returns metadata about the resources protected by the given Cloud KMS CryptoKey in the given Cloud o
+  # ── gcp.kmsinventory.projects.protectedResources.search ──
+  - discovery_id: gcp.kmsinventory.projects.protectedResources.search
+    # python: svc.projects().protectedResources().search(**params).execute()
+    calls:
+      - action: projects.protectedResources.search
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.protectedResources }}'
+      item:
+        cloudProduct: '{{ item.cloudProduct }}'
+        createTime: '{{ item.createTime }}'
+        cryptoKeyVersion: '{{ item.cryptoKeyVersion }}'
+        cryptoKeyVersions: '{{ item.cryptoKeyVersions }}'
+        labels: '{{ item.labels }}'
+        location: '{{ item.location }}'
+        name: '{{ item.name }}'
+        project: '{{ item.project }}'
+        projectId: '{{ item.projectId }}'
+        resourceType: '{{ item.resourceType }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Returns aggregate information about the resources protected by the given Cloud KMS CryptoKey. By def
+  # ── gcp.kmsinventory.projects.locations.keyRings.cryptoKeys.getProtectedResourcesSummary [dependent] ──
+  - discovery_id: gcp.kmsinventory.projects.locations.keyRings.cryptoKeys.getProtectedResourcesSummary
+    for_each: gcp.kmsinventory.projects.cryptoKeys.list
+    # python: svc.projects().locations().keyRings().cryptoKeys().getProtectedResourcesSummary(**params).execute()
+    calls:
+      - action: projects.locations.keyRings.cryptoKeys.getProtectedResourcesSummary
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        cloudProducts: '{{ response.cloudProducts }}'
+        locations: '{{ response.locations }}'
+        name: '{{ response.name }}'
+        projectCount: '{{ response.projectCount }}'
+        resourceCount: '{{ response.resourceCount }}'
+        resourceTypes: '{{ response.resourceTypes }}'
+    # required_params: ['name']

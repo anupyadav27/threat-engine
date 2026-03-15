@@ -1,0 +1,581 @@
+# ============================================================
+# Discovery YAML — gmail (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 30 | independent: 0 | dependent: 30
+# ops with fields: 30/30 | dep ops with chain: 0/30
+# ============================================================
+version: '1.0'
+provider: gcp
+service: gmail
+
+services:
+  client: gmail
+  module: "googleapiclient.discovery.build('gmail', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets the specified draft.
+  # ── gcp.gmail.users.drafts.get [dependent] ──
+  - discovery_id: gcp.gmail.users.drafts.get
+    # python: svc.users().drafts().get(**params).execute()
+    calls:
+      - action: users.drafts.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        id: '{{ response.id }}'
+        message: '{{ response.message }}'
+    # required_params: ['id', 'userId']
+  # Lists the drafts in the user's mailbox.
+  # ── gcp.gmail.users.drafts.list [dependent] ──
+  - discovery_id: gcp.gmail.users.drafts.list
+    # python: svc.users().drafts().list(**params).execute()
+    calls:
+      - action: users.drafts.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.drafts }}'
+      item:
+        id: '{{ item.id }}'
+        message: '{{ item.message }}'
+    # required_params: ['userId']
+  # Gets the current user's Gmail profile.
+  # ── gcp.gmail.users.getProfile [dependent] ──
+  - discovery_id: gcp.gmail.users.getProfile
+    # python: svc.users().getProfile(**params).execute()
+    calls:
+      - action: users.getProfile
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        emailAddress: '{{ response.emailAddress }}'
+        historyId: '{{ response.historyId }}'
+        messagesTotal: '{{ response.messagesTotal }}'
+        threadsTotal: '{{ response.threadsTotal }}'
+    # required_params: ['userId']
+  # Lists the history of all changes to the given mailbox. History results are returned in chronological
+  # ── gcp.gmail.users.history.list [dependent] ──
+  - discovery_id: gcp.gmail.users.history.list
+    # python: svc.users().history().list(**params).execute()
+    calls:
+      - action: users.history.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.history }}'
+      item:
+        id: '{{ item.id }}'
+        labelsAdded: '{{ item.labelsAdded }}'
+        labelsRemoved: '{{ item.labelsRemoved }}'
+        messages: '{{ item.messages }}'
+        messagesAdded: '{{ item.messagesAdded }}'
+        messagesDeleted: '{{ item.messagesDeleted }}'
+    # required_params: ['userId']
+  # Gets the specified label.
+  # ── gcp.gmail.users.labels.get [dependent] ──
+  - discovery_id: gcp.gmail.users.labels.get
+    # python: svc.users().labels().get(**params).execute()
+    calls:
+      - action: users.labels.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        color: '{{ response.color }}'
+        id: '{{ response.id }}'
+        labelListVisibility: '{{ response.labelListVisibility }}'
+        messageListVisibility: '{{ response.messageListVisibility }}'
+        messagesTotal: '{{ response.messagesTotal }}'
+        messagesUnread: '{{ response.messagesUnread }}'
+        name: '{{ response.name }}'
+        threadsTotal: '{{ response.threadsTotal }}'
+        threadsUnread: '{{ response.threadsUnread }}'
+        type: '{{ response.type }}'
+    # required_params: ['id', 'userId']
+  # Lists all labels in the user's mailbox.
+  # ── gcp.gmail.users.labels.list [dependent] ──
+  - discovery_id: gcp.gmail.users.labels.list
+    # python: svc.users().labels().list(**params).execute()
+    calls:
+      - action: users.labels.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.labels }}'
+      item:
+        color: '{{ item.color }}'
+        id: '{{ item.id }}'
+        labelListVisibility: '{{ item.labelListVisibility }}'
+        messageListVisibility: '{{ item.messageListVisibility }}'
+        messagesTotal: '{{ item.messagesTotal }}'
+        messagesUnread: '{{ item.messagesUnread }}'
+        name: '{{ item.name }}'
+        threadsTotal: '{{ item.threadsTotal }}'
+        threadsUnread: '{{ item.threadsUnread }}'
+        type: '{{ item.type }}'
+    # required_params: ['userId']
+  # Gets the specified message attachment.
+  # ── gcp.gmail.users.messages.attachments.get [dependent] ──
+  - discovery_id: gcp.gmail.users.messages.attachments.get
+    # python: svc.users().messages().attachments().get(**params).execute()
+    calls:
+      - action: users.messages.attachments.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        attachmentId: '{{ response.attachmentId }}'
+        data: '{{ response.data }}'
+        size: '{{ response.size }}'
+    # required_params: ['userId', 'messageId', 'id']
+  # Gets the specified message.
+  # ── gcp.gmail.users.messages.get [dependent] ──
+  - discovery_id: gcp.gmail.users.messages.get
+    # python: svc.users().messages().get(**params).execute()
+    calls:
+      - action: users.messages.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        classificationLabelValues: '{{ response.classificationLabelValues }}'
+        historyId: '{{ response.historyId }}'
+        id: '{{ response.id }}'
+        internalDate: '{{ response.internalDate }}'
+        labelIds: '{{ response.labelIds }}'
+        payload: '{{ response.payload }}'
+        raw: '{{ response.raw }}'
+        sizeEstimate: '{{ response.sizeEstimate }}'
+        snippet: '{{ response.snippet }}'
+        threadId: '{{ response.threadId }}'
+    # required_params: ['id', 'userId']
+  # Lists the messages in the user's mailbox. For example usage, see [List Gmail messages](https://devel
+  # ── gcp.gmail.users.messages.list [dependent] ──
+  - discovery_id: gcp.gmail.users.messages.list
+    # python: svc.users().messages().list(**params).execute()
+    calls:
+      - action: users.messages.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.messages }}'
+      item:
+        classificationLabelValues: '{{ item.classificationLabelValues }}'
+        historyId: '{{ item.historyId }}'
+        id: '{{ item.id }}'
+        internalDate: '{{ item.internalDate }}'
+        labelIds: '{{ item.labelIds }}'
+        payload: '{{ item.payload }}'
+        raw: '{{ item.raw }}'
+        sizeEstimate: '{{ item.sizeEstimate }}'
+        snippet: '{{ item.snippet }}'
+        threadId: '{{ item.threadId }}'
+    # required_params: ['userId']
+  # Retrieves a client-side encryption identity configuration. For administrators managing identities an
+  # ── gcp.gmail.users.settings.cse.identities.get [dependent] ──
+  - discovery_id: gcp.gmail.users.settings.cse.identities.get
+    # python: svc.users().settings().cse().identities().get(**params).execute()
+    calls:
+      - action: users.settings.cse.identities.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        emailAddress: '{{ response.emailAddress }}'
+        primaryKeyPairId: '{{ response.primaryKeyPairId }}'
+        signAndEncryptKeyPairs: '{{ response.signAndEncryptKeyPairs }}'
+    # required_params: ['userId', 'cseEmailAddress']
+  # Lists the client-side encrypted identities for an authenticated user. For administrators managing id
+  # ── gcp.gmail.users.settings.cse.identities.list [dependent] ──
+  - discovery_id: gcp.gmail.users.settings.cse.identities.list
+    # python: svc.users().settings().cse().identities().list(**params).execute()
+    calls:
+      - action: users.settings.cse.identities.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.identities }}'
+      item:
+        emailAddress: '{{ item.emailAddress }}'
+        primaryKeyPairId: '{{ item.primaryKeyPairId }}'
+        signAndEncryptKeyPairs: '{{ item.signAndEncryptKeyPairs }}'
+    # required_params: ['userId']
+  # Retrieves an existing client-side encryption key pair. For administrators managing identities and ke
+  # ── gcp.gmail.users.settings.cse.keypairs.get [dependent] ──
+  - discovery_id: gcp.gmail.users.settings.cse.keypairs.get
+    # python: svc.users().settings().cse().keypairs().get(**params).execute()
+    calls:
+      - action: users.settings.cse.keypairs.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        disableTime: '{{ response.disableTime }}'
+        enablementState: '{{ response.enablementState }}'
+        keyPairId: '{{ response.keyPairId }}'
+        pem: '{{ response.pem }}'
+        pkcs7: '{{ response.pkcs7 }}'
+        privateKeyMetadata: '{{ response.privateKeyMetadata }}'
+        subjectEmailAddresses: '{{ response.subjectEmailAddresses }}'
+    # required_params: ['userId', 'keyPairId']
+  # Lists client-side encryption key pairs for an authenticated user. For administrators managing identi
+  # ── gcp.gmail.users.settings.cse.keypairs.list [dependent] ──
+  - discovery_id: gcp.gmail.users.settings.cse.keypairs.list
+    # python: svc.users().settings().cse().keypairs().list(**params).execute()
+    calls:
+      - action: users.settings.cse.keypairs.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.keypairs }}'
+      item:
+        disableTime: '{{ item.disableTime }}'
+        enablementState: '{{ item.enablementState }}'
+        keyPairId: '{{ item.keyPairId }}'
+        pem: '{{ item.pem }}'
+        pkcs7: '{{ item.pkcs7 }}'
+        privateKeyMetadata: '{{ item.privateKeyMetadata }}'
+        subjectEmailAddresses: '{{ item.subjectEmailAddresses }}'
+    # required_params: ['userId']
+  # Gets the specified delegate. Note that a delegate user must be referred to by their primary email ad
+  # ── gcp.gmail.users.settings.delegates.get [dependent] ──
+  - discovery_id: gcp.gmail.users.settings.delegates.get
+    # python: svc.users().settings().delegates().get(**params).execute()
+    calls:
+      - action: users.settings.delegates.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        delegateEmail: '{{ response.delegateEmail }}'
+        verificationStatus: '{{ response.verificationStatus }}'
+    # required_params: ['userId', 'delegateEmail']
+  # Lists the delegates for the specified account. This method is only available to service account clie
+  # ── gcp.gmail.users.settings.delegates.list [dependent] ──
+  - discovery_id: gcp.gmail.users.settings.delegates.list
+    # python: svc.users().settings().delegates().list(**params).execute()
+    calls:
+      - action: users.settings.delegates.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.delegates }}'
+      item:
+        delegateEmail: '{{ item.delegateEmail }}'
+        verificationStatus: '{{ item.verificationStatus }}'
+    # required_params: ['userId']
+  # Gets a filter.
+  # ── gcp.gmail.users.settings.filters.get [dependent] ──
+  - discovery_id: gcp.gmail.users.settings.filters.get
+    # python: svc.users().settings().filters().get(**params).execute()
+    calls:
+      - action: users.settings.filters.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        action: '{{ response.action }}'
+        criteria: '{{ response.criteria }}'
+        id: '{{ response.id }}'
+    # required_params: ['userId', 'id']
+  # Lists the message filters of a Gmail user.
+  # ── gcp.gmail.users.settings.filters.list [dependent] ──
+  - discovery_id: gcp.gmail.users.settings.filters.list
+    # python: svc.users().settings().filters().list(**params).execute()
+    calls:
+      - action: users.settings.filters.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.filters }}'
+      item:
+        action: '{{ item.action }}'
+        criteria: '{{ item.criteria }}'
+        id: '{{ item.id }}'
+    # required_params: ['userId']
+  # Gets the specified forwarding address.
+  # ── gcp.gmail.users.settings.forwardingAddresses.get [dependent] ──
+  - discovery_id: gcp.gmail.users.settings.forwardingAddresses.get
+    # python: svc.users().settings().forwardingAddresses().get(**params).execute()
+    calls:
+      - action: users.settings.forwardingAddresses.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        forwardingEmail: '{{ response.forwardingEmail }}'
+        verificationStatus: '{{ response.verificationStatus }}'
+    # required_params: ['forwardingEmail', 'userId']
+  # Lists the forwarding addresses for the specified account.
+  # ── gcp.gmail.users.settings.forwardingAddresses.list [dependent] ──
+  - discovery_id: gcp.gmail.users.settings.forwardingAddresses.list
+    # python: svc.users().settings().forwardingAddresses().list(**params).execute()
+    calls:
+      - action: users.settings.forwardingAddresses.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.forwardingAddresses }}'
+      item:
+        forwardingEmail: '{{ item.forwardingEmail }}'
+        verificationStatus: '{{ item.verificationStatus }}'
+    # required_params: ['userId']
+  # Gets the auto-forwarding setting for the specified account.
+  # ── gcp.gmail.users.settings.getAutoForwarding [dependent] ──
+  - discovery_id: gcp.gmail.users.settings.getAutoForwarding
+    # python: svc.users().settings().getAutoForwarding(**params).execute()
+    calls:
+      - action: users.settings.getAutoForwarding
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        disposition: '{{ response.disposition }}'
+        emailAddress: '{{ response.emailAddress }}'
+        enabled: '{{ response.enabled }}'
+    # required_params: ['userId']
+  # Gets IMAP settings.
+  # ── gcp.gmail.users.settings.getImap [dependent] ──
+  - discovery_id: gcp.gmail.users.settings.getImap
+    # python: svc.users().settings().getImap(**params).execute()
+    calls:
+      - action: users.settings.getImap
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        autoExpunge: '{{ response.autoExpunge }}'
+        enabled: '{{ response.enabled }}'
+        expungeBehavior: '{{ response.expungeBehavior }}'
+        maxFolderSize: '{{ response.maxFolderSize }}'
+    # required_params: ['userId']
+  # Gets language settings.
+  # ── gcp.gmail.users.settings.getLanguage [dependent] ──
+  - discovery_id: gcp.gmail.users.settings.getLanguage
+    # python: svc.users().settings().getLanguage(**params).execute()
+    calls:
+      - action: users.settings.getLanguage
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        displayLanguage: '{{ response.displayLanguage }}'
+    # required_params: ['userId']
+  # Gets POP settings.
+  # ── gcp.gmail.users.settings.getPop [dependent] ──
+  - discovery_id: gcp.gmail.users.settings.getPop
+    # python: svc.users().settings().getPop(**params).execute()
+    calls:
+      - action: users.settings.getPop
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accessWindow: '{{ response.accessWindow }}'
+        disposition: '{{ response.disposition }}'
+    # required_params: ['userId']
+  # Gets vacation responder settings.
+  # ── gcp.gmail.users.settings.getVacation [dependent] ──
+  - discovery_id: gcp.gmail.users.settings.getVacation
+    # python: svc.users().settings().getVacation(**params).execute()
+    calls:
+      - action: users.settings.getVacation
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        enableAutoReply: '{{ response.enableAutoReply }}'
+        endTime: '{{ response.endTime }}'
+        responseBodyHtml: '{{ response.responseBodyHtml }}'
+        responseBodyPlainText: '{{ response.responseBodyPlainText }}'
+        responseSubject: '{{ response.responseSubject }}'
+        restrictToContacts: '{{ response.restrictToContacts }}'
+        restrictToDomain: '{{ response.restrictToDomain }}'
+        startTime: '{{ response.startTime }}'
+    # required_params: ['userId']
+  # Gets the specified send-as alias. Fails with an HTTP 404 error if the specified address is not a mem
+  # ── gcp.gmail.users.settings.sendAs.get [dependent] ──
+  - discovery_id: gcp.gmail.users.settings.sendAs.get
+    # python: svc.users().settings().sendAs().get(**params).execute()
+    calls:
+      - action: users.settings.sendAs.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        displayName: '{{ response.displayName }}'
+        isDefault: '{{ response.isDefault }}'
+        isPrimary: '{{ response.isPrimary }}'
+        replyToAddress: '{{ response.replyToAddress }}'
+        sendAsEmail: '{{ response.sendAsEmail }}'
+        signature: '{{ response.signature }}'
+        smtpMsa: '{{ response.smtpMsa }}'
+        treatAsAlias: '{{ response.treatAsAlias }}'
+        verificationStatus: '{{ response.verificationStatus }}'
+    # required_params: ['sendAsEmail', 'userId']
+  # Lists the send-as aliases for the specified account. The result includes the primary send-as address
+  # ── gcp.gmail.users.settings.sendAs.list [dependent] ──
+  - discovery_id: gcp.gmail.users.settings.sendAs.list
+    # python: svc.users().settings().sendAs().list(**params).execute()
+    calls:
+      - action: users.settings.sendAs.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.sendAs }}'
+      item:
+        displayName: '{{ item.displayName }}'
+        isDefault: '{{ item.isDefault }}'
+        isPrimary: '{{ item.isPrimary }}'
+        replyToAddress: '{{ item.replyToAddress }}'
+        sendAsEmail: '{{ item.sendAsEmail }}'
+        signature: '{{ item.signature }}'
+        smtpMsa: '{{ item.smtpMsa }}'
+        treatAsAlias: '{{ item.treatAsAlias }}'
+        verificationStatus: '{{ item.verificationStatus }}'
+    # required_params: ['userId']
+  # Gets the specified S/MIME config for the specified send-as alias.
+  # ── gcp.gmail.users.settings.sendAs.smimeInfo.get [dependent] ──
+  - discovery_id: gcp.gmail.users.settings.sendAs.smimeInfo.get
+    # python: svc.users().settings().sendAs().smimeInfo().get(**params).execute()
+    calls:
+      - action: users.settings.sendAs.smimeInfo.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        encryptedKeyPassword: '{{ response.encryptedKeyPassword }}'
+        expiration: '{{ response.expiration }}'
+        id: '{{ response.id }}'
+        isDefault: '{{ response.isDefault }}'
+        issuerCn: '{{ response.issuerCn }}'
+        pem: '{{ response.pem }}'
+        pkcs12: '{{ response.pkcs12 }}'
+    # required_params: ['id', 'userId', 'sendAsEmail']
+  # Lists S/MIME configs for the specified send-as alias.
+  # ── gcp.gmail.users.settings.sendAs.smimeInfo.list [dependent] ──
+  - discovery_id: gcp.gmail.users.settings.sendAs.smimeInfo.list
+    # python: svc.users().settings().sendAs().smimeInfo().list(**params).execute()
+    calls:
+      - action: users.settings.sendAs.smimeInfo.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.smimeInfo }}'
+      item:
+        encryptedKeyPassword: '{{ item.encryptedKeyPassword }}'
+        expiration: '{{ item.expiration }}'
+        id: '{{ item.id }}'
+        isDefault: '{{ item.isDefault }}'
+        issuerCn: '{{ item.issuerCn }}'
+        pem: '{{ item.pem }}'
+        pkcs12: '{{ item.pkcs12 }}'
+    # required_params: ['sendAsEmail', 'userId']
+  # Gets the specified thread.
+  # ── gcp.gmail.users.threads.get [dependent] ──
+  - discovery_id: gcp.gmail.users.threads.get
+    # python: svc.users().threads().get(**params).execute()
+    calls:
+      - action: users.threads.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        historyId: '{{ response.historyId }}'
+        id: '{{ response.id }}'
+        messages: '{{ response.messages }}'
+        snippet: '{{ response.snippet }}'
+    # required_params: ['userId', 'id']
+  # Lists the threads in the user's mailbox.
+  # ── gcp.gmail.users.threads.list [dependent] ──
+  - discovery_id: gcp.gmail.users.threads.list
+    # python: svc.users().threads().list(**params).execute()
+    calls:
+      - action: users.threads.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.threads }}'
+      item:
+        historyId: '{{ item.historyId }}'
+        id: '{{ item.id }}'
+        messages: '{{ item.messages }}'
+        snippet: '{{ item.snippet }}'
+    # required_params: ['userId']

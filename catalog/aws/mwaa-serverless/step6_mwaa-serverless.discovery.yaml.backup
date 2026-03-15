@@ -1,0 +1,128 @@
+version: '1.0'
+provider: aws
+service: mwaa-serverless
+services:
+  client: mwaa-serverless
+  module: boto3.client
+discovery:
+- discovery_id: aws.mwaa-serverless.listWorkflows
+  calls:
+  - action: listWorkflows
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Workflows }}'
+    item:
+      WorkflowArn: '{{ item.WorkflowArn }}'
+      WorkflowVersion: '{{ item.WorkflowVersion }}'
+      Name: '{{ item.Name }}'
+      Description: '{{ item.Description }}'
+      CreatedAt: '{{ item.CreatedAt }}'
+      ModifiedAt: '{{ item.ModifiedAt }}'
+      WorkflowStatus: '{{ item.WorkflowStatus }}'
+      TriggerMode: '{{ item.TriggerMode }}'
+- discovery_id: aws.mwaa-serverless.getTaskInstance
+  calls:
+  - action: getTaskInstance
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.WorkflowArn }}'
+- discovery_id: aws.mwaa-serverless.getWorkflow
+  calls:
+  - action: getWorkflow
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.EncryptionConfiguration }}'
+    item:
+      Type: '{{ item.Type }}'
+      KmsKeyId: '{{ item.KmsKeyId }}'
+- discovery_id: aws.mwaa-serverless.getWorkflowRun
+  calls:
+  - action: getWorkflowRun
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.RunDetail }}'
+    item:
+      WorkflowArn: '{{ item.WorkflowArn }}'
+      WorkflowVersion: '{{ item.WorkflowVersion }}'
+      RunId: '{{ item.RunId }}'
+      RunType: '{{ item.RunType }}'
+      StartedOn: '{{ item.StartedOn }}'
+      CreatedAt: '{{ item.CreatedAt }}'
+      CompletedOn: '{{ item.CompletedOn }}'
+      ModifiedAt: '{{ item.ModifiedAt }}'
+      Duration: '{{ item.Duration }}'
+      ErrorMessage: '{{ item.ErrorMessage }}'
+      TaskInstances: '{{ item.TaskInstances }}'
+      RunState: '{{ item.RunState }}'
+- discovery_id: aws.mwaa-serverless.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+- discovery_id: aws.mwaa-serverless.listTaskInstances
+  calls:
+  - action: listTaskInstances
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.TaskInstances }}'
+    item:
+      WorkflowArn: '{{ item.WorkflowArn }}'
+      WorkflowVersion: '{{ item.WorkflowVersion }}'
+      RunId: '{{ item.RunId }}'
+      TaskInstanceId: '{{ item.TaskInstanceId }}'
+      Status: '{{ item.Status }}'
+      DurationInSeconds: '{{ item.DurationInSeconds }}'
+      OperatorName: '{{ item.OperatorName }}'
+- discovery_id: aws.mwaa-serverless.listWorkflowRuns
+  calls:
+  - action: listWorkflowRuns
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.WorkflowRuns }}'
+    item:
+      RunId: '{{ item.RunId }}'
+      WorkflowArn: '{{ item.WorkflowArn }}'
+      WorkflowVersion: '{{ item.WorkflowVersion }}'
+      RunType: '{{ item.RunType }}'
+      RunDetailSummary: '{{ item.RunDetailSummary }}'
+- discovery_id: aws.mwaa-serverless.listWorkflowVersions
+  calls:
+  - action: listWorkflowVersions
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.WorkflowVersions }}'
+    item:
+      WorkflowVersion: '{{ item.WorkflowVersion }}'
+      WorkflowArn: '{{ item.WorkflowArn }}'
+      IsLatestVersion: '{{ item.IsLatestVersion }}'
+      CreatedAt: '{{ item.CreatedAt }}'
+      ModifiedAt: '{{ item.ModifiedAt }}'
+      DefinitionS3Location: '{{ item.DefinitionS3Location }}'
+      ScheduleConfiguration: '{{ item.ScheduleConfiguration }}'
+      TriggerMode: '{{ item.TriggerMode }}'
+checks: []

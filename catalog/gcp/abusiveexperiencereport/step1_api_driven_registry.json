@@ -1,0 +1,186 @@
+{
+  "service": "abusiveexperiencereport",
+  "version": "v1",
+  "csp": "gcp",
+  "title": "Abusive Experience Report API",
+  "base_url": "https://abusiveexperiencereport.googleapis.com/",
+  "stats": {
+    "total_ops": 2,
+    "read_list": 1,
+    "read_get": 1,
+    "write": 0,
+    "other": 0,
+    "independent": 1,
+    "dependent": 1
+  },
+  "operations": {
+    "gcp.abusiveexperiencereport.sites.get": {
+      "op": "gcp.abusiveexperiencereport.sites.get",
+      "service": "abusiveexperiencereport",
+      "kind": "read_get",
+      "http": {
+        "verb": "GET",
+        "path": "/v1/{+name}"
+      },
+      "python_call": "svc.sites().get(**params).execute()",
+      "description": "Gets a site's Abusive Experience Report summary.",
+      "inputs": {
+        "required": [
+          {
+            "param": "name",
+            "type": "string",
+            "location": "path",
+            "template": "sites/{siteId}",
+            "slots": [
+              {
+                "slot": "siteId",
+                "source": "from_list_op",
+                "after_segment": "sites"
+              }
+            ],
+            "pattern": "^sites/[^/]+$",
+            "description": "Required. The name of the site whose summary to get, e.g. `sites/http%3A%2F%2Fwww.google.com%2F`. Format: `sites/{site}`"
+          }
+        ],
+        "optional": []
+      },
+      "outputs": {
+        "response_schema": "SiteSummaryResponse",
+        "list_field": null,
+        "id_field": null,
+        "id_is_full_resource_name": false,
+        "produces_fields": [
+          {
+            "path": "enforcementTime",
+            "type": "string",
+            "is_id": false
+          },
+          {
+            "path": "filterStatus",
+            "type": "string",
+            "is_id": false
+          },
+          {
+            "path": "lastChangeTime",
+            "type": "string",
+            "is_id": false
+          },
+          {
+            "path": "reviewedSite",
+            "type": "string",
+            "is_id": false
+          },
+          {
+            "path": "abusiveStatus",
+            "type": "string",
+            "is_id": false
+          },
+          {
+            "path": "underReview",
+            "type": "boolean",
+            "is_id": false
+          },
+          {
+            "path": "reportUrl",
+            "type": "string",
+            "is_id": false
+          }
+        ]
+      },
+      "independent": false,
+      "dependency_hints": [
+        {
+          "param": "name",
+          "can_come_from": [
+            {
+              "kind": "known_format",
+              "template": "sites/{siteId}",
+              "slots": [
+                {
+                  "slot": "siteId",
+                  "source": "from_list_op",
+                  "after_segment": "sites"
+                }
+              ]
+            },
+            {
+              "kind": "from_list_op",
+              "op": "gcp.abusiveexperiencereport.violatingSites.list",
+              "match_tier": 2,
+              "match_confidence": "suffix_match",
+              "list_field": "violatingSites",
+              "id_field": "reviewedSite",
+              "produces_slot": "siteId",
+              "note": "[tier 2/suffix_match] call gcp.abusiveexperiencereport.violatingSites.list, iterate response[\"violatingSites\"][], extract item[\"reviewedSite\"] \u2192 fill {siteId}"
+            }
+          ]
+        }
+      ],
+      "scopes": [],
+      "paginated": false
+    },
+    "gcp.abusiveexperiencereport.violatingSites.list": {
+      "op": "gcp.abusiveexperiencereport.violatingSites.list",
+      "service": "abusiveexperiencereport",
+      "kind": "read_list",
+      "http": {
+        "verb": "GET",
+        "path": "/v1/violatingSites"
+      },
+      "python_call": "svc.violatingSites().list(**params).execute()",
+      "description": "Lists sites that are failing in the Abusive Experience Report.",
+      "inputs": {
+        "required": [],
+        "optional": []
+      },
+      "outputs": {
+        "response_schema": "ViolatingSitesResponse",
+        "list_field": "violatingSites",
+        "id_field": "reviewedSite",
+        "id_is_full_resource_name": false,
+        "produces_fields": [
+          {
+            "path": "violatingSites[].reviewedSite",
+            "type": "string",
+            "is_id": true,
+            "note": "resource identity \u2014 use as name/parent param for .get()"
+          },
+          {
+            "path": "violatingSites[].enforcementTime",
+            "type": "string",
+            "is_id": false
+          },
+          {
+            "path": "violatingSites[].filterStatus",
+            "type": "string",
+            "is_id": false
+          },
+          {
+            "path": "violatingSites[].lastChangeTime",
+            "type": "string",
+            "is_id": false
+          },
+          {
+            "path": "violatingSites[].abusiveStatus",
+            "type": "string",
+            "is_id": false
+          },
+          {
+            "path": "violatingSites[].underReview",
+            "type": "string",
+            "is_id": false
+          },
+          {
+            "path": "violatingSites[].reportUrl",
+            "type": "string",
+            "is_id": false
+          }
+        ]
+      },
+      "independent": true,
+      "dependency_hints": [],
+      "scopes": [],
+      "paginated": false
+    }
+  }
+}

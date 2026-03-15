@@ -1,0 +1,43 @@
+version: '1.0'
+provider: aws
+service: aiops
+services:
+  client: aiops
+  module: boto3.client
+discovery:
+- discovery_id: aws.aiops.listInvestigationGroups
+  calls:
+  - action: listInvestigationGroups
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.investigationGroups }}'
+    item:
+      arn: '{{ item.arn }}'
+      name: '{{ item.name }}'
+- discovery_id: aws.aiops.getInvestigationGroup
+  calls:
+  - action: getInvestigationGroup
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.tagKeyBoundaries }}'
+- discovery_id: aws.aiops.getInvestigationGroupPolicy
+  calls:
+  - action: getInvestigationGroupPolicy
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.investigationGroupArn }}'
+- discovery_id: aws.aiops.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.tags }}'
+checks: []

@@ -1,0 +1,56 @@
+version: '1.0'
+provider: aws
+service: marketplace-agreement
+services:
+  client: marketplace-agreement
+  module: boto3.client
+discovery:
+- discovery_id: aws.marketplace-agreement.searchAgreements
+  calls:
+  - action: searchAgreements
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.agreementViewSummaries }}'
+    item:
+      acceptanceTime: '{{ item.acceptanceTime }}'
+      acceptor: '{{ item.acceptor }}'
+      agreementId: '{{ item.agreementId }}'
+      agreementType: '{{ item.agreementType }}'
+      endTime: '{{ item.endTime }}'
+      proposalSummary: '{{ item.proposalSummary }}'
+      proposer: '{{ item.proposer }}'
+      startTime: '{{ item.startTime }}'
+      status: '{{ item.status }}'
+- discovery_id: aws.marketplace-agreement.describeAgreement
+  calls:
+  - action: describeAgreement
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.acceptor }}'
+    item:
+      accountId: '{{ item.accountId }}'
+- discovery_id: aws.marketplace-agreement.getAgreementTerms
+  calls:
+  - action: getAgreementTerms
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.acceptedTerms }}'
+    item:
+      byolPricingTerm: '{{ item.byolPricingTerm }}'
+      configurableUpfrontPricingTerm: '{{ item.configurableUpfrontPricingTerm }}'
+      fixedUpfrontPricingTerm: '{{ item.fixedUpfrontPricingTerm }}'
+      freeTrialPricingTerm: '{{ item.freeTrialPricingTerm }}'
+      legalTerm: '{{ item.legalTerm }}'
+      paymentScheduleTerm: '{{ item.paymentScheduleTerm }}'
+      recurringPaymentTerm: '{{ item.recurringPaymentTerm }}'
+      renewalTerm: '{{ item.renewalTerm }}'
+      supportTerm: '{{ item.supportTerm }}'
+      usageBasedPricingTerm: '{{ item.usageBasedPricingTerm }}'
+      validityTerm: '{{ item.validityTerm }}'
+checks: []

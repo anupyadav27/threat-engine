@@ -1,0 +1,189 @@
+{
+  "csp": "gcp",
+  "generated_at": "2026-02-19T14:43:25.085203+00:00",
+  "anchors": {
+    "fixed": [
+      "project_id",
+      "org_id",
+      "folder_id",
+      "location",
+      "zone",
+      "region"
+    ]
+  },
+  "services": {
+    "cloudtrace": {
+      "version": "v1",
+      "resources": {
+        "traces": {
+          "resource_type": "traces",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "constructed",
+            "full_identifier": {
+              "template": "traces/{url_encoded_traceId}",
+              "built_from_parts": [
+                "traces[].traceId"
+              ],
+              "notes": ""
+            },
+            "parts": [
+              "project_id",
+              "traceId"
+            ],
+            "part_sources": {
+              "project_id": {
+                "op": "service_anchor",
+                "field_path": "project_id",
+                "transform": null
+              },
+              "traceId": {
+                "op": "gcp.cloudtrace.projects.traces.list",
+                "field_path": "traces[].traceId",
+                "transform": null
+              }
+            },
+            "transforms": [
+              {
+                "from": "traces[].traceId",
+                "fn": "url_encode",
+                "to": "url_encoded_traceId"
+              },
+              {
+                "from": "url_encoded_traceId",
+                "fn": "prefix:traces/",
+                "to": "projectId"
+              },
+              {
+                "build": "full_id",
+                "template": "traces/{url_encoded_traceId}"
+              }
+            ]
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.cloudtrace.projects.traces.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/projects/{projectId}/traces"
+                },
+                "python_call": "svc.projects().traces().list(**params).execute()",
+                "produces": {
+                  "traceId": "traces[].traceId",
+                  "spans": "traces[].spans",
+                  "projectId": "traces[].projectId"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.cloudtrace.projects.traces.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/projects/{projectId}/traces/{traceId}"
+                },
+                "python_call": "svc.projects().traces().get(**params).execute()",
+                "required_params": {
+                  "projectId": {
+                    "from_identifier": "transforms \u2192 projectId"
+                  },
+                  "traceId": {
+                    "from_identifier": "traceId"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.cloudtrace.projects.traces.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.cloudtrace.projects.traces.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().traces().list(**params).execute()",
+                      "path": "/v1/projects/{projectId}/traces",
+                      "required_params": {
+                        "projectId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Required. ID of the Cloud project where the trace data is stored."
+                        }
+                      },
+                      "output_list_field": "traces",
+                      "output_id_field": "traceId",
+                      "produces": {
+                        "traceId": {
+                          "via_list_field": "traces",
+                          "from_id_field": "traceId",
+                          "note": "Iterate response[\"traces\"][], extract item[\"traceId\"] \u2192 pass as \"traceId\""
+                        }
+                      },
+                      "param_sources": {
+                        "projectId": "always_available"
+                      },
+                      "purpose": "Provides: traceId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.cloudtrace.projects.traces.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().traces().get(**params).execute()",
+                      "path": "/v1/projects/{projectId}/traces/{traceId}",
+                      "required_params": {
+                        "projectId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Required. ID of the Cloud project where the trace data is stored."
+                        },
+                        "traceId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Required. ID of the trace to return."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "projectId": "always_available",
+                        "traceId": {
+                          "from_step": 1,
+                          "from_op": "gcp.cloudtrace.projects.traces.list",
+                          "field": "traceId"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [
+                    "projectId"
+                  ],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        }
+      }
+    }
+  }
+}

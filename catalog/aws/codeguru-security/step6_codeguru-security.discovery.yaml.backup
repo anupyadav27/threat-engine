@@ -1,0 +1,103 @@
+version: '1.0'
+provider: aws
+service: codeguru-security
+services:
+  client: codeguru-security
+  module: boto3.client
+discovery:
+- discovery_id: aws.codeguru-security.getAccountConfiguration
+  calls:
+  - action: getAccountConfiguration
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.encryptionConfig }}'
+    item:
+      kmsKeyArn: '{{ item.kmsKeyArn }}'
+- discovery_id: aws.codeguru-security.listScans
+  calls:
+  - action: listScans
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.summaries }}'
+    item:
+      scanState: '{{ item.scanState }}'
+      createdAt: '{{ item.createdAt }}'
+      updatedAt: '{{ item.updatedAt }}'
+      scanName: '{{ item.scanName }}'
+      runId: '{{ item.runId }}'
+      scanNameArn: '{{ item.scanNameArn }}'
+- discovery_id: aws.codeguru-security.getFindings
+  calls:
+  - action: getFindings
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.findings }}'
+    item:
+      createdAt: '{{ item.createdAt }}'
+      description: '{{ item.description }}'
+      generatorId: '{{ item.generatorId }}'
+      id: '{{ item.id }}'
+      updatedAt: '{{ item.updatedAt }}'
+      type: '{{ item.type }}'
+      status: '{{ item.status }}'
+      resource: '{{ item.resource }}'
+      vulnerability: '{{ item.vulnerability }}'
+      severity: '{{ item.severity }}'
+      remediation: '{{ item.remediation }}'
+      title: '{{ item.title }}'
+      detectorTags: '{{ item.detectorTags }}'
+      detectorId: '{{ item.detectorId }}'
+      detectorName: '{{ item.detectorName }}'
+      ruleId: '{{ item.ruleId }}'
+- discovery_id: aws.codeguru-security.getMetricsSummary
+  calls:
+  - action: getMetricsSummary
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.metricsSummary }}'
+    item:
+      date: '{{ item.date }}'
+      openFindings: '{{ item.openFindings }}'
+      categoriesWithMostFindings: '{{ item.categoriesWithMostFindings }}'
+      scansWithMostOpenFindings: '{{ item.scansWithMostOpenFindings }}'
+      scansWithMostOpenCriticalFindings: '{{ item.scansWithMostOpenCriticalFindings
+        }}'
+- discovery_id: aws.codeguru-security.getScan
+  calls:
+  - action: getScan
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.scanName }}'
+- discovery_id: aws.codeguru-security.listFindingsMetrics
+  calls:
+  - action: listFindingsMetrics
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.findingsMetrics }}'
+    item:
+      date: '{{ item.date }}'
+      newFindings: '{{ item.newFindings }}'
+      closedFindings: '{{ item.closedFindings }}'
+      openFindings: '{{ item.openFindings }}'
+      meanTimeToClose: '{{ item.meanTimeToClose }}'
+- discovery_id: aws.codeguru-security.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.tags }}'
+checks: []

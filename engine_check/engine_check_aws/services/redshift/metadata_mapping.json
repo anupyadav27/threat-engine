@@ -1,0 +1,843 @@
+{
+  "redshift_metadata_mapping": [
+    {
+      "rule_id": "aws.redshift.hsm_configuration.redshift_configuration_present",
+      "python_method": "describe_hsm_configurations",
+      "response_path": "HsmConfigurations[]",
+      "logical_operator": null,
+      "nested_field": [
+        {
+          "field_path": "HsmConfigurationIdentifier",
+          "expected_value": null,
+          "operator": "exists"
+        }
+      ]
+    },
+    {
+      "rule_id": "aws.redshift.hsm_configuration.keys_in_hsm_only_configured",
+      "python_method": "describe_hsm_configurations",
+      "response_path": "HsmConfigurations[]",
+      "logical_operator": null,
+      "nested_field": [
+        {
+          "field_path": "HsmConfigurationIdentifier",
+          "expected_value": null,
+          "operator": "exists"
+        }
+      ]
+    },
+    {
+      "python_method": "describe_cluster_security_groups",
+      "response_path": "ClusterSecurityGroups",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "IPRanges",
+          "expected_value": "0.0.0.0/0",
+          "operator": "not_equals"
+        },
+        {
+          "field_path": "IPRanges[].Status",
+          "expected_value": "authorized",
+          "operator": "equals"
+        }
+      ],
+      "rule_id": "aws.redshift.securitygroup.security_only_required_ports_open_restricted"
+    },
+    {
+      "python_method": "describe_cluster_parameter_groups",
+      "response_path": "ParameterGroups",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "ParameterGroupName",
+          "expected_value": "enable_user_activity_logging",
+          "operator": "equals"
+        },
+        {
+          "field_path": "Description",
+          "expected_value": "true",
+          "operator": "equals"
+        }
+      ],
+      "rule_id": "aws.redshift.parametergroup.audit_logging_enabled"
+    },
+    {
+      "python_method": "describe_clusters",
+      "response_path": "Clusters",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "IamRoles",
+          "expected_value": [],
+          "operator": "not_equals"
+        }
+      ],
+      "rule_id": "aws.redshift.cluster.admin_access_least_privilege"
+    },
+    {
+      "python_method": "describe_endpoint_access",
+      "response_path": "EndpointAccessList[]",
+      "logical_operator": null,
+      "nested_field": [
+        {
+          "field_path": "EndpointStatus",
+          "expected_value": "active",
+          "operator": "equals"
+        }
+      ],
+      "rule_id": "aws.redshift.endpointaccess.tls_required"
+    },
+    {
+      "python_method": "describe_endpoint_access",
+      "response_path": "EndpointAccessList[]",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "VpcSecurityGroups[].VpcSecurityGroupId",
+          "expected_value": null,
+          "operator": "exists"
+        },
+        {
+          "field_path": "VpcSecurityGroups[].Status",
+          "expected_value": "active",
+          "operator": "equals"
+        }
+      ],
+      "rule_id": "aws.redshift.endpointaccess.access_allowed_cidrs_minimized_configured"
+    },
+    {
+      "rule_id": "aws.redshift.event_subscription.redshift_destination_encrypted",
+      "python_method": "describe_event_subscriptions",
+      "response_path": "EventSubscriptionsList[]",
+      "logical_operator": null,
+      "nested_field": [
+        {
+          "field_path": "SnsTopicArn",
+          "expected_value": null,
+          "operator": "exists"
+        }
+      ]
+    },
+    {
+      "rule_id": "aws.redshift.event_subscription.redshift_cross_account_sharing_restricted",
+      "python_method": "describe_event_subscriptions",
+      "response_path": "EventSubscriptionsList[]",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "SourceIdsList",
+          "expected_value": null,
+          "operator": "exists"
+        },
+        {
+          "field_path": "SourceIdsList",
+          "expected_value": [],
+          "operator": "equals"
+        }
+      ]
+    },
+    {
+      "python_method": "describe_logging_status",
+      "response_path": "LoggingEnabled",
+      "logical_operator": null,
+      "nested_field": [
+        {
+          "field_path": "LoggingEnabled",
+          "expected_value": true,
+          "operator": "equals"
+        }
+      ],
+      "rule_id": "aws.redshift.cluster.audit_logging_enabled"
+    },
+    {
+      "python_method": "describe_hsm_client_certificates",
+      "response_path": "HsmClientCertificates",
+      "logical_operator": null,
+      "nested_field": [
+        {
+          "field_path": "HsmClientCertificateIdentifier",
+          "expected_value": null,
+          "operator": "exists"
+        }
+      ],
+      "rule_id": "aws.redshift.hsm_client_certificate.key_length_minimum"
+    },
+    {
+      "python_method": "describe_clusters",
+      "response_path": "Clusters",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "ClusterParameterGroups.ParameterGroupName",
+          "expected_value": "require_ssl",
+          "operator": "equals"
+        },
+        {
+          "field_path": "ClusterParameterGroups.ParameterGroupFamily",
+          "expected_value": "true",
+          "operator": "equals"
+        }
+      ],
+      "rule_id": "aws.redshift.parametergroup.require_ssl_configured"
+    },
+    {
+      "rule_id": "aws.redshift.hsm_configuration.only_approved_hsm_endpoints_configured",
+      "python_method": "describe_hsm_configurations",
+      "response_path": "HsmConfigurations[]",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "HsmConfigurationIdentifier",
+          "expected_value": [
+            "approved-hsm-endpoint-1",
+            "approved-hsm-endpoint-2"
+          ],
+          "operator": "in"
+        }
+      ]
+    },
+    {
+      "python_method": "describe_endpoint_authorization",
+      "response_path": "EndpointAuthorizationList",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "Grantee",
+          "expected_value": null,
+          "operator": "not_equals"
+        }
+      ],
+      "rule_id": "aws.redshift.endpoint_authorization.no_anonymous_access_configured"
+    },
+    {
+      "rule_id": "aws.redshift.user.redshift_approved_list_of_supers_only_configured",
+      "python_method": "describe_clusters",
+      "response_path": "Clusters[]",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "MasterUsername",
+          "expected_value": [
+            "approved_super_user_1",
+            "approved_super_user_2"
+          ],
+          "operator": "in"
+        },
+        {
+          "field_path": "IamRoles",
+          "expected_value": null,
+          "operator": "exists"
+        }
+      ]
+    },
+    {
+      "python_method": "describe_clusters",
+      "response_path": "Clusters",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "ClusterParameterGroups[].ParameterGroupName",
+          "expected_value": "require_ssl",
+          "operator": "equals"
+        },
+        {
+          "field_path": "ClusterParameterGroups[].Description",
+          "expected_value": "true",
+          "operator": "equals"
+        }
+      ],
+      "rule_id": "aws.redshift.cluster.in_transit_encryption_enabled"
+    },
+    {
+      "python_method": "describe_clusters",
+      "response_path": "Clusters",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "AutomatedSnapshotRetentionPeriod",
+          "expected_value": 1,
+          "operator": "greater_than"
+        },
+        {
+          "field_path": "ClusterStatus",
+          "expected_value": "available",
+          "operator": "equals"
+        }
+      ],
+      "rule_id": "aws.redshift.resource.backup_enabled"
+    },
+    {
+      "python_method": "describe_cluster_security_groups",
+      "response_path": "ClusterSecurityGroups",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "IPRanges",
+          "expected_value": "0.0.0.0/0",
+          "operator": "not_equals"
+        }
+      ],
+      "rule_id": "aws.redshift.securitygroup.security_no_0_configured"
+    },
+    {
+      "rule_id": "aws.redshift.cluster.enhanced_vpc_routing_configured",
+      "python_method": "describe_clusters",
+      "response_path": "Clusters[]",
+      "logical_operator": null,
+      "nested_field": [
+        {
+          "field_path": "EnhancedVpcRouting",
+          "expected_value": true,
+          "operator": "equals"
+        }
+      ]
+    },
+    {
+      "rule_id": "aws.redshift.cluster.automated_snapshot_configured",
+      "python_method": "describe_clusters",
+      "response_path": "Clusters[]",
+      "logical_operator": null,
+      "nested_field": [
+        {
+          "field_path": "AutomatedSnapshotRetentionPeriod",
+          "expected_value": 1,
+          "operator": "greater_than"
+        }
+      ]
+    },
+    {
+      "python_method": "describe_cluster_subnet_groups",
+      "response_path": "ClusterSubnetGroups",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "SubnetGroupStatus",
+          "expected_value": "Complete",
+          "operator": "equals"
+        },
+        {
+          "field_path": "Subnets[].SubnetIdentifier",
+          "expected_value": null,
+          "operator": "exists"
+        },
+        {
+          "field_path": "Subnets[].SubnetAvailabilityZone",
+          "expected_value": null,
+          "operator": "exists"
+        }
+      ],
+      "rule_id": "aws.redshift.subnetgroup.redshift_private_subnets_only_configured"
+    },
+    {
+      "python_method": "describe_clusters",
+      "response_path": "Clusters",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "ClusterStatus",
+          "expected_value": "available",
+          "operator": "equals"
+        }
+      ],
+      "rule_id": "aws.redshift.cluster.deletion_protection_enabled"
+    },
+    {
+      "python_method": "describe_clusters",
+      "response_path": "Clusters",
+      "logical_operator": null,
+      "nested_field": [
+        {
+          "field_path": "ClusterAvailabilityStatus",
+          "expected_value": "MultiAZ",
+          "operator": "equals"
+        }
+      ],
+      "rule_id": "aws.redshift.cluster.multi_az_enabled"
+    },
+    {
+      "python_method": "describe_clusters",
+      "response_path": "Clusters",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "ClusterParameterGroups[].ParameterGroupName",
+          "expected_value": "auto_minimize_version_upgrade",
+          "operator": "equals"
+        },
+        {
+          "field_path": "ClusterParameterGroups[].ParameterGroupFamily",
+          "expected_value": "true",
+          "operator": "equals"
+        }
+      ],
+      "rule_id": "aws.redshift.cluster.minor_version_auto_upgrade_enabled"
+    },
+    {
+      "python_method": "describe_endpoint_authorization",
+      "response_path": "EndpointAuthorizationList",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "AllowedAllVPCs",
+          "expected_value": false,
+          "operator": "equals"
+        },
+        {
+          "field_path": "AllowedVPCs",
+          "expected_value": null,
+          "operator": "exists"
+        }
+      ],
+      "rule_id": "aws.redshift.endpoint_authorization.rbac_least_privilege"
+    },
+    {
+      "rule_id": "aws.redshift.cluster.private_networking_enforced",
+      "python_method": "describe_clusters",
+      "response_path": "Clusters[]",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "ClusterSubnetGroupName",
+          "expected_value": null,
+          "operator": "exists"
+        },
+        {
+          "field_path": "PubliclyAccessible",
+          "expected_value": false,
+          "operator": "equals"
+        },
+        {
+          "field_path": "VpcSecurityGroups[].Status",
+          "expected_value": "active",
+          "operator": "equals"
+        }
+      ]
+    },
+    {
+      "rule_id": "aws.redshift.hsm_client_certificate.certificate_trusted_issuer_verified",
+      "python_method": "describe_hsm_client_certificates",
+      "response_path": "HsmClientCertificates[]",
+      "logical_operator": null,
+      "nested_field": [
+        {
+          "field_path": "HsmClientCertificateIdentifier",
+          "expected_value": null,
+          "operator": "exists"
+        }
+      ]
+    },
+    {
+      "python_method": "describe_clusters",
+      "response_path": "Clusters",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "ClusterParameterGroups[].ParameterGroupName",
+          "expected_value": "require_ssl",
+          "operator": "equals"
+        },
+        {
+          "field_path": "ClusterParameterGroups[].ParameterGroupFamily",
+          "expected_value": "1.2",
+          "operator": "equals"
+        }
+      ],
+      "rule_id": "aws.redshift.cluster.tls_min_1_2_enforced"
+    },
+    {
+      "python_method": "describe_cluster_security_groups",
+      "response_path": "ClusterSecurityGroups",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "IPRanges",
+          "expected_value": "0.0.0.0/0",
+          "operator": "not_equals"
+        }
+      ],
+      "rule_id": "aws.redshift.securitygroup.security_egress_restricted"
+    },
+    {
+      "rule_id": "aws.redshift.securitygroup.security_no_0_ingress_configured",
+      "python_method": "describe_cluster_security_groups",
+      "response_path": "ClusterSecurityGroups[]",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "IPRanges[].CIDRIP",
+          "expected_value": "0.0.0.0/0",
+          "operator": "not_equals"
+        }
+      ]
+    },
+    {
+      "python_method": "describe_cluster_security_groups",
+      "response_path": "ClusterSecurityGroups",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "IPRanges",
+          "expected_value": "0.0.0.0/0",
+          "operator": "not_equals"
+        },
+        {
+          "field_path": "IPRanges",
+          "expected_value": null,
+          "operator": "exists"
+        }
+      ],
+      "rule_id": "aws.redshift.securitygroup.security_no_0_ingress_on_db_ports_configured"
+    },
+    {
+      "rule_id": "aws.redshift.cluster.public_access_configured",
+      "python_method": "describe_clusters",
+      "response_path": "Clusters[]",
+      "logical_operator": null,
+      "nested_field": [
+        {
+          "field_path": "PubliclyAccessible",
+          "expected_value": false,
+          "operator": "equals"
+        }
+      ]
+    },
+    {
+      "python_method": "describe_clusters",
+      "response_path": "Clusters",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "IamRoles",
+          "expected_value": null,
+          "operator": "exists"
+        }
+      ],
+      "rule_id": "aws.redshift.user.iam_auth_preferred_configured"
+    },
+    {
+      "rule_id": "aws.redshift.cluster.encryption_at_rest_cmek_configured",
+      "python_method": "describe_clusters",
+      "response_path": "Clusters[]",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "Encrypted",
+          "expected_value": true,
+          "operator": "equals"
+        },
+        {
+          "field_path": "KmsKeyId",
+          "expected_value": null,
+          "operator": "exists"
+        }
+      ]
+    },
+    {
+      "python_method": "describe_clusters",
+      "response_path": "Clusters",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "PreferredMaintenanceWindow",
+          "expected_value": null,
+          "operator": "exists"
+        },
+        {
+          "field_path": "PendingModifiedValues",
+          "expected_value": null,
+          "operator": "exists"
+        }
+      ],
+      "rule_id": "aws.redshift.cluster.maintenance_settings_configured"
+    },
+    {
+      "rule_id": "aws.redshift.snapshot.encryption_at_rest_enabled",
+      "python_method": "describe_cluster_snapshots",
+      "response_path": "Snapshots[]",
+      "logical_operator": null,
+      "nested_field": [
+        {
+          "field_path": "Encrypted",
+          "expected_value": true,
+          "operator": "equals"
+        }
+      ]
+    },
+    {
+      "python_method": "describe_cluster_snapshots",
+      "response_path": "Snapshots",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "AccountsWithRestoreAccess",
+          "expected_value": [],
+          "operator": "equals"
+        }
+      ],
+      "rule_id": "aws.redshift.snapshot.redshift_cross_account_sharing_restricted"
+    },
+    {
+      "python_method": "describe_cluster_snapshots",
+      "response_path": "Snapshots",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "Encrypted",
+          "expected_value": true,
+          "operator": "equals"
+        },
+        {
+          "field_path": "AccountsWithRestoreAccess",
+          "expected_value": [],
+          "operator": "equals"
+        }
+      ],
+      "rule_id": "aws.redshift.snapshot.not_publicly_shared_configured"
+    },
+    {
+      "python_method": "describe_event_subscriptions",
+      "response_path": "EventSubscriptionsList",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "SourceType",
+          "expected_value": "redshift",
+          "operator": "equals"
+        },
+        {
+          "field_path": "Enabled",
+          "expected_value": true,
+          "operator": "equals"
+        },
+        {
+          "field_path": "EventCategoriesList",
+          "expected_value": [
+            "configuration",
+            "management",
+            "monitoring",
+            "security"
+          ],
+          "operator": "in"
+        }
+      ],
+      "rule_id": "aws.redshift.event_subscription.redshift_destination_least_privilege"
+    },
+    {
+      "python_method": "describe_clusters",
+      "response_path": "Clusters",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "ClusterParameterGroups.ParameterGroupName",
+          "expected_value": "require_ssl",
+          "operator": "equals"
+        },
+        {
+          "field_path": "ClusterParameterGroups.ParameterGroupFamily",
+          "expected_value": "true",
+          "operator": "equals"
+        }
+      ],
+      "rule_id": "aws.redshift.parametergroup.tls_required"
+    },
+    {
+      "python_method": "describe_cluster_parameter_groups",
+      "response_path": "ParameterGroups",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "ParameterGroupName",
+          "expected_value": "require_ssl",
+          "operator": "equals"
+        },
+        {
+          "field_path": "ParameterGroupFamily",
+          "expected_value": "true",
+          "operator": "equals"
+        },
+        {
+          "field_path": "ParameterGroupName",
+          "expected_value": "enable_user_activity_logging",
+          "operator": "equals"
+        },
+        {
+          "field_path": "ParameterGroupFamily",
+          "expected_value": "true",
+          "operator": "equals"
+        }
+      ],
+      "rule_id": "aws.redshift.parametergroup.redshift_insecure_features_disabled_if_applicable_configured"
+    },
+    {
+      "rule_id": "aws.redshift.cluster.audit_logging_configured",
+      "python_method": "describe_logging_status",
+      "response_path": "LoggingEnabled",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "LoggingEnabled",
+          "expected_value": true,
+          "operator": "equals"
+        },
+        {
+          "field_path": "BucketName",
+          "expected_value": null,
+          "operator": "exists"
+        },
+        {
+          "field_path": "S3KeyPrefix",
+          "expected_value": null,
+          "operator": "exists"
+        }
+      ]
+    },
+    {
+      "rule_id": "aws.redshift.cluster.encryption_at_rest_enabled",
+      "python_method": "describe_clusters",
+      "response_path": "Clusters[]",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "Encrypted",
+          "expected_value": true,
+          "operator": "equals"
+        },
+        {
+          "field_path": "KmsKeyId",
+          "expected_value": null,
+          "operator": "exists"
+        }
+      ]
+    },
+    {
+      "python_method": "describe_clusters",
+      "response_path": "Clusters",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "MasterUsername",
+          "expected_value": "awsuser",
+          "operator": "not_equals"
+        },
+        {
+          "field_path": "ClusterStatus",
+          "expected_value": "available",
+          "operator": "equals"
+        }
+      ],
+      "rule_id": "aws.redshift.user.redshift_no_unused_or_default_supers_configured"
+    },
+    {
+      "rule_id": "aws.redshift.snapshot.redshift_cross_region_copy_encrypted",
+      "python_method": "describe_cluster_snapshots",
+      "response_path": "Snapshots[]",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "KmsKeyId",
+          "expected_value": null,
+          "operator": "exists"
+        },
+        {
+          "field_path": "Encrypted",
+          "expected_value": true,
+          "operator": "equals"
+        }
+      ]
+    },
+    {
+      "python_method": "describe_cluster_parameter_groups",
+      "response_path": "ParameterGroups",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "ParameterGroupName",
+          "expected_value": "enable_user_activity_logging",
+          "operator": "equals"
+        },
+        {
+          "field_path": "Description",
+          "expected_value": "true",
+          "operator": "equals"
+        }
+      ],
+      "rule_id": "aws.redshift.parametergroup.logging_enabled"
+    },
+    {
+      "python_method": "describe_endpoint_access",
+      "response_path": "EndpointAccessList",
+      "logical_operator": null,
+      "nested_field": [
+        {
+          "field_path": "VpcEndpoint",
+          "expected_value": "available",
+          "operator": "equals"
+        }
+      ],
+      "rule_id": "aws.redshift.endpointaccess.access_private_only_configured"
+    },
+    {
+      "python_method": "describe_cluster_security_groups",
+      "response_path": "ClusterSecurityGroups",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "IPRanges",
+          "expected_value": null,
+          "operator": "exists"
+        }
+      ],
+      "rule_id": "aws.redshift.securitygroup.security_only_required_ports"
+    },
+    {
+      "python_method": "describe_cluster_snapshots",
+      "response_path": "Snapshots",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "KmsKeyId",
+          "expected_value": null,
+          "operator": "exists"
+        },
+        {
+          "field_path": "KmsKeyId",
+          "expected_value": "arn:aws:kms:region:account-id:key/key-id",
+          "operator": "equals"
+        }
+      ],
+      "rule_id": "aws.redshift.snapshot.kms_key_policy_least_privilege"
+    },
+    {
+      "python_method": "describe_clusters",
+      "response_path": "Clusters",
+      "logical_operator": "all",
+      "nested_field": [
+        {
+          "field_path": "ClusterParameterGroups[].ParameterGroupName",
+          "expected_value": "auto_upgrade",
+          "operator": "equals"
+        },
+        {
+          "field_path": "ClusterParameterGroups[].ParameterGroupFamily",
+          "expected_value": "true",
+          "operator": "equals"
+        }
+      ],
+      "rule_id": "aws.redshift.cluster.automatic_upgrades_configured"
+    },
+    {
+      "rule_id": "aws.redshift.hsm_client_certificate.certificate_valid",
+      "python_method": "describe_hsm_client_certificates",
+      "response_path": "HsmClientCertificates[]",
+      "logical_operator": null,
+      "nested_field": [
+        {
+          "field_path": "HsmClientCertificateIdentifier",
+          "expected_value": null,
+          "operator": "exists"
+        }
+      ]
+    }
+  ]
+}

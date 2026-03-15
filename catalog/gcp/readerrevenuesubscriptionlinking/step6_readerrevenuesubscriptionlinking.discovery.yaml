@@ -1,0 +1,63 @@
+# ============================================================
+# Discovery YAML — readerrevenuesubscriptionlinking (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 2 | independent: 0 | dependent: 2
+# ops with fields: 2/2 | dep ops with chain: 0/2
+# ============================================================
+version: '1.0'
+provider: gcp
+service: readerrevenuesubscriptionlinking
+
+services:
+  client: readerrevenuesubscriptionlinking
+  module: "googleapiclient.discovery.build('readerrevenuesubscriptionlinking', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets a reader of a publication. Returns NOT_FOUND if the reader does not exist.
+  # ── gcp.readerrevenuesubscriptionlinking.publications.readers.get [dependent] ──
+  - discovery_id: gcp.readerrevenuesubscriptionlinking.publications.readers.get
+    # python: svc.publications().readers().get(**params).execute()
+    calls:
+      - action: publications.readers.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        createTime: '{{ response.createTime }}'
+        name: '{{ response.name }}'
+        originatingPublicationId: '{{ response.originatingPublicationId }}'
+        ppid: '{{ response.ppid }}'
+        publicationId: '{{ response.publicationId }}'
+    # required_params: ['name']
+  # Gets the reader entitlements for a publication reader. - Returns PERMISSION_DENIED if the caller doe
+  # ── gcp.readerrevenuesubscriptionlinking.publications.readers.getEntitlements [dependent] ──
+  - discovery_id: gcp.readerrevenuesubscriptionlinking.publications.readers.getEntitlements
+    # python: svc.publications().readers().getEntitlements(**params).execute()
+    calls:
+      - action: publications.readers.getEntitlements
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        entitlements: '{{ response.entitlements }}'
+        name: '{{ response.name }}'
+    # required_params: ['name']

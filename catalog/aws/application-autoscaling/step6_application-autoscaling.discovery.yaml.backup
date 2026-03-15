@@ -1,0 +1,110 @@
+version: '1.0'
+provider: aws
+service: application-autoscaling
+services:
+  client: application-autoscaling
+  module: boto3.client
+discovery:
+- discovery_id: aws.application-autoscaling.describeScalableTargets
+  calls:
+  - action: describeScalableTargets
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ScalableTargets }}'
+    item:
+      ServiceNamespace: '{{ item.ServiceNamespace }}'
+      ResourceId: '{{ item.ResourceId }}'
+      ScalableDimension: '{{ item.ScalableDimension }}'
+      MinCapacity: '{{ item.MinCapacity }}'
+      MaxCapacity: '{{ item.MaxCapacity }}'
+      PredictedCapacity: '{{ item.PredictedCapacity }}'
+      RoleARN: '{{ item.RoleARN }}'
+      CreationTime: '{{ item.CreationTime }}'
+      SuspendedState: '{{ item.SuspendedState }}'
+      ScalableTargetARN: '{{ item.ScalableTargetARN }}'
+- discovery_id: aws.application-autoscaling.describeScalingActivities
+  calls:
+  - action: describeScalingActivities
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ScalingActivities }}'
+    item:
+      ActivityId: '{{ item.ActivityId }}'
+      ServiceNamespace: '{{ item.ServiceNamespace }}'
+      ResourceId: '{{ item.ResourceId }}'
+      ScalableDimension: '{{ item.ScalableDimension }}'
+      Description: '{{ item.Description }}'
+      Cause: '{{ item.Cause }}'
+      StartTime: '{{ item.StartTime }}'
+      EndTime: '{{ item.EndTime }}'
+      StatusCode: '{{ item.StatusCode }}'
+      StatusMessage: '{{ item.StatusMessage }}'
+      Details: '{{ item.Details }}'
+      NotScaledReasons: '{{ item.NotScaledReasons }}'
+- discovery_id: aws.application-autoscaling.describeScalingPolicies
+  calls:
+  - action: describeScalingPolicies
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ScalingPolicies }}'
+    item:
+      PolicyARN: '{{ item.PolicyARN }}'
+      PolicyName: '{{ item.PolicyName }}'
+      ServiceNamespace: '{{ item.ServiceNamespace }}'
+      ResourceId: '{{ item.ResourceId }}'
+      ScalableDimension: '{{ item.ScalableDimension }}'
+      PolicyType: '{{ item.PolicyType }}'
+      StepScalingPolicyConfiguration: '{{ item.StepScalingPolicyConfiguration }}'
+      TargetTrackingScalingPolicyConfiguration: '{{ item.TargetTrackingScalingPolicyConfiguration
+        }}'
+      PredictiveScalingPolicyConfiguration: '{{ item.PredictiveScalingPolicyConfiguration
+        }}'
+      Alarms: '{{ item.Alarms }}'
+      CreationTime: '{{ item.CreationTime }}'
+- discovery_id: aws.application-autoscaling.describeScheduledActions
+  calls:
+  - action: describeScheduledActions
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ScheduledActions }}'
+    item:
+      ScheduledActionName: '{{ item.ScheduledActionName }}'
+      ScheduledActionARN: '{{ item.ScheduledActionARN }}'
+      ServiceNamespace: '{{ item.ServiceNamespace }}'
+      Schedule: '{{ item.Schedule }}'
+      Timezone: '{{ item.Timezone }}'
+      ResourceId: '{{ item.ResourceId }}'
+      ScalableDimension: '{{ item.ScalableDimension }}'
+      StartTime: '{{ item.StartTime }}'
+      EndTime: '{{ item.EndTime }}'
+      ScalableTargetAction: '{{ item.ScalableTargetAction }}'
+      CreationTime: '{{ item.CreationTime }}'
+- discovery_id: aws.application-autoscaling.getPredictiveScalingForecast
+  calls:
+  - action: getPredictiveScalingForecast
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.LoadForecast }}'
+    item:
+      Timestamps: '{{ item.Timestamps }}'
+      Values: '{{ item.Values }}'
+      MetricSpecification: '{{ item.MetricSpecification }}'
+- discovery_id: aws.application-autoscaling.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+checks: []

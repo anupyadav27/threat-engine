@@ -1,0 +1,121 @@
+version: '1.0'
+provider: aws
+service: ecr-public
+services:
+  client: ecr-public
+  module: boto3.client
+discovery:
+- discovery_id: aws.ecr-public.describeRegistries
+  calls:
+  - action: describeRegistries
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.registries }}'
+    item:
+      registryId: '{{ item.registryId }}'
+      registryArn: '{{ item.registryArn }}'
+      registryUri: '{{ item.registryUri }}'
+      verified: '{{ item.verified }}'
+      aliases: '{{ item.aliases }}'
+- discovery_id: aws.ecr-public.describeRepositories
+  calls:
+  - action: describeRepositories
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.repositories }}'
+    item:
+      repositoryArn: '{{ item.repositoryArn }}'
+      registryId: '{{ item.registryId }}'
+      repositoryName: '{{ item.repositoryName }}'
+      repositoryUri: '{{ item.repositoryUri }}'
+      createdAt: '{{ item.createdAt }}'
+- discovery_id: aws.ecr-public.getAuthorizationToken
+  calls:
+  - action: getAuthorizationToken
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.authorizationData }}'
+    item:
+      authorizationToken: '{{ item.authorizationToken }}'
+      expiresAt: '{{ item.expiresAt }}'
+- discovery_id: aws.ecr-public.getRegistryCatalogData
+  calls:
+  - action: getRegistryCatalogData
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.registryCatalogData }}'
+    item:
+      displayName: '{{ item.displayName }}'
+- discovery_id: aws.ecr-public.describeImageTags
+  calls:
+  - action: describeImageTags
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.imageTagDetails }}'
+    item:
+      imageTag: '{{ item.imageTag }}'
+      createdAt: '{{ item.createdAt }}'
+      imageDetail: '{{ item.imageDetail }}'
+- discovery_id: aws.ecr-public.describeImages
+  calls:
+  - action: describeImages
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.imageDetails }}'
+    item:
+      registryId: '{{ item.registryId }}'
+      repositoryName: '{{ item.repositoryName }}'
+      imageDigest: '{{ item.imageDigest }}'
+      imageTags: '{{ item.imageTags }}'
+      imageSizeInBytes: '{{ item.imageSizeInBytes }}'
+      imagePushedAt: '{{ item.imagePushedAt }}'
+      imageManifestMediaType: '{{ item.imageManifestMediaType }}'
+      artifactMediaType: '{{ item.artifactMediaType }}'
+- discovery_id: aws.ecr-public.getRepositoryCatalogData
+  calls:
+  - action: getRepositoryCatalogData
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.catalogData }}'
+    item:
+      description: '{{ item.description }}'
+      architectures: '{{ item.architectures }}'
+      operatingSystems: '{{ item.operatingSystems }}'
+      logoUrl: '{{ item.logoUrl }}'
+      aboutText: '{{ item.aboutText }}'
+      usageText: '{{ item.usageText }}'
+      marketplaceCertified: '{{ item.marketplaceCertified }}'
+- discovery_id: aws.ecr-public.getRepositoryPolicy
+  calls:
+  - action: getRepositoryPolicy
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.registryId }}'
+- discovery_id: aws.ecr-public.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.tags }}'
+    item:
+      Key: '{{ item.Key }}'
+      Value: '{{ item.Value }}'
+checks: []

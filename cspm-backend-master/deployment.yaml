@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: config-backend
+  namespace: config-backend
+  labels:
+    app: config-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: config-backend
+  template:
+    metadata:
+      labels:
+        app: config-backend
+    spec:
+      containers:
+        - name: backend
+          image: ayushajha/config-backend:latest
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: config-env
+          command: ["/bin/sh", "-c"]
+          args:
+            - gunicorn config.asgi:application --bind 0.0.0.0:8000 -k uvicorn.workers.UvicornWorker
+          resources:
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: config-backend
+  namespace: config-backend
+spec:
+  selector:
+    app: config-backend
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+  type: LoadBalancer

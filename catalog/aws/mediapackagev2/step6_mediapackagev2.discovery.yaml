@@ -1,0 +1,224 @@
+# ============================================================
+# Discovery YAML — mediapackagev2 (AWS)
+# Generated: 2026-02-21T04:56:59Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: mediapackagev2
+services:
+  client: mediapackagev2
+  module: boto3.client
+discovery:
+  # ── ListChannelGroups ──
+  - discovery_id: aws.mediapackagev2.list_channel_groups
+    calls:
+      - action: list_channel_groups
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Items }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        Policy: '{{ item.Policy }}'
+        ChannelGroupName: '{{ item.ChannelGroupName }}'
+        CreatedAt: '{{ item.CreatedAt }}'
+        Description: '{{ item.Description }}'
+        ModifiedAt: '{{ item.ModifiedAt }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── GetChannel ──
+  - discovery_id: aws.mediapackagev2.get_channel
+    for_each: aws.mediapackagev2.list_channel_groups
+    calls:
+      - action: get_channel
+        params:
+          ChannelGroupName: '{{ item.ChannelGroupName }}'
+          ChannelName: '{{ item.ChannelName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.IngestEndpoints }}'
+      item:
+        Id: '{{ item.Id }}'
+        Url: '{{ item.Url }}'
+  # ── GetChannelGroup ──
+  - discovery_id: aws.mediapackagev2.get_channel_group
+    for_each: aws.mediapackagev2.list_channel_groups
+    calls:
+      - action: get_channel_group
+        params:
+          ChannelGroupName: '{{ item.ChannelGroupName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        Arn: '{{ response.Arn }}'
+        Tags: '{{ response.Tags }}'
+        ChannelGroupName: '{{ response.ChannelGroupName }}'
+        CreatedAt: '{{ response.CreatedAt }}'
+        Description: '{{ response.Description }}'
+        ETag: '{{ response.ETag }}'
+        EgressDomain: '{{ response.EgressDomain }}'
+        ModifiedAt: '{{ response.ModifiedAt }}'
+  # ── GetChannelPolicy ──
+  - discovery_id: aws.mediapackagev2.get_channel_policy
+    for_each: aws.mediapackagev2.list_channel_groups
+    calls:
+      - action: get_channel_policy
+        params:
+          ChannelGroupName: '{{ item.ChannelGroupName }}'
+          ChannelName: '{{ item.ChannelName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Items }}'
+      item:
+        Policy: '{{ item.Policy }}'
+        Statement: '{{ item.Statement }}'
+        Version: '{{ item.Version }}'
+  # ── GetHarvestJob ──
+  - discovery_id: aws.mediapackagev2.get_harvest_job
+    for_each: aws.mediapackagev2.list_channel_groups
+    calls:
+      - action: get_harvest_job
+        params:
+          ChannelGroupName: '{{ item.ChannelGroupName }}'
+          ChannelName: '{{ item.ChannelName }}'
+          OriginEndpointName: '{{ item.OriginEndpointName }}'
+          HarvestJobName: '{{ item.HarvestJobName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Destination }}'
+      item:
+        S3Destination: '{{ item.S3Destination }}'
+  # ── GetOriginEndpoint ──
+  - discovery_id: aws.mediapackagev2.get_origin_endpoint
+    for_each: aws.mediapackagev2.list_channel_groups
+    calls:
+      - action: get_origin_endpoint
+        params:
+          ChannelGroupName: '{{ item.ChannelGroupName }}'
+          ChannelName: '{{ item.ChannelName }}'
+          OriginEndpointName: '{{ item.OriginEndpointName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.HlsManifests }}'
+      item:
+        ChildManifestName: '{{ item.ChildManifestName }}'
+        FilterConfiguration: '{{ item.FilterConfiguration }}'
+        ManifestName: '{{ item.ManifestName }}'
+        ManifestWindowSeconds: '{{ item.ManifestWindowSeconds }}'
+        ProgramDateTimeIntervalSeconds: '{{ item.ProgramDateTimeIntervalSeconds }}'
+        ScteHls: '{{ item.ScteHls }}'
+        StartTag: '{{ item.StartTag }}'
+        Url: '{{ item.Url }}'
+        UrlEncodeChildManifest: '{{ item.UrlEncodeChildManifest }}'
+  # ── GetOriginEndpointPolicy ──
+  - discovery_id: aws.mediapackagev2.get_origin_endpoint_policy
+    for_each: aws.mediapackagev2.list_channel_groups
+    calls:
+      - action: get_origin_endpoint_policy
+        params:
+          ChannelGroupName: '{{ item.ChannelGroupName }}'
+          ChannelName: '{{ item.ChannelName }}'
+          OriginEndpointName: '{{ item.OriginEndpointName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.CdnAuthConfiguration }}'
+      item:
+        CdnIdentifierSecretArns: '{{ item.CdnIdentifierSecretArns }}'
+        SecretsRoleArn: '{{ item.SecretsRoleArn }}'
+  # ── ListChannels ──
+  - discovery_id: aws.mediapackagev2.list_channels
+    for_each: aws.mediapackagev2.list_channel_groups
+    calls:
+      - action: list_channels
+        params:
+          ChannelGroupName: '{{ item.ChannelGroupName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Items }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        ChannelGroupName: '{{ item.ChannelGroupName }}'
+        ChannelName: '{{ item.ChannelName }}'
+        CreatedAt: '{{ item.CreatedAt }}'
+        Description: '{{ item.Description }}'
+        InputType: '{{ item.InputType }}'
+        ModifiedAt: '{{ item.ModifiedAt }}'
+  # ── ListHarvestJobs ──
+  - discovery_id: aws.mediapackagev2.list_harvest_jobs
+    for_each: aws.mediapackagev2.list_channel_groups
+    calls:
+      - action: list_harvest_jobs
+        params:
+          ChannelGroupName: '{{ item.ChannelGroupName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Items }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        Status: '{{ item.Status }}'
+        ChannelGroupName: '{{ item.ChannelGroupName }}'
+        ChannelName: '{{ item.ChannelName }}'
+        CreatedAt: '{{ item.CreatedAt }}'
+        Description: '{{ item.Description }}'
+        Destination: '{{ item.Destination }}'
+        ETag: '{{ item.ETag }}'
+        ErrorMessage: '{{ item.ErrorMessage }}'
+        HarvestJobName: '{{ item.HarvestJobName }}'
+        HarvestedManifests: '{{ item.HarvestedManifests }}'
+        ModifiedAt: '{{ item.ModifiedAt }}'
+        OriginEndpointName: '{{ item.OriginEndpointName }}'
+        ScheduleConfiguration: '{{ item.ScheduleConfiguration }}'
+  # ── ListOriginEndpoints ──
+  - discovery_id: aws.mediapackagev2.list_origin_endpoints
+    for_each: aws.mediapackagev2.list_channel_groups
+    calls:
+      - action: list_origin_endpoints
+        params:
+          ChannelGroupName: '{{ item.ChannelGroupName }}'
+          ChannelName: '{{ item.ChannelName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Items }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        ChannelGroupName: '{{ item.ChannelGroupName }}'
+        ChannelName: '{{ item.ChannelName }}'
+        ContainerType: '{{ item.ContainerType }}'
+        CreatedAt: '{{ item.CreatedAt }}'
+        DashManifests: '{{ item.DashManifests }}'
+        Description: '{{ item.Description }}'
+        ForceEndpointErrorConfiguration: '{{ item.ForceEndpointErrorConfiguration }}'
+        HlsManifests: '{{ item.HlsManifests }}'
+        LowLatencyHlsManifests: '{{ item.LowLatencyHlsManifests }}'
+        ModifiedAt: '{{ item.ModifiedAt }}'
+        MssManifests: '{{ item.MssManifests }}'
+        OriginEndpointName: '{{ item.OriginEndpointName }}'
+  # ── ListTagsForResource ──
+  - discovery_id: aws.mediapackagev2.list_tags_for_resource
+    calls:
+      - action: list_tags_for_resource
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        Tags: '{{ response.Tags }}'

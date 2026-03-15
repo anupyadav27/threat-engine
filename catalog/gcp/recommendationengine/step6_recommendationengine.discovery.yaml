@@ -1,0 +1,224 @@
+# ============================================================
+# Discovery YAML — recommendationengine (v1beta1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 10 | independent: 5 | dependent: 5
+# ops with fields: 10/10 | dep ops with chain: 5/5
+# ============================================================
+version: '1.0'
+provider: gcp
+service: recommendationengine
+
+services:
+  client: recommendationengine
+  module: "googleapiclient.discovery.build('recommendationengine', 'v1beta1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Gets a list of catalog items.
+  # ── gcp.recommendationengine.projects.locations.catalogs.catalogItems.list ──
+  - discovery_id: gcp.recommendationengine.projects.locations.catalogs.catalogItems.list
+    # python: svc.projects().locations().catalogs().catalogItems().list(**params).execute()
+    calls:
+      - action: projects.locations.catalogs.catalogItems.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.catalogItems }}'
+      item:
+        categoryHierarchies: '{{ item.categoryHierarchies }}'
+        description: '{{ item.description }}'
+        id: '{{ item.id }}'
+        itemAttributes: '{{ item.itemAttributes }}'
+        itemGroupId: '{{ item.itemGroupId }}'
+        languageCode: '{{ item.languageCode }}'
+        productMetadata: '{{ item.productMetadata }}'
+        tags: '{{ item.tags }}'
+        title: '{{ item.title }}'
+  # List the registered apiKeys for use with predict method.
+  # ── gcp.recommendationengine.projects.locations.catalogs.eventStores.predictionApiKeyRegistrations.list ──
+  - discovery_id: gcp.recommendationengine.projects.locations.catalogs.eventStores.predictionApiKeyRegistrations.list
+    # python: svc.projects().locations().catalogs().eventStores().predictionApiKeyRegistrations().list(**params).execute()
+    calls:
+      - action: projects.locations.catalogs.eventStores.predictionApiKeyRegistrations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.predictionApiKeyRegistrations }}'
+      item:
+        apiKey: '{{ item.apiKey }}'
+  # Writes a single user event from the browser. This uses a GET request to due to browser restriction o
+  # ── gcp.recommendationengine.projects.locations.catalogs.eventStores.userEvents.collect ──
+  - discovery_id: gcp.recommendationengine.projects.locations.catalogs.eventStores.userEvents.collect
+    # python: svc.projects().locations().catalogs().eventStores().userEvents().collect(**params).execute()
+    calls:
+      - action: projects.locations.catalogs.eventStores.userEvents.collect
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        contentType: '{{ response.contentType }}'
+        data: '{{ response.data }}'
+        extensions: '{{ response.extensions }}'
+  # Gets a list of user events within a time range, with potential filtering. The method does not list u
+  # ── gcp.recommendationengine.projects.locations.catalogs.eventStores.userEvents.list ──
+  - discovery_id: gcp.recommendationengine.projects.locations.catalogs.eventStores.userEvents.list
+    # python: svc.projects().locations().catalogs().eventStores().userEvents().list(**params).execute()
+    calls:
+      - action: projects.locations.catalogs.eventStores.userEvents.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.userEvents }}'
+      item:
+        eventDetail: '{{ item.eventDetail }}'
+        eventSource: '{{ item.eventSource }}'
+        eventTime: '{{ item.eventTime }}'
+        eventType: '{{ item.eventType }}'
+        productEventDetail: '{{ item.productEventDetail }}'
+        userInfo: '{{ item.userInfo }}'
+  # Lists all the catalog configurations associated with the project.
+  # ── gcp.recommendationengine.projects.locations.catalogs.list ──
+  - discovery_id: gcp.recommendationengine.projects.locations.catalogs.list
+    # python: svc.projects().locations().catalogs().list(**params).execute()
+    calls:
+      - action: projects.locations.catalogs.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.catalogs }}'
+      item:
+        catalogItemLevelConfig: '{{ item.catalogItemLevelConfig }}'
+        defaultEventStoreId: '{{ item.defaultEventStoreId }}'
+        displayName: '{{ item.displayName }}'
+        name: '{{ item.name }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets a specific catalog item.
+  # ── gcp.recommendationengine.projects.locations.catalogs.catalogItems.get [dependent] ──
+  - discovery_id: gcp.recommendationengine.projects.locations.catalogs.catalogItems.get
+    for_each: gcp.recommendationengine.projects.locations.catalogs.catalogItems.list
+    # python: svc.projects().locations().catalogs().catalogItems().get(**params).execute()
+    calls:
+      - action: projects.locations.catalogs.catalogItems.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        categoryHierarchies: '{{ response.categoryHierarchies }}'
+        description: '{{ response.description }}'
+        id: '{{ response.id }}'
+        itemAttributes: '{{ response.itemAttributes }}'
+        itemGroupId: '{{ response.itemGroupId }}'
+        languageCode: '{{ response.languageCode }}'
+        productMetadata: '{{ response.productMetadata }}'
+        tags: '{{ response.tags }}'
+        title: '{{ response.title }}'
+    # required_params: ['name']
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.recommendationengine.projects.locations.catalogs.eventStores.operations.get [dependent] ──
+  - discovery_id: gcp.recommendationengine.projects.locations.catalogs.eventStores.operations.get
+    for_each: gcp.recommendationengine.projects.locations.catalogs.eventStores.operations.list
+    # python: svc.projects().locations().catalogs().eventStores().operations().get(**params).execute()
+    calls:
+      - action: projects.locations.catalogs.eventStores.operations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']
+  # Lists operations that match the specified filter in the request. If the server doesn't support this 
+  # ── gcp.recommendationengine.projects.locations.catalogs.eventStores.operations.list [dependent] ──
+  - discovery_id: gcp.recommendationengine.projects.locations.catalogs.eventStores.operations.list
+    for_each: gcp.recommendationengine.projects.locations.catalogs.list
+    # python: svc.projects().locations().catalogs().eventStores().operations().list(**params).execute()
+    calls:
+      - action: projects.locations.catalogs.eventStores.operations.list
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.operations }}'
+      item:
+        done: '{{ item.done }}'
+        error: '{{ item.error }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+        response: '{{ item.response }}'
+    # required_params: ['name']
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.recommendationengine.projects.locations.catalogs.operations.get [dependent] ──
+  - discovery_id: gcp.recommendationengine.projects.locations.catalogs.operations.get
+    for_each: gcp.recommendationengine.projects.locations.catalogs.eventStores.operations.list
+    # python: svc.projects().locations().catalogs().operations().get(**params).execute()
+    calls:
+      - action: projects.locations.catalogs.operations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']
+  # Lists operations that match the specified filter in the request. If the server doesn't support this 
+  # ── gcp.recommendationengine.projects.locations.catalogs.operations.list [dependent] ──
+  - discovery_id: gcp.recommendationengine.projects.locations.catalogs.operations.list
+    for_each: gcp.recommendationengine.projects.locations.catalogs.list
+    # python: svc.projects().locations().catalogs().operations().list(**params).execute()
+    calls:
+      - action: projects.locations.catalogs.operations.list
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.operations }}'
+      item:
+        done: '{{ item.done }}'
+        error: '{{ item.error }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+        response: '{{ item.response }}'
+    # required_params: ['name']

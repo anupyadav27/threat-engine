@@ -1,0 +1,71 @@
+version: '1.0'
+provider: aws
+service: cloudcontrol
+services:
+  client: cloudcontrol
+  module: boto3.client
+discovery:
+- discovery_id: aws.cloudcontrol.listResourceRequests
+  calls:
+  - action: listResourceRequests
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ResourceRequestStatusSummaries }}'
+    item:
+      TypeName: '{{ item.TypeName }}'
+      Identifier: '{{ item.Identifier }}'
+      RequestToken: '{{ item.RequestToken }}'
+      HooksRequestToken: '{{ item.HooksRequestToken }}'
+      Operation: '{{ item.Operation }}'
+      OperationStatus: '{{ item.OperationStatus }}'
+      EventTime: '{{ item.EventTime }}'
+      ResourceModel: '{{ item.ResourceModel }}'
+      StatusMessage: '{{ item.StatusMessage }}'
+      ErrorCode: '{{ item.ErrorCode }}'
+      RetryAfter: '{{ item.RetryAfter }}'
+- discovery_id: aws.cloudcontrol.getResource
+  calls:
+  - action: getResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ResourceDescription }}'
+    item:
+      Identifier: '{{ item.Identifier }}'
+      Properties: '{{ item.Properties }}'
+- discovery_id: aws.cloudcontrol.getResourceRequestStatus
+  calls:
+  - action: getResourceRequestStatus
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.HooksProgressEvent }}'
+    item:
+      HookTypeName: '{{ item.HookTypeName }}'
+      HookTypeVersionId: '{{ item.HookTypeVersionId }}'
+      HookTypeArn: '{{ item.HookTypeArn }}'
+      InvocationPoint: '{{ item.InvocationPoint }}'
+      HookStatus: '{{ item.HookStatus }}'
+      HookEventTime: '{{ item.HookEventTime }}'
+      HookStatusMessage: '{{ item.HookStatusMessage }}'
+      FailureMode: '{{ item.FailureMode }}'
+- discovery_id: aws.cloudcontrol.listResources
+  calls:
+  - action: listResources
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ResourceDescriptions }}'
+    item:
+      Identifier: '{{ item.Identifier }}'
+      Properties: '{{ item.Properties }}'
+checks: []

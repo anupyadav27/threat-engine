@@ -1,0 +1,106 @@
+version: '1.0'
+provider: aws
+service: elb
+services:
+  client: elb
+  module: boto3.client
+discovery:
+- discovery_id: aws.elb.describeAccountLimits
+  calls:
+  - action: describeAccountLimits
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Limits }}'
+    item:
+      Name: '{{ item.Name }}'
+      Max: '{{ item.Max }}'
+- discovery_id: aws.elb.describeLoadBalancerPolicies
+  calls:
+  - action: describeLoadBalancerPolicies
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.PolicyDescriptions }}'
+    item:
+      PolicyName: '{{ item.PolicyName }}'
+      PolicyTypeName: '{{ item.PolicyTypeName }}'
+      PolicyAttributeDescriptions: '{{ item.PolicyAttributeDescriptions }}'
+- discovery_id: aws.elb.describeLoadBalancerPolicyTypes
+  calls:
+  - action: describeLoadBalancerPolicyTypes
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.PolicyTypeDescriptions }}'
+    item:
+      PolicyTypeName: '{{ item.PolicyTypeName }}'
+      Description: '{{ item.Description }}'
+      PolicyAttributeTypeDescriptions: '{{ item.PolicyAttributeTypeDescriptions }}'
+- discovery_id: aws.elb.describeLoadBalancers
+  calls:
+  - action: describeLoadBalancers
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.LoadBalancerDescriptions }}'
+    item:
+      LoadBalancerName: '{{ item.LoadBalancerName }}'
+      DNSName: '{{ item.DNSName }}'
+      CanonicalHostedZoneName: '{{ item.CanonicalHostedZoneName }}'
+      CanonicalHostedZoneNameID: '{{ item.CanonicalHostedZoneNameID }}'
+      ListenerDescriptions: '{{ item.ListenerDescriptions }}'
+      Policies: '{{ item.Policies }}'
+      BackendServerDescriptions: '{{ item.BackendServerDescriptions }}'
+      AvailabilityZones: '{{ item.AvailabilityZones }}'
+      Subnets: '{{ item.Subnets }}'
+      VPCId: '{{ item.VPCId }}'
+      Instances: '{{ item.Instances }}'
+      HealthCheck: '{{ item.HealthCheck }}'
+      SourceSecurityGroup: '{{ item.SourceSecurityGroup }}'
+      SecurityGroups: '{{ item.SecurityGroups }}'
+      CreatedTime: '{{ item.CreatedTime }}'
+      Scheme: '{{ item.Scheme }}'
+- discovery_id: aws.elb.describeInstanceHealth
+  calls:
+  - action: describeInstanceHealth
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.InstanceStates }}'
+    item:
+      InstanceId: '{{ item.InstanceId }}'
+      State: '{{ item.State }}'
+      ReasonCode: '{{ item.ReasonCode }}'
+      Description: '{{ item.Description }}'
+- discovery_id: aws.elb.describeLoadBalancerAttributes
+  calls:
+  - action: describeLoadBalancerAttributes
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.LoadBalancerAttributes }}'
+    item:
+      CrossZoneLoadBalancing: '{{ item.CrossZoneLoadBalancing }}'
+      AccessLog: '{{ item.AccessLog }}'
+      ConnectionDraining: '{{ item.ConnectionDraining }}'
+      ConnectionSettings: '{{ item.ConnectionSettings }}'
+      AdditionalAttributes: '{{ item.AdditionalAttributes }}'
+- discovery_id: aws.elb.describeTags
+  calls:
+  - action: describeTags
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.TagDescriptions }}'
+    item:
+      LoadBalancerName: '{{ item.LoadBalancerName }}'
+      Tags: '{{ item.Tags }}'
+checks: []

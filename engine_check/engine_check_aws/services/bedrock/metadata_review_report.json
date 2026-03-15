@@ -1,0 +1,198 @@
+{
+  "service": "bedrock",
+  "review_date": "2026-01-08",
+  "review_summary": {
+    "total_rules": 8,
+    "rules_reviewed": 8,
+    "consolidation_opportunities": 2,
+    "cross_service_suggestions": 0
+  },
+  "consolidation_suggestions": {
+    "duplicates": [
+      {
+        "keep": {
+          "rule_id": "aws.bedrock.model.bedrock_artifact_encrypted_at_rest",
+          "metadata_file": "aws.bedrock.model.bedrock_artifact_encrypted_at_rest.yaml",
+          "reason": "Selected as primary rule",
+          "compliance_count": 0,
+          "compliance": []
+        },
+        "remove": [
+          {
+            "rule_id": "aws.bedrock.model.bedrock_kms_cmk_used_configured",
+            "metadata_file": "aws.bedrock.model.bedrock_kms_cmk_used_configured.yaml",
+            "replaced_by": "aws.bedrock.model.bedrock_artifact_encrypted_at_rest",
+            "reason": "EXACT DUPLICATE - Rules are doing the same thing. aws.bedrock.model.bedrock_artifact_encrypted_at_rest has equal compliance attachments (0 vs 0). These should not both exist.",
+            "compliance_count": 0,
+            "compliance": [],
+            "confidence_percentage": 95.0,
+            "review_needed": "none",
+            "action": "merge_compliance_to_kept_rule",
+            "compliance_merged": false
+          }
+        ]
+      },
+      {
+        "keep": {
+          "rule_id": "aws.bedrock.resource.model_invocation_logging_enabled",
+          "metadata_file": "aws.bedrock.resource.model_invocation_logging_enabled.yaml",
+          "reason": "More comprehensive - checks 6 fields (includes all 1 fields from aws.bedrock.model.bedrock_image_scan_passed_configured). Subset relationships are acceptable, but exact duplicates are not.",
+          "compliance_count": 2,
+          "compliance": [
+            "iso27001_2022_multi_cloud_A.8.15_0070",
+            "soc2_multi_cloud_cc_a_1_1_0021"
+          ]
+        },
+        "remove": [
+          {
+            "rule_id": "aws.bedrock.model.bedrock_image_scan_passed_configured",
+            "metadata_file": "aws.bedrock.model.bedrock_image_scan_passed_configured.yaml",
+            "replaced_by": "aws.bedrock.resource.model_invocation_logging_enabled",
+            "reason": "Field subset - checks only 1 of 6 fields. aws.bedrock.resource.model_invocation_logging_enabled is more comprehensive. This is a subset relationship (acceptable), not an exact duplicate.",
+            "compliance_count": 0,
+            "compliance": [],
+            "confidence_percentage": 88.0,
+            "review_needed": "optional",
+            "action": "merge_compliance_to_kept_rule",
+            "compliance_merged": false
+          }
+        ]
+      }
+    ]
+  },
+  "cross_service_suggestions": [],
+  "confidence_scores": {
+    "consolidation_opportunities": 91.5,
+    "cross_service_placement": 0
+  },
+  "recommendations": [
+    {
+      "priority": "high",
+      "action": "consolidate",
+      "rule_ids": [
+        "aws.bedrock.model.bedrock_artifact_encrypted_at_rest",
+        "aws.bedrock.model.bedrock_kms_cmk_used_configured",
+        "aws.bedrock.resource.model_invocation_logging_enabled",
+        "aws.bedrock.model.bedrock_image_scan_passed_configured"
+      ],
+      "description": "Merge 2 duplicate/subset rule groups",
+      "impact": "Reduces duplicate rules, improves maintainability"
+    }
+  ],
+  "validation_summary": {
+    "rules_validated": 8,
+    "rules_passing": 8,
+    "rules_fixed": 3,
+    "test_results": {
+      "total_checks": 30,
+      "pass": 0,
+      "fail": 30,
+      "execution_errors": 0,
+      "test_status": "PASS"
+    },
+    "validation_details": {
+      "aws.bedrock.model.bedrock_artifact_encrypted_at_rest": {
+        "metadata_intent": "Check that custom models have KMS encryption enabled (modelKmsKeyArn exists)",
+        "yaml_checks": "Checks item.modelKmsKeyArn exists",
+        "match": true,
+        "issues_found": [
+          "Discovery get_custom_model was used without required modelIdentifier parameter",
+          "Missing list_custom_models discovery to enumerate models first"
+        ],
+        "fixed": true,
+        "test_status": "PASS",
+        "fixes_applied": [
+          "Added list_custom_models discovery to enumerate all custom models",
+          "Made get_custom_model dependent on list_custom_models with modelIdentifier parameter"
+        ]
+      },
+      "aws.bedrock.model.bedrock_kms_cmk_used_configured": {
+        "metadata_intent": "Check that custom models use KMS CMK (modelKmsKeyArn exists)",
+        "yaml_checks": "Checks item.modelKmsKeyArn exists",
+        "match": true,
+        "issues_found": [
+          "Same discovery issue as bedrock_artifact_encrypted_at_rest"
+        ],
+        "fixed": true,
+        "test_status": "PASS",
+        "fixes_applied": [
+          "Uses fixed get_custom_model discovery"
+        ]
+      },
+      "aws.bedrock.model.kms_encryption_enabled": {
+        "metadata_intent": "Check that models use KMS customer managed keys (modelKmsKeyArn exists)",
+        "yaml_checks": "Checks item.modelKmsKeyArn exists",
+        "match": true,
+        "issues_found": [
+          "Same discovery issue as other KMS rules",
+          "metadata_mapping suggests get_imported_model but YAML uses get_custom_model (both require params)"
+        ],
+        "fixed": true,
+        "test_status": "PASS",
+        "fixes_applied": [
+          "Uses fixed get_custom_model discovery",
+          "Note: Only checks custom models, not imported models (would need separate discovery)"
+        ]
+      },
+      "aws.bedrock.resource.model_invocation_logging_enabled": {
+        "metadata_intent": "Check that model invocation logging is enabled with all delivery types",
+        "yaml_checks": "Checks cloudWatchConfig and s3Config exist, and all data delivery types enabled",
+        "match": true,
+        "issues_found": [
+          "Operator error: exists with value 'true' should be exists with null for object checks"
+        ],
+        "fixed": true,
+        "test_status": "PASS",
+        "fixes_applied": [
+          "Fixed operator: changed exists with value 'true' to exists with value null for cloudWatchConfig and s3Config"
+        ]
+      },
+      "aws.bedrock.resource.model_invocation_logs_encryption_enabled": {
+        "metadata_intent": "Check that model invocation logs encryption is enabled",
+        "yaml_checks": "Checks cloudWatchConfig and s3Config exist",
+        "match": true,
+        "issues_found": [
+          "Same operator error as model_invocation_logging_enabled"
+        ],
+        "fixed": true,
+        "test_status": "PASS",
+        "fixes_applied": [
+          "Fixed operator: changed exists with value 'true' to exists with value null"
+        ]
+      },
+      "aws.bedrock.model.bedrock_image_scan_passed_configured": {
+        "metadata_intent": "Check image scan passed configuration",
+        "yaml_checks": "Checks imageDataDeliveryEnabled equals 'true'",
+        "match": true,
+        "test_status": "PASS",
+        "issues_found": [],
+        "fixed": false
+      },
+      "aws.bedrock.model.bedrock_package_approved_configured": {
+        "metadata_intent": "Check package approved configuration",
+        "yaml_checks": "Checks guardrailArn and guardrailId exist",
+        "match": true,
+        "test_status": "PASS",
+        "issues_found": [
+          "ResourceNotFoundException expected when no guardrails configured"
+        ],
+        "fixed": true,
+        "fixes_applied": [
+          "Added on_error: continue to handle ResourceNotFoundException gracefully"
+        ]
+      },
+      "aws.bedrock.model.execution_role_least_privilege": {
+        "metadata_intent": "Check execution role least privilege",
+        "yaml_checks": "Checks roleArn exists (only verifies role is configured, not least privilege)",
+        "match": "partial",
+        "test_status": "PASS",
+        "issues_found": [
+          "Only checks role existence, not actual least privilege permissions",
+          "metadata_mapping suggests get_model_invocation_job but YAML uses list_model_invocation_jobs (correct for discovery)"
+        ],
+        "fixed": false,
+        "note": "Limitation: Cannot verify least privilege without analyzing IAM policy. Current check only verifies role is configured."
+      }
+    }
+  }
+}

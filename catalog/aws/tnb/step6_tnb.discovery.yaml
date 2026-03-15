@@ -1,0 +1,237 @@
+# ============================================================
+# Discovery YAML — tnb (AWS)
+# Generated: 2026-02-21T04:57:00Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: tnb
+services:
+  client: tnb
+  module: boto3.client
+discovery:
+  # ── ListSolFunctionInstances ──
+  - discovery_id: aws.tnb.list_sol_function_instances
+    calls:
+      - action: list_sol_function_instances
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.functionInstances }}'
+      item:
+        arn: '{{ item.arn }}'
+        id: '{{ item.id }}'
+        instantiatedVnfInfo: '{{ item.instantiatedVnfInfo }}'
+        instantiationState: '{{ item.instantiationState }}'
+        metadata: '{{ item.metadata }}'
+        nsInstanceId: '{{ item.nsInstanceId }}'
+        vnfPkgId: '{{ item.vnfPkgId }}'
+        vnfPkgName: '{{ item.vnfPkgName }}'
+  # ── ListSolFunctionPackages ──
+  - discovery_id: aws.tnb.list_sol_function_packages
+    calls:
+      - action: list_sol_function_packages
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.functionPackages }}'
+      item:
+        arn: '{{ item.arn }}'
+        id: '{{ item.id }}'
+        metadata: '{{ item.metadata }}'
+        onboardingState: '{{ item.onboardingState }}'
+        operationalState: '{{ item.operationalState }}'
+        usageState: '{{ item.usageState }}'
+        vnfProductName: '{{ item.vnfProductName }}'
+        vnfProvider: '{{ item.vnfProvider }}'
+        vnfdId: '{{ item.vnfdId }}'
+        vnfdVersion: '{{ item.vnfdVersion }}'
+  # ── ListSolNetworkInstances ──
+  - discovery_id: aws.tnb.list_sol_network_instances
+    calls:
+      - action: list_sol_network_instances
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.networkInstances }}'
+      item:
+        arn: '{{ item.arn }}'
+        id: '{{ item.id }}'
+        metadata: '{{ item.metadata }}'
+        nsInstanceDescription: '{{ item.nsInstanceDescription }}'
+        nsInstanceName: '{{ item.nsInstanceName }}'
+        nsState: '{{ item.nsState }}'
+        nsdId: '{{ item.nsdId }}'
+        nsdInfoId: '{{ item.nsdInfoId }}'
+  # ── ListSolNetworkOperations ──
+  - discovery_id: aws.tnb.list_sol_network_operations
+    calls:
+      - action: list_sol_network_operations
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.networkOperations }}'
+      item:
+        arn: '{{ item.arn }}'
+        error: '{{ item.error }}'
+        id: '{{ item.id }}'
+        lcmOperationType: '{{ item.lcmOperationType }}'
+        metadata: '{{ item.metadata }}'
+        nsInstanceId: '{{ item.nsInstanceId }}'
+        operationState: '{{ item.operationState }}'
+        updateType: '{{ item.updateType }}'
+  # ── ListSolNetworkPackages ──
+  - discovery_id: aws.tnb.list_sol_network_packages
+    calls:
+      - action: list_sol_network_packages
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.networkPackages }}'
+      item:
+        arn: '{{ item.arn }}'
+        id: '{{ item.id }}'
+        metadata: '{{ item.metadata }}'
+        nsdDesigner: '{{ item.nsdDesigner }}'
+        nsdId: '{{ item.nsdId }}'
+        nsdInvariantId: '{{ item.nsdInvariantId }}'
+        nsdName: '{{ item.nsdName }}'
+        nsdOnboardingState: '{{ item.nsdOnboardingState }}'
+        nsdOperationalState: '{{ item.nsdOperationalState }}'
+        nsdUsageState: '{{ item.nsdUsageState }}'
+        nsdVersion: '{{ item.nsdVersion }}'
+        vnfPkgIds: '{{ item.vnfPkgIds }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── GetSolFunctionInstance ──
+  - discovery_id: aws.tnb.get_sol_function_instance
+    calls:
+      - action: get_sol_function_instance
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.instantiatedVnfInfo }}'
+      item:
+        vnfState: '{{ item.vnfState }}'
+        vnfcResourceInfo: '{{ item.vnfcResourceInfo }}'
+  # ── GetSolFunctionPackage ──
+  - discovery_id: aws.tnb.get_sol_function_package
+    for_each: aws.tnb.list_sol_function_instances
+    calls:
+      - action: get_sol_function_package
+        params:
+          vnfPkgId: '{{ item.vnfPkgId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.metadata }}'
+      item:
+        createdAt: '{{ item.createdAt }}'
+        lastModified: '{{ item.lastModified }}'
+        vnfd: '{{ item.vnfd }}'
+  # ── GetSolFunctionPackageContent ──
+  - discovery_id: aws.tnb.get_sol_function_package_content
+    calls:
+      - action: get_sol_function_package_content
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        contentType: '{{ response.contentType }}'
+        packageContent: '{{ response.packageContent }}'
+  # ── GetSolFunctionPackageDescriptor ──
+  - discovery_id: aws.tnb.get_sol_function_package_descriptor
+    for_each: aws.tnb.list_sol_function_instances
+    calls:
+      - action: get_sol_function_package_descriptor
+        params:
+          accept: '{{ item.accept }}'
+          vnfPkgId: '{{ item.vnfPkgId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        contentType: '{{ response.contentType }}'
+        vnfd: '{{ response.vnfd }}'
+  # ── GetSolNetworkInstance ──
+  - discovery_id: aws.tnb.get_sol_network_instance
+    for_each: aws.tnb.list_sol_function_instances
+    calls:
+      - action: get_sol_network_instance
+        params:
+          nsInstanceId: '{{ item.nsInstanceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.lcmOpInfo }}'
+      item:
+        nsLcmOpOccId: '{{ item.nsLcmOpOccId }}'
+  # ── GetSolNetworkOperation ──
+  - discovery_id: aws.tnb.get_sol_network_operation
+    calls:
+      - action: get_sol_network_operation
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.tasks }}'
+      item:
+        taskContext: '{{ item.taskContext }}'
+        taskEndTime: '{{ item.taskEndTime }}'
+        taskErrorDetails: '{{ item.taskErrorDetails }}'
+        taskName: '{{ item.taskName }}'
+        taskStartTime: '{{ item.taskStartTime }}'
+        taskStatus: '{{ item.taskStatus }}'
+  # ── GetSolNetworkPackage ──
+  - discovery_id: aws.tnb.get_sol_network_package
+    for_each: aws.tnb.list_sol_network_instances
+    calls:
+      - action: get_sol_network_package
+        params:
+          nsdInfoId: '{{ item.nsdInfoId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.vnfPkgIds }}'
+  # ── GetSolNetworkPackageContent ──
+  - discovery_id: aws.tnb.get_sol_network_package_content
+    calls:
+      - action: get_sol_network_package_content
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        contentType: '{{ response.contentType }}'
+        nsdContent: '{{ response.nsdContent }}'
+  # ── GetSolNetworkPackageDescriptor ──
+  - discovery_id: aws.tnb.get_sol_network_package_descriptor
+    calls:
+      - action: get_sol_network_package_descriptor
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        contentType: '{{ response.contentType }}'
+        nsd: '{{ response.nsd }}'
+  # ── ListTagsForResource ──
+  - discovery_id: aws.tnb.list_tags_for_resource
+    calls:
+      - action: list_tags_for_resource
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        tags: '{{ response.tags }}'

@@ -1,0 +1,1013 @@
+{
+  "csp": "gcp",
+  "generated_at": "2026-02-19T14:43:27.972375+00:00",
+  "anchors": {
+    "fixed": [
+      "project_id",
+      "org_id",
+      "folder_id",
+      "location",
+      "zone",
+      "region"
+    ]
+  },
+  "services": {
+    "script": {
+      "version": "v1",
+      "resources": {
+        "deployments": {
+          "resource_type": "deployments",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "constructed",
+            "full_identifier": {
+              "template": "deployments/{url_encoded_createTime}",
+              "built_from_parts": [
+                "versions[].createTime"
+              ],
+              "notes": ""
+            },
+            "parts": [
+              "project_id",
+              "createTime"
+            ],
+            "part_sources": {
+              "project_id": {
+                "op": "service_anchor",
+                "field_path": "project_id",
+                "transform": null
+              },
+              "createTime": {
+                "op": "gcp.script.projects.versions.list",
+                "field_path": "versions[].createTime",
+                "transform": null
+              }
+            },
+            "transforms": [
+              {
+                "from": "versions[].createTime",
+                "fn": "url_encode",
+                "to": "url_encoded_createTime"
+              },
+              {
+                "from": "url_encoded_createTime",
+                "fn": "prefix:deployments/",
+                "to": "scriptId"
+              },
+              {
+                "build": "full_id",
+                "template": "deployments/{url_encoded_createTime}"
+              }
+            ]
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.script.projects.versions.list",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/projects/{scriptId}/versions"
+                },
+                "python_call": "svc.projects().versions().list(**params).execute()",
+                "produces": {
+                  "createTime": "versions[].createTime",
+                  "scriptId": "versions[].scriptId",
+                  "versionNumber": "versions[].versionNumber",
+                  "description": "versions[].description"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.script.projects.versions.list",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 1,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.script.projects.versions.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.projects().versions().list(**params).execute()",
+                      "path": "/v1/projects/{scriptId}/versions",
+                      "required_params": {
+                        "scriptId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The script project's Drive ID."
+                        }
+                      },
+                      "output_list_field": "versions",
+                      "output_id_field": "createTime",
+                      "produces": {
+                        "versionId": {
+                          "via_list_field": "versions",
+                          "from_id_field": "createTime",
+                          "note": "Iterate response[\"versions\"][], extract item[\"createTime\"] \u2192 pass as \"versionId\""
+                        }
+                      },
+                      "param_sources": {
+                        "scriptId": "unresolved"
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": [
+                    "scriptId"
+                  ]
+                }
+              },
+              {
+                "op": "gcp.script.projects.deployments.list",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/projects/{scriptId}/deployments"
+                },
+                "python_call": "svc.projects().deployments().list(**params).execute()",
+                "produces": {
+                  "deploymentId": "deployments[].deploymentId",
+                  "entryPoints": "deployments[].entryPoints",
+                  "deploymentConfig": "deployments[].deploymentConfig",
+                  "updateTime": "deployments[].updateTime"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.script.projects.deployments.list",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.script.projects.versions.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.projects().versions().list(**params).execute()",
+                      "path": "/v1/projects/{scriptId}/versions",
+                      "required_params": {
+                        "scriptId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The script project's Drive ID."
+                        }
+                      },
+                      "output_list_field": "versions",
+                      "output_id_field": "createTime",
+                      "produces": {
+                        "versionId": {
+                          "via_list_field": "versions",
+                          "from_id_field": "createTime",
+                          "note": "Iterate response[\"versions\"][], extract item[\"createTime\"] \u2192 pass as \"versionId\""
+                        }
+                      },
+                      "param_sources": {
+                        "scriptId": "unresolved"
+                      },
+                      "purpose": "Provides: versionId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.script.projects.deployments.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.projects().deployments().list(**params).execute()",
+                      "path": "/v1/projects/{scriptId}/deployments",
+                      "required_params": {
+                        "scriptId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The script project's Drive ID."
+                        }
+                      },
+                      "output_list_field": "deployments",
+                      "output_id_field": "deploymentId",
+                      "produces": {
+                        "deploymentId": {
+                          "via_list_field": "deployments",
+                          "from_id_field": "deploymentId",
+                          "note": "Iterate response[\"deployments\"][], extract item[\"deploymentId\"] \u2192 pass as \"deploymentId\""
+                        }
+                      },
+                      "param_sources": {
+                        "scriptId": {
+                          "from_step": 1,
+                          "from_op": "gcp.script.projects.versions.list",
+                          "field": "createTime"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.script.projects.deployments.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/projects/{scriptId}/deployments/{deploymentId}"
+                },
+                "python_call": "svc.projects().deployments().get(**params).execute()",
+                "required_params": {
+                  "scriptId": {
+                    "from_identifier": "transforms \u2192 scriptId"
+                  },
+                  "deploymentId": {
+                    "from_identifier": "deployments[].deploymentId"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.script.projects.deployments.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 3,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.script.projects.versions.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.projects().versions().list(**params).execute()",
+                      "path": "/v1/projects/{scriptId}/versions",
+                      "required_params": {
+                        "scriptId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The script project's Drive ID."
+                        }
+                      },
+                      "output_list_field": "versions",
+                      "output_id_field": "createTime",
+                      "produces": {
+                        "versionId": {
+                          "via_list_field": "versions",
+                          "from_id_field": "createTime",
+                          "note": "Iterate response[\"versions\"][], extract item[\"createTime\"] \u2192 pass as \"versionId\""
+                        }
+                      },
+                      "param_sources": {
+                        "scriptId": "unresolved"
+                      },
+                      "purpose": "Provides: versionId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.script.projects.deployments.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.projects().deployments().list(**params).execute()",
+                      "path": "/v1/projects/{scriptId}/deployments",
+                      "required_params": {
+                        "scriptId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The script project's Drive ID."
+                        }
+                      },
+                      "output_list_field": "deployments",
+                      "output_id_field": "deploymentId",
+                      "produces": {
+                        "deploymentId": {
+                          "via_list_field": "deployments",
+                          "from_id_field": "deploymentId",
+                          "note": "Iterate response[\"deployments\"][], extract item[\"deploymentId\"] \u2192 pass as \"deploymentId\""
+                        }
+                      },
+                      "param_sources": {
+                        "scriptId": {
+                          "from_step": 1,
+                          "from_op": "gcp.script.projects.versions.list",
+                          "field": "createTime"
+                        }
+                      },
+                      "purpose": "Provides: deploymentId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.script.projects.deployments.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().deployments().get(**params).execute()",
+                      "path": "/v1/projects/{scriptId}/deployments/{deploymentId}",
+                      "required_params": {
+                        "scriptId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The script project's Drive ID."
+                        },
+                        "deploymentId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The deployment ID."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "scriptId": {
+                          "from_step": 1,
+                          "from_op": "gcp.script.projects.versions.list",
+                          "field": "createTime"
+                        },
+                        "deploymentId": {
+                          "from_step": 2,
+                          "from_op": "gcp.script.projects.deployments.list",
+                          "field": "deploymentId"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        },
+        "processes": {
+          "resource_type": "processes",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "tuple",
+            "full_identifier": {
+              "template": "",
+              "built_from_parts": [],
+              "notes": "Tuple identifier; anchor parts are user-provided."
+            },
+            "parts": [
+              "processStatus"
+            ],
+            "part_sources": {
+              "processStatus": {
+                "op": "gcp.script.processes.list",
+                "field_path": "processes[].processStatus",
+                "transform": null
+              }
+            },
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.script.processes.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/processes"
+                },
+                "python_call": "svc.processes().list(**params).execute()",
+                "produces": {
+                  "processStatus": "processes[].processStatus",
+                  "runtimeVersion": "processes[].runtimeVersion",
+                  "startTime": "processes[].startTime",
+                  "userAccessLevel": "processes[].userAccessLevel",
+                  "projectName": "processes[].projectName",
+                  "duration": "processes[].duration",
+                  "functionName": "processes[].functionName",
+                  "processType": "processes[].processType"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.script.processes.listScriptProcesses",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/processes:listScriptProcesses"
+                },
+                "python_call": "svc.processes().listScriptProcesses(**params).execute()",
+                "produces": {
+                  "processStatus": "processes[].processStatus",
+                  "runtimeVersion": "processes[].runtimeVersion",
+                  "startTime": "processes[].startTime",
+                  "userAccessLevel": "processes[].userAccessLevel",
+                  "projectName": "processes[].projectName",
+                  "duration": "processes[].duration",
+                  "functionName": "processes[].functionName",
+                  "processType": "processes[].processType"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": []
+          },
+          "confidence": 0.4,
+          "notes": "No enrich (get) ops found; inventory only."
+        },
+        "projects": {
+          "resource_type": "projects",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "constructed",
+            "full_identifier": {
+              "template": "projects/{url_encoded_createTime}",
+              "built_from_parts": [
+                "versions[].createTime"
+              ],
+              "notes": ""
+            },
+            "parts": [
+              "project_id",
+              "createTime"
+            ],
+            "part_sources": {
+              "project_id": {
+                "op": "service_anchor",
+                "field_path": "project_id",
+                "transform": null
+              },
+              "createTime": {
+                "op": "gcp.script.projects.versions.list",
+                "field_path": "versions[].createTime",
+                "transform": null
+              }
+            },
+            "transforms": [
+              {
+                "from": "versions[].createTime",
+                "fn": "url_encode",
+                "to": "url_encoded_createTime"
+              },
+              {
+                "from": "url_encoded_createTime",
+                "fn": "prefix:projects/",
+                "to": "scriptId"
+              },
+              {
+                "build": "full_id",
+                "template": "projects/{url_encoded_createTime}"
+              }
+            ]
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.script.projects.versions.list",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/projects/{scriptId}/versions"
+                },
+                "python_call": "svc.projects().versions().list(**params).execute()",
+                "produces": {
+                  "createTime": "versions[].createTime",
+                  "scriptId": "versions[].scriptId",
+                  "versionNumber": "versions[].versionNumber",
+                  "description": "versions[].description"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.script.projects.versions.list",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 1,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.script.projects.versions.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.projects().versions().list(**params).execute()",
+                      "path": "/v1/projects/{scriptId}/versions",
+                      "required_params": {
+                        "scriptId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The script project's Drive ID."
+                        }
+                      },
+                      "output_list_field": "versions",
+                      "output_id_field": "createTime",
+                      "produces": {
+                        "versionId": {
+                          "via_list_field": "versions",
+                          "from_id_field": "createTime",
+                          "note": "Iterate response[\"versions\"][], extract item[\"createTime\"] \u2192 pass as \"versionId\""
+                        }
+                      },
+                      "param_sources": {
+                        "scriptId": "unresolved"
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": [
+                    "scriptId"
+                  ]
+                }
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.script.projects.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/projects/{scriptId}"
+                },
+                "python_call": "svc.projects().get(**params).execute()",
+                "required_params": {
+                  "scriptId": {
+                    "from_identifier": "transforms \u2192 scriptId"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.script.projects.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.script.projects.versions.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.projects().versions().list(**params).execute()",
+                      "path": "/v1/projects/{scriptId}/versions",
+                      "required_params": {
+                        "scriptId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The script project's Drive ID."
+                        }
+                      },
+                      "output_list_field": "versions",
+                      "output_id_field": "createTime",
+                      "produces": {
+                        "versionId": {
+                          "via_list_field": "versions",
+                          "from_id_field": "createTime",
+                          "note": "Iterate response[\"versions\"][], extract item[\"createTime\"] \u2192 pass as \"versionId\""
+                        }
+                      },
+                      "param_sources": {
+                        "scriptId": "unresolved"
+                      },
+                      "purpose": "Provides: versionId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.script.projects.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().get(**params).execute()",
+                      "path": "/v1/projects/{scriptId}",
+                      "required_params": {
+                        "scriptId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The script project's Drive ID."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "scriptId": {
+                          "from_step": 1,
+                          "from_op": "gcp.script.projects.versions.list",
+                          "field": "createTime"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.script.projects.getContent",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/projects/{scriptId}/content"
+                },
+                "python_call": "svc.projects().getContent(**params).execute()",
+                "required_params": {
+                  "scriptId": {
+                    "from_identifier": "transforms \u2192 scriptId"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.script.projects.getContent",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.script.projects.versions.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.projects().versions().list(**params).execute()",
+                      "path": "/v1/projects/{scriptId}/versions",
+                      "required_params": {
+                        "scriptId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The script project's Drive ID."
+                        }
+                      },
+                      "output_list_field": "versions",
+                      "output_id_field": "createTime",
+                      "produces": {
+                        "versionId": {
+                          "via_list_field": "versions",
+                          "from_id_field": "createTime",
+                          "note": "Iterate response[\"versions\"][], extract item[\"createTime\"] \u2192 pass as \"versionId\""
+                        }
+                      },
+                      "param_sources": {
+                        "scriptId": "unresolved"
+                      },
+                      "purpose": "Provides: versionId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.script.projects.getContent",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().getContent(**params).execute()",
+                      "path": "/v1/projects/{scriptId}/content",
+                      "required_params": {
+                        "scriptId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The script project's Drive ID."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "scriptId": {
+                          "from_step": 1,
+                          "from_op": "gcp.script.projects.versions.list",
+                          "field": "createTime"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.script.projects.getMetrics",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/projects/{scriptId}/metrics"
+                },
+                "python_call": "svc.projects().getMetrics(**params).execute()",
+                "required_params": {
+                  "scriptId": {
+                    "from_identifier": "transforms \u2192 scriptId"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.script.projects.getMetrics",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.script.projects.versions.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.projects().versions().list(**params).execute()",
+                      "path": "/v1/projects/{scriptId}/versions",
+                      "required_params": {
+                        "scriptId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The script project's Drive ID."
+                        }
+                      },
+                      "output_list_field": "versions",
+                      "output_id_field": "createTime",
+                      "produces": {
+                        "versionId": {
+                          "via_list_field": "versions",
+                          "from_id_field": "createTime",
+                          "note": "Iterate response[\"versions\"][], extract item[\"createTime\"] \u2192 pass as \"versionId\""
+                        }
+                      },
+                      "param_sources": {
+                        "scriptId": "unresolved"
+                      },
+                      "purpose": "Provides: versionId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.script.projects.getMetrics",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().getMetrics(**params).execute()",
+                      "path": "/v1/projects/{scriptId}/metrics",
+                      "required_params": {
+                        "scriptId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Required field indicating the script to get metrics for."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "scriptId": {
+                          "from_step": 1,
+                          "from_op": "gcp.script.projects.versions.list",
+                          "field": "createTime"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        },
+        "versions": {
+          "resource_type": "versions",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "constructed",
+            "full_identifier": {
+              "template": "versions/{url_encoded_createTime}",
+              "built_from_parts": [
+                "versions[].createTime"
+              ],
+              "notes": ""
+            },
+            "parts": [
+              "project_id",
+              "createTime"
+            ],
+            "part_sources": {
+              "project_id": {
+                "op": "service_anchor",
+                "field_path": "project_id",
+                "transform": null
+              },
+              "createTime": {
+                "op": "gcp.script.projects.versions.list",
+                "field_path": "versions[].createTime",
+                "transform": null
+              }
+            },
+            "transforms": [
+              {
+                "from": "versions[].createTime",
+                "fn": "url_encode",
+                "to": "url_encoded_createTime"
+              },
+              {
+                "from": "url_encoded_createTime",
+                "fn": "prefix:versions/",
+                "to": "scriptId"
+              },
+              {
+                "build": "full_id",
+                "template": "versions/{url_encoded_createTime}"
+              }
+            ]
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.script.projects.versions.list",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/projects/{scriptId}/versions"
+                },
+                "python_call": "svc.projects().versions().list(**params).execute()",
+                "produces": {
+                  "createTime": "versions[].createTime",
+                  "scriptId": "versions[].scriptId",
+                  "versionNumber": "versions[].versionNumber",
+                  "description": "versions[].description"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.script.projects.versions.list",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 1,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.script.projects.versions.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.projects().versions().list(**params).execute()",
+                      "path": "/v1/projects/{scriptId}/versions",
+                      "required_params": {
+                        "scriptId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The script project's Drive ID."
+                        }
+                      },
+                      "output_list_field": "versions",
+                      "output_id_field": "createTime",
+                      "produces": {
+                        "versionId": {
+                          "via_list_field": "versions",
+                          "from_id_field": "createTime",
+                          "note": "Iterate response[\"versions\"][], extract item[\"createTime\"] \u2192 pass as \"versionId\""
+                        }
+                      },
+                      "param_sources": {
+                        "scriptId": "unresolved"
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": [
+                    "scriptId"
+                  ]
+                }
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.script.projects.versions.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/projects/{scriptId}/versions/{versionNumber}"
+                },
+                "python_call": "svc.projects().versions().get(**params).execute()",
+                "required_params": {
+                  "scriptId": {
+                    "from_identifier": "transforms \u2192 scriptId"
+                  },
+                  "versionNumber": {
+                    "from_identifier": "versions[].versionNumber"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.script.projects.versions.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.script.projects.versions.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.projects().versions().list(**params).execute()",
+                      "path": "/v1/projects/{scriptId}/versions",
+                      "required_params": {
+                        "scriptId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The script project's Drive ID."
+                        }
+                      },
+                      "output_list_field": "versions",
+                      "output_id_field": "createTime",
+                      "produces": {
+                        "versionId": {
+                          "via_list_field": "versions",
+                          "from_id_field": "createTime",
+                          "note": "Iterate response[\"versions\"][], extract item[\"createTime\"] \u2192 pass as \"versionId\""
+                        }
+                      },
+                      "param_sources": {
+                        "scriptId": "unresolved"
+                      },
+                      "purpose": "Provides: versionId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.script.projects.versions.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().versions().get(**params).execute()",
+                      "path": "/v1/projects/{scriptId}/versions/{versionNumber}",
+                      "required_params": {
+                        "scriptId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The script project's Drive ID."
+                        },
+                        "versionNumber": {
+                          "type": "integer",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The version number."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "scriptId": {
+                          "from_step": 1,
+                          "from_op": "gcp.script.projects.versions.list",
+                          "field": "createTime"
+                        },
+                        "versionNumber": {
+                          "from_step": 1,
+                          "from_op": "gcp.script.projects.versions.list",
+                          "field": "createTime"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        }
+      }
+    }
+  }
+}

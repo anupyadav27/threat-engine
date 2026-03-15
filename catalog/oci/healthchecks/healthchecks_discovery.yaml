@@ -1,0 +1,57 @@
+version: '1.0'
+provider: oci
+service: healthchecks
+services:
+  client: healthchecks
+  module: oci.healthchecks
+discovery:
+- discovery_id: oci.healthchecks.get_ping_monitor
+  calls:
+  - action: get_ping_monitor
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.healthchecks.get_http_monitor
+  calls:
+  - action: get_http_monitor
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.healthchecks.list_ping_probe_results
+  for_each: oci.healthchecks.get_ping_monitor
+  calls:
+  - action: list_ping_probe_results
+    save_as: response
+    on_error: continue
+    params:
+      compartment_id: '{{ item.compartment_id }}'
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.healthchecks.list_http_probe_results
+  for_each: oci.healthchecks.get_ping_monitor
+  calls:
+  - action: list_http_probe_results
+    save_as: response
+    on_error: continue
+    params:
+      compartment_id: '{{ item.compartment_id }}'
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.healthchecks.list_health_checks_vantage_points
+  for_each: oci.healthchecks.get_ping_monitor
+  calls:
+  - action: list_health_checks_vantage_points
+    save_as: response
+    on_error: continue
+    params:
+      compartment_id: '{{ item.compartment_id }}'
+  emit:
+    as: item
+    items_for: '{{ response }}'
+checks: []

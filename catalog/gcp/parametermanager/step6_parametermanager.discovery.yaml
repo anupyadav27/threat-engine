@@ -1,0 +1,166 @@
+# ============================================================
+# Discovery YAML — parametermanager (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 7 | independent: 4 | dependent: 3
+# ops with fields: 7/7 | dep ops with chain: 3/3
+# ============================================================
+version: '1.0'
+provider: gcp
+service: parametermanager
+
+services:
+  client: parametermanager
+  module: "googleapiclient.discovery.build('parametermanager', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Gets information about a location.
+  # ── gcp.parametermanager.projects.locations.get ──
+  - discovery_id: gcp.parametermanager.projects.locations.get
+    # python: svc.projects().locations().get(**params).execute()
+    calls:
+      - action: projects.locations.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        displayName: '{{ response.displayName }}'
+        labels: '{{ response.labels }}'
+        locationId: '{{ response.locationId }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+  # Lists information about the supported locations for this service.
+  # ── gcp.parametermanager.projects.locations.list ──
+  - discovery_id: gcp.parametermanager.projects.locations.list
+    # python: svc.projects().locations().list(**params).execute()
+    calls:
+      - action: projects.locations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.locations }}'
+      item:
+        displayName: '{{ item.displayName }}'
+        labels: '{{ item.labels }}'
+        locationId: '{{ item.locationId }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+  # Lists Parameters in a given project and location.
+  # ── gcp.parametermanager.projects.locations.parameters.list ──
+  - discovery_id: gcp.parametermanager.projects.locations.parameters.list
+    # python: svc.projects().locations().parameters().list(**params).execute()
+    calls:
+      - action: projects.locations.parameters.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.parameters }}'
+      item:
+        createTime: '{{ item.createTime }}'
+        format: '{{ item.format }}'
+        kmsKey: '{{ item.kmsKey }}'
+        labels: '{{ item.labels }}'
+        name: '{{ item.name }}'
+        policyMember: '{{ item.policyMember }}'
+        updateTime: '{{ item.updateTime }}'
+  # Lists ParameterVersions in a given project, location, and parameter.
+  # ── gcp.parametermanager.projects.locations.parameters.versions.list ──
+  - discovery_id: gcp.parametermanager.projects.locations.parameters.versions.list
+    # python: svc.projects().locations().parameters().versions().list(**params).execute()
+    calls:
+      - action: projects.locations.parameters.versions.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.versions }}'
+      item:
+        createTime: '{{ item.createTime }}'
+        disabled: '{{ item.disabled }}'
+        kmsKeyVersion: '{{ item.kmsKeyVersion }}'
+        name: '{{ item.name }}'
+        payload: '{{ item.payload }}'
+        updateTime: '{{ item.updateTime }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets details of a single Parameter.
+  # ── gcp.parametermanager.projects.locations.parameters.get [dependent] ──
+  - discovery_id: gcp.parametermanager.projects.locations.parameters.get
+    for_each: gcp.parametermanager.projects.locations.parameters.list
+    # python: svc.projects().locations().parameters().get(**params).execute()
+    calls:
+      - action: projects.locations.parameters.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        createTime: '{{ response.createTime }}'
+        format: '{{ response.format }}'
+        kmsKey: '{{ response.kmsKey }}'
+        labels: '{{ response.labels }}'
+        name: '{{ response.name }}'
+        policyMember: '{{ response.policyMember }}'
+        updateTime: '{{ response.updateTime }}'
+    # required_params: ['name']
+  # Gets details of a single ParameterVersion.
+  # ── gcp.parametermanager.projects.locations.parameters.versions.get [dependent] ──
+  - discovery_id: gcp.parametermanager.projects.locations.parameters.versions.get
+    for_each: gcp.parametermanager.projects.locations.parameters.versions.list
+    # python: svc.projects().locations().parameters().versions().get(**params).execute()
+    calls:
+      - action: projects.locations.parameters.versions.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        createTime: '{{ response.createTime }}'
+        disabled: '{{ response.disabled }}'
+        kmsKeyVersion: '{{ response.kmsKeyVersion }}'
+        name: '{{ response.name }}'
+        payload: '{{ response.payload }}'
+        updateTime: '{{ response.updateTime }}'
+    # required_params: ['name']
+  # Gets rendered version of a ParameterVersion.
+  # ── gcp.parametermanager.projects.locations.parameters.versions.render [dependent] ──
+  - discovery_id: gcp.parametermanager.projects.locations.parameters.versions.render
+    for_each: gcp.parametermanager.projects.locations.parameters.versions.list
+    # python: svc.projects().locations().parameters().versions().render(**params).execute()
+    calls:
+      - action: projects.locations.parameters.versions.render
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        parameterVersion: '{{ response.parameterVersion }}'
+        payload: '{{ response.payload }}'
+        renderedPayload: '{{ response.renderedPayload }}'
+    # required_params: ['name']

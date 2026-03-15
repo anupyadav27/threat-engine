@@ -1,0 +1,186 @@
+# ============================================================
+# Discovery YAML — verifiedpermissions (AWS)
+# Generated: 2026-02-21T04:57:00Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: verifiedpermissions
+services:
+  client: verifiedpermissions
+  module: boto3.client
+discovery:
+  # ── ListPolicyStores ──
+  - discovery_id: aws.verifiedpermissions.list_policy_stores
+    calls:
+      - action: list_policy_stores
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.policyStores }}'
+      item:
+        Statement: '{{ item.Statement }}'
+        Version: '{{ item.Version }}'
+        arn: '{{ item.arn }}'
+        createdDate: '{{ item.createdDate }}'
+        description: '{{ item.description }}'
+        lastUpdatedDate: '{{ item.lastUpdatedDate }}'
+        policyStoreId: '{{ item.policyStoreId }}'
+        statement: '{{ item.statement }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── GetIdentitySource ──
+  - discovery_id: aws.verifiedpermissions.get_identity_source
+    for_each: aws.verifiedpermissions.list_policy_stores
+    calls:
+      - action: get_identity_source
+        params:
+          policyStoreId: '{{ item.policyStoreId }}'
+          identitySourceId: '{{ item.identitySourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.details }}'
+      item:
+        Status: '{{ item.Status }}'
+        Enabled: '{{ item.Enabled }}'
+        clientIds: '{{ item.clientIds }}'
+        discoveryUrl: '{{ item.discoveryUrl }}'
+        openIdIssuer: '{{ item.openIdIssuer }}'
+        userPoolArn: '{{ item.userPoolArn }}'
+  # ── GetPolicy ──
+  - discovery_id: aws.verifiedpermissions.get_policy
+    for_each: aws.verifiedpermissions.list_policy_stores
+    calls:
+      - action: get_policy
+        params:
+          policyStoreId: '{{ item.policyStoreId }}'
+          policyId: '{{ item.policyId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.actions }}'
+      item:
+        actionId: '{{ item.actionId }}'
+        actionType: '{{ item.actionType }}'
+  # ── GetPolicyStore ──
+  - discovery_id: aws.verifiedpermissions.get_policy_store
+    for_each: aws.verifiedpermissions.list_policy_stores
+    calls:
+      - action: get_policy_store
+        params:
+          policyStoreId: '{{ item.policyStoreId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.validationSettings }}'
+      item:
+        DestinationArn: '{{ item.DestinationArn }}'
+        Format: '{{ item.Format }}'
+        Level: '{{ item.Level }}'
+        mode: '{{ item.mode }}'
+  # ── GetPolicyTemplate ──
+  - discovery_id: aws.verifiedpermissions.get_policy_template
+    for_each: aws.verifiedpermissions.list_policy_stores
+    calls:
+      - action: get_policy_template
+        params:
+          policyStoreId: '{{ item.policyStoreId }}'
+          policyTemplateId: '{{ item.policyTemplateId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.nextToken }}'
+      item:
+        statement: '{{ item.statement }}'
+  # ── GetSchema ──
+  - discovery_id: aws.verifiedpermissions.get_schema
+    for_each: aws.verifiedpermissions.list_policy_stores
+    calls:
+      - action: get_schema
+        params:
+          policyStoreId: '{{ item.policyStoreId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.namespaces }}'
+      item:
+        namespaces: '{{ item.namespaces }}'
+        schema: '{{ item.schema }}'
+  # ── ListIdentitySources ──
+  - discovery_id: aws.verifiedpermissions.list_identity_sources
+    for_each: aws.verifiedpermissions.list_policy_stores
+    calls:
+      - action: list_identity_sources
+        params:
+          policyStoreId: '{{ item.policyStoreId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.identitySources }}'
+      item:
+        configuration: '{{ item.configuration }}'
+        createdDate: '{{ item.createdDate }}'
+        details: '{{ item.details }}'
+        identitySourceId: '{{ item.identitySourceId }}'
+        lastUpdatedDate: '{{ item.lastUpdatedDate }}'
+        policyStoreId: '{{ item.policyStoreId }}'
+        principalEntityType: '{{ item.principalEntityType }}'
+  # ── ListPolicies ──
+  - discovery_id: aws.verifiedpermissions.list_policies
+    for_each: aws.verifiedpermissions.list_policy_stores
+    calls:
+      - action: list_policies
+        params:
+          policyStoreId: '{{ item.policyStoreId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.policies }}'
+      item:
+        actions: '{{ item.actions }}'
+        createdDate: '{{ item.createdDate }}'
+        definition: '{{ item.definition }}'
+        effect: '{{ item.effect }}'
+        lastUpdatedDate: '{{ item.lastUpdatedDate }}'
+        policyId: '{{ item.policyId }}'
+        policyStoreId: '{{ item.policyStoreId }}'
+        policyType: '{{ item.policyType }}'
+        principal: '{{ item.principal }}'
+        resource: '{{ item.resource }}'
+  # ── ListPolicyTemplates ──
+  - discovery_id: aws.verifiedpermissions.list_policy_templates
+    for_each: aws.verifiedpermissions.list_policy_stores
+    calls:
+      - action: list_policy_templates
+        params:
+          policyStoreId: '{{ item.policyStoreId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.policyTemplates }}'
+      item:
+        createdDate: '{{ item.createdDate }}'
+        description: '{{ item.description }}'
+        lastUpdatedDate: '{{ item.lastUpdatedDate }}'
+        policyStoreId: '{{ item.policyStoreId }}'
+        policyTemplateId: '{{ item.policyTemplateId }}'
+        statement: '{{ item.statement }}'
+  # ── ListTagsForResource ──
+  - discovery_id: aws.verifiedpermissions.list_tags_for_resource
+    calls:
+      - action: list_tags_for_resource
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        tags: '{{ response.tags }}'

@@ -1,0 +1,106 @@
+version: '1.0'
+provider: aws
+service: bcm-data-exports
+services:
+  client: bcm-data-exports
+  module: boto3.client
+discovery:
+- discovery_id: aws.bcm-data-exports.listExports
+  calls:
+  - action: listExports
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Exports }}'
+    item:
+      ExportArn: '{{ item.ExportArn }}'
+      ExportName: '{{ item.ExportName }}'
+      ExportStatus: '{{ item.ExportStatus }}'
+- discovery_id: aws.bcm-data-exports.listTables
+  calls:
+  - action: listTables
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Tables }}'
+    item:
+      Description: '{{ item.Description }}'
+      TableName: '{{ item.TableName }}'
+      TableProperties: '{{ item.TableProperties }}'
+- discovery_id: aws.bcm-data-exports.getExecution
+  calls:
+  - action: getExecution
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ExecutionStatus }}'
+    item:
+      CompletedAt: '{{ item.CompletedAt }}'
+      CreatedAt: '{{ item.CreatedAt }}'
+      LastUpdatedAt: '{{ item.LastUpdatedAt }}'
+      StatusCode: '{{ item.StatusCode }}'
+      StatusReason: '{{ item.StatusReason }}'
+- discovery_id: aws.bcm-data-exports.getExport
+  calls:
+  - action: getExport
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Export }}'
+    item:
+      DataQuery: '{{ item.DataQuery }}'
+      Description: '{{ item.Description }}'
+      DestinationConfigurations: '{{ item.DestinationConfigurations }}'
+      ExportArn: '{{ item.ExportArn }}'
+      Name: '{{ item.Name }}'
+      RefreshCadence: '{{ item.RefreshCadence }}'
+- discovery_id: aws.bcm-data-exports.getTable
+  calls:
+  - action: getTable
+    save_as: response
+    on_error: continue
+    params:
+      TableName: '{{ item.TableName }}'
+  emit:
+    as: item
+    items_for: '{{ response.Schema }}'
+    item:
+      Description: '{{ item.Description }}'
+      Name: '{{ item.Name }}'
+      Type: '{{ item.Type }}'
+  for_each: aws.bcm-data-exports.listTables
+- discovery_id: aws.bcm-data-exports.listExecutions
+  calls:
+  - action: listExecutions
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Executions }}'
+    item:
+      ExecutionId: '{{ item.ExecutionId }}'
+      ExecutionStatus: '{{ item.ExecutionStatus }}'
+- discovery_id: aws.bcm-data-exports.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ResourceTags }}'
+    item:
+      Key: '{{ item.Key }}'
+      Value: '{{ item.Value }}'
+checks: []

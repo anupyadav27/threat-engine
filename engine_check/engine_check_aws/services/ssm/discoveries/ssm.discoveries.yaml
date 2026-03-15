@@ -1,0 +1,130 @@
+version: '1.0'
+provider: aws
+service: ssm
+services:
+  client: ssm
+  module: boto3.client
+discovery:
+- discovery_id: aws.ssm.describe_patch_groups
+  calls:
+  - action: describe_patch_groups
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.Mappings }}'
+    as: item
+- discovery_id: aws.ssm.describe_patch_baselines
+  calls:
+  - action: describe_patch_baselines
+    params:
+      Filters:
+      - Key: OWNER
+        Values:
+        - Self
+      MaxResults: 1000
+    save_as: response
+  emit:
+    items_for: '{{ response.BaselineIdentities }}'
+    as: item
+- discovery_id: aws.ssm.describe_maintenance_windows
+  calls:
+  - action: describe_maintenance_windows
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.WindowIdentities }}'
+    as: item
+- discovery_id: aws.ssm.describe_maintenance_window_schedule
+  for_each: aws.ssm.describe_maintenance_windows
+  calls:
+  - action: describe_maintenance_window_schedule
+    params:
+      WindowId: '{{ item.WindowId }}'
+      MaxResults: 1000
+    save_as: response
+    on_error: continue
+  emit:
+    items_for: '{{ response.ScheduledWindowExecutions }}'
+    as: item
+- discovery_id: aws.ssm.list_resource_compliance_summaries
+  calls:
+  - action: list_compliance_items
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.ComplianceItems }}'
+    as: item
+- discovery_id: aws.ssm.list_commands
+  calls:
+  - action: describe_automation_executions
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.AutomationExecutionMetadataList }}'
+    as: item
+- discovery_id: aws.ssm.list_nodes
+  calls:
+  - action: list_documents
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.DocumentIdentifiers }}'
+    as: item
+- discovery_id: aws.ssm.describe_automation_executions
+  calls:
+  - action: describe_automation_executions
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.AutomationExecutionMetadataList }}'
+    as: item
+- discovery_id: aws.ssm.list_documents
+  calls:
+  - action: list_documents
+    params:
+      Filters:
+      - Key: Owner
+        Values:
+        - Self
+      MaxResults: 1000
+    save_as: response
+  emit:
+    items_for: '{{ response.DocumentIdentifiers }}'
+    as: item
+- discovery_id: aws.ssm.list_associations
+  calls:
+  - action: list_associations
+    save_as: response
+    params:
+      MaxResults: 1000
+  emit:
+    items_for: '{{ response.Associations }}'
+    as: item
+- discovery_id: aws.ssm.list_document_versions
+  for_each: aws.ssm.list_associations
+  calls:
+  - action: describe_association
+    params:
+      AssociationId: '{{ item.AssociationId }}'
+      InstanceId: '{{ item.InstanceId }}'
+      Name: '{{ item.Name }}'
+      MaxResults: 1000
+    save_as: response
+    on_error: continue
+  emit: {}
+- discovery_id: aws.ssm.describe_parameters
+  calls:
+  - action: describe_parameters
+    save_as: response
+    params:
+      MaxResults: 50
+    on_error: continue
+  emit:
+    items_for: '{{ response.Parameters }}'
+    as: item

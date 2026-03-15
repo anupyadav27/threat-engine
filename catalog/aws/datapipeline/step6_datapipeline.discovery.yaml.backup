@@ -1,0 +1,65 @@
+version: '1.0'
+provider: aws
+service: datapipeline
+services:
+  client: datapipeline
+  module: boto3.client
+discovery:
+- discovery_id: aws.datapipeline.listPipelines
+  calls:
+  - action: listPipelines
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.pipelineIdList }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+- discovery_id: aws.datapipeline.describeObjects
+  calls:
+  - action: describeObjects
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.pipelineObjects }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      fields: '{{ item.fields }}'
+- discovery_id: aws.datapipeline.describePipelines
+  calls:
+  - action: describePipelines
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.pipelineDescriptionList }}'
+    item:
+      pipelineId: '{{ item.pipelineId }}'
+      name: '{{ item.name }}'
+      fields: '{{ item.fields }}'
+      description: '{{ item.description }}'
+      tags: '{{ item.tags }}'
+- discovery_id: aws.datapipeline.getPipelineDefinition
+  calls:
+  - action: getPipelineDefinition
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.pipelineObjects }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      fields: '{{ item.fields }}'
+- discovery_id: aws.datapipeline.queryObjects
+  calls:
+  - action: queryObjects
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ids }}'
+checks: []

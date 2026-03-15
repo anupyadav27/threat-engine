@@ -1,0 +1,71 @@
+version: '1.0'
+provider: aws
+service: codestar-notifications
+services:
+  client: codestar-notifications
+  module: boto3.client
+discovery:
+- discovery_id: aws.codestar-notifications.listEventTypes
+  calls:
+  - action: listEventTypes
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.EventTypes }}'
+    item:
+      EventTypeId: '{{ item.EventTypeId }}'
+      ServiceName: '{{ item.ServiceName }}'
+      EventTypeName: '{{ item.EventTypeName }}'
+      ResourceType: '{{ item.ResourceType }}'
+- discovery_id: aws.codestar-notifications.listNotificationRules
+  calls:
+  - action: listNotificationRules
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.NotificationRules }}'
+    item:
+      Id: '{{ item.Id }}'
+      Arn: '{{ item.Arn }}'
+- discovery_id: aws.codestar-notifications.listTargets
+  calls:
+  - action: listTargets
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Targets }}'
+    item:
+      TargetAddress: '{{ item.TargetAddress }}'
+      TargetType: '{{ item.TargetType }}'
+      TargetStatus: '{{ item.TargetStatus }}'
+- discovery_id: aws.codestar-notifications.describeNotificationRule
+  calls:
+  - action: describeNotificationRule
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.EventTypes }}'
+    item:
+      EventTypeId: '{{ item.EventTypeId }}'
+      ServiceName: '{{ item.ServiceName }}'
+      EventTypeName: '{{ item.EventTypeName }}'
+      ResourceType: '{{ item.ResourceType }}'
+- discovery_id: aws.codestar-notifications.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+checks: []

@@ -1,0 +1,48 @@
+# ============================================================
+# Discovery YAML — driveactivity (v2)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 1 | independent: 1 | dependent: 0
+# ops with fields: 1/1 | dep ops with chain: 0/0
+# ============================================================
+version: '1.0'
+provider: gcp
+service: driveactivity
+
+services:
+  client: driveactivity
+  module: "googleapiclient.discovery.build('driveactivity', 'v2')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Query past activity in Google Drive.
+  # ── gcp.driveactivity.activity.query ──
+  - discovery_id: gcp.driveactivity.activity.query
+    # python: svc.activity().query(**params).execute()
+    calls:
+      - action: activity.query
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.activity }}'
+      item:
+        actions: '{{ item.actions }}'
+        actors: '{{ item.actors }}'
+        primaryActionDetail: '{{ item.primaryActionDetail }}'
+        targets: '{{ item.targets }}'
+        timeRange: '{{ item.timeRange }}'
+        timestamp: '{{ item.timestamp }}'

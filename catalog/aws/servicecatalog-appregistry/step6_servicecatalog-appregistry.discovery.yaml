@@ -1,0 +1,166 @@
+# ============================================================
+# Discovery YAML — servicecatalog-appregistry (AWS)
+# Generated: 2026-02-21T04:56:59Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: servicecatalog-appregistry
+services:
+  client: servicecatalog-appregistry
+  module: boto3.client
+discovery:
+  # ── GetConfiguration ──
+  - discovery_id: aws.servicecatalog-appregistry.get_configuration
+    calls:
+      - action: get_configuration
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.configuration }}'
+      item:
+        Status: '{{ item.Status }}'
+        Enabled: '{{ item.Enabled }}'
+        configuration: '{{ item.configuration }}'
+        tagQueryConfiguration: '{{ item.tagQueryConfiguration }}'
+  # ── ListApplications ──
+  - discovery_id: aws.servicecatalog-appregistry.list_applications
+    calls:
+      - action: list_applications
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.applications }}'
+      item:
+        arn: '{{ item.arn }}'
+        creationTime: '{{ item.creationTime }}'
+        description: '{{ item.description }}'
+        id: '{{ item.id }}'
+        integrations: '{{ item.integrations }}'
+        lastUpdateTime: '{{ item.lastUpdateTime }}'
+        name: '{{ item.name }}'
+  # ── ListAttributeGroups ──
+  - discovery_id: aws.servicecatalog-appregistry.list_attribute_groups
+    calls:
+      - action: list_attribute_groups
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.attributeGroups }}'
+      item:
+        arn: '{{ item.arn }}'
+        createdBy: '{{ item.createdBy }}'
+        creationTime: '{{ item.creationTime }}'
+        description: '{{ item.description }}'
+        id: '{{ item.id }}'
+        lastUpdateTime: '{{ item.lastUpdateTime }}'
+        name: '{{ item.name }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── GetApplication ──
+  - discovery_id: aws.servicecatalog-appregistry.get_application
+    for_each: aws.servicecatalog-appregistry.list_applications
+    calls:
+      - action: get_application
+        params:
+          application: '{{ item.application }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.integrations }}'
+      item:
+        applicationTagResourceGroup: '{{ item.applicationTagResourceGroup }}'
+        integrations: '{{ item.integrations }}'
+        resourceGroup: '{{ item.resourceGroup }}'
+  # ── GetAssociatedResource ──
+  - discovery_id: aws.servicecatalog-appregistry.get_associated_resource
+    for_each: aws.servicecatalog-appregistry.list_applications
+    calls:
+      - action: get_associated_resource
+        params:
+          application: '{{ item.application }}'
+          resourceType: '{{ item.resourceType }}'
+          resource: '{{ item.resource }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.options }}'
+      item:
+        resource: '{{ item.resource }}'
+  # ── GetAttributeGroup ──
+  - discovery_id: aws.servicecatalog-appregistry.get_attribute_group
+    calls:
+      - action: get_attribute_group
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        arn: '{{ response.arn }}'
+        attributes: '{{ response.attributes }}'
+        createdBy: '{{ response.createdBy }}'
+        creationTime: '{{ response.creationTime }}'
+        description: '{{ response.description }}'
+        id: '{{ response.id }}'
+        lastUpdateTime: '{{ response.lastUpdateTime }}'
+        name: '{{ response.name }}'
+        tags: '{{ response.tags }}'
+  # ── ListAssociatedAttributeGroups ──
+  - discovery_id: aws.servicecatalog-appregistry.list_associated_attribute_groups
+    calls:
+      - action: list_associated_attribute_groups
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.attributeGroups }}'
+  # ── ListAssociatedResources ──
+  - discovery_id: aws.servicecatalog-appregistry.list_associated_resources
+    for_each: aws.servicecatalog-appregistry.list_applications
+    calls:
+      - action: list_associated_resources
+        params:
+          application: '{{ item.application }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.resources }}'
+      item:
+        arn: '{{ item.arn }}'
+        name: '{{ item.name }}'
+        options: '{{ item.options }}'
+        resource: '{{ item.resource }}'
+        resourceDetails: '{{ item.resourceDetails }}'
+        resourceType: '{{ item.resourceType }}'
+  # ── ListAttributeGroupsForApplication ──
+  - discovery_id: aws.servicecatalog-appregistry.list_attribute_groups_for_application
+    for_each: aws.servicecatalog-appregistry.list_applications
+    calls:
+      - action: list_attribute_groups_for_application
+        params:
+          application: '{{ item.application }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.attributeGroupsDetails }}'
+      item:
+        arn: '{{ item.arn }}'
+        createdBy: '{{ item.createdBy }}'
+        id: '{{ item.id }}'
+        name: '{{ item.name }}'
+  # ── ListTagsForResource ──
+  - discovery_id: aws.servicecatalog-appregistry.list_tags_for_resource
+    calls:
+      - action: list_tags_for_resource
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        tags: '{{ response.tags }}'

@@ -1,0 +1,121 @@
+version: '1.0'
+provider: aws
+service: pi
+services:
+  client: pi
+  module: boto3.client
+discovery:
+- discovery_id: aws.pi.describeDimensionKeys
+  calls:
+  - action: describeDimensionKeys
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.PartitionKeys }}'
+    item:
+      Dimensions: '{{ item.Dimensions }}'
+- discovery_id: aws.pi.getDimensionKeyDetails
+  calls:
+  - action: getDimensionKeyDetails
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Dimensions }}'
+    item:
+      Value: '{{ item.Value }}'
+      Dimension: '{{ item.Dimension }}'
+      Status: '{{ item.Status }}'
+- discovery_id: aws.pi.getPerformanceAnalysisReport
+  calls:
+  - action: getPerformanceAnalysisReport
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.AnalysisReport }}'
+    item:
+      AnalysisReportId: '{{ item.AnalysisReportId }}'
+      Identifier: '{{ item.Identifier }}'
+      ServiceType: '{{ item.ServiceType }}'
+      CreateTime: '{{ item.CreateTime }}'
+      StartTime: '{{ item.StartTime }}'
+      EndTime: '{{ item.EndTime }}'
+      Status: '{{ item.Status }}'
+      Insights: '{{ item.Insights }}'
+- discovery_id: aws.pi.getResourceMetadata
+  calls:
+  - action: getResourceMetadata
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Identifier }}'
+- discovery_id: aws.pi.getResourceMetrics
+  calls:
+  - action: getResourceMetrics
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.MetricList }}'
+    item:
+      Key: '{{ item.Key }}'
+      DataPoints: '{{ item.DataPoints }}'
+- discovery_id: aws.pi.listAvailableResourceDimensions
+  calls:
+  - action: listAvailableResourceDimensions
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.MetricDimensions }}'
+    item:
+      Metric: '{{ item.Metric }}'
+      Groups: '{{ item.Groups }}'
+- discovery_id: aws.pi.listAvailableResourceMetrics
+  calls:
+  - action: listAvailableResourceMetrics
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Metrics }}'
+    item:
+      Metric: '{{ item.Metric }}'
+      Description: '{{ item.Description }}'
+      Unit: '{{ item.Unit }}'
+- discovery_id: aws.pi.listPerformanceAnalysisReports
+  calls:
+  - action: listPerformanceAnalysisReports
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.AnalysisReports }}'
+    item:
+      AnalysisReportId: '{{ item.AnalysisReportId }}'
+      CreateTime: '{{ item.CreateTime }}'
+      StartTime: '{{ item.StartTime }}'
+      EndTime: '{{ item.EndTime }}'
+      Status: '{{ item.Status }}'
+      Tags: '{{ item.Tags }}'
+- discovery_id: aws.pi.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+    item:
+      Key: '{{ item.Key }}'
+      Value: '{{ item.Value }}'
+checks: []

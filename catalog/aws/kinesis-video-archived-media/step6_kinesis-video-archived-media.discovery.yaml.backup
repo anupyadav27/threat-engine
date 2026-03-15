@@ -1,0 +1,68 @@
+version: '1.0'
+provider: aws
+service: kinesis-video-archived-media
+services:
+  client: kinesis-video-archived-media
+  module: boto3.client
+discovery:
+- discovery_id: aws.kinesis-video-archived-media.getDashStreamingSessionUrl
+  calls:
+  - action: getDashStreamingSessionUrl
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.DASHStreamingSessionURL }}'
+- discovery_id: aws.kinesis-video-archived-media.getHlsStreamingSessionUrl
+  calls:
+  - action: getHlsStreamingSessionUrl
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.HLSStreamingSessionURL }}'
+- discovery_id: aws.kinesis-video-archived-media.listFragments
+  calls:
+  - action: listFragments
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Fragments }}'
+    item:
+      FragmentNumber: '{{ item.FragmentNumber }}'
+      FragmentSizeInBytes: '{{ item.FragmentSizeInBytes }}'
+      ProducerTimestamp: '{{ item.ProducerTimestamp }}'
+      ServerTimestamp: '{{ item.ServerTimestamp }}'
+      FragmentLengthInMilliseconds: '{{ item.FragmentLengthInMilliseconds }}'
+- discovery_id: aws.kinesis-video-archived-media.getClip
+  calls:
+  - action: getClip
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ContentType }}'
+- discovery_id: aws.kinesis-video-archived-media.getImages
+  calls:
+  - action: getImages
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Images }}'
+    item:
+      TimeStamp: '{{ item.TimeStamp }}'
+      Error: '{{ item.Error }}'
+      ImageContent: '{{ item.ImageContent }}'
+- discovery_id: aws.kinesis-video-archived-media.getMediaForFragmentList
+  calls:
+  - action: getMediaForFragmentList
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ContentType }}'
+checks: []

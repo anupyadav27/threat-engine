@@ -1,0 +1,94 @@
+# ============================================================
+# Discovery YAML — keep (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 3 | independent: 1 | dependent: 2
+# ops with fields: 3/3 | dep ops with chain: 2/2
+# ============================================================
+version: '1.0'
+provider: gcp
+service: keep
+
+services:
+  client: keep
+  module: "googleapiclient.discovery.build('keep', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists notes. Every list call returns a page of results with `page_size` as the upper bound of return
+  # ── gcp.keep.notes.list ──
+  - discovery_id: gcp.keep.notes.list
+    # python: svc.notes().list(**params).execute()
+    calls:
+      - action: notes.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.notes }}'
+      item:
+        attachments: '{{ item.attachments }}'
+        body: '{{ item.body }}'
+        createTime: '{{ item.createTime }}'
+        name: '{{ item.name }}'
+        permissions: '{{ item.permissions }}'
+        title: '{{ item.title }}'
+        trashTime: '{{ item.trashTime }}'
+        trashed: '{{ item.trashed }}'
+        updateTime: '{{ item.updateTime }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets an attachment. To download attachment media via REST requires the alt=media query parameter. Re
+  # ── gcp.keep.media.download [dependent] ──
+  - discovery_id: gcp.keep.media.download
+    for_each: gcp.keep.notes.list
+    # python: svc.media().download(**params).execute()
+    calls:
+      - action: media.download
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        mimeType: '{{ response.mimeType }}'
+        name: '{{ response.name }}'
+    # required_params: ['name']
+  # Gets a note.
+  # ── gcp.keep.notes.get [dependent] ──
+  - discovery_id: gcp.keep.notes.get
+    for_each: gcp.keep.notes.list
+    # python: svc.notes().get(**params).execute()
+    calls:
+      - action: notes.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        attachments: '{{ response.attachments }}'
+        body: '{{ response.body }}'
+        createTime: '{{ response.createTime }}'
+        name: '{{ response.name }}'
+        permissions: '{{ response.permissions }}'
+        title: '{{ response.title }}'
+        trashTime: '{{ response.trashTime }}'
+        trashed: '{{ response.trashed }}'
+        updateTime: '{{ response.updateTime }}'
+    # required_params: ['name']

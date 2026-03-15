@@ -1,0 +1,46 @@
+# ============================================================
+# Discovery YAML — gamesManagement (v1management)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 1 | independent: 0 | dependent: 1
+# ops with fields: 1/1 | dep ops with chain: 0/1
+# ============================================================
+version: '1.0'
+provider: gcp
+service: gamesManagement
+
+services:
+  client: gamesManagement
+  module: "googleapiclient.discovery.build('gamesManagement', 'v1management')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Get the list of players hidden from the given application. This method is only available to user acc
+  # ── gcp.gamesManagement.applications.listHidden [dependent] ──
+  - discovery_id: gcp.gamesManagement.applications.listHidden
+    # python: svc.applications().listHidden(**params).execute()
+    calls:
+      - action: applications.listHidden
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.applications }}'
+      item:
+        hiddenTimeMillis: '{{ item.hiddenTimeMillis }}'
+        player: '{{ item.player }}'
+    # required_params: ['applicationId']

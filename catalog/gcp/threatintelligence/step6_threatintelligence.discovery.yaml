@@ -1,0 +1,297 @@
+# ============================================================
+# Discovery YAML — threatintelligence (v1beta)
+# Generated: 2026-02-21T03:06:41Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 11 | independent: 6 | dependent: 5
+# ops with fields: 11/11 | dep ops with chain: 5/5
+# ============================================================
+version: '1.0'
+provider: gcp
+service: threatintelligence
+
+services:
+  client: threatintelligence
+  module: "googleapiclient.discovery.build('threatintelligence', 'v1beta')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # EnumerateAlertFacets returns the facets and the number of alerts that meet the filter criteria and h
+  # ── gcp.threatintelligence.projects.alerts.enumerateFacets ──
+  - discovery_id: gcp.threatintelligence.projects.alerts.enumerateFacets
+    # python: svc.projects().alerts().enumerateFacets(**params).execute()
+    calls:
+      - action: projects.alerts.enumerateFacets
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        facets: '{{ response.facets }}'
+  # Get a list of alerts that meet the filter criteria.
+  # ── gcp.threatintelligence.projects.alerts.list ──
+  - discovery_id: gcp.threatintelligence.projects.alerts.list
+    # python: svc.projects().alerts().list(**params).execute()
+    calls:
+      - action: projects.alerts.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.alerts }}'
+      item:
+        aiSummary: '{{ item.aiSummary }}'
+        audit: '{{ item.audit }}'
+        configurations: '{{ item.configurations }}'
+        detail: '{{ item.detail }}'
+        displayName: '{{ item.displayName }}'
+        duplicateOf: '{{ item.duplicateOf }}'
+        duplicatedBy: '{{ item.duplicatedBy }}'
+        externalId: '{{ item.externalId }}'
+        findingCount: '{{ item.findingCount }}'
+        findings: '{{ item.findings }}'
+        name: '{{ item.name }}'
+        priorityAnalysis: '{{ item.priorityAnalysis }}'
+        relevanceAnalysis: '{{ item.relevanceAnalysis }}'
+        severityAnalysis: '{{ item.severityAnalysis }}'
+        state: '{{ item.state }}'
+  # Get a list of configurations that meet the filter criteria.
+  # ── gcp.threatintelligence.projects.configurations.list ──
+  - discovery_id: gcp.threatintelligence.projects.configurations.list
+    # python: svc.projects().configurations().list(**params).execute()
+    calls:
+      - action: projects.configurations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.configurations }}'
+      item:
+        audit: '{{ item.audit }}'
+        description: '{{ item.description }}'
+        detail: '{{ item.detail }}'
+        displayName: '{{ item.displayName }}'
+        name: '{{ item.name }}'
+        provider: '{{ item.provider }}'
+        state: '{{ item.state }}'
+        version: '{{ item.version }}'
+  # List configuration revisions that meet the filter criteria.
+  # ── gcp.threatintelligence.projects.configurations.revisions.list ──
+  - discovery_id: gcp.threatintelligence.projects.configurations.revisions.list
+    # python: svc.projects().configurations().revisions().list(**params).execute()
+    calls:
+      - action: projects.configurations.revisions.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.revisions }}'
+      item:
+        createTime: '{{ item.createTime }}'
+        name: '{{ item.name }}'
+        snapshot: '{{ item.snapshot }}'
+  # Get a list of findings that meet the filter criteria.
+  # ── gcp.threatintelligence.projects.findings.list ──
+  - discovery_id: gcp.threatintelligence.projects.findings.list
+    # python: svc.projects().findings().list(**params).execute()
+    calls:
+      - action: projects.findings.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.findings }}'
+      item:
+        aiSummary: '{{ item.aiSummary }}'
+        alert: '{{ item.alert }}'
+        audit: '{{ item.audit }}'
+        configurations: '{{ item.configurations }}'
+        detail: '{{ item.detail }}'
+        displayName: '{{ item.displayName }}'
+        name: '{{ item.name }}'
+        provider: '{{ item.provider }}'
+        relevanceAnalysis: '{{ item.relevanceAnalysis }}'
+        reoccurrenceTimes: '{{ item.reoccurrenceTimes }}'
+        severity: '{{ item.severity }}'
+        severityAnalysis: '{{ item.severityAnalysis }}'
+  # SearchFindings is a more powerful version of ListFindings that supports complex queries like "findin
+  # ── gcp.threatintelligence.projects.findings.search ──
+  - discovery_id: gcp.threatintelligence.projects.findings.search
+    # python: svc.projects().findings().search(**params).execute()
+    calls:
+      - action: projects.findings.search
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.findings }}'
+      item:
+        aiSummary: '{{ item.aiSummary }}'
+        alert: '{{ item.alert }}'
+        audit: '{{ item.audit }}'
+        configurations: '{{ item.configurations }}'
+        detail: '{{ item.detail }}'
+        displayName: '{{ item.displayName }}'
+        name: '{{ item.name }}'
+        provider: '{{ item.provider }}'
+        relevanceAnalysis: '{{ item.relevanceAnalysis }}'
+        reoccurrenceTimes: '{{ item.reoccurrenceTimes }}'
+        severity: '{{ item.severity }}'
+        severityAnalysis: '{{ item.severityAnalysis }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets a specific document associated with an alert.
+  # ── gcp.threatintelligence.projects.alerts.documents.get [dependent] ──
+  - discovery_id: gcp.threatintelligence.projects.alerts.documents.get
+    for_each: gcp.threatintelligence.projects.alerts.list
+    # python: svc.projects().alerts().documents().get(**params).execute()
+    calls:
+      - action: projects.alerts.documents.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        aiSummary: '{{ response.aiSummary }}'
+        author: '{{ response.author }}'
+        collectionTime: '{{ response.collectionTime }}'
+        content: '{{ response.content }}'
+        createTime: '{{ response.createTime }}'
+        ingestTime: '{{ response.ingestTime }}'
+        languageCode: '{{ response.languageCode }}'
+        name: '{{ response.name }}'
+        source: '{{ response.source }}'
+        sourceUpdateTime: '{{ response.sourceUpdateTime }}'
+        sourceUri: '{{ response.sourceUri }}'
+        title: '{{ response.title }}'
+        translation: '{{ response.translation }}'
+    # required_params: ['name']
+  # Get an alert by name.
+  # ── gcp.threatintelligence.projects.alerts.get [dependent] ──
+  - discovery_id: gcp.threatintelligence.projects.alerts.get
+    for_each: gcp.threatintelligence.projects.alerts.list
+    # python: svc.projects().alerts().get(**params).execute()
+    calls:
+      - action: projects.alerts.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        aiSummary: '{{ response.aiSummary }}'
+        audit: '{{ response.audit }}'
+        configurations: '{{ response.configurations }}'
+        detail: '{{ response.detail }}'
+        displayName: '{{ response.displayName }}'
+        duplicateOf: '{{ response.duplicateOf }}'
+        duplicatedBy: '{{ response.duplicatedBy }}'
+        externalId: '{{ response.externalId }}'
+        findingCount: '{{ response.findingCount }}'
+        findings: '{{ response.findings }}'
+        name: '{{ response.name }}'
+        priorityAnalysis: '{{ response.priorityAnalysis }}'
+        relevanceAnalysis: '{{ response.relevanceAnalysis }}'
+        severityAnalysis: '{{ response.severityAnalysis }}'
+        state: '{{ response.state }}'
+    # required_params: ['name']
+  # Marks an alert as read - READ.
+  # ── gcp.threatintelligence.projects.alerts.read [dependent] ──
+  - discovery_id: gcp.threatintelligence.projects.alerts.read
+    for_each: gcp.threatintelligence.projects.alerts.list
+    # python: svc.projects().alerts().read(**params).execute()
+    calls:
+      - action: projects.alerts.read
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        aiSummary: '{{ response.aiSummary }}'
+        audit: '{{ response.audit }}'
+        configurations: '{{ response.configurations }}'
+        detail: '{{ response.detail }}'
+        displayName: '{{ response.displayName }}'
+        duplicateOf: '{{ response.duplicateOf }}'
+        duplicatedBy: '{{ response.duplicatedBy }}'
+        externalId: '{{ response.externalId }}'
+        findingCount: '{{ response.findingCount }}'
+        findings: '{{ response.findings }}'
+        name: '{{ response.name }}'
+        priorityAnalysis: '{{ response.priorityAnalysis }}'
+        relevanceAnalysis: '{{ response.relevanceAnalysis }}'
+        severityAnalysis: '{{ response.severityAnalysis }}'
+        state: '{{ response.state }}'
+    # required_params: ['name']
+  # Get a configuration by name.
+  # ── gcp.threatintelligence.projects.configurations.get [dependent] ──
+  - discovery_id: gcp.threatintelligence.projects.configurations.get
+    for_each: gcp.threatintelligence.projects.configurations.list
+    # python: svc.projects().configurations().get(**params).execute()
+    calls:
+      - action: projects.configurations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        audit: '{{ response.audit }}'
+        description: '{{ response.description }}'
+        detail: '{{ response.detail }}'
+        displayName: '{{ response.displayName }}'
+        name: '{{ response.name }}'
+        provider: '{{ response.provider }}'
+        state: '{{ response.state }}'
+        version: '{{ response.version }}'
+    # required_params: ['name']
+  # Get a finding by name.
+  # ── gcp.threatintelligence.projects.findings.get [dependent] ──
+  - discovery_id: gcp.threatintelligence.projects.findings.get
+    for_each: gcp.threatintelligence.projects.findings.list
+    # python: svc.projects().findings().get(**params).execute()
+    calls:
+      - action: projects.findings.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        aiSummary: '{{ response.aiSummary }}'
+        alert: '{{ response.alert }}'
+        audit: '{{ response.audit }}'
+        configurations: '{{ response.configurations }}'
+        detail: '{{ response.detail }}'
+        displayName: '{{ response.displayName }}'
+        name: '{{ response.name }}'
+        provider: '{{ response.provider }}'
+        relevanceAnalysis: '{{ response.relevanceAnalysis }}'
+        reoccurrenceTimes: '{{ response.reoccurrenceTimes }}'
+        severity: '{{ response.severity }}'
+        severityAnalysis: '{{ response.severityAnalysis }}'
+    # required_params: ['name']

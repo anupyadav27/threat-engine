@@ -1,0 +1,74 @@
+# Discovery YAML — elastic (Azure)
+# Generated: 2026-02-21T05:02:44Z
+# Actions use Azure Python SDK snake_case names (azure-mgmt-*)
+version: '1.0'
+provider: azure
+service: elastic
+services:
+  client: elastic
+  module: azure.mgmt.elastic
+discovery:
+  # ── list ──
+  - discovery_id: azure.elastic.list
+    calls:
+      - action: list
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        vm_resource_id: '{{ item.vm_resource_id }}'
+    # required_params: ['monitor_name']
+  # ── list_by_resource_group ──
+  - discovery_id: azure.elastic.list_by_resource_group
+    calls:
+      - action: list_by_resource_group
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        id: '{{ item.id }}'
+        identity: '{{ item.identity }}'
+        location: '{{ item.location }}'
+        name: '{{ item.name }}'
+        tags: '{{ item.tags }}'
+        type: '{{ item.type }}'
+        kind: '{{ item.kind }}'
+        properties: '{{ item.properties }}'
+        sku: '{{ item.sku }}'
+        system_data: '{{ item.system_data }}'
+  # ── Dependent ops ──
+  # ── get_api_key [dependent] ──
+  - discovery_id: azure.elastic.get_api_key
+    calls:
+      - action: get_api_key
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        properties: '{{ response.properties }}'
+  # ── get_elastic_to_azure_subscription_mapping [dependent] ──
+  - discovery_id: azure.elastic.get_elastic_to_azure_subscription_mapping
+    calls:
+      - action: get_elastic_to_azure_subscription_mapping
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        properties: '{{ response.properties }}'
+  # ── get_status [dependent] ──
+  - discovery_id: azure.elastic.get_status
+    calls:
+      - action: get_status
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        properties: '{{ response.properties }}'
+    # required_params: ['monitor_name', 'integration_name']

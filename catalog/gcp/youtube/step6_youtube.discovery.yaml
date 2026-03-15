@@ -1,0 +1,525 @@
+# ============================================================
+# Discovery YAML — youtube (v3)
+# Generated: 2026-02-21T03:06:41Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 28 | independent: 3 | dependent: 25
+# ops with fields: 27/28 | dep ops with chain: 2/25
+# ============================================================
+version: '1.0'
+provider: gcp
+service: youtube
+
+services:
+  client: youtube
+  module: "googleapiclient.discovery.build('youtube', 'v3')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Retrieves a list of resources, possibly filtered.
+  # ── gcp.youtube.playlistImages.list ──
+  - discovery_id: gcp.youtube.playlistImages.list
+    # python: svc.playlistImages().list(**params).execute()
+    calls:
+      - action: playlistImages.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.playlistImages }}'
+      item:
+        id: '{{ item.id }}'
+        snippet: '{{ item.snippet }}'
+  # Returns the trainability status of a video.
+  # ── gcp.youtube.videoTrainability.get ──
+  - discovery_id: gcp.youtube.videoTrainability.get
+    # python: svc.videoTrainability().get(**params).execute()
+    calls:
+      - action: videoTrainability.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        permitted: '{{ response.permitted }}'
+        videoId: '{{ response.videoId }}'
+  # Allows a user to load live chat through a server-streamed RPC.
+  # ── gcp.youtube.youtube.v3.liveChat.messages.stream ──
+  - discovery_id: gcp.youtube.youtube.v3.liveChat.messages.stream
+    # python: svc.youtube().v3().liveChat().messages().stream(**params).execute()
+    calls:
+      - action: youtube.v3.liveChat.messages.stream
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        activePollItem: '{{ response.activePollItem }}'
+        eventId: '{{ response.eventId }}'
+        items: '{{ response.items }}'
+        offlineAt: '{{ response.offlineAt }}'
+        pageInfo: '{{ response.pageInfo }}'
+        pollingIntervalMillis: '{{ response.pollingIntervalMillis }}'
+        tokenPagination: '{{ response.tokenPagination }}'
+        visitorId: '{{ response.visitorId }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Retrieves a list of resources, possibly filtered.
+  # ── gcp.youtube.activities.list [dependent] ──
+  - discovery_id: gcp.youtube.activities.list
+    # python: svc.activities().list(**params).execute()
+    calls:
+      - action: activities.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.activities }}'
+      item:
+        contentDetails: '{{ item.contentDetails }}'
+        id: '{{ item.id }}'
+        snippet: '{{ item.snippet }}'
+    # required_params: ['part']
+  # Downloads a caption track.
+  # ── gcp.youtube.captions.download [dependent] ──
+  - discovery_id: gcp.youtube.captions.download
+    for_each: gcp.youtube.activities.list
+    # python: svc.captions().download(**params).execute()
+    calls:
+      - action: captions.download
+        params:
+          id: '{{ item.id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+    # required_params: ['id']
+  # Retrieves a list of resources, possibly filtered.
+  # ── gcp.youtube.captions.list [dependent] ──
+  - discovery_id: gcp.youtube.captions.list
+    # python: svc.captions().list(**params).execute()
+    calls:
+      - action: captions.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.captions }}'
+      item:
+        id: '{{ item.id }}'
+        snippet: '{{ item.snippet }}'
+    # required_params: ['videoId', 'part']
+  # Retrieves a list of resources, possibly filtered.
+  # ── gcp.youtube.channelSections.list [dependent] ──
+  - discovery_id: gcp.youtube.channelSections.list
+    # python: svc.channelSections().list(**params).execute()
+    calls:
+      - action: channelSections.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.channelSections }}'
+      item:
+        contentDetails: '{{ item.contentDetails }}'
+        id: '{{ item.id }}'
+        localizations: '{{ item.localizations }}'
+        snippet: '{{ item.snippet }}'
+        targeting: '{{ item.targeting }}'
+    # required_params: ['part']
+  # Retrieves a list of resources, possibly filtered.
+  # ── gcp.youtube.channels.list [dependent] ──
+  - discovery_id: gcp.youtube.channels.list
+    # python: svc.channels().list(**params).execute()
+    calls:
+      - action: channels.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.channels }}'
+      item:
+        auditDetails: '{{ item.auditDetails }}'
+        brandingSettings: '{{ item.brandingSettings }}'
+        contentDetails: '{{ item.contentDetails }}'
+        contentOwnerDetails: '{{ item.contentOwnerDetails }}'
+        conversionPings: '{{ item.conversionPings }}'
+        id: '{{ item.id }}'
+        localizations: '{{ item.localizations }}'
+        snippet: '{{ item.snippet }}'
+        statistics: '{{ item.statistics }}'
+        status: '{{ item.status }}'
+        topicDetails: '{{ item.topicDetails }}'
+    # required_params: ['part']
+  # Retrieves a list of resources, possibly filtered.
+  # ── gcp.youtube.commentThreads.list [dependent] ──
+  - discovery_id: gcp.youtube.commentThreads.list
+    # python: svc.commentThreads().list(**params).execute()
+    calls:
+      - action: commentThreads.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.commentThreads }}'
+      item:
+        id: '{{ item.id }}'
+        replies: '{{ item.replies }}'
+        snippet: '{{ item.snippet }}'
+    # required_params: ['part']
+  # Retrieves a list of resources, possibly filtered.
+  # ── gcp.youtube.comments.list [dependent] ──
+  - discovery_id: gcp.youtube.comments.list
+    # python: svc.comments().list(**params).execute()
+    calls:
+      - action: comments.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.comments }}'
+      item:
+        id: '{{ item.id }}'
+        snippet: '{{ item.snippet }}'
+    # required_params: ['part']
+  # Retrieves a list of resources, possibly filtered.
+  # ── gcp.youtube.i18nLanguages.list [dependent] ──
+  - discovery_id: gcp.youtube.i18nLanguages.list
+    # python: svc.i18nLanguages().list(**params).execute()
+    calls:
+      - action: i18nLanguages.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.i18nLanguages }}'
+      item:
+        id: '{{ item.id }}'
+        snippet: '{{ item.snippet }}'
+    # required_params: ['part']
+  # Retrieves a list of resources, possibly filtered.
+  # ── gcp.youtube.i18nRegions.list [dependent] ──
+  - discovery_id: gcp.youtube.i18nRegions.list
+    # python: svc.i18nRegions().list(**params).execute()
+    calls:
+      - action: i18nRegions.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.i18nRegions }}'
+      item:
+        id: '{{ item.id }}'
+        snippet: '{{ item.snippet }}'
+    # required_params: ['part']
+  # Retrieve the list of broadcasts associated with the given channel.
+  # ── gcp.youtube.liveBroadcasts.list [dependent] ──
+  - discovery_id: gcp.youtube.liveBroadcasts.list
+    # python: svc.liveBroadcasts().list(**params).execute()
+    calls:
+      - action: liveBroadcasts.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.liveBroadcasts }}'
+      item:
+        contentDetails: '{{ item.contentDetails }}'
+        id: '{{ item.id }}'
+        monetizationDetails: '{{ item.monetizationDetails }}'
+        snippet: '{{ item.snippet }}'
+        statistics: '{{ item.statistics }}'
+        status: '{{ item.status }}'
+    # required_params: ['part']
+  # Retrieves a list of resources, possibly filtered.
+  # ── gcp.youtube.liveChatMessages.list [dependent] ──
+  - discovery_id: gcp.youtube.liveChatMessages.list
+    # python: svc.liveChatMessages().list(**params).execute()
+    calls:
+      - action: liveChatMessages.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.liveChatMessages }}'
+      item:
+        authorDetails: '{{ item.authorDetails }}'
+        id: '{{ item.id }}'
+        snippet: '{{ item.snippet }}'
+    # required_params: ['liveChatId', 'part']
+  # Retrieves a list of resources, possibly filtered.
+  # ── gcp.youtube.liveChatModerators.list [dependent] ──
+  - discovery_id: gcp.youtube.liveChatModerators.list
+    # python: svc.liveChatModerators().list(**params).execute()
+    calls:
+      - action: liveChatModerators.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.liveChatModerators }}'
+      item:
+        id: '{{ item.id }}'
+        snippet: '{{ item.snippet }}'
+    # required_params: ['liveChatId', 'part']
+  # Retrieve the list of streams associated with the given channel. --
+  # ── gcp.youtube.liveStreams.list [dependent] ──
+  - discovery_id: gcp.youtube.liveStreams.list
+    # python: svc.liveStreams().list(**params).execute()
+    calls:
+      - action: liveStreams.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.liveStreams }}'
+      item:
+        cdn: '{{ item.cdn }}'
+        contentDetails: '{{ item.contentDetails }}'
+        id: '{{ item.id }}'
+        snippet: '{{ item.snippet }}'
+        status: '{{ item.status }}'
+    # required_params: ['part']
+  # Retrieves a list of members that match the request criteria for a channel.
+  # ── gcp.youtube.members.list [dependent] ──
+  - discovery_id: gcp.youtube.members.list
+    # python: svc.members().list(**params).execute()
+    calls:
+      - action: members.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.members }}'
+      item:
+        snippet: '{{ item.snippet }}'
+    # required_params: ['part']
+  # Retrieves a list of all pricing levels offered by a creator to the fans.
+  # ── gcp.youtube.membershipsLevels.list [dependent] ──
+  - discovery_id: gcp.youtube.membershipsLevels.list
+    # python: svc.membershipsLevels().list(**params).execute()
+    calls:
+      - action: membershipsLevels.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.membershipsLevels }}'
+      item:
+        id: '{{ item.id }}'
+        snippet: '{{ item.snippet }}'
+    # required_params: ['part']
+  # Retrieves a list of resources, possibly filtered.
+  # ── gcp.youtube.playlistItems.list [dependent] ──
+  - discovery_id: gcp.youtube.playlistItems.list
+    # python: svc.playlistItems().list(**params).execute()
+    calls:
+      - action: playlistItems.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.playlistItems }}'
+      item:
+        contentDetails: '{{ item.contentDetails }}'
+        id: '{{ item.id }}'
+        snippet: '{{ item.snippet }}'
+        status: '{{ item.status }}'
+    # required_params: ['part']
+  # Retrieves a list of resources, possibly filtered.
+  # ── gcp.youtube.playlists.list [dependent] ──
+  - discovery_id: gcp.youtube.playlists.list
+    # python: svc.playlists().list(**params).execute()
+    calls:
+      - action: playlists.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.playlists }}'
+      item:
+        contentDetails: '{{ item.contentDetails }}'
+        id: '{{ item.id }}'
+        localizations: '{{ item.localizations }}'
+        player: '{{ item.player }}'
+        snippet: '{{ item.snippet }}'
+        status: '{{ item.status }}'
+    # required_params: ['part']
+  # Retrieves a list of search resources
+  # ── gcp.youtube.search.list [dependent] ──
+  - discovery_id: gcp.youtube.search.list
+    # python: svc.search().list(**params).execute()
+    calls:
+      - action: search.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.search }}'
+      item:
+        id: '{{ item.id }}'
+        snippet: '{{ item.snippet }}'
+    # required_params: ['part']
+  # Retrieves a list of resources, possibly filtered.
+  # ── gcp.youtube.subscriptions.list [dependent] ──
+  - discovery_id: gcp.youtube.subscriptions.list
+    # python: svc.subscriptions().list(**params).execute()
+    calls:
+      - action: subscriptions.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.subscriptions }}'
+      item:
+        contentDetails: '{{ item.contentDetails }}'
+        id: '{{ item.id }}'
+        snippet: '{{ item.snippet }}'
+        subscriberSnippet: '{{ item.subscriberSnippet }}'
+    # required_params: ['part']
+  # Retrieves a list of resources, possibly filtered.
+  # ── gcp.youtube.superChatEvents.list [dependent] ──
+  - discovery_id: gcp.youtube.superChatEvents.list
+    # python: svc.superChatEvents().list(**params).execute()
+    calls:
+      - action: superChatEvents.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.superChatEvents }}'
+      item:
+        id: '{{ item.id }}'
+        snippet: '{{ item.snippet }}'
+    # required_params: ['part']
+  # Retrieves a list of resources, possibly filtered.
+  # ── gcp.youtube.thirdPartyLinks.list [dependent] ──
+  - discovery_id: gcp.youtube.thirdPartyLinks.list
+    # python: svc.thirdPartyLinks().list(**params).execute()
+    calls:
+      - action: thirdPartyLinks.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.thirdPartyLinks }}'
+      item:
+        linkingToken: '{{ item.linkingToken }}'
+        snippet: '{{ item.snippet }}'
+        status: '{{ item.status }}'
+    # required_params: ['part']
+  # Retrieves a list of resources, possibly filtered.
+  # ── gcp.youtube.videoAbuseReportReasons.list [dependent] ──
+  - discovery_id: gcp.youtube.videoAbuseReportReasons.list
+    # python: svc.videoAbuseReportReasons().list(**params).execute()
+    calls:
+      - action: videoAbuseReportReasons.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.videoAbuseReportReasons }}'
+      item:
+        id: '{{ item.id }}'
+        snippet: '{{ item.snippet }}'
+    # required_params: ['part']
+  # Retrieves a list of resources, possibly filtered.
+  # ── gcp.youtube.videoCategories.list [dependent] ──
+  - discovery_id: gcp.youtube.videoCategories.list
+    # python: svc.videoCategories().list(**params).execute()
+    calls:
+      - action: videoCategories.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.videoCategories }}'
+      item:
+        id: '{{ item.id }}'
+        snippet: '{{ item.snippet }}'
+    # required_params: ['part']
+  # Retrieves the ratings that the authorized user gave to a list of specified videos.
+  # ── gcp.youtube.videos.getRating [dependent] ──
+  - discovery_id: gcp.youtube.videos.getRating
+    for_each: gcp.youtube.activities.list
+    # python: svc.videos().getRating(**params).execute()
+    calls:
+      - action: videos.getRating
+        params:
+          id: '{{ item.id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        eventId: '{{ response.eventId }}'
+        items: '{{ response.items }}'
+        visitorId: '{{ response.visitorId }}'
+    # required_params: ['id']
+  # Retrieves a list of resources, possibly filtered.
+  # ── gcp.youtube.videos.list [dependent] ──
+  - discovery_id: gcp.youtube.videos.list
+    # python: svc.videos().list(**params).execute()
+    calls:
+      - action: videos.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.videos }}'
+      item:
+        ageGating: '{{ item.ageGating }}'
+        contentDetails: '{{ item.contentDetails }}'
+        fileDetails: '{{ item.fileDetails }}'
+        id: '{{ item.id }}'
+        liveStreamingDetails: '{{ item.liveStreamingDetails }}'
+        localizations: '{{ item.localizations }}'
+        monetizationDetails: '{{ item.monetizationDetails }}'
+        paidProductPlacementDetails: '{{ item.paidProductPlacementDetails }}'
+        player: '{{ item.player }}'
+        processingDetails: '{{ item.processingDetails }}'
+        projectDetails: '{{ item.projectDetails }}'
+        recordingDetails: '{{ item.recordingDetails }}'
+        snippet: '{{ item.snippet }}'
+        statistics: '{{ item.statistics }}'
+        status: '{{ item.status }}'
+        suggestions: '{{ item.suggestions }}'
+        topicDetails: '{{ item.topicDetails }}'
+    # required_params: ['part']
