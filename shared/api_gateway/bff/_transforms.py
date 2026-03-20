@@ -98,29 +98,43 @@ def compute_sla_status(severity: str, age_days: Optional[int]) -> str:
 # ── Threat ───────────────────────────────────────────────────────────────────
 
 def normalize_threat(t: dict) -> dict:
+    """Normalize a threat detection into UI-ready shape.
+
+    Accepts both old finding-based and new detection-based shapes.
+    """
     severity = _safe_lower(t.get("severity"), "medium")
     risk_map = {"critical": 95, "high": 75, "medium": 50, "low": 25}
     provider = t.get("provider", "")
     account = t.get("account_id") or t.get("account", "") or _extract_account_from_assets(t)
     region = t.get("region", "") or _extract_region_from_assets(t)
+    # detection_id (new) or finding_id/threat_id (legacy)
+    det_id = t.get("detection_id") or t.get("threat_id") or t.get("finding_id") or t.get("id", "")
+    risk_score = t.get("risk_score") or risk_map.get(severity, 50)
     return {
-        "id": t.get("threat_id") or t.get("finding_id") or t.get("id", ""),
-        "title": t.get("title") or t.get("recommendation") or t.get("resource_uid", "Unknown").rsplit("/", 1)[-1],
+        "id": det_id,
+        "detection_id": det_id,
+        "title": t.get("title") or t.get("rule_name") or t.get("recommendation") or t.get("resource_uid", "Unknown").rsplit("/", 1)[-1],
+        "detection_type": t.get("detection_type") or t.get("threat_category", ""),
+        "threat_category": t.get("threat_category") or t.get("detection_type", ""),
         "mitre_technique": _first(t.get("mitre_techniques")) or t.get("mitre_technique", ""),
         "mitre_tactic": _first(t.get("mitre_tactics")) or t.get("mitre_tactic", ""),
         "severity": severity,
-        "affected_resources": _count_resources(t),
+        "affected_resources": t.get("finding_count") or _count_resources(t),
+        "finding_count": t.get("finding_count", 0),
         "provider": _safe_upper(provider),
         "account": account,
         "region": region,
-        "environment": t.get("environment", ""),
+        "resource_uid": t.get("resource_uid", ""),
+        "resource_type": t.get("resource_type", ""),
         "status": t.get("status", "active"),
         "detected": t.get("detected_at") or t.get("first_seen_at"),
         "assignee": t.get("assignee", ""),
-        "riskScore": t.get("risk_score") or risk_map.get(severity, 50),
-        "risk_score": t.get("risk_score") or risk_map.get(severity, 50),  # backward compat
-        "resource_type": t.get("resource_type", ""),
-        "remediation_steps": t.get("remediation_steps", []),
+        "riskScore": risk_score,
+        "risk_score": risk_score,
+        "verdict": t.get("verdict", ""),
+        "blast_radius": t.get("blast_radius", 0),
+        "attack_chain": t.get("attack_chain", []),
+        "recommendations": t.get("recommendations", []),
     }
 
 

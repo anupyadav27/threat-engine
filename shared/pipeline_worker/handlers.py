@@ -1,16 +1,19 @@
 """
-Pipeline stage handlers — each function triggers one engine via HTTP.
+Pipeline stage handlers — each function triggers one engine via HTTP
+and polls DB-backed status endpoint until completion.
 
-These mirror the ``_trigger_*`` methods in the onboarding orchestrator but
-are standalone async functions, decoupled from the onboarding service.
-All engines accept ``orchestration_id`` and derive the rest of their context
-from the ``scan_orchestration`` DB table.
+All engines receive ONLY orchestration_id. Each engine reads everything
+it needs from scan_orchestration table via get_orchestration_metadata().
+
+All engines use K8s Jobs on spot nodes. The API pod creates the Job
+and returns a scan_id immediately. We poll GET .../status until done.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import httpx
 
@@ -18,14 +21,20 @@ logger = logging.getLogger(__name__)
 
 # Default service URLs (overridden by env vars in K8s)
 _DEFAULTS: Dict[str, str] = {
-    "inventory": "http://engine-inventory.threat-engine-engines.svc.cluster.local",
-    "check":     "http://engine-check.threat-engine-engines.svc.cluster.local",
-    "threat":    "http://engine-threat.threat-engine-engines.svc.cluster.local",
-    "compliance":"http://engine-compliance.threat-engine-engines.svc.cluster.local",
-    "iam":       "http://engine-iam.threat-engine-engines.svc.cluster.local",
-    "datasec":   "http://engine-datasec.threat-engine-engines.svc.cluster.local",
-    "secops":    "http://engine-secops.threat-engine-engines.svc.cluster.local",
+    "discoveries": "http://engine-discoveries.threat-engine-engines.svc.cluster.local",
+    "inventory":   "http://engine-inventory.threat-engine-engines.svc.cluster.local",
+    "check":       "http://engine-check.threat-engine-engines.svc.cluster.local",
+    "threat":      "http://engine-threat.threat-engine-engines.svc.cluster.local",
+    "compliance":  "http://engine-compliance.threat-engine-engines.svc.cluster.local",
+    "iam":         "http://engine-iam.threat-engine-engines.svc.cluster.local",
+    "datasec":     "http://engine-datasec.threat-engine-engines.svc.cluster.local",
 }
+
+# Polling config
+ENGINE_POLL_INTERVAL: int = int(os.getenv("ENGINE_POLL_INTERVAL_S", "10"))
+ENGINE_POLL_TIMEOUT: int = int(os.getenv("ENGINE_POLL_TIMEOUT_S", "3600"))
+DISCOVERY_POLL_INTERVAL: int = int(os.getenv("DISCOVERY_POLL_INTERVAL_S", "15"))
+DISCOVERY_TIMEOUT: int = int(os.getenv("DISCOVERY_TIMEOUT_S", "7200"))
 
 
 def _url(engine: str) -> str:
@@ -33,113 +42,153 @@ def _url(engine: str) -> str:
     return os.getenv(env_key, _DEFAULTS[engine])
 
 
-async def trigger_inventory(
-    orchestration_id: str,
-    tenant_id: str,
-    account_id: str,
-    timeout: float = 300.0,
+# ── Shared polling helper ────────────────────────────────────────────────────
+
+
+async def _trigger_and_poll(
+    engine: str,
+    trigger_url: str,
+    trigger_payload: dict,
+    status_url_template: str,
+    scan_id_key: str,
+    poll_interval: int = ENGINE_POLL_INTERVAL,
+    timeout: int = ENGINE_POLL_TIMEOUT,
 ) -> Dict[str, Any]:
-    """Trigger the inventory engine.  Returns the HTTP response JSON."""
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        resp = await client.post(
-            f"{_url('inventory')}/api/v1/inventory/scan/discovery",
-            json={"tenant_id": tenant_id, "orchestration_id": orchestration_id},
-        )
+    """Trigger an engine scan via POST, then poll GET status until done.
+
+    Returns:
+        Dict with scan_id_key and status='completed'
+
+    Raises:
+        RuntimeError: If scan fails
+        TimeoutError: If scan doesn't complete within timeout
+    """
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        resp = await client.post(trigger_url, json=trigger_payload)
         resp.raise_for_status()
-        return resp.json()
+        dispatch_result = resp.json()
+
+    scan_id = dispatch_result.get(scan_id_key)
+    logger.info("%s triggered scan_id=%s", engine, scan_id)
+
+    if not scan_id:
+        return dispatch_result
+
+    status_url = status_url_template.format(scan_id=scan_id)
+    elapsed = 0
+
+    while elapsed < timeout:
+        await asyncio.sleep(poll_interval)
+        elapsed += poll_interval
+
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.get(status_url)
+                if resp.status_code == 404:
+                    continue
+                resp.raise_for_status()
+                status_data = resp.json()
+        except Exception as exc:
+            logger.warning("%s status poll failed: %s", engine, exc)
+            continue
+
+        status = status_data.get("status", "running")
+
+        if elapsed % 60 < poll_interval:
+            logger.info("%s status=%s elapsed=%ds scan_id=%s", engine, status, elapsed, scan_id)
+
+        if status == "completed":
+            return {scan_id_key: scan_id, "status": "completed"}
+
+        if status == "failed":
+            error = status_data.get("error", "unknown")
+            raise RuntimeError(f"{engine} scan failed: {scan_id} — {error}")
+
+    raise TimeoutError(f"{engine} scan {scan_id} did not complete within {timeout}s")
 
 
-async def trigger_check(
-    orchestration_id: str,
-    provider_type: str,
-    timeout: float = 300.0,
-) -> Dict[str, Any]:
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        resp = await client.post(
-            f"{_url('check')}/api/v1/scan",
-            json={"orchestration_id": orchestration_id},
-        )
-        resp.raise_for_status()
-        return resp.json()
+# ── Per-engine triggers ──────────────────────────────────────────────────────
+# Each engine receives ONLY orchestration_id.
+# Engine reads upstream scan_ids from scan_orchestration table.
 
 
-async def trigger_threat(
-    orchestration_id: str,
-    provider_type: str,
-    check_scan_id: Optional[str],
-    tenant_id: str = "",
-    timeout: float = 120.0,
-) -> Dict[str, Any]:
-    from datetime import datetime
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        resp = await client.post(
-            f"{_url('threat')}/api/v1/scan",
-            json={
-                "orchestration_id": orchestration_id,
-                "scan_run_id": orchestration_id,
-                "tenant_id": tenant_id,
-                "cloud": provider_type.lower(),
-                "trigger_type": "api",
-                "accounts": [],
-                "regions": [],
-                "services": [],
-                "started_at": datetime.utcnow().isoformat(),
-                "completed_at": None,
-            },
-        )
-        resp.raise_for_status()
-        return resp.json()
+async def trigger_discovery(orchestration_id: str) -> Dict[str, Any]:
+    base = _url("discoveries")
+    return await _trigger_and_poll(
+        engine="discovery",
+        trigger_url=f"{base}/api/v1/discovery",
+        trigger_payload={"orchestration_id": orchestration_id},
+        status_url_template=f"{base}/api/v1/discovery/{{scan_id}}",
+        scan_id_key="discovery_scan_id",
+        poll_interval=DISCOVERY_POLL_INTERVAL,
+        timeout=DISCOVERY_TIMEOUT,
+    )
 
 
-async def trigger_compliance(
-    orchestration_id: str,
-    timeout: float = 300.0,
-) -> Dict[str, Any]:
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        resp = await client.post(
-            f"{_url('compliance')}/api/v1/scan",
-            json={
-                "orchestration_id": orchestration_id,
-                "trigger_type": "manual",
-                "export_to_db": True,
-            },
-        )
-        resp.raise_for_status()
-        return resp.json()
+async def trigger_check(orchestration_id: str) -> Dict[str, Any]:
+    base = _url("check")
+    return await _trigger_and_poll(
+        engine="check",
+        trigger_url=f"{base}/api/v1/scan",
+        trigger_payload={"orchestration_id": orchestration_id},
+        status_url_template=f"{base}/api/v1/check/{{scan_id}}/status",
+        scan_id_key="check_scan_id",
+    )
 
 
-async def trigger_iam(
-    orchestration_id: str,
-    csp: str = "aws",
-    timeout: float = 120.0,
-) -> Dict[str, Any]:
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        resp = await client.post(
-            f"{_url('iam')}/api/v1/scan",
-            json={"orchestration_id": orchestration_id, "csp": csp, "max_findings": 5000},
-        )
-        resp.raise_for_status()
-        return resp.json()
+async def trigger_inventory(orchestration_id: str) -> Dict[str, Any]:
+    base = _url("inventory")
+    return await _trigger_and_poll(
+        engine="inventory",
+        trigger_url=f"{base}/api/v1/scan",
+        trigger_payload={"orchestration_id": orchestration_id},
+        status_url_template=f"{base}/api/v1/inventory/scan/{{scan_id}}/status",
+        scan_id_key="inventory_scan_id",
+    )
 
 
-async def trigger_datasec(
-    orchestration_id: str,
-    csp: str = "aws",
-    timeout: float = 120.0,
-) -> Dict[str, Any]:
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        resp = await client.post(
-            f"{_url('datasec')}/api/v1/scan",
-            json={
-                "orchestration_id": orchestration_id,
-                "csp": csp,
-                "include_classification": True,
-                "include_lineage": True,
-                "include_residency": True,
-                "include_activity": True,
-                "allowed_regions": [],
-                "max_findings": 5000,
-            },
-        )
-        resp.raise_for_status()
-        return resp.json()
+async def trigger_threat(orchestration_id: str) -> Dict[str, Any]:
+    base = _url("threat")
+    return await _trigger_and_poll(
+        engine="threat",
+        trigger_url=f"{base}/api/v1/scan",
+        trigger_payload={"orchestration_id": orchestration_id},
+        status_url_template=f"{base}/api/v1/threat/{{scan_id}}/status",
+        scan_id_key="threat_scan_id",
+    )
+
+
+async def trigger_compliance(orchestration_id: str) -> Dict[str, Any]:
+    base = _url("compliance")
+    return await _trigger_and_poll(
+        engine="compliance",
+        trigger_url=f"{base}/api/v1/scan",
+        trigger_payload={"orchestration_id": orchestration_id},
+        status_url_template=f"{base}/api/v1/compliance/{{scan_id}}/status",
+        scan_id_key="compliance_scan_id",
+        timeout=1800,
+    )
+
+
+async def trigger_iam(orchestration_id: str, csp: str = "aws") -> Dict[str, Any]:
+    base = _url("iam")
+    return await _trigger_and_poll(
+        engine="iam",
+        trigger_url=f"{base}/api/v1/scan",
+        trigger_payload={"orchestration_id": orchestration_id, "csp": csp},
+        status_url_template=f"{base}/api/v1/iam-security/{{scan_id}}/status",
+        scan_id_key="iam_scan_id",
+        timeout=900,
+    )
+
+
+async def trigger_datasec(orchestration_id: str, csp: str = "aws") -> Dict[str, Any]:
+    base = _url("datasec")
+    return await _trigger_and_poll(
+        engine="datasec",
+        trigger_url=f"{base}/api/v1/scan",
+        trigger_payload={"orchestration_id": orchestration_id, "csp": csp},
+        status_url_template=f"{base}/api/v1/data-security/{{scan_id}}/status",
+        scan_id_key="datasec_scan_id",
+        timeout=900,
+    )

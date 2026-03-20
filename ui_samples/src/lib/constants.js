@@ -70,7 +70,7 @@ export const NAV_ITEMS = [
     icon: 'Server',
     children: [
       { label: 'Assets', href: '/inventory' },
-      { label: 'Asset Graph', href: '/inventory/graph' },
+      { label: 'Architecture', href: '/inventory/architecture' },
     ],
   },
   {
@@ -85,7 +85,10 @@ export const NAV_ITEMS = [
     children: [
       { label: 'All Threats', href: '/threats' },
       { label: 'Attack Paths', href: '/threats/attack-paths' },
+      { label: 'Blast Radius', href: '/threats/blast-radius' },
       { label: 'Internet Exposed', href: '/threats/internet-exposed' },
+      { label: 'Toxic Combos', href: '/threats/toxic-combinations' },
+      { label: 'Graph Explorer', href: '/threats/graph' },
       { label: 'Analytics', href: '/threats/analytics' },
       { label: 'Threat Hunting', href: '/threats/hunting' },
     ],

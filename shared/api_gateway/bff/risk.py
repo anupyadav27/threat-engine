@@ -32,7 +32,7 @@ async def view_risk(
         ("threat", "/api/v1/threat/ui-data", {
             "tenant_id": tenant_id,
             "scan_run_id": "latest",
-            "limit": "0",
+            "limit": "1",
         }),
     ])
 

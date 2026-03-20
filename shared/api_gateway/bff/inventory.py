@@ -38,8 +38,8 @@ async def view_inventory(
     # ── 3 parallel calls instead of 4 ────────────────────────────────────
     results = await fetch_many([
         ("inventory",  "/api/v1/inventory/ui-data",  {"tenant_id": tenant_id, "scan_run_id": scan_run_id, "limit": str(limit), "offset": str(offset)}),
-        ("threat",     "/api/v1/threat/ui-data",     {"tenant_id": tenant_id, "scan_run_id": "latest", "limit": "0"}),
-        ("onboarding", "/api/v1/onboarding/ui-data", {"tenant_id": tenant_id}),
+        ("threat",     "/api/v1/threat/ui-data",     {"tenant_id": tenant_id, "scan_run_id": "latest", "limit": "1"}),
+        ("onboarding", "/api/v1/cloud-accounts", {"tenant_id": tenant_id}),
     ])
 
     inventory_data, threat_data, onboarding_data = results
@@ -686,6 +686,156 @@ async def _batch_posture_for_nodes(
         }
 
     return posture
+
+
+@router.get("/inventory/taxonomy")
+async def view_inventory_taxonomy(
+    csp: Optional[str] = Query(None),
+    category: Optional[str] = Query(None),
+    min_priority: int = Query(5, ge=1, le=5),
+):
+    """Taxonomy classifications from resource_inventory_identifier.
+
+    Passthrough to inventory engine's /api/v1/inventory/taxonomy endpoint.
+    Used by the UI to know how to group/color/nest resources in architecture diagrams.
+    """
+    params: Dict[str, str] = {"min_priority": str(min_priority)}
+    if csp:
+        params["csp"] = csp
+    if category:
+        params["category"] = category
+
+    results = await fetch_many([
+        ("inventory", "/api/v1/inventory/taxonomy", params),
+    ])
+
+    data = results[0]
+    if not isinstance(data, dict):
+        return {"total": 0, "classifications": [], "categories_summary": {}}
+    return data
+
+
+@router.get("/inventory/architecture")
+async def view_inventory_architecture(
+    tenant_id: str = Query(...),
+    scan_run_id: str = Query("latest"),
+    max_priority: int = Query(2, ge=1, le=5),
+    csp: Optional[str] = Query(None),
+):
+    """Architecture diagram — pre-nested hierarchy with posture enrichment.
+
+    Step 1: Get nested hierarchy from inventory engine /api/v1/inventory/architecture
+    Step 2: Batch-fetch posture for all assets in the hierarchy
+    Step 3: Merge posture counts into each node
+    """
+    params: Dict[str, str] = {
+        "tenant_id": tenant_id,
+        "scan_run_id": scan_run_id,
+        "max_priority": str(max_priority),
+        "include_relationships": "true",
+    }
+    if csp:
+        params["csp"] = csp
+
+    results = await fetch_many([
+        ("inventory", "/api/v1/inventory/architecture", params),
+    ])
+
+    arch_data = results[0]
+    if not isinstance(arch_data, dict) or not arch_data.get("accounts"):
+        return {
+            "accounts": [],
+            "relationships": [],
+            "stats": {"total_assets": 0, "total_relationships": 0, "enriched": False},
+        }
+
+    # Collect all resource_uids from nested hierarchy for posture enrichment
+    all_uids = _collect_uids_from_hierarchy(arch_data.get("accounts", []))
+
+    if all_uids:
+        posture_map = await _batch_posture_for_nodes(all_uids, tenant_id)
+        _merge_posture_into_hierarchy(arch_data.get("accounts", []), posture_map)
+
+    stats = arch_data.get("stats", {})
+    stats["enriched"] = True
+    arch_data["stats"] = stats
+
+    return arch_data
+
+
+def _collect_uids_from_hierarchy(accounts: List[Dict]) -> List[str]:
+    """Recursively collect all resource_uids from v2 nested hierarchy."""
+    uids = []
+
+    def collect_from_resources(resources):
+        if isinstance(resources, list):
+            for r in resources:
+                if isinstance(r, dict) and r.get("resource_uid"):
+                    uids.append(r["resource_uid"])
+        elif isinstance(resources, dict):
+            for cat_resources in resources.values():
+                collect_from_resources(cat_resources)
+
+    for acct in accounts:
+        # v2: global_primary (dict of category → [resources])
+        collect_from_resources(acct.get("global_primary", {}))
+
+        # v2: supporting_services (dict of group → {global: [...], regional: {region: [...]}})
+        for grp in (acct.get("supporting_services") or {}).values():
+            if isinstance(grp, dict):
+                collect_from_resources(grp.get("global", []))
+                for region_list in (grp.get("regional") or {}).values():
+                    collect_from_resources(region_list)
+
+        # Regions
+        for reg in acct.get("regions", []):
+            collect_from_resources(reg.get("regional_primary", {}))
+            for vpc in reg.get("vpcs", []):
+                collect_from_resources(vpc.get("vpc_infrastructure", []))
+                for subnet in vpc.get("subnets", []):
+                    collect_from_resources(subnet.get("resources_by_category", {}))
+
+    return uids
+
+
+def _merge_posture_into_hierarchy(
+    accounts: List[Dict],
+    posture_map: Dict[str, Dict[str, Any]],
+):
+    """Recursively merge posture data into all resource nodes in hierarchy."""
+    def enrich_resources(resources):
+        if isinstance(resources, list):
+            for r in resources:
+                if isinstance(r, dict) and r.get("resource_uid"):
+                    p = posture_map.get(r["resource_uid"], {})
+                    check = p.get("check", {})
+                    threat = p.get("threat", {})
+                    r["posture"] = {
+                        "check": check,
+                        "threat": threat,
+                        "total_critical": check.get("critical", 0) + threat.get("critical", 0),
+                        "total_high": check.get("high", 0) + threat.get("high", 0),
+                    }
+        elif isinstance(resources, dict):
+            for cat_resources in resources.values():
+                enrich_resources(cat_resources)
+
+    for acct in accounts:
+        # v2 structure
+        enrich_resources(acct.get("global_primary", {}))
+
+        for grp in (acct.get("supporting_services") or {}).values():
+            if isinstance(grp, dict):
+                enrich_resources(grp.get("global", []))
+                for region_list in (grp.get("regional") or {}).values():
+                    enrich_resources(region_list)
+
+        for reg in acct.get("regions", []):
+            enrich_resources(reg.get("regional_primary", {}))
+            for vpc in reg.get("vpcs", []):
+                enrich_resources(vpc.get("vpc_infrastructure", []))
+                for subnet in vpc.get("subnets", []):
+                    enrich_resources(subnet.get("resources_by_category", {}))
 
 
 @router.get("/inventory/graph")

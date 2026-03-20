@@ -69,45 +69,102 @@ VERDICT_THRESHOLDS: List[Tuple[int, str]] = [
 ]
 
 
+# ── Attack path category classification (loaded from DB, inline fallback) ────
+# Used when DB lookup fails or for relation types not yet seeded.
+_ATTACK_PATH_CATEGORIES: Dict[str, Optional[str]] = {
+    "internet_connected": "exposure", "exposed_through": "exposure",
+    "serves_traffic_for": "exposure",
+    "connected_to": "lateral_movement", "routes_to": "lateral_movement",
+    "allows_traffic_from": "lateral_movement", "attached_to": "lateral_movement",
+    "runs_on": "lateral_movement",
+    "assumes": "privilege_escalation", "has_policy": "privilege_escalation",
+    "grants_access_to": "privilege_escalation",
+    "stores_data_in": "data_access", "backs_up_to": "data_access",
+    "replicates_to": "data_access", "cached_by": "data_access",
+    "triggers": "execution", "invokes": "execution", "uses": "execution",
+    "publishes_to": "data_flow", "subscribes_to": "data_flow",
+    "resolves_to": "data_flow",
+    # Not attack paths → None
+    "contained_by": None, "controlled_by": None, "encrypted_by": None,
+    "logging_enabled_to": None, "monitored_by": None, "member_of": None,
+    "scales_with": None, "manages": None, "deployed_by": None,
+    "depends_on": None, "authenticated_by": None, "protected_by": None,
+    "scanned_by": None, "complies_with": None,
+    "1st_layer": None, "2nd_layer": None, "3rd_layer": None,
+    "4th_layer": None, "on_prem_datacenter": None,
+}
+
+# Target value scores by asset_category (used in path scoring)
+_ASSET_CATEGORY_SCORES: Dict[str, int] = {
+    "secrets":    30,
+    "data_store": 25,
+    "identity":   25,
+    "compute":    15,
+    "network":    10,
+    "messaging":  10,
+    "deployment": 10,
+    "monitoring":  5,
+    "governance":  5,
+}
+
+# Hop category scores for path scoring
+_HOP_CATEGORY_SCORES: Dict[str, int] = {
+    "exposure":             5,
+    "lateral_movement":    10,
+    "privilege_escalation": 15,
+    "data_access":         12,
+    "execution":           12,
+    "data_flow":            8,
+}
+
+
 # ── Helper: Build adjacency list from inventory_relationships ────────────────
 
 def _build_adjacency(
     relationships: List[Dict[str, Any]],
+    attack_path_categories: Optional[Dict[str, Optional[str]]] = None,
+    attack_only: bool = False,
 ) -> Dict[str, List[Dict[str, Any]]]:
     """
     Build directed adjacency list from inventory_relationships rows.
 
-    Uses both legacy (from_uid / to_uid) and new (source_resource_uid /
-    target_resource_uid) columns.  Bi-directional edges are added in both
-    directions.
+    Args:
+        relationships: Raw rows from inventory_relationships.
+        attack_path_categories: Mapping of relation_type → category (or None).
+            If not provided, uses the inline _ATTACK_PATH_CATEGORIES.
+        attack_only: If True, only include edges with a non-None attack_path_category.
     """
+    categories = attack_path_categories or _ATTACK_PATH_CATEGORIES
     adj: Dict[str, List[Dict[str, Any]]] = {}
 
     for rel in relationships:
-        # Prefer new columns; fall back to legacy
         src = rel.get("source_resource_uid") or rel.get("from_uid") or ""
         dst = rel.get("target_resource_uid") or rel.get("to_uid") or ""
         rel_type = rel.get("relationship_type") or rel.get("relation_type") or "related"
 
-        if not src or not dst:
+        if not src or not dst or src == dst:
             continue
-        # Skip self-referencing edges (references to same resource)
-        if src == dst:
+
+        category = categories.get(rel_type)
+
+        # If attack_only, skip edges with no attack category
+        if attack_only and category is None:
             continue
 
         edge = {
             "target": dst,
             "relationship_type": rel_type,
+            "attack_path_category": category,
             "strength": rel.get("relationship_strength", "strong"),
             "properties": rel.get("properties") or {},
         }
         adj.setdefault(src, []).append(edge)
 
-        # If bi-directional, add reverse
         if rel.get("bidirectional"):
             rev = {
                 "target": src,
                 "relationship_type": rel_type,
+                "attack_path_category": category,
                 "strength": rel.get("relationship_strength", "strong"),
                 "properties": rel.get("properties") or {},
             }
@@ -123,6 +180,7 @@ def _bfs_reachable(
 ) -> Tuple[Set[str], List[Dict[str, Any]]]:
     """
     BFS from *start* up to *max_depth* hops.
+    Only follows edges that have attack_path_category set (non-None).
 
     Returns:
         reachable: set of reachable resource UIDs (excluding start)
@@ -137,6 +195,9 @@ def _bfs_reachable(
         if depth >= max_depth:
             continue
         for edge in adj.get(node, []):
+            # Only follow attack-relevant edges
+            if not edge.get("attack_path_category"):
+                continue
             tgt = edge["target"]
             if tgt not in visited:
                 visited.add(tgt)
@@ -145,12 +206,206 @@ def _bfs_reachable(
                     "to": tgt,
                     "hop": depth + 1,
                     "relationship_type": edge["relationship_type"],
+                    "attack_path_category": edge["attack_path_category"],
                     "strength": edge["strength"],
                 })
                 queue.append((tgt, depth + 1))
 
     reachable = visited - {start}
     return reachable, path_edges
+
+
+# ── DFS: Find all attack paths from a resource ──────────────────────────────
+
+def _find_attack_paths(
+    adj: Dict[str, List[Dict[str, Any]]],
+    start: str,
+    asset_categories: Dict[str, str],
+    internet_reachable: Set[str],
+    max_depth: int = 5,
+    max_paths: int = 20,
+) -> List[Dict[str, Any]]:
+    """
+    DFS from *start* to find all distinct attack paths to valuable targets.
+
+    A path is recorded when it reaches:
+      - A resource with a known asset_category (data_store, secrets, identity, etc.)
+      - A resource that is different from the start (any reachable target)
+
+    Only follows edges with attack_path_category set.
+
+    Args:
+        adj: Adjacency list (with attack_path_category on edges).
+        start: Starting resource UID.
+        asset_categories: resource_uid → asset_category lookup.
+        internet_reachable: Set of internet-reachable resource UIDs.
+        max_depth: Max hops per path.
+        max_paths: Max number of paths to return.
+
+    Returns:
+        List of path dicts with hops, chain_type, path_score, etc.
+    """
+    paths: List[Dict[str, Any]] = []
+
+    # Determine if start is internet-reachable (entry type matters for scoring)
+    start_is_internet = start in internet_reachable
+
+    def dfs(node: str, current_hops: List[Dict[str, Any]], visited: Set[str], depth: int):
+        if len(paths) >= max_paths:
+            return
+        if depth > max_depth:
+            return
+
+        # Record path if we've moved and reached a categorized target
+        if depth > 0:
+            target_category = asset_categories.get(node)
+            if target_category:
+                path = _build_path_result(
+                    start, node, target_category, current_hops,
+                    start_is_internet, asset_categories,
+                )
+                paths.append(path)
+
+        for edge in adj.get(node, []):
+            if len(paths) >= max_paths:
+                return
+            if not edge.get("attack_path_category"):
+                continue
+            tgt = edge["target"]
+            if tgt in visited:
+                continue
+
+            hop = {
+                "from": node,
+                "to": tgt,
+                "rel": edge["relationship_type"],
+                "category": edge["attack_path_category"],
+            }
+            visited.add(tgt)
+            current_hops.append(hop)
+            dfs(tgt, current_hops, visited, depth + 1)
+            current_hops.pop()
+            visited.remove(tgt)
+
+    dfs(start, [], {start}, 0)
+
+    # Sort by path_score descending
+    paths.sort(key=lambda p: p.get("path_score", 0), reverse=True)
+    return paths
+
+
+def _build_path_result(
+    start: str,
+    target: str,
+    target_category: str,
+    hops: List[Dict[str, Any]],
+    start_is_internet: bool,
+    asset_categories: Dict[str, str],
+) -> Dict[str, Any]:
+    """Build a structured path result with classification and scoring."""
+    chain_type = _classify_chain(hops, start_is_internet, target_category)
+    path_score = _score_path(hops, start_is_internet, target_category)
+
+    return {
+        "chain_type": chain_type,
+        "path_score": path_score,
+        "entry_point": start,
+        "target": target,
+        "target_category": target_category,
+        "depth": len(hops),
+        "hops": [dict(h) for h in hops],  # deep copy
+    }
+
+
+def _classify_chain(
+    hops: List[Dict[str, Any]],
+    start_is_internet: bool,
+    target_category: str,
+) -> str:
+    """Derive chain_type from hop categories + entry/target context."""
+    categories = {h["category"] for h in hops}
+    prefix = "internet_to" if start_is_internet else "internal"
+
+    if target_category == "secrets":
+        return f"{prefix}_secrets"
+    if target_category == "data_store":
+        return f"{prefix}_data"
+    if target_category == "identity":
+        if "privilege_escalation" in categories:
+            return f"{prefix}_privilege_escalation"
+        return f"{prefix}_identity"
+    if target_category == "compute":
+        if "execution" in categories:
+            return f"{prefix}_code_execution"
+        if "lateral_movement" in categories:
+            return f"{prefix}_lateral_movement"
+        return f"{prefix}_compute"
+
+    # Generic based on dominant hop category
+    if "privilege_escalation" in categories:
+        return f"{prefix}_privilege_escalation"
+    if "data_access" in categories:
+        return f"{prefix}_data_access"
+    if categories == {"lateral_movement"}:
+        return f"{prefix}_lateral_movement"
+    return f"{prefix}_generic"
+
+
+def _score_path(
+    hops: List[Dict[str, Any]],
+    start_is_internet: bool,
+    target_category: str,
+) -> int:
+    """Score an attack path for criticality (0-100)."""
+    score = 0
+
+    # Entry point score
+    score += 30 if start_is_internet else 10
+
+    # Hop category scores
+    for hop in hops:
+        score += _HOP_CATEGORY_SCORES.get(hop.get("category", ""), 5)
+
+    # Target value score
+    score += _ASSET_CATEGORY_SCORES.get(target_category, 5)
+
+    # Shorter paths are more dangerous (attacker friction)
+    if len(hops) <= 2:
+        score += 5
+
+    return min(100, score)
+
+
+def _infer_asset_category(resource_type: str) -> Optional[str]:
+    """Infer asset_category from resource_type string when DB lookup unavailable."""
+    rt = resource_type.lower()
+    # Secrets
+    if any(k in rt for k in ("secret", "kms", "ssm.parameter", "acm")):
+        return "secrets"
+    # Data stores
+    if any(k in rt for k in ("s3.bucket", "rds.", "dynamodb", "redshift", "elasticache",
+                              "efs.", "docdb", "neptune", "aurora", "backup")):
+        return "data_store"
+    # Identity
+    if any(k in rt for k in ("iam.role", "iam.user", "iam.policy", "iam.group",
+                              "cognito", "sso", "identitystore")):
+        return "identity"
+    # Compute
+    if any(k in rt for k in ("ec2.instance", "lambda.function", "ecs.", "eks.",
+                              "batch.", "sagemaker", "emr")):
+        return "compute"
+    # Network
+    if any(k in rt for k in ("vpc", "subnet", "security-group", "security_group",
+                              "elb", "apigateway", "cloudfront", "route53",
+                              "internet-gateway", "nat-gateway")):
+        return "network"
+    # Messaging
+    if any(k in rt for k in ("sqs", "sns", "eventbridge", "kinesis", "msk")):
+        return "messaging"
+    # Monitoring
+    if any(k in rt for k in ("cloudwatch", "cloudtrail", "config.", "guardduty")):
+        return "monitoring"
+    return None
 
 
 # ── Core analysis functions ──────────────────────────────────────────────────
@@ -244,33 +499,39 @@ def determine_verdict(risk_score: int) -> str:
 
 
 def build_attack_chain(
-    path_edges: List[Dict[str, Any]],
-    resource_arn: str,
+    attack_paths: List[Dict[str, Any]],
+    resource_uid: str,
     techniques: List[str],
 ) -> List[Dict[str, Any]]:
     """
-    Build simplified attack chain from path edges + MITRE techniques.
+    Build attack chain from DFS-discovered attack paths.
+
+    Returns a list of chain steps combining the initial compromise
+    with the most critical attack path found.
     """
     chain: List[Dict[str, Any]] = []
 
     # Step 1: Initial compromise at the affected resource
     chain.append({
         "step": 1,
-        "resource": resource_arn,
+        "resource": resource_uid,
         "action": "initial_compromise",
-        "description": f"Misconfiguration detected on {resource_arn}",
+        "description": f"Misconfiguration detected on {resource_uid}",
         "mitre_techniques": techniques[:3],
     })
 
-    # Steps 2+: Each hop in the blast radius
-    for i, edge in enumerate(path_edges[:5], start=2):  # Max 5 hops in chain
-        chain.append({
-            "step": i,
-            "resource": edge["to"],
-            "action": edge["relationship_type"],
-            "description": f"Lateral movement via {edge['relationship_type']} to {edge['to']}",
-            "hop_from": edge["from"],
-        })
+    # Use the highest-scored path for the chain
+    if attack_paths:
+        best_path = attack_paths[0]  # Already sorted by path_score desc
+        for i, hop in enumerate(best_path.get("hops", [])[:5], start=2):
+            chain.append({
+                "step": i,
+                "resource": hop["to"],
+                "action": hop["rel"],
+                "attack_path_category": hop["category"],
+                "description": f"{hop['category'].replace('_', ' ').title()} via {hop['rel']} to {hop['to']}",
+                "hop_from": hop["from"],
+            })
 
     return chain
 
@@ -676,44 +937,194 @@ class ThreatAnalyzer:
         inventory_scan_id: Optional[str] = None,
     ) -> Set[str]:
         """
-        Identify internet-reachable resources from inventory_relationships.
+        Identify internet-reachable resources from two sources:
 
-        Looks for relationships of type 'exposes', 'routes_to', 'allows_traffic'
-        that originate from internet-like sources.
+        1. inventory_relationships: edges of type 'exposes', 'routes_to',
+           'allows_traffic', 'internet_connected', or containing 'public'.
+        2. check_findings: FAIL findings whose rule_id matches internet
+           exposure patterns (public_access, exposed_to_internet, etc.).
 
         Args:
             tenant_id: Tenant isolation filter.
-            inventory_scan_id: If provided, scope to this inventory scan only.
+            inventory_scan_id: If provided, scope inventory query to this scan.
         """
         import psycopg2
         from psycopg2.extras import RealDictCursor
 
         reachable: Set[str] = set()
-        conn = psycopg2.connect(self._inventory_conn_str())
+
+        # ── Source 1: inventory_relationships ──────────────────────────────
         try:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                base_query = """
-                    SELECT DISTINCT
-                        COALESCE(target_resource_uid, to_uid) as target
-                    FROM inventory_relationships
-                    WHERE tenant_id = %s
-                      AND (
-                        COALESCE(relationship_type, relation_type) IN ('exposes', 'routes_to', 'allows_traffic')
-                        OR COALESCE(relationship_type, relation_type) LIKE '%%public%%'
-                      )
-                """
-                if inventory_scan_id:
-                    base_query += " AND inventory_scan_id = %s"
-                    cur.execute(base_query, (tenant_id, inventory_scan_id))
-                else:
-                    cur.execute(base_query, (tenant_id,))
-                for row in cur.fetchall():
-                    if row["target"]:
-                        reachable.add(row["target"])
-        finally:
-            conn.close()
+            conn = psycopg2.connect(self._inventory_conn_str())
+            try:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    base_query = """
+                        SELECT DISTINCT
+                            COALESCE(target_resource_uid, to_uid) as target,
+                            COALESCE(source_resource_uid, from_uid) as source
+                        FROM inventory_relationships
+                        WHERE tenant_id = %s
+                          AND (
+                            COALESCE(relationship_type, relation_type) IN (
+                                'exposes', 'routes_to', 'allows_traffic', 'internet_connected'
+                            )
+                            OR COALESCE(relationship_type, relation_type) LIKE '%%public%%'
+                          )
+                    """
+                    if inventory_scan_id:
+                        base_query += " AND inventory_scan_id = %s"
+                        cur.execute(base_query, (tenant_id, inventory_scan_id))
+                    else:
+                        cur.execute(base_query, (tenant_id,))
+                    for row in cur.fetchall():
+                        # For internet_connected, the FROM side is the exposed resource
+                        if row["source"]:
+                            reachable.add(row["source"])
+                        if row["target"]:
+                            reachable.add(row["target"])
+            finally:
+                conn.close()
+        except Exception as e:
+            logger.warning(f"Could not query inventory for reachability: {e}")
+
+        inv_count = len(reachable)
+
+        # ── Source 2: check_findings with internet exposure patterns ───────
+        try:
+            check_host = os.getenv("CHECK_DB_HOST", os.getenv("THREAT_DB_HOST", "localhost"))
+            check_port = os.getenv("CHECK_DB_PORT", "5432")
+            check_db = os.getenv("CHECK_DB_NAME", "threat_engine_check")
+            check_user = os.getenv("CHECK_DB_USER", os.getenv("THREAT_DB_USER", "postgres"))
+            check_pwd = os.getenv("CHECK_DB_PASSWORD", os.getenv("THREAT_DB_PASSWORD", ""))
+            check_conn_str = f"postgresql://{check_user}:{check_pwd}@{check_host}:{check_port}/{check_db}"
+
+            conn = psycopg2.connect(check_conn_str)
+            try:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute("""
+                        SELECT DISTINCT resource_uid
+                        FROM check_findings
+                        WHERE tenant_id = %s
+                          AND status = 'FAIL'
+                          AND resource_uid IS NOT NULL
+                          AND (
+                            rule_id ILIKE '%%exposed_to_internet%%'
+                            OR rule_id ILIKE '%%public_access%%'
+                            OR rule_id ILIKE '%%publicly_accessible%%'
+                            OR rule_id ILIKE '%%public_ip%%'
+                            OR rule_id ILIKE '%%unrestricted%%'
+                            OR rule_id ILIKE '%%open_to_world%%'
+                            OR rule_id ILIKE '%%0_0_0_0%%'
+                            OR rule_id ILIKE '%%internet_facing%%'
+                            OR rule_id ILIKE '%%internet_ingress%%'
+                            OR rule_id ILIKE '%%not_publicly%%'
+                            OR rule_id ILIKE '%%public_read%%'
+                            OR rule_id ILIKE '%%public_write%%'
+                            OR rule_id ILIKE '%%block_public%%'
+                            OR rule_id ILIKE '%%no_public_ip%%'
+                            OR rule_id ILIKE '%%ami_public%%'
+                          )
+                    """, (tenant_id,))
+                    for row in cur.fetchall():
+                        if row["resource_uid"]:
+                            reachable.add(row["resource_uid"])
+            finally:
+                conn.close()
+        except Exception as e:
+            logger.warning(f"Could not query check_findings for internet exposure: {e}")
+
+        check_count = len(reachable) - inv_count
+        logger.info(f"Internet-reachable resources: {len(reachable)} "
+                    f"(inventory={inv_count}, check_findings={check_count})")
 
         return reachable
+
+    # ── Attack path + asset category loaders ─────────────────────────────
+
+    def _load_attack_path_categories(self) -> Dict[str, Optional[str]]:
+        """Load attack_path_category mapping from resource_relationship_rules.
+
+        Returns dict: relation_type → category (or None for non-attack edges).
+        Falls back to inline _ATTACK_PATH_CATEGORIES if DB read fails.
+        """
+        import psycopg2
+        from psycopg2.extras import RealDictCursor
+
+        try:
+            conn = psycopg2.connect(self._inventory_conn_str())
+            try:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute("""
+                        SELECT DISTINCT relation_type, attack_path_category
+                        FROM resource_relationship_rules
+                        WHERE is_active = TRUE
+                    """)
+                    categories: Dict[str, Optional[str]] = {}
+                    for row in cur.fetchall():
+                        categories[row["relation_type"]] = row.get("attack_path_category")
+                    if categories:
+                        logger.info(f"Loaded attack_path_category for {len(categories)} relation types from DB")
+                        return categories
+            finally:
+                conn.close()
+        except Exception as e:
+            logger.warning(f"Could not load attack_path_categories from DB: {e}")
+
+        logger.info("Using inline attack_path_categories fallback")
+        return dict(_ATTACK_PATH_CATEGORIES)
+
+    def _load_asset_categories(self, tenant_id: str) -> Dict[str, str]:
+        """Load asset_category for all inventoried resources.
+
+        Joins inventory_findings with resource_inventory_identifier to map
+        each resource_uid → asset_category.
+
+        Returns dict: resource_uid → asset_category (only non-None entries).
+        """
+        import psycopg2
+        from psycopg2.extras import RealDictCursor
+
+        categories: Dict[str, str] = {}
+        try:
+            conn = psycopg2.connect(self._inventory_conn_str())
+            try:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute("""
+                        SELECT f.resource_uid, r.asset_category
+                        FROM inventory_findings f
+                        JOIN resource_inventory_identifier r
+                          ON r.csp = split_part(f.resource_type, '.', 1)
+                         AND r.service = split_part(f.resource_type, '.', 1)
+                         AND r.canonical_type = split_part(f.resource_type, '.', 2)
+                        WHERE f.tenant_id = %s
+                          AND r.asset_category IS NOT NULL
+                    """, (tenant_id,))
+                    for row in cur.fetchall():
+                        if row["resource_uid"] and row["asset_category"]:
+                            categories[row["resource_uid"]] = row["asset_category"]
+
+                    # Fallback: infer from resource_type if JOIN yielded few results
+                    if len(categories) < 10:
+                        cur.execute("""
+                            SELECT resource_uid, resource_type
+                            FROM inventory_findings
+                            WHERE tenant_id = %s AND resource_uid IS NOT NULL
+                        """, (tenant_id,))
+                        for row in cur.fetchall():
+                            uid = row["resource_uid"]
+                            if uid in categories:
+                                continue
+                            rt = (row.get("resource_type") or "").lower()
+                            cat = _infer_asset_category(rt)
+                            if cat:
+                                categories[uid] = cat
+
+                logger.info(f"Loaded asset_category for {len(categories)} resources")
+            finally:
+                conn.close()
+        except Exception as e:
+            logger.warning(f"Could not load asset_categories: {e}")
+        return categories
 
     # ── Analysis orchestrator ────────────────────────────────────────────
 
@@ -770,21 +1181,31 @@ class ThreatAnalyzer:
         #     Graceful: if DB read fails, falls back to hardcoded weights.
         mitre_guidance = self._load_mitre_guidance()
 
-        # 2. Load relationships & build graph
+        # 2. Load relationships & build attack-path-filtered graph
         #    Requires INVENTORY_DB_* env vars. If not configured, we log an
         #    ERROR (not warning) so operators know blast-radius is broken.
         adjacency: Dict[str, List[Dict[str, Any]]] = {}
+        asset_categories: Dict[str, str] = {}
         internet_reachable: Set[str] = set()
         inventory_available = False
 
         try:
+            # Load attack_path_category classification from DB
+            attack_path_cats = self._load_attack_path_categories()
+
             relationships = self._load_relationships(tenant_id, inventory_scan_id)
-            adjacency = _build_adjacency(relationships)
+            # Build adjacency with attack-path filtering
+            adjacency = _build_adjacency(relationships, attack_path_cats, attack_only=True)
             inventory_available = True
-            logger.info(f"Built adjacency graph: {len(adjacency)} nodes, "
-                        f"{sum(len(v) for v in adjacency.values())} edges")
+
+            total_edges = sum(len(v) for v in adjacency.values())
+            logger.info(f"Built attack-path adjacency: {len(adjacency)} nodes, "
+                        f"{total_edges} attack-relevant edges "
+                        f"(filtered from {len(relationships)} total relationships)")
+
+            # Load asset categories for target scoring
+            asset_categories = self._load_asset_categories(tenant_id)
         except EnvironmentError as e:
-            # INVENTORY_DB not configured — this is an operator error, not transient
             logger.error(f"INVENTORY_DB not configured: {e}. "
                          f"Blast-radius will score ZERO for all detections.")
         except Exception as e:
@@ -803,25 +1224,51 @@ class ThreatAnalyzer:
         else:
             logger.warning("Skipping internet-reachability check — inventory DB not available")
 
+        # 3b. Load threat intelligence correlations
+        #     Matches intel entries with detections by MITRE technique overlap.
+        #     Used to enrich analysis with external context (IOCs, TTPs, sources).
+        intel_by_detection: Dict[str, List[Dict[str, Any]]] = {}
+        try:
+            from ..storage.threat_intel_writer import correlate_intel_with_threats
+            correlations = correlate_intel_with_threats(tenant_id)
+            for c in correlations:
+                det_id = str(c.get("detection_id", ""))
+                if det_id:
+                    intel_by_detection.setdefault(det_id, []).append({
+                        "intel_id": str(c.get("intel_id", "")),
+                        "source": c.get("intel_source", ""),
+                        "intel_type": c.get("intel_type", ""),
+                        "severity": c.get("intel_severity", ""),
+                    })
+            if correlations:
+                logger.info(f"Threat intel correlations: {len(correlations)} matches "
+                            f"across {len(intel_by_detection)} detections")
+        except Exception as e:
+            logger.warning(f"Threat intelligence correlation skipped: {e}")
+
         # 4. Analyze each detection
         analysis_results: List[Dict[str, Any]] = []
         now = datetime.now(timezone.utc)
 
         for det in detections:
             detection_id = str(det["detection_id"])
-            resource_arn = det.get("resource_arn") or ""
+            resource_uid = det.get("resource_uid") or ""
             severity = (det.get("severity") or "medium").lower()
             mitre_techniques = det.get("mitre_techniques") or []
             mitre_tactics = det.get("mitre_tactics") or []
 
-            # Blast radius
-            blast = compute_blast_radius(resource_arn, adjacency)
+            # Blast radius (BFS — only attack-relevant edges)
+            blast = compute_blast_radius(resource_uid, adjacency)
+
+            # Attack paths (DFS — full path enumeration to valuable targets)
+            is_reachable = resource_uid in internet_reachable
+            attack_paths = _find_attack_paths(
+                adjacency, resource_uid, asset_categories,
+                internet_reachable, max_depth=5, max_paths=20,
+            )
 
             # MITRE impact (uses DB severity_base when available)
             mitre_impact = compute_mitre_impact_score(mitre_techniques, mitre_guidance)
-
-            # Internet reachable?
-            is_reachable = resource_arn in internet_reachable
 
             # Risk score
             risk_score = compute_risk_score(
@@ -831,9 +1278,9 @@ class ThreatAnalyzer:
             # Verdict
             verdict = determine_verdict(risk_score)
 
-            # Attack chain
+            # Attack chain (from DFS paths, not raw BFS edges)
             attack_chain = build_attack_chain(
-                blast["path_edges"], resource_arn, mitre_techniques
+                attack_paths, resource_uid, mitre_techniques
             )
 
             # Recommendations (enriched with DB guidance, CSP-aware)
@@ -843,13 +1290,13 @@ class ThreatAnalyzer:
                 is_reachable, verdict, mitre_guidance, detection_provider
             )
 
-            # Related threats (same resource_arn or overlapping blast radius)
+            # Related threats (same resource_uid or overlapping blast radius)
             related = []
             for other in detections:
                 if str(other["detection_id"]) == detection_id:
                     continue
-                other_arn = other.get("resource_arn") or ""
-                if other_arn == resource_arn or other_arn in blast.get("reachable_resources", []):
+                other_uid = other.get("resource_uid") or ""
+                if other_uid == resource_uid or other_uid in blast.get("reachable_resources", []):
                     related.append(str(other["detection_id"]))
             related = related[:10]  # Cap at 10
 
@@ -879,12 +1326,24 @@ class ThreatAnalyzer:
                         "has_remediation_guidance": False,
                     })
 
+            # Summarize attack paths
+            chain_types = list({p["chain_type"] for p in attack_paths})
+            critical_paths = [p for p in attack_paths if p.get("path_score", 0) >= 70]
+
             # Build analysis_results JSONB
             analysis_result = {
                 "blast_radius": {
                     "reachable_count": blast["reachable_count"],
-                    "reachable_resources": blast["reachable_resources"][:20],  # Cap
+                    "reachable_resources": blast["reachable_resources"][:20],
                     "depth_distribution": blast["depth_distribution"],
+                },
+                "attack_paths": attack_paths[:10],  # Top 10 paths by score
+                "attack_paths_summary": {
+                    "total_paths": len(attack_paths),
+                    "critical_paths": len(critical_paths),
+                    "chain_types": chain_types,
+                    "deepest_path": max((p["depth"] for p in attack_paths), default=0),
+                    "highest_score": attack_paths[0]["path_score"] if attack_paths else 0,
                 },
                 "mitre_analysis": {
                     "techniques": mitre_techniques,
@@ -898,6 +1357,7 @@ class ThreatAnalyzer:
                 },
                 "severity_weight": SEVERITY_WEIGHTS.get(severity, 0.5),
                 "composite_formula": "severity×40 + blast_radius×25 + mitre_impact×25 + reachability×10",
+                "threat_intel": intel_by_detection.get(detection_id, []),
             }
 
             row = {

@@ -143,6 +143,13 @@ class PostgresIndexWriter(IndexWriter):
             labels = _serialize_value(labels)
             properties = _serialize_value(properties)
 
+            # Remove stale row if resource_uid exists under a different asset_id
+            # (handles the dual unique constraint: PK on asset_id + UNIQUE on resource_uid,tenant_id)
+            cursor.execute(
+                "DELETE FROM inventory_findings WHERE resource_uid = %s AND tenant_id = %s AND asset_id != %s",
+                (asset.resource_uid, asset.tenant_id, asset_id),
+            )
+
             cursor.execute("""
                 INSERT INTO inventory_findings (
                     asset_id, tenant_id, resource_uid, provider, account_id,
@@ -151,6 +158,7 @@ class PostgresIndexWriter(IndexWriter):
                     inventory_scan_id, latest_scan_run_id, updated_at
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (asset_id) DO UPDATE SET
+                    resource_uid = EXCLUDED.resource_uid,
                     resource_type = EXCLUDED.resource_type,
                     resource_id = EXCLUDED.resource_id,
                     name = EXCLUDED.name,

@@ -220,24 +220,76 @@ def _neo4j_label(resource_type: str) -> str:
     return RESOURCE_TYPE_LABELS.get(resource_type, "CloudResource")
 
 
-def _arn_to_custom_uid(arn: str) -> str:
-    """Convert an AWS ARN to the custom ec2:region:account:id UID format used by inventory_findings.
+# ── Relation type mapping ─────────────────────────────────────────────────────
+# Maps inventory relation_type → Neo4j relationship type for attack-path traversal.
+# The Cypher attack-path query traverses: CONNECTS_TO, ACCESSES, USES, ASSUMES,
+# PROTECTED_BY, ROUTES_TO — so we map inventory types to these.
+_RELATION_TYPE_MAP: Dict[str, str] = {
+    # Network / topology
+    "contained_by": "_CONTEXT",        # placeholder — overridden by _infer_rel_type()
+    "attached_to":  "_CONTEXT",        # placeholder — overridden by _infer_rel_type()
+    # IAM / access
+    "uses":               "ASSUMES",   # instance-profile → role, lambda → role
+    "assumes":            "ASSUMES",
+    # Logging / audit
+    "logging_enabled_to": "LOGS_TO",
+    "logged_to":          "LOGS_TO",
+    # Encryption
+    "encrypted_by":       "ENCRYPTED_BY",
+    "resolves_to":        "RESOLVES_TO",
+    # Network membership
+    "member_of":          "MEMBER_OF",
+    "runs_on":            "RUNS_ON",
+}
 
-    inventory_relationships stores ARNs (arn:aws:ec2:ap-south-1:123:security-group/sg-xxx)
-    inventory_findings stores custom UIDs (ec2:ap-south-1:123:sg-xxx)
-    This function bridges the gap so graph MATCH queries can find nodes.
+
+def _infer_rel_type(
+    raw_type: str, from_type: str, to_type: str
+) -> str:
+    """Context-aware mapping for contained_by / attached_to based on resource types.
+
+    The same inventory relation_type (e.g. 'contained_by') means different things
+    depending on which resource types are involved:
+      SG → VPC        = IN_VPC  (the SG belongs to the VPC)
+      Subnet → VPC    = IN_VPC
+      NACL → VPC      = IN_VPC
+      EC2 → Subnet    = HOSTED_IN  (the instance sits in the subnet)
+      EC2 → VPC       = IN_VPC
+      Lambda → VPC    = IN_VPC
+      Lambda → SG     = PROTECTED_BY
+      Lambda → Subnet = HOSTED_IN
+      EC2 → SG        = PROTECTED_BY
+      EC2 → ENI       = CONNECTS_TO
+      EC2 → Volume    = USES
     """
-    if not arn.startswith("arn:aws:ec2:"):
-        return arn  # S3/IAM/Lambda already use ARN format in findings — no conversion needed
-    # arn:aws:ec2:REGION:ACCOUNT:RESOURCE-TYPE/RESOURCE-ID
-    parts = arn.split(":", 6)  # ['arn','aws','ec2','region','account','type/id']
-    if len(parts) < 6:
-        return arn
-    region = parts[3]
-    account = parts[4]
-    resource_path = parts[5]   # e.g. 'security-group/sg-xxx'
-    resource_id = resource_path.split("/", 1)[-1]  # strip 'security-group/', 'instance/', etc.
-    return f"ec2:{region}:{account}:{resource_id}"
+    ft = from_type.lower()
+    tt = to_type.lower()
+
+    # VPC containment
+    if tt.endswith(".vpc") or tt == "ec2.vpc":
+        return "IN_VPC"
+
+    # Subnet hosting
+    if tt.endswith(".subnet") or tt == "ec2.subnet":
+        return "HOSTED_IN"
+
+    # Security group protection
+    if tt.endswith(".security-group") or tt == "ec2.security-group":
+        return "PROTECTED_BY"
+
+    # Network interface
+    if "network-interface" in tt:
+        return "CONNECTS_TO"
+
+    # Volume attachment
+    if "volume" in tt:
+        return "USES"
+
+    # Default: look up the static map, fall back to uppercased raw
+    mapped = _RELATION_TYPE_MAP.get(raw_type.lower())
+    if mapped and not mapped.startswith("_"):
+        return mapped
+    return raw_type.upper().replace(" ", "_").replace("-", "_")
 
 
 def _safe_props(d: Dict[str, Any], max_depth: int = 1) -> Dict[str, Any]:
@@ -311,6 +363,30 @@ class SecurityGraphBuilder:
             f"postgresql://{user}:{pwd}@{host}:{port}/{db_name}"
         )
 
+    def _load_attack_path_categories_for_graph(self, tenant_id: str) -> Optional[Dict[str, Optional[str]]]:
+        """Load attack_path_category from resource_relationship_rules for Neo4j edge tagging."""
+        from psycopg2.extras import RealDictCursor
+        try:
+            conn = self._pg_conn("threat_engine_inventory")
+            try:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute("""
+                        SELECT DISTINCT relation_type, attack_path_category
+                        FROM resource_relationship_rules
+                        WHERE is_active = TRUE
+                    """)
+                    cats = {}
+                    for row in cur.fetchall():
+                        cats[row["relation_type"]] = row.get("attack_path_category")
+                    if cats:
+                        logger.info(f"Loaded attack_path_category for {len(cats)} relation types")
+                        return cats
+            finally:
+                conn.close()
+        except Exception as e:
+            logger.warning(f"Could not load attack_path_categories: {e}")
+        return None
+
     def _load_inventory_findings(self, tenant_id: str) -> List[Dict[str, Any]]:
         from psycopg2.extras import RealDictCursor
         conn = self._pg_conn("threat_engine_inventory")
@@ -338,7 +414,8 @@ class SecurityGraphBuilder:
                     SELECT from_uid, to_uid, relation_type,
                            source_resource_uid, target_resource_uid,
                            relationship_type, relationship_strength,
-                           bidirectional, properties
+                           bidirectional, properties,
+                           from_resource_type, to_resource_type
                     FROM inventory_relationships
                     WHERE tenant_id = %s OR account_id = %s
                 """, (tenant_id, tenant_id))
@@ -537,44 +614,51 @@ class SecurityGraphBuilder:
         return count
 
     def _create_resource_relationships(
-        self, session, relationships: List[Dict[str, Any]]
+        self, session, relationships: List[Dict[str, Any]],
+        attack_path_categories: Optional[Dict[str, Optional[str]]] = None,
     ) -> int:
         """Create edges between resource nodes from inventory_relationships.
 
-        inventory_relationships stores UIDs in two formats:
-          - ARN format:    arn:aws:ec2:ap-south-1:123456:security-group/sg-xxx
-          - Custom format: ec2:ap-south-1:123456:sg-xxx  (EC2-family resources)
-          - ARN format:    arn:aws:s3:::bucket  (S3, IAM, Lambda — already match findings)
+        Both inventory_findings and inventory_relationships now use raw ARN
+        format, so no UID conversion is needed.  We use _infer_rel_type() to
+        map the inventory relation_type to attack-path-relevant Neo4j types.
 
-        We normalise EC2 ARNs → custom format before MATCH so nodes are found.
-        All rel-types are batched via UNWIND to avoid per-row session.run() calls.
+        Sets attack_path_category on each edge so Cypher queries can filter
+        attack-relevant relationships.
         """
-        # Build normalised params list (ARN → custom uid conversion)
+        # Import inline fallback if not provided
+        if attack_path_categories is None:
+            from ..analyzer.threat_analyzer import _ATTACK_PATH_CATEGORIES
+            attack_path_categories = _ATTACK_PATH_CATEGORIES
+
         all_params: Dict[str, List[Dict]] = {}  # rel_type → [params]
         for rel in relationships:
-            raw_src = rel.get("source_resource_uid") or rel.get("from_uid") or ""
-            raw_dst = rel.get("target_resource_uid") or rel.get("to_uid") or ""
-            src = _arn_to_custom_uid(raw_src)
-            dst = _arn_to_custom_uid(raw_dst)
-            rel_type = (
-                rel.get("relationship_type") or rel.get("relation_type") or "RELATED"
-            ).upper().replace(" ", "_")
-            # Map RELATED → RELATES_TO for readability
-            if rel_type == "RELATED":
-                rel_type = "RELATES_TO"
+            src = rel.get("source_resource_uid") or rel.get("from_uid") or ""
+            dst = rel.get("target_resource_uid") or rel.get("to_uid") or ""
 
             if not src or not dst or src == dst:
                 continue
 
+            raw_type = (
+                rel.get("relationship_type") or rel.get("relation_type") or "RELATED"
+            )
+            from_type = rel.get("from_resource_type", "")
+            to_type = rel.get("to_resource_type", "")
+            rel_type = _infer_rel_type(raw_type, from_type, to_type)
+
+            # Look up attack_path_category for the raw relation_type
+            category = attack_path_categories.get(raw_type)
+
             all_params.setdefault(rel_type, []).append({
                 "src": src, "dst": dst,
                 "strength": rel.get("relationship_strength", "strong"),
+                "attack_path_category": category or "",
+                "relation_type_raw": raw_type,
             })
 
         count = 0
         batch_size = 500
 
-        # For each rel-type, run a single batched UNWIND Cypher
         for rel_type, params in all_params.items():
             for i in range(0, len(params), batch_size):
                 chunk = params[i:i + batch_size]
@@ -584,7 +668,9 @@ class SecurityGraphBuilder:
                         MATCH (a:Resource {{uid: p.src}})
                         MATCH (b:Resource {{uid: p.dst}})
                         MERGE (a)-[r:`{rel_type}`]->(b)
-                        SET r.strength = p.strength
+                        SET r.strength = p.strength,
+                            r.attack_path_category = p.attack_path_category,
+                            r.relation_type_raw = p.relation_type_raw
                         RETURN COUNT(*) AS c
                     """, batch=chunk)
                     record = result.single()
@@ -595,50 +681,69 @@ class SecurityGraphBuilder:
         return count
 
     def _create_hierarchy_edges(self, session, findings: List[Dict[str, Any]]) -> int:
-        """Connect resources to Account and Region virtual nodes."""
+        """Connect resources to Account and Region virtual nodes (batched)."""
+        batch_size = 500
         count = 0
+
+        # Collect CONTAINS params
+        contains_params = []
         for f in findings:
-            uid = f["resource_uid"]
             acct = f.get("account_id")
-            region = f.get("region")
-
             if acct:
-                session.run("""
-                    MATCH (r:Resource {uid: $uid})
-                    MATCH (a:Account {uid: $acct_uid})
-                    MERGE (a)-[:CONTAINS]->(r)
-                """, uid=uid, acct_uid=f"account:{acct}")
-                count += 1
+                contains_params.append({"uid": f["resource_uid"], "acct_uid": f"account:{acct}"})
 
+        for i in range(0, len(contains_params), batch_size):
+            chunk = contains_params[i:i + batch_size]
+            session.run("""
+                UNWIND $batch AS p
+                MATCH (r:Resource {uid: p.uid})
+                MATCH (a:Account {uid: p.acct_uid})
+                MERGE (a)-[:CONTAINS]->(r)
+            """, batch=chunk)
+            count += len(chunk)
+
+        # Collect HOSTS params
+        hosts_params = []
+        for f in findings:
+            region = f.get("region")
             if region:
-                session.run("""
-                    MATCH (r:Resource {uid: $uid})
-                    MATCH (rg:Region {uid: $region_uid})
-                    MERGE (rg)-[:HOSTS]->(r)
-                """, uid=uid, region_uid=f"region:{region}")
-                count += 1
+                hosts_params.append({"uid": f["resource_uid"], "region_uid": f"region:{region}"})
+
+        for i in range(0, len(hosts_params), batch_size):
+            chunk = hosts_params[i:i + batch_size]
+            session.run("""
+                UNWIND $batch AS p
+                MATCH (r:Resource {uid: p.uid})
+                MATCH (rg:Region {uid: p.region_uid})
+                MERGE (rg)-[:HOSTS]->(r)
+            """, batch=chunk)
+            count += len(chunk)
 
         return count
 
     def _create_threat_nodes(
         self, session, detections: List[Dict[str, Any]], tenant_id: str
     ) -> int:
-        """Create ThreatDetection nodes and link to Resource nodes."""
+        """Create ThreatDetection nodes and link to Resource nodes (batched)."""
+        batch_size = 500
         count = 0
+
+        # Prepare all props
+        all_props = []
         for det in detections:
             det_id = str(det["detection_id"])
-            resource_arn = det.get("resource_arn", "")
+            resource_uid = det.get("resource_uid") or det.get("resource_arn") or ""
             mitre_techniques = det.get("mitre_techniques") or []
             mitre_tactics = det.get("mitre_tactics") or []
 
-            props = {
+            all_props.append({
                 "detection_id": det_id,
                 "tenant_id": tenant_id,
                 "scan_id": det.get("scan_id", ""),
                 "detection_type": det.get("detection_type", ""),
                 "rule_id": det.get("rule_id", ""),
                 "rule_name": det.get("rule_name", ""),
-                "resource_arn": resource_arn,
+                "resource_uid": resource_uid,
                 "resource_type": det.get("resource_type", ""),
                 "severity": det.get("severity", ""),
                 "confidence": det.get("confidence", ""),
@@ -646,23 +751,31 @@ class SecurityGraphBuilder:
                 "threat_category": det.get("threat_category", ""),
                 "mitre_techniques": mitre_techniques if isinstance(mitre_techniques, list) else [],
                 "mitre_tactics": mitre_tactics if isinstance(mitre_tactics, list) else [],
-            }
+            })
 
+        # Batch MERGE ThreatDetection nodes
+        for i in range(0, len(all_props), batch_size):
+            chunk = all_props[i:i + batch_size]
             session.run("""
-                MERGE (t:ThreatDetection {detection_id: $props.detection_id})
-                SET t += $props
-            """, props=props)
+                UNWIND $batch AS p
+                MERGE (t:ThreatDetection {detection_id: p.detection_id})
+                SET t += p
+            """, batch=chunk)
+            count += len(chunk)
 
-            # Link to affected resource
-            if resource_arn:
-                session.run("""
-                    MATCH (t:ThreatDetection {detection_id: $det_id})
-                    MATCH (r:Resource)
-                    WHERE r.uid STARTS WITH $arn
-                    MERGE (r)-[:HAS_THREAT]->(t)
-                """, det_id=det_id, arn=resource_arn)
-
-            count += 1
+        # Batch MERGE HAS_THREAT edges
+        link_params = [
+            {"det_id": p["detection_id"], "uid": p["resource_uid"]}
+            for p in all_props if p["resource_uid"]
+        ]
+        for i in range(0, len(link_params), batch_size):
+            chunk = link_params[i:i + batch_size]
+            session.run("""
+                UNWIND $batch AS p
+                MATCH (t:ThreatDetection {detection_id: p.det_id})
+                MATCH (r:Resource {uid: p.uid})
+                MERGE (r)-[:HAS_THREAT]->(t)
+            """, batch=chunk)
 
         return count
 
@@ -725,47 +838,65 @@ class SecurityGraphBuilder:
     def _create_analysis_edges(
         self, session, analyses: List[Dict[str, Any]]
     ) -> int:
-        """Link ThreatDetection nodes with analysis risk data."""
+        """Link ThreatDetection nodes with analysis risk data (batched)."""
+        batch_size = 500
         count = 0
+
+        # Batch 1: SET risk_score/verdict/blast_radius on ThreatDetection nodes
+        risk_params = []
+        for a in analyses:
+            blast = a.get("analysis_results", {}).get("blast_radius", {})
+            risk_params.append({
+                "det_id": str(a["detection_id"]),
+                "risk": a.get("risk_score", 0),
+                "verdict": a.get("verdict", ""),
+                "blast": blast.get("reachable_count", 0),
+            })
+
+        for i in range(0, len(risk_params), batch_size):
+            chunk = risk_params[i:i + batch_size]
+            session.run("""
+                UNWIND $batch AS p
+                MATCH (t:ThreatDetection {detection_id: p.det_id})
+                SET t.risk_score = p.risk,
+                    t.verdict = p.verdict,
+                    t.blast_radius = p.blast,
+                    t.analyzed = true
+            """, batch=chunk)
+            count += len(chunk)
+
+        # Batch 2: ATTACK_PATH edges from attack chains
+        path_params = []
         for a in analyses:
             det_id = str(a["detection_id"])
-            risk_score = a.get("risk_score", 0)
-            verdict = a.get("verdict", "")
-            blast = a.get("analysis_results", {}).get("blast_radius", {})
-            reachable_count = blast.get("reachable_count", 0)
-
-            session.run("""
-                MATCH (t:ThreatDetection {detection_id: $det_id})
-                SET t.risk_score = $risk,
-                    t.verdict = $verdict,
-                    t.blast_radius = $blast,
-                    t.analyzed = true
-            """, det_id=det_id, risk=risk_score, verdict=verdict, blast=reachable_count)
-
-            # Create ATTACK_PATH edges based on attack chain
             chain = a.get("attack_chain") or []
-            for step in chain[1:]:  # Skip first step (initial compromise)
+            for step in chain[1:]:
                 hop_from = step.get("hop_from", "")
                 hop_to = step.get("resource", "")
                 if hop_from and hop_to:
-                    try:
-                        session.run("""
-                            MATCH (a:Resource) WHERE a.uid STARTS WITH $from
-                            MATCH (b:Resource) WHERE b.uid STARTS WITH $to
-                            MERGE (a)-[r:ATTACK_PATH]->(b)
-                            SET r.detection_id = $det_id,
-                                r.step = $step,
-                                r.action = $action
-                        """, **{"from": hop_from, "to": hop_to},
-                            det_id=det_id,
-                            step=step.get("step", 0),
-                            action=step.get("action", ""),
-                        )
-                        count += 1
-                    except Exception:
-                        pass
+                    path_params.append({
+                        "from_uid": hop_from,
+                        "to_uid": hop_to,
+                        "det_id": det_id,
+                        "step": step.get("step", 0),
+                        "action": step.get("action", ""),
+                    })
 
-            count += 1
+        for i in range(0, len(path_params), batch_size):
+            chunk = path_params[i:i + batch_size]
+            try:
+                session.run("""
+                    UNWIND $batch AS p
+                    MATCH (a:Resource) WHERE a.uid STARTS WITH p.from_uid
+                    MATCH (b:Resource) WHERE b.uid STARTS WITH p.to_uid
+                    MERGE (a)-[r:ATTACK_PATH]->(b)
+                    SET r.detection_id = p.det_id,
+                        r.step = p.step,
+                        r.action = p.action
+                """, batch=chunk)
+                count += len(chunk)
+            except Exception:
+                pass
 
         return count
 
@@ -856,106 +987,115 @@ class SecurityGraphBuilder:
 
     def _infer_internet_exposure(self, session, tenant_id: str) -> int:
         """
-        Infer internet exposure from network boundary resources and public storage.
+        Infer internet exposure using check_findings (FAIL results from check engine).
 
-        Covers all supported CSPs:
-          AWS   — SecurityGroup with 0.0.0.0/0 or ::/0 inbound rules
-          Azure — NetworkSecurityGroup with * source or 0.0.0.0/0
-          GCP   — VPCFirewallRule with sourceRanges 0.0.0.0/0
-          OCI   — SecurityList / OCINetworkSecurityGroup with 0.0.0.0/0
-          K8s   — K8sIngress (always externally accessible by design)
+        The check engine already evaluated rules like:
+          - SG allows 0.0.0.0/0 inbound (port_*_exposed_to_internet rules)
+          - S3 bucket is publicly accessible
+          - EC2 instance has public IP
+          - Lambda has public URL
 
-        Also infers public storage exposure from check findings across all CSPs.
+        We use the Finding nodes (HAS_FINDING edges) to identify exposed resources
+        instead of parsing raw configuration JSON.  This is more reliable because
+        the check engine has already done the deep inspection.
+
+        Strategy:
+          1. Find resources with internet-exposure findings (rule_id patterns)
+          2. Create Internet -[EXPOSES]-> Resource edges
+          3. Also check configuration for public IPs as backup
         """
         count = 0
 
-        # ── Network boundary nodes with open inbound rules ────────────────────
-        # Single query covers all CSP boundary node labels via CONTAINS check on
-        # configuration (stored as JSON string in Neo4j string property).
-        # The configuration field contains the raw API response serialised as text.
-        network_boundary_check = """
-            MATCH (n {tenant_id: $tid})
-            WHERE (n:SecurityGroup OR n:NetworkSecurityGroup OR
-                   n:VPCFirewallRule OR n:SecurityList OR
-                   n:OCINetworkSecurityGroup)
-              AND n.configuration IS NOT NULL
-              AND (
-                n.configuration CONTAINS '0.0.0.0/0'
-                OR n.configuration CONTAINS '::/0'
-                OR n.configuration CONTAINS '"source": "*"'
-                OR n.configuration CONTAINS '"SourceAddressPrefix": "*"'
-                OR n.configuration CONTAINS '"sourceRanges"'
-              )
-            RETURN n.uid AS uid, n.resource_type AS resource_type
-        """
-        result = session.run(network_boundary_check, tid=tenant_id)
+        # ── 1. Check findings that indicate internet exposure ──────────────────
+        # These rule_id patterns cover SG open ports, public access, public IP, etc.
+        exposure_patterns = [
+            "exposed_to_internet",      # SG port_*_exposed_to_internet rules
+            "public_access",            # S3/storage public access
+            "publicly_accessible",      # RDS/Redshift publicly accessible
+            "public_ip",                # EC2 public IP
+            "unrestricted",             # unrestricted inbound/outbound
+            "open_to_world",            # open to world
+            "0_0_0_0",                  # literal 0.0.0.0 in rule ID
+            "internet_facing",          # internet-facing resources
+            "ingress_from_all",         # ingress from all IPs
+        ]
+        # Build OR condition for rule_id matching
+        where_clauses = " OR ".join(
+            f"f.rule_id CONTAINS '{p}'" for p in exposure_patterns
+        )
+        result = session.run(f"""
+            MATCH (r:Resource {{tenant_id: $tid}})-[:HAS_FINDING]->(f:Finding)
+            WHERE {where_clauses}
+            RETURN DISTINCT r.uid AS uid, r.resource_type AS rtype,
+                   collect(DISTINCT f.rule_id)[0..3] AS sample_rules
+        """, tid=tenant_id)
+
+        exposed_uids = set()
         for record in result:
+            uid = record["uid"]
+            if uid in exposed_uids:
+                continue
+            exposed_uids.add(uid)
             session.run("""
                 MATCH (i:Internet {uid: 'INTERNET'})
-                MATCH (n:Resource {uid: $uid})
-                MERGE (i)-[r:EXPOSES]->(n)
-                SET r.reason = 'open_inbound_rule',
-                    r.resource_type = $rtype
-            """, uid=record["uid"], rtype=record["resource_type"] or "")
+                MATCH (r:Resource {uid: $uid})
+                MERGE (i)-[e:EXPOSES]->(r)
+                SET e.reason = 'check_finding_exposure',
+                    e.resource_type = $rtype
+            """, uid=uid, rtype=record["rtype"] or "")
             count += 1
 
-        # ── K8s Ingress — always internet-facing by definition ────────────────
+        # ── 2. Public storage via findings ─────────────────────────────────────
         result = session.run("""
-            MATCH (n:K8sIngress {tenant_id: $tid})
-            RETURN n.uid AS uid
+            MATCH (r:Resource {tenant_id: $tid})-[:HAS_FINDING]->(f:Finding)
+            WHERE f.rule_id CONTAINS 'public'
+               OR f.rule_id CONTAINS 'anonymous'
+               OR f.title CONTAINS 'public'
+            WITH DISTINCT r
+            WHERE r.resource_type CONTAINS 's3'
+               OR r.resource_type CONTAINS 'storage'
+               OR r.resource_type CONTAINS 'bucket'
+               OR r.resource_type CONTAINS 'blob'
+            RETURN r.uid AS uid
         """, tid=tenant_id)
         for record in result:
+            uid = record["uid"]
+            if uid in exposed_uids:
+                continue
+            exposed_uids.add(uid)
             session.run("""
                 MATCH (i:Internet {uid: 'INTERNET'})
-                MATCH (n:Resource {uid: $uid})
-                MERGE (i)-[r:EXPOSES]->(n)
-                SET r.reason = 'k8s_ingress'
-            """, uid=record["uid"])
+                MATCH (r:Resource {uid: $uid})
+                MERGE (i)-[e:EXPOSES]->(r)
+                SET e.reason = 'public_storage_finding'
+            """, uid=uid)
             count += 1
 
-        # ── Public storage: infer from findings that flag public access ────────
-        # Works for S3Bucket (AWS), StorageAccount/BlobContainer (Azure),
-        # GCSBucket (GCP), ObjectStorageBucket (OCI) — anything in storage labels.
-        public_storage_labels = list(_STORAGE_LABELS.values())
-        for label in public_storage_labels:
-            result = session.run(f"""
-                MATCH (r:`{label}` {{tenant_id: $tid}})-[:HAS_FINDING]->(f:Finding)
-                WHERE f.rule_id CONTAINS 'public'
-                   OR f.title CONTAINS 'public'
-                   OR f.rule_id CONTAINS 'anonymous'
-                   OR f.rule_id CONTAINS 'open_access'
-                RETURN DISTINCT r.uid AS uid
-            """, tid=tenant_id)
-            for record in result:
-                session.run("""
-                    MATCH (i:Internet {uid: 'INTERNET'})
-                    MATCH (r:Resource {uid: $uid})
-                    MERGE (i)-[e:EXPOSES]->(r)
-                    SET e.reason = 'public_access_finding'
-                """, uid=record["uid"])
-                count += 1
-
-        # ── Public IP on compute resources ────────────────────────────────────
+        # ── 3. Public IP from configuration (backup) ───────────────────────────
         result = session.run("""
             MATCH (r:Resource {tenant_id: $tid})
-            WHERE (r:EC2Instance OR r:VirtualMachine OR r:ComputeInstance
-                   OR r:OCIComputeInstance)
-              AND r.configuration IS NOT NULL
+            WHERE r.configuration IS NOT NULL
               AND (
                 r.configuration CONTAINS '"PublicIpAddress"'
                 OR r.configuration CONTAINS '"public_ip"'
                 OR r.configuration CONTAINS '"natIP"'
                 OR r.configuration CONTAINS '"primaryPublicIPAddress"'
               )
+              AND NOT (r.configuration CONTAINS '"PublicIpAddress": null')
+              AND NOT (r.configuration CONTAINS '"PublicIpAddress": ""')
             RETURN r.uid AS uid
         """, tid=tenant_id)
         for record in result:
+            uid = record["uid"]
+            if uid in exposed_uids:
+                continue
+            exposed_uids.add(uid)
             session.run("""
                 MATCH (i:Internet {uid: 'INTERNET'})
                 MATCH (r:Resource {uid: $uid})
                 MERGE (i)-[e:EXPOSES]->(r)
                 SET e.reason = 'public_ip_assigned'
-            """, uid=record["uid"])
+            """, uid=uid)
             count += 1
 
         logger.info(f"Inferred {count} internet exposure edges across all CSPs")
@@ -1017,23 +1157,23 @@ class SecurityGraphBuilder:
             stats["resource_nodes"] = self._create_resource_nodes(session, inv_findings, tenant_id)
             logger.info(f"  → {stats['resource_nodes']} resource nodes")
 
-            # 4c. Also create Resource nodes for any ARN referenced in threats
+            # 4c. Also create Resource nodes for any uid referenced in threats
             # but not in inventory (so we don't lose threat→resource links)
             existing_uids = set(f["resource_uid"] for f in inv_findings)
             missing_resources = []
             for det in detections:
-                arn = det.get("resource_arn", "")
-                if arn and arn not in existing_uids:
-                    existing_uids.add(arn)
+                uid = det.get("resource_uid") or det.get("resource_arn") or ""
+                if uid and uid not in existing_uids:
+                    existing_uids.add(uid)
                     missing_resources.append({
                         "asset_id": str(det["detection_id"]),
-                        "resource_uid": arn,
+                        "resource_uid": uid,
                         "provider": det.get("provider") or "unknown",
                         "account_id": det.get("account_id", ""),
                         "region": det.get("region", ""),
                         "resource_type": det.get("resource_type", ""),
                         "resource_id": det.get("resource_id", ""),
-                        "name": arn.split(":::")[-1] if ":::" in arn else arn.split("/")[-1],
+                        "name": uid.split(":::")[-1] if ":::" in uid else uid.split("/")[-1],
                         "compliance_status": "non_compliant",
                         "risk_score": 60,
                         "criticality": "high",
@@ -1043,8 +1183,12 @@ class SecurityGraphBuilder:
                 stats["resource_nodes"] += extra
                 logger.info(f"  → +{extra} resource nodes from threat ARNs")
 
-            # 4d. Resource relationships
-            stats["resource_rels"] = self._create_resource_relationships(session, inv_rels)
+            # 4d. Resource relationships (with attack_path_category on edges)
+            # Load categories from DB for Neo4j edge classification
+            attack_path_cats = self._load_attack_path_categories_for_graph(tenant_id)
+            stats["resource_rels"] = self._create_resource_relationships(
+                session, inv_rels, attack_path_cats
+            )
             logger.info(f"  → {stats['resource_rels']} resource relationships")
 
             # 4e. Hierarchy (Account/Region → Resource)

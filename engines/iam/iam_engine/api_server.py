@@ -12,10 +12,11 @@ from pydantic import BaseModel, Field
 from typing import Dict, List, Optional, Any
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-from engine_common.logger import setup_logger, LogContext, log_duration, audit_log
+from engine_common.logger import setup_logger
 from engine_common.telemetry import configure_telemetry
 from engine_common.middleware import RequestLoggingMiddleware, CorrelationIDMiddleware
 from engine_common.orchestration import get_orchestration_metadata
+from engine_common.job_creator import create_engine_job
 
 from .input.threat_db_reader import ThreatDBReader
 from .enricher.finding_enricher import FindingEnricher
@@ -25,6 +26,13 @@ from .storage.report_storage import ReportStorage
 import json
 
 logger = setup_logger(__name__, engine_name="engine-iam")
+
+# ── Scanner Job config ───────────────────────────────────────────────────────
+SCANNER_IMAGE = os.getenv("IAM_SCANNER_IMAGE", "yadavanup84/engine-iam:v-job")
+SCANNER_CPU_REQUEST = os.getenv("SCANNER_CPU_REQUEST", "100m")
+SCANNER_MEM_REQUEST = os.getenv("SCANNER_MEM_REQUEST", "512Mi")
+SCANNER_CPU_LIMIT = os.getenv("SCANNER_CPU_LIMIT", "250m")
+SCANNER_MEM_LIMIT = os.getenv("SCANNER_MEM_LIMIT", "1Gi")
 
 app = FastAPI(
     title="IAM Security Engine API",
@@ -112,121 +120,124 @@ async def api_health():
         return {"status": "degraded", "database": "disconnected", "error": str(e), "service": "engine-iam", "version": "1.0.0"}
 
 
-@app.post("/api/v1/iam-security/scan", response_model=ReportResponse)
+def _get_iam_conn():
+    """Get psycopg2 connection to the IAM database for status queries."""
+    import psycopg2
+    return psycopg2.connect(
+        host=os.getenv("IAM_DB_HOST", os.getenv("DB_HOST", "localhost")),
+        port=int(os.getenv("IAM_DB_PORT", os.getenv("DB_PORT", "5432"))),
+        dbname=os.getenv("IAM_DB_NAME", "threat_engine_iam"),
+        user=os.getenv("IAM_DB_USER", os.getenv("DB_USER", "postgres")),
+        password=os.getenv("IAM_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
+        sslmode=os.getenv("DB_SSLMODE", "prefer"),
+    )
+
+
+@app.post("/api/v1/iam-security/scan")
 async def generate_report(request: ScanRequest):
-    """Generate IAM security report (findings filtered by IAM-relevant rules, enriched)."""
-    import time
-    start_time = time.time()
+    """
+    Start an IAM security scan by creating a K8s Job on a spot node.
 
-    # Determine threat_scan_id and tenant_id
-    # Priority: direct scan_id (ad-hoc) > orchestration_id (pipeline)
-    threat_scan_id = None
-    tenant_id = request.tenant_id
+    **Pipeline mode** -- provide `orchestration_id`:
+      Fetches metadata from scan_orchestration table.
 
-    if request.scan_id:
-        # MODE 1: Ad-hoc mode - use provided threat scan_id
-        threat_scan_id = request.scan_id
-        logger.info(f"Ad-hoc mode: Using direct threat_scan_id: {threat_scan_id}")
+    **Ad-hoc mode** -- provide `scan_id`:
+      Uses the supplied threat_scan_id.
 
-    elif request.orchestration_id:
-        # MODE 2: Pipeline mode - query scan_orchestration for threat_scan_id
+    Returns immediately with iam_scan_id. Poll status via
+    GET /api/v1/iam-security/{iam_scan_id}/status.
+    """
+    if not request.orchestration_id and not request.scan_id:
+        raise HTTPException(status_code=400, detail="Either scan_id OR orchestration_id must be provided")
+
+    if request.orchestration_id:
+        orch_id = request.orchestration_id
+        iam_scan_id = orch_id
         try:
-            metadata = get_orchestration_metadata(request.orchestration_id)
+            metadata = get_orchestration_metadata(orch_id)
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e))
 
         threat_scan_id = metadata.get("threat_scan_id")
         if not threat_scan_id:
-            raise HTTPException(status_code=400, detail=f"Threat scan not completed yet for orchestration_id={request.orchestration_id}")
+            raise HTTPException(status_code=400, detail=f"Threat scan not completed yet for orchestration_id={orch_id}")
 
-        # Get tenant_id and csp from orchestration metadata
         tenant_id = metadata.get("tenant_id") or request.tenant_id
-        orchestration_csp = metadata.get("provider") or metadata.get("provider_type") or metadata.get("csp")
-        if orchestration_csp:
-            request = request.model_copy(update={"csp": orchestration_csp.lower()})
-
-        logger.info(f"Pipeline mode: Got threat_scan_id={threat_scan_id} from orchestration_id={request.orchestration_id}, csp={request.csp}")
-
+        csp = (metadata.get("provider") or metadata.get("provider_type", "aws")).lower()
+        logger.info(f"Pipeline mode: orch={orch_id} threat={threat_scan_id} csp={csp}")
     else:
-        raise HTTPException(status_code=400, detail="Either scan_id OR orchestration_id must be provided")
+        # Ad-hoc: orchestration_id is required for Job-based execution
+        raise HTTPException(status_code=400, detail="orchestration_id is required for Job-based execution")
 
-    with LogContext(tenant_id=tenant_id, scan_run_id=threat_scan_id):
-        try:
-            report = reporter.generate_report(
-                csp=request.csp,
-                scan_id=threat_scan_id,
-                tenant_id=tenant_id,
-                max_findings=request.max_findings,
+    # Pre-create iam_report row in DB (so status endpoint works immediately)
+    try:
+        conn = _get_iam_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                """INSERT INTO iam_report
+                   (iam_scan_id, tenant_id, provider, threat_scan_id, status, generated_at, metadata)
+                   VALUES (%s, %s, %s, %s, 'running', NOW(), %s)
+                   ON CONFLICT (iam_scan_id) DO UPDATE SET status = 'running'""",
+                (iam_scan_id, tenant_id, csp, threat_scan_id,
+                 json.dumps({"orchestration_id": orch_id, "mode": "job"})),
             )
-            
-            # Add report_id if missing
-            if "report_id" not in report:
-                import uuid
-                report["report_id"] = str(uuid.uuid4())
-            
-            # Save to local file storage
-            try:
-                report_path = report_storage.save_report(
-                    report=report,
-                    tenant_id=tenant_id,
-                    scan_id=threat_scan_id
-                )
-                logger.info(f"IAM report saved to: {report_path}")
-            except Exception as e:
-                logger.error(f"Error saving IAM report to file storage: {e}")
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning(f"Failed to pre-create iam_report: {e}")
 
-            # Save to /output for S3 sync
-            try:
-                output_dir = os.getenv("OUTPUT_DIR", "/output")
-                if output_dir and os.path.exists(output_dir):
-                    iam_dir = os.path.join(output_dir, "iam", tenant_id, threat_scan_id)
-                    os.makedirs(iam_dir, exist_ok=True)
+    # Create K8s Job on spot node
+    try:
+        job_name = create_engine_job(
+            engine_name="iam",
+            scan_id=iam_scan_id,
+            orchestration_id=orch_id,
+            image=SCANNER_IMAGE,
+            cpu_request=SCANNER_CPU_REQUEST,
+            mem_request=SCANNER_MEM_REQUEST,
+            cpu_limit=SCANNER_CPU_LIMIT,
+            mem_limit=SCANNER_MEM_LIMIT,
+            active_deadline_seconds=1800,
+        )
+    except Exception as e:
+        logger.error(f"Failed to create IAM scanner Job: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to create scanner Job: {e}")
 
-                    with open(os.path.join(iam_dir, "iam_report.json"), "w") as f:
-                        json.dump(report, f, indent=2, default=str)
+    return {
+        "iam_scan_id": iam_scan_id,
+        "status": "running",
+        "message": f"Scanner Job '{job_name}' created on spot node (image={SCANNER_IMAGE})",
+        "orchestration_id": orch_id,
+    }
 
-                    logger.info(f"IAM report saved to {iam_dir}")
-            except Exception as e:
-                logger.error(f"Error saving IAM report to output dir: {e}")
 
-            # Save to database
-            try:
-                from .storage.iam_db_writer import save_iam_report_to_db
-                saved_id = save_iam_report_to_db(report)
-                logger.info(f"IAM report saved to database: {saved_id}")
-            except Exception as e:
-                logger.error(f"Error saving IAM report to database: {e}", exc_info=True)
-
-            # Update scan_orchestration with iam_scan_id (if in pipeline mode)
-            if request.orchestration_id:
-                try:
-                    from engine_common.orchestration import update_orchestration_scan_id
-                    iam_scan_id = report.get("report_id")
-                    update_orchestration_scan_id(
-                        orchestration_id=request.orchestration_id,
-                        engine="iam",
-                        scan_id=iam_scan_id,
-                    )
-                    logger.info(f"Updated scan_orchestration with iam_scan_id: {iam_scan_id}")
-                except Exception as e:
-                    logger.error(f"Failed to update scan_orchestration: {e}")
-                    # Non-fatal — report is saved; this is tracking only
-            
-            duration_ms = (time.time() - start_time) * 1000
-            log_duration(logger, "IAM security report generated", duration_ms)
-            audit_log(
-                logger,
-                "iam_report_generated",
-                f"scan:{request.scan_id}",
-                tenant_id=request.tenant_id,
-                result="success",
-                details={"csp": request.csp, "findings_count": len(report.get("findings", []))},
+@app.get("/api/v1/iam-security/{iam_scan_id}/status")
+async def get_iam_status(iam_scan_id: str):
+    """Get IAM scan status from iam_report DB table."""
+    from psycopg2.extras import RealDictCursor
+    try:
+        conn = _get_iam_conn()
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                "SELECT iam_scan_id, status, provider, threat_scan_id, generated_at, metadata "
+                "FROM iam_report WHERE iam_scan_id = %s",
+                (iam_scan_id,),
             )
-            return report
-        except Exception as e:
-            logger.error("Error generating IAM report", exc_info=True, extra={"extra_fields": {"error": str(e), "scan_id": request.scan_id}})
-            audit_log(logger, "iam_report_generation_failed", f"scan:{request.scan_id}", tenant_id=request.tenant_id, result="failure", details={"error": str(e)})
-            raise HTTPException(status_code=500, detail=str(e))
+            row = cur.fetchone()
+        conn.close()
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Database error: {e}")
+
+    if not row:
+        raise HTTPException(status_code=404, detail=f"IAM scan {iam_scan_id} not found")
+
+    return {
+        "iam_scan_id": row["iam_scan_id"],
+        "status": row["status"],
+        "provider": row.get("provider"),
+        "threat_scan_id": row.get("threat_scan_id"),
+        "generated_at": str(row.get("generated_at")) if row.get("generated_at") else None,
+    }
 
 
 @app.get("/api/v1/iam-security/rules/{rule_id}")
@@ -408,7 +419,7 @@ async def get_resource_iam_findings(
 
 # ── Standard route aliases ─────────────────────────────────────────────────────
 # POST /api/v1/scan — standard scan alias (same handler as /api/v1/iam-security/scan)
-app.add_api_route("/api/v1/scan", generate_report, methods=["POST"], response_model=ReportResponse)
+app.add_api_route("/api/v1/scan", generate_report, methods=["POST"])
 
 # GET /api/v1/iam/* — standard prefix aliases for all /api/v1/iam-security/* routes
 from fastapi import APIRouter as _APIRouter

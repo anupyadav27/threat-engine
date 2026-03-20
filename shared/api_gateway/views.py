@@ -169,3 +169,15 @@ async def view_inventory_summary(
         "assets_by_resource_type": summary_data.get("assets_by_resource_type", {}),
         "assets_by_region": summary_data.get("assets_by_region", {}),
     }
+
+
+# ── BFF views accessibility note ─────────────────────────────────────────────
+# The modular bff/ package provides all aggregated view endpoints at
+# /api/v1/views/*.  main.py mounts the BFF combined router at BOTH:
+#   /api/v1/views/*          (through ingress, which strips /gateway prefix)
+#   /gateway/api/v1/views/*  (direct pod access, local dev, health probes)
+#
+# This views.py module is a legacy gateway-prefix router (/gateway/api/v1/views)
+# for inventory-specific endpoints defined above.  It does NOT re-include the
+# BFF router because main.py already handles dual-mounting.  New BFF view
+# modules should be added to bff/__init__.py, not here.

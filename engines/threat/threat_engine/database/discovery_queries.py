@@ -16,64 +16,28 @@ from datetime import datetime
 from pathlib import Path
 from collections import defaultdict, Counter
 
-# Add configScan engine to path for DatabaseManager
-THREAT_ENGINE_ROOT = Path(__file__).parent.parent.parent.parent
-CONFIGSCAN_ENGINE_PATH = THREAT_ENGINE_ROOT / "engine_configscan" / "engine_configscan_aws"
 
-if str(CONFIGSCAN_ENGINE_PATH) not in sys.path:
-    sys.path.insert(0, str(CONFIGSCAN_ENGINE_PATH))
-
-try:
-    from engine.database_manager import DatabaseManager
-except ImportError as e:
-    print(f"Warning: DatabaseManager import failed: {e}")
-    DatabaseManager = None
-
-# Import NDJSON reader as fallback
-try:
-    from .discovery_ndjson_reader import DiscoveryNDJSONReader
-except ImportError:
-    DiscoveryNDJSONReader = None
+def _get_discoveries_conn():
+    """Return a fresh psycopg2 connection to the discoveries DB via env vars."""
+    return psycopg2.connect(
+        host=os.getenv("DISCOVERIES_DB_HOST", "localhost"),
+        port=int(os.getenv("DISCOVERIES_DB_PORT", "5432")),
+        dbname=os.getenv("DISCOVERIES_DB_NAME", "threat_engine_discoveries"),
+        user=os.getenv("DISCOVERIES_DB_USER", "postgres"),
+        password=os.getenv("DISCOVERIES_DB_PASSWORD", ""),
+        connect_timeout=10,
+    )
 
 
 class DiscoveryDatabaseQueries:
-    """Database queries for discovery results using existing DatabaseManager with NDJSON fallback"""
-    
-    def __init__(self, db_manager: Optional['DatabaseManager'] = None, use_ndjson_fallback: bool = True):
-        """
-        Initialize with existing DatabaseManager or create new one
-        
-        Args:
-            db_manager: Optional DatabaseManager instance (reuses connection pool)
-            use_ndjson_fallback: If True, fallback to NDJSON when database is empty
-        """
-        self.use_ndjson_fallback = use_ndjson_fallback
-        self.ndjson_reader = None
-        
-        if db_manager:
-            self.db = db_manager
-            self.own_connection = False
-        elif DatabaseManager:
-            try:
-                self.db = DatabaseManager()
-                self.own_connection = True
-            except Exception as e:
-                print(f"Warning: DatabaseManager initialization failed: {e}")
-                self.db = None
-                self.own_connection = False
-        else:
-            self.db = None
-            self.own_connection = False
-        
-        # Initialize NDJSON reader if fallback enabled
-        if use_ndjson_fallback and DiscoveryNDJSONReader:
-            self.ndjson_reader = DiscoveryNDJSONReader()
-    
+    """Database queries for discovery results using direct psycopg2 connections."""
+
+    def __init__(self, **kwargs):
+        """Initialize — connection is created per-query (no pool needed for drift)."""
+        pass
+
     def _has_database_data(self, tenant_id: str) -> bool:
         """Check if database has data for tenant"""
-        if not self.db:
-            return False
-        
         try:
             result = self._execute_query_one(
                 "SELECT COUNT(*) as count FROM discovery_findings WHERE tenant_id = %s LIMIT 1",
@@ -82,10 +46,10 @@ class DiscoveryDatabaseQueries:
             return result and result.get('count', 0) > 0
         except Exception:
             return False
-    
+
     def _execute_query(self, query: str, params: List = None):
-        """Execute a query using DatabaseManager"""
-        conn = self.db._get_connection()
+        """Execute a query using direct psycopg2 connection."""
+        conn = _get_discoveries_conn()
         try:
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute(query, params or [])
@@ -96,11 +60,11 @@ class DiscoveryDatabaseQueries:
             conn.rollback()
             raise e
         finally:
-            self.db._return_connection(conn)
-    
+            conn.close()
+
     def _execute_query_one(self, query: str, params: List = None):
         """Execute a query and return single result"""
-        conn = self.db._get_connection()
+        conn = _get_discoveries_conn()
         try:
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute(query, params or [])
@@ -111,8 +75,8 @@ class DiscoveryDatabaseQueries:
             conn.rollback()
             raise e
         finally:
-            self.db._return_connection(conn)
-    
+            conn.close()
+
     def _get_ndjson_fallback(self, method_name: str, *args, **kwargs):
         """Get data from NDJSON fallback"""
         if not self.ndjson_reader:
@@ -131,14 +95,14 @@ class DiscoveryDatabaseQueries:
         Falls back to NDJSON if database is empty.
         """
         # Try database first
-        if self.db and self._has_database_data(tenant_id):
+        if self._has_database_data(tenant_id):
             try:
                 return self._get_dashboard_stats_db(tenant_id, customer_id, limit_recent_scans)
             except Exception as e:
                 print(f"Database query failed, using NDJSON fallback: {e}")
         
         # Fallback to NDJSON
-        if self.use_ndjson_fallback and self.ndjson_reader:
+        if False:  # NDJSON fallback removed — DB-only mode
             return self._get_ndjson_fallback('get_dashboard_stats', tenant_id, customer_id, limit_recent_scans)
         
         # Return empty if no fallback
@@ -224,14 +188,14 @@ class DiscoveryDatabaseQueries:
         Falls back to NDJSON if database is empty.
         """
         # Try database first
-        if self.db and self._has_database_data(tenant_id):
+        if self._has_database_data(tenant_id):
             try:
                 return self._list_scans_db(tenant_id, customer_id, page, page_size)
             except Exception as e:
                 print(f"Database query failed, using NDJSON fallback: {e}")
         
         # Fallback to NDJSON
-        if self.use_ndjson_fallback and self.ndjson_reader:
+        if False:  # NDJSON fallback removed — DB-only mode
             return self._get_ndjson_fallback('list_scans', tenant_id, customer_id, page, page_size)
         
         return [], 0
@@ -296,14 +260,14 @@ class DiscoveryDatabaseQueries:
         Falls back to NDJSON if database is empty.
         """
         # Try database first
-        if self.db and self._has_database_data(tenant_id):
+        if self._has_database_data(tenant_id):
             try:
                 return self._get_scan_summary_db(scan_id, tenant_id)
             except Exception as e:
                 print(f"Database query failed, using NDJSON fallback: {e}")
         
         # Fallback to NDJSON
-        if self.use_ndjson_fallback and self.ndjson_reader:
+        if False:  # NDJSON fallback removed — DB-only mode
             return self._get_ndjson_fallback('get_scan_summary', scan_id, tenant_id)
         
         return None
@@ -342,14 +306,14 @@ class DiscoveryDatabaseQueries:
         Falls back to NDJSON if database is empty.
         """
         # Try database first
-        if self.db and self._has_database_data(tenant_id):
+        if self._has_database_data(tenant_id):
             try:
                 return self._get_service_stats_db(scan_id, tenant_id)
             except Exception as e:
                 print(f"Database query failed, using NDJSON fallback: {e}")
         
         # Fallback to NDJSON
-        if self.use_ndjson_fallback and self.ndjson_reader:
+        if False:  # NDJSON fallback removed — DB-only mode
             return self._get_ndjson_fallback('get_service_stats', scan_id, tenant_id)
         
         return []
@@ -379,14 +343,14 @@ class DiscoveryDatabaseQueries:
         Falls back to NDJSON if database is empty.
         """
         # Try database first
-        if self.db and self._has_database_data(tenant_id):
+        if self._has_database_data(tenant_id):
             try:
                 return self._get_service_detail_db(scan_id, service, tenant_id)
             except Exception as e:
                 print(f"Database query failed, using NDJSON fallback: {e}")
         
         # Fallback to NDJSON
-        if self.use_ndjson_fallback and self.ndjson_reader:
+        if False:  # NDJSON fallback removed — DB-only mode
             return self._get_ndjson_fallback('get_service_detail', scan_id, service, tenant_id)
         
         return None
@@ -449,14 +413,14 @@ class DiscoveryDatabaseQueries:
         Falls back to NDJSON if database is empty.
         """
         # Try database first
-        if self.db and tenant_id and self._has_database_data(tenant_id):
+        if tenant_id and self._has_database_data(tenant_id):
             try:
                 return self._get_discoveries_db(scan_id, tenant_id, customer_id, service, discovery_id, resource_uid, page, page_size)
             except Exception as e:
                 print(f"Database query failed, using NDJSON fallback: {e}")
         
         # Fallback to NDJSON
-        if self.use_ndjson_fallback and self.ndjson_reader and tenant_id:
+        if False:  # NDJSON fallback removed — DB-only mode
             return self._get_ndjson_fallback('get_discoveries', scan_id, tenant_id, customer_id, service, discovery_id, resource_uid, page, page_size)
         
         return [], 0
@@ -570,14 +534,14 @@ class DiscoveryDatabaseQueries:
         Falls back to NDJSON if database is empty.
         """
         # Try database first
-        if self.db and self._has_database_data(tenant_id):
+        if self._has_database_data(tenant_id):
             try:
                 return self._get_resource_discoveries_db(resource_uid, tenant_id, customer_id)
             except Exception as e:
                 print(f"Database query failed, using NDJSON fallback: {e}")
         
         # Fallback to NDJSON
-        if self.use_ndjson_fallback and self.ndjson_reader:
+        if False:  # NDJSON fallback removed — DB-only mode
             return self._get_ndjson_fallback('get_resource_discoveries', resource_uid, tenant_id, customer_id)
         
         return None
@@ -643,14 +607,14 @@ class DiscoveryDatabaseQueries:
         Falls back to NDJSON if database is empty.
         """
         # Try database first
-        if self.db and self._has_database_data(tenant_id):
+        if self._has_database_data(tenant_id):
             try:
                 return self._get_discovery_function_detail_db(discovery_id, tenant_id, customer_id, scan_id)
             except Exception as e:
                 print(f"Database query failed, using NDJSON fallback: {e}")
         
         # Fallback to NDJSON
-        if self.use_ndjson_fallback and self.ndjson_reader:
+        if False:  # NDJSON fallback removed — DB-only mode
             return self._get_ndjson_fallback('get_discovery_function_detail', discovery_id, tenant_id, customer_id, scan_id)
         
         return None

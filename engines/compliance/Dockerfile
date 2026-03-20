@@ -15,6 +15,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY engines/compliance/compliance_engine/ ./compliance_engine/
 COPY engines/compliance/data/ ./data/
 
+# Run scan entry point (for K8s Job execution)
+COPY engines/compliance/run_scan.py ./run_scan.py
+
 # Copy shared utilities
 COPY shared/common/ ./engine_common/
 COPY shared/database/ ./consolidated_services/

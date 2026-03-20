@@ -1,1 +1,0 @@
-"""Threat engine configuration"""

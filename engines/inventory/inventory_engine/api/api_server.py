@@ -33,14 +33,10 @@ to the BFF layer at shared/api_gateway/bff/inventory.py to avoid tight coupling.
 ===
 """
 
-import asyncio
 import os
 import json
 import sys
 import time
-import random
-import threading
-from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, List, Dict, Any
 from fastapi import FastAPI, HTTPException, Query, Body
 from fastapi.responses import JSONResponse
@@ -59,13 +55,14 @@ from engine_common.logger import setup_logger, LogContext, log_duration, audit_l
 from engine_common.telemetry import configure_telemetry
 from engine_common.middleware import RequestLoggingMiddleware, CorrelationIDMiddleware
 from engine_common.orchestration import get_orchestration_metadata
+from engine_common.job_creator import create_engine_job
 
 # Import local database config
 from ..database.connection.database_config import get_database_config
 
-from ..api.orchestrator import ScanOrchestrator
 from ..api.inventory_db_loader import InventoryDBLoader
 from ..api.rules_router import router as rules_router
+from ..api.architecture_builder import build_architecture_hierarchy
 from ..schemas.asset_schema import Provider
 from ..connectors.discovery_reader_factory import get_discovery_reader
 
@@ -78,12 +75,13 @@ app = FastAPI(
 )
 configure_telemetry("engine-inventory", app)
 
-# Thread pool for running synchronous scan orchestrator without blocking the asyncio loop
-_scan_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="inv-scan")
+# ── Scanner Job config ───────────────────────────────────────────────────────
 
-# Lightweight in-memory job tracker for async scans.
-# NOTE: This is per-pod memory; for HA move to Redis/DB.
-inventory_jobs: Dict[str, Dict[str, Any]] = {}
+SCANNER_IMAGE = os.getenv("INVENTORY_SCANNER_IMAGE", "yadavanup84/inventory-engine:v-job")
+SCANNER_CPU_REQUEST = os.getenv("SCANNER_CPU_REQUEST", "250m")
+SCANNER_MEM_REQUEST = os.getenv("SCANNER_MEM_REQUEST", "1Gi")
+SCANNER_CPU_LIMIT = os.getenv("SCANNER_CPU_LIMIT", "1")
+SCANNER_MEM_LIMIT = os.getenv("SCANNER_MEM_LIMIT", "2Gi")
 
 # Add logging middleware
 app.add_middleware(CorrelationIDMiddleware)
@@ -96,6 +94,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+def _get_inventory_conn():
+    """Return a fresh psycopg2 connection to the inventory DB."""
+    import psycopg2
+    db_cfg = get_database_config("inventory")
+    return psycopg2.connect(
+        host=db_cfg.host,
+        port=db_cfg.port,
+        dbname=db_cfg.database,
+        user=db_cfg.username,
+        password=db_cfg.password,
+        connect_timeout=5,
+    )
+
 
 # Rules admin router — DB-driven rule management (single source of truth for multi-CSP)
 app.include_router(rules_router)
@@ -148,10 +160,10 @@ except ImportError as e:
 
 class ScanRequest(BaseModel):
     """Request model for inventory scan"""
-    tenant_id: str
+    tenant_id: Optional[str] = None
     providers: List[str] = ["aws"]
-    accounts: List[str]
-    regions: List[str]
+    accounts: Optional[List[str]] = None
+    regions: Optional[List[str]] = None
     services: Optional[str] = None
     previous_scan_id: Optional[str] = None
     # DB-first inputs
@@ -174,15 +186,12 @@ class DiscoveryScanRequest(BaseModel):
 
 
 class ScanResponse(BaseModel):
-    """Response model for scan execution"""
-    scan_run_id: str
+    """Response model for Job-based scan execution."""
+    inventory_scan_id: str
     status: str
-    started_at: str
-    completed_at: str
-    total_assets: int
-    total_relationships: int
-    total_drift: int
-    artifact_paths: Dict[str, str]
+    message: str
+    orchestration_id: Optional[str] = None
+    provider: Optional[str] = None
 
 
 @app.get("/")
@@ -263,432 +272,199 @@ async def api_health():
 @app.post("/api/v1/scan", response_model=ScanResponse)
 async def run_inventory_scan(request: ScanRequest):
     """
-    Run inventory scan.
+    Start an inventory scan by creating a K8s Job on a spot node.
 
-    Collects resources, normalizes to assets/relationships, detects drift,
-    and saves artifacts to S3/local storage.
+    **Pipeline mode** -- provide `orchestration_id`:
+      Fetches metadata from scan_orchestration table.
+
+    **Ad-hoc mode** -- provide `discovery_scan_id`:
+      Uses the supplied discovery_scan_id with optional overrides.
     """
-    import time
-    start_time = time.time()
+    orch_id = request.orchestration_id
+    inventory_scan_id = orch_id
 
-    # Determine discovery_scan_id and check_scan_id
-    # Priority: direct discovery_scan_id (ad-hoc) > orchestration_id (pipeline)
-    discovery_query_scan_id = request.discovery_scan_id
-    check_query_scan_id = request.check_scan_id
-    tenant_id = request.tenant_id
-
-    if request.orchestration_id:
-        # Pipeline mode - query scan_orchestration for discovery_scan_id and check_scan_id
+    if orch_id:
+        # Pipeline mode
         try:
-            metadata = get_orchestration_metadata(request.orchestration_id)
+            meta = get_orchestration_metadata(orch_id)
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e))
 
-        discovery_query_scan_id = metadata.get("discovery_scan_id")
-        if not discovery_query_scan_id:
-            raise HTTPException(status_code=400, detail=f"Discovery scan not completed yet for orchestration_id={request.orchestration_id}")
-
-        # Optionally get check_scan_id if available (for posture enrichment)
-        check_query_scan_id = metadata.get("check_scan_id")
-
-        # Get tenant_id from orchestration metadata
-        tenant_id = metadata.get("tenant_id") or request.tenant_id
-
-        # Derive account and provider from orchestration metadata when not supplied in request
-        orch_account = metadata.get("account_id")
-        orch_provider = metadata.get("provider_type", "").lower() or None
-        if orch_account and not request.accounts:
-            request = request.model_copy(update={"accounts": [orch_account]})
-        if orch_provider and not request.providers:
-            request = request.model_copy(update={"providers": [orch_provider]})
-
-        logger.info(
-            f"Pipeline mode: discovery_scan_id={discovery_query_scan_id}, "
-            f"check_scan_id={check_query_scan_id}, "
-            f"account_id={orch_account}, provider={orch_provider} "
-            f"(orchestration_id={request.orchestration_id})"
-        )
-    elif not discovery_query_scan_id:
-        discovery_query_scan_id = "latest"
-        logger.info("Ad-hoc mode: Using discovery_scan_id='latest'")
-
-    with LogContext(tenant_id=tenant_id, scan_run_id=request.previous_scan_id):
-        logger.info("Running inventory scan", extra={
-            "extra_fields": {
-                "providers": request.providers,
-                "accounts": request.accounts,
-                "regions": request.regions,
-                "services": request.services,
-                "previous_scan_id": request.previous_scan_id,
-                "discovery_scan_id": discovery_query_scan_id
-            }
-        })
-
-        try:
-            # Get consolidated database URL
-            try:
-                db_config = get_database_config("inventory")
-                db_url = db_config.connection_string
-                # Add schema to connection string
-                schema = os.getenv("DB_SCHEMA", "public")
-                sep = "&" if "?" in db_url else "?"
-                db_url = f"{db_url}{sep}options=-c%20search_path%3D{schema.replace(',', '%2C')}"
-            except Exception as e:
-                logger.error(f"Failed to get consolidated DB config: {e}")
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Database configuration error: {str(e)}"
-                )
-
-            orchestrator = ScanOrchestrator(
-                tenant_id=tenant_id,
-                db_url=db_url,
-            )
-
-            # DB-first: derive inventory from discoveries DB and optionally enrich from check DB.
-            # Run in thread pool so the asyncio event loop remains free (liveness probes stay healthy).
-            loop = asyncio.get_event_loop()
-            result = await loop.run_in_executor(
-                _scan_executor,
-                lambda: orchestrator.run_scan_from_discovery(
-                    discovery_scan_id=discovery_query_scan_id,
-                    check_scan_id=check_query_scan_id,
-                    providers=request.providers,
-                    accounts=request.accounts,
-                    previous_scan_id=request.previous_scan_id,
-                )
-            )
-
-            duration_ms = (time.time() - start_time) * 1000
-            log_duration(logger, "Inventory scan completed", duration_ms)
-            audit_log(
-                logger,
-                "inventory_scan_completed",
-                f"scan:{result.get('scan_run_id')}",
-                tenant_id=request.tenant_id,
-                result="success",
-                details={
-                    "total_assets": result.get("total_assets", 0),
-                    "total_relationships": result.get("total_relationships", 0)
-                }
-            )
-            
-            logger.info("Inventory scan completed successfully", extra={
-                "extra_fields": {
-                    "scan_run_id": result.get("scan_run_id"),
-                    "total_assets": result.get("total_assets", 0),
-                    "total_relationships": result.get("total_relationships", 0)
-                }
-            })
-
-            # Update scan_orchestration with inventory_scan_id (if in pipeline mode)
-            if request.orchestration_id:
-                try:
-                    from engine_common.orchestration import update_orchestration_scan_id
-                    inventory_scan_id = result.get("scan_run_id")
-                    update_orchestration_scan_id(
-                        orchestration_id=request.orchestration_id,
-                        engine="inventory",
-                        scan_id=inventory_scan_id,
-                    )
-                    logger.info(f"Updated scan_orchestration with inventory_scan_id: {inventory_scan_id}")
-                except Exception as e:
-                    logger.error(f"Failed to update scan_orchestration: {e}")
-                    # Don't fail the request - this is tracking only
-
-            return ScanResponse(**result)
-
-        except Exception as e:
-            duration_ms = (time.time() - start_time) * 1000
-            logger.error("Failed to run inventory scan", exc_info=True, extra={
-                "extra_fields": {
-                    "error": str(e),
-                    "duration_ms": duration_ms
-                }
-            })
-            audit_log(
-                logger,
-                "inventory_scan_failed",
-                f"tenant:{request.tenant_id}",
-                tenant_id=request.tenant_id,
-                result="failure",
-                details={"error": str(e)}
-            )
+        discovery_scan_id = meta.get("discovery_scan_id")
+        if not discovery_scan_id:
             raise HTTPException(
-                status_code=500,
-                detail=f"Failed to run inventory scan: {str(e)}"
+                status_code=400,
+                detail=f"Discovery scan not completed yet for orchestration_id={orch_id}",
             )
 
-
-@app.post("/api/v1/inventory/scan/async")
-async def run_inventory_scan_async(request: ScanRequest):
-    """
-    Async wrapper for inventory scan (DB-first).
-    Returns immediately with a job_id; poll `/api/v1/inventory/jobs/{job_id}`.
-    """
-    job_id = f"invjob_{int(time.time()*1000)}_{random.randint(1000,9999)}"
-    inventory_jobs[job_id] = {
-        "job_id": job_id,
-        "status": "running",
-        "tenant_id": request.tenant_id,
-        "discovery_scan_id": request.discovery_scan_id,
-        "check_scan_id": request.check_scan_id,
-        "started_at": datetime.now(timezone.utc).isoformat(),
-        "error": None,
-        "result": None,
-    }
-
-    def _worker():
-        try:
-            # Get consolidated database URL
-            db_config = get_database_config("inventory")
-            db_url = db_config.connection_string
-            schema = os.getenv("DB_SCHEMA", "public")
-            sep = "&" if "?" in db_url else "?"
-            db_url = f"{db_url}{sep}options=-c%20search_path%3D{schema.replace(',', '%2C')}"
-
-            orchestrator = ScanOrchestrator(
-                tenant_id=request.tenant_id,
-                db_url=db_url,
+        provider = (meta.get("provider") or meta.get("provider_type", "aws")).lower()
+        tenant_id = meta.get("tenant_id") or request.tenant_id
+        logger.info(
+            f"Pipeline mode: orch={orch_id} disc={discovery_scan_id} provider={provider}"
+        )
+    elif request.discovery_scan_id:
+        # Ad-hoc mode — still need orchestration_id for Job-based execution
+        if not orch_id:
+            raise HTTPException(
+                status_code=400,
+                detail="orchestration_id is required for Job-based execution",
             )
-            result = orchestrator.run_scan_from_discovery(
-                discovery_scan_id=request.discovery_scan_id,
-                check_scan_id=request.check_scan_id,
-                providers=request.providers,
-                accounts=request.accounts,
-                previous_scan_id=request.previous_scan_id,
-            )
-            inventory_jobs[job_id]["status"] = "completed"
-            inventory_jobs[job_id]["completed_at"] = datetime.now(timezone.utc).isoformat()
-            inventory_jobs[job_id]["result"] = result
-        except Exception as e:
-            inventory_jobs[job_id]["status"] = "failed"
-            inventory_jobs[job_id]["completed_at"] = datetime.now(timezone.utc).isoformat()
-            inventory_jobs[job_id]["error"] = str(e)
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="orchestration_id is required",
+        )
 
-    threading.Thread(target=_worker, daemon=True).start()
-    return inventory_jobs[job_id]
+    tenant_id = request.tenant_id
+    provider = request.providers[0] if request.providers else "aws"
+
+    # Pre-create inventory_report row in DB (so status endpoint works immediately)
+    try:
+        import json as _json
+        conn = _get_inventory_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                """INSERT INTO inventory_report
+                   (inventory_scan_id, tenant_id, status, started_at, scan_metadata)
+                   VALUES (%s, %s, 'running', NOW(), %s)
+                   ON CONFLICT (inventory_scan_id) DO UPDATE SET status = 'running'""",
+                (inventory_scan_id, tenant_id,
+                 _json.dumps({"orchestration_id": orch_id, "mode": "job"})),
+            )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning(f"Failed to pre-create inventory_report: {e}")
+
+    # Create K8s Job on spot node
+    try:
+        job_name = create_engine_job(
+            engine_name="inventory",
+            scan_id=inventory_scan_id,
+            orchestration_id=orch_id,
+            image=SCANNER_IMAGE,
+            cpu_request=SCANNER_CPU_REQUEST,
+            mem_request=SCANNER_MEM_REQUEST,
+            cpu_limit=SCANNER_CPU_LIMIT,
+            mem_limit=SCANNER_MEM_LIMIT,
+            active_deadline_seconds=3600,
+        )
+    except Exception as e:
+        logger.error(f"Failed to create inventory scanner Job: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to create scanner Job: {e}")
+
+    return ScanResponse(
+        inventory_scan_id=inventory_scan_id,
+        status="running",
+        message=f"Scanner Job '{job_name}' created on spot node (image={SCANNER_IMAGE})",
+        orchestration_id=orch_id,
+        provider=provider,
+    )
 
 
 @app.post("/api/v1/inventory/scan/discovery", response_model=ScanResponse)
 async def run_discovery_scan(request: DiscoveryScanRequest):
     """
-    Run inventory scan from discoveries (DB-first).
+    Start an inventory scan from discoveries by creating a K8s Job.
 
-    Reads discovery records from Discoveries DB (or local files), normalizes to assets/relationships,
-    optionally enriches assets with check posture from Check DB, and writes indexes to Inventory DB.
+    Same behaviour as POST /api/v1/scan — kept for backward compatibility.
     """
-    import time
-    start_time = time.time()
-
-    # Determine discovery_scan_id and check_scan_id
-    # Priority: direct discovery_scan_id (ad-hoc) > orchestration_id (pipeline)
-    discovery_query_scan_id = request.discovery_scan_id
-    check_query_scan_id = request.check_scan_id
-    tenant_id = request.tenant_id
-
-    if request.orchestration_id:
-        # Pipeline mode - query scan_orchestration for discovery_scan_id
-        try:
-            metadata = get_orchestration_metadata(request.orchestration_id)
-        except ValueError as e:
-            raise HTTPException(status_code=404, detail=str(e))
-
-        discovery_query_scan_id = metadata.get("discovery_scan_id")
-        if not discovery_query_scan_id:
-            raise HTTPException(status_code=400, detail=f"Discovery scan not completed yet for orchestration_id={request.orchestration_id}")
-
-        # Optionally get check_scan_id
-        check_query_scan_id = metadata.get("check_scan_id")
-
-        # Get tenant_id from orchestration metadata
-        tenant_id = metadata.get("tenant_id") or request.tenant_id
-
-        # Derive account and provider from orchestration metadata when not supplied in request
-        orch_account = metadata.get("account_id")
-        orch_provider = metadata.get("provider_type", "").lower() or None
-        if orch_account and not request.accounts:
-            request = request.model_copy(update={"accounts": [orch_account]})
-        if orch_provider and not request.providers:
-            request = request.model_copy(update={"providers": [orch_provider]})
-
-        logger.info(
-            f"Pipeline mode: discovery_scan_id={discovery_query_scan_id}, "
-            f"account_id={orch_account}, provider={orch_provider} "
-            f"(orchestration_id={request.orchestration_id})"
+    orch_id = request.orchestration_id
+    if not orch_id:
+        raise HTTPException(
+            status_code=400,
+            detail="orchestration_id is required for Job-based execution",
         )
-    elif not discovery_query_scan_id:
-        raise HTTPException(status_code=400, detail="Either discovery_scan_id OR orchestration_id must be provided")
 
-    with LogContext(tenant_id=tenant_id, scan_run_id=discovery_query_scan_id):
-        logger.info("Running discovery-based inventory scan", extra={
-            "extra_fields": {
-                "discovery_scan_id": discovery_query_scan_id,
-                "providers": request.providers,
-                "accounts": request.accounts,
-                "previous_scan_id": request.previous_scan_id,
-                "check_scan_id": check_query_scan_id
-            }
-        })
+    inventory_scan_id = orch_id
 
-        try:
-            # Get consolidated database URL
-            try:
-                db_config = get_database_config("inventory")
-                db_url = db_config.connection_string
-                # Add schema to connection string
-                schema = os.getenv("DB_SCHEMA", "public")
-                sep = "&" if "?" in db_url else "?"
-                db_url = f"{db_url}{sep}options=-c%20search_path%3D{schema.replace(',', '%2C')}"
-            except Exception as e:
-                logger.error(f"Failed to get consolidated DB config: {e}")
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Database configuration error: {str(e)}"
-                )
+    try:
+        meta = get_orchestration_metadata(orch_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
-            orchestrator = ScanOrchestrator(
-                tenant_id=tenant_id,
-                db_url=db_url,
+    discovery_scan_id = meta.get("discovery_scan_id")
+    if not discovery_scan_id:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Discovery scan not completed yet for orchestration_id={orch_id}",
+        )
+
+    tenant_id = meta.get("tenant_id") or request.tenant_id
+    provider = (meta.get("provider") or meta.get("provider_type", "aws")).lower()
+
+    # Pre-create inventory_report row
+    try:
+        import json as _json
+        conn = _get_inventory_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                """INSERT INTO inventory_report
+                   (inventory_scan_id, tenant_id, status, started_at, scan_metadata)
+                   VALUES (%s, %s, 'running', NOW(), %s)
+                   ON CONFLICT (inventory_scan_id) DO UPDATE SET status = 'running'""",
+                (inventory_scan_id, tenant_id,
+                 _json.dumps({"orchestration_id": orch_id, "mode": "job"})),
             )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning(f"Failed to pre-create inventory_report: {e}")
 
-            # Run in thread pool so the asyncio event loop remains free (liveness probes stay healthy).
-            loop = asyncio.get_event_loop()
-            result = await loop.run_in_executor(
-                _scan_executor,
-                lambda: orchestrator.run_scan_from_discovery(
-                    discovery_scan_id=discovery_query_scan_id,
-                    check_scan_id=check_query_scan_id,
-                    providers=request.providers,
-                    accounts=request.accounts,
-                    previous_scan_id=request.previous_scan_id,
-                )
+    # Create K8s Job on spot node
+    try:
+        job_name = create_engine_job(
+            engine_name="inventory",
+            scan_id=inventory_scan_id,
+            orchestration_id=orch_id,
+            image=SCANNER_IMAGE,
+            cpu_request=SCANNER_CPU_REQUEST,
+            mem_request=SCANNER_MEM_REQUEST,
+            cpu_limit=SCANNER_CPU_LIMIT,
+            mem_limit=SCANNER_MEM_LIMIT,
+            active_deadline_seconds=3600,
+        )
+    except Exception as e:
+        logger.error(f"Failed to create inventory scanner Job: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to create scanner Job: {e}")
+
+    return ScanResponse(
+        inventory_scan_id=inventory_scan_id,
+        status="running",
+        message=f"Scanner Job '{job_name}' created on spot node (image={SCANNER_IMAGE})",
+        orchestration_id=orch_id,
+        provider=provider,
+    )
+
+
+@app.get("/api/v1/inventory/scan/{inventory_scan_id}/status")
+async def get_inventory_scan_status(inventory_scan_id: str):
+    """Get inventory scan status from inventory_report DB table."""
+    from psycopg2.extras import RealDictCursor
+    try:
+        conn = _get_inventory_conn()
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                "SELECT inventory_scan_id, status, tenant_id, started_at, completed_at, scan_metadata "
+                "FROM inventory_report WHERE inventory_scan_id = %s",
+                (inventory_scan_id,),
             )
+            row = cur.fetchone()
+        conn.close()
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Database error: {e}")
 
-            duration_ms = (time.time() - start_time) * 1000
-            log_duration(logger, "Discovery scan completed", duration_ms)
-            audit_log(
-                logger,
-                "inventory_discovery_scan_completed",
-                f"scan:{result.get('scan_run_id')}",
-                tenant_id=request.tenant_id,
-                result="success",
-                details={
-                    "discovery_scan_id": request.discovery_scan_id,
-                    "total_assets": result.get("total_assets", 0),
-                    "total_relationships": result.get("total_relationships", 0)
-                }
-            )
-            
-            logger.info("Discovery scan completed successfully", extra={
-                "extra_fields": {
-                    "scan_run_id": result.get("scan_run_id"),
-                    "total_assets": result.get("total_assets", 0),
-                    "total_relationships": result.get("total_relationships", 0)
-                }
-            })
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Scan {inventory_scan_id} not found")
 
-            # Update scan_orchestration with inventory_scan_id (if in pipeline mode)
-            if request.orchestration_id:
-                try:
-                    from engine_common.orchestration import update_orchestration_scan_id
-                    inventory_scan_id = result.get("scan_run_id")
-                    update_orchestration_scan_id(
-                        orchestration_id=request.orchestration_id,
-                        engine="inventory",
-                        scan_id=inventory_scan_id,
-                    )
-                    logger.info(f"Updated scan_orchestration with inventory_scan_id: {inventory_scan_id}")
-                except Exception as e:
-                    logger.error(f"Failed to update scan_orchestration: {e}")
-                    # Don't fail the request - this is tracking only
+    # Normalise datetime columns for JSON serialisation
+    result = dict(row)
+    for key in ("started_at", "completed_at"):
+        val = result.get(key)
+        if val and hasattr(val, "isoformat"):
+            result[key] = val.isoformat()
 
-            return ScanResponse(**result)
-
-        except Exception as e:
-            duration_ms = (time.time() - start_time) * 1000
-            logger.error("Failed to run discovery scan", exc_info=True, extra={
-                "extra_fields": {
-                    "error": str(e),
-                    "discovery_scan_id": request.discovery_scan_id,
-                    "duration_ms": duration_ms
-                }
-            })
-            audit_log(
-                logger,
-                "inventory_discovery_scan_failed",
-                f"discovery_scan:{request.discovery_scan_id}",
-                tenant_id=request.tenant_id,
-                result="failure",
-                details={"error": str(e)}
-            )
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to run discovery scan: {str(e)}"
-            )
-
-
-@app.post("/api/v1/inventory/scan/discovery/async")
-async def run_discovery_scan_async(request: DiscoveryScanRequest):
-    """
-    Async DB-first inventory build from discoveries.
-
-    Returns immediately with a job_id so callers can poll `/api/v1/inventory/jobs/{job_id}`.
-    """
-    import time
-    started_at = datetime.now(timezone.utc).isoformat()
-    job_id = f"invjob_{int(time.time()*1000)}_{random.randint(1000,9999)}"
-    inventory_jobs[job_id] = {
-        "job_id": job_id,
-        "status": "running",
-        "tenant_id": request.tenant_id,
-        "discovery_scan_id": request.discovery_scan_id,
-        "check_scan_id": request.check_scan_id,
-        "started_at": started_at,
-        "completed_at": None,
-        "error": None,
-        "result": None,
-    }
-
-    def _run():
-        t0 = time.time()
-        try:
-            db_config = get_database_config("inventory")
-            db_url = db_config.connection_string
-            schema = os.getenv("DB_SCHEMA", "public")
-            sep = "&" if "?" in db_url else "?"
-            db_url = f"{db_url}{sep}options=-c%20search_path%3D{schema.replace(',', '%2C')}"
-
-            orchestrator = ScanOrchestrator(
-                tenant_id=request.tenant_id,
-                db_url=db_url,
-            )
-            result = orchestrator.run_scan_from_discovery(
-                discovery_scan_id=request.discovery_scan_id,
-                check_scan_id=request.check_scan_id,
-                providers=request.providers,
-                accounts=request.accounts,
-                previous_scan_id=request.previous_scan_id,
-            )
-            inventory_jobs[job_id]["status"] = "completed"
-            inventory_jobs[job_id]["completed_at"] = datetime.now(timezone.utc).isoformat()
-            inventory_jobs[job_id]["result"] = result
-            inventory_jobs[job_id]["duration_ms"] = int((time.time() - t0) * 1000)
-        except Exception as e:
-            inventory_jobs[job_id]["status"] = "failed"
-            inventory_jobs[job_id]["completed_at"] = datetime.now(timezone.utc).isoformat()
-            inventory_jobs[job_id]["error"] = str(e)
-            inventory_jobs[job_id]["duration_ms"] = int((time.time() - t0) * 1000)
-    threading.Thread(target=_run, daemon=True).start()
-    return inventory_jobs[job_id]
-
-
-@app.get("/api/v1/inventory/jobs/{job_id}")
-async def get_inventory_job(job_id: str):
-    job = inventory_jobs.get(job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    return job
+    return result
 
 
 @app.get("/api/v1/inventory/runs/{scan_run_id}/summary")
@@ -1994,6 +1770,353 @@ async def list_relationships(
                 status_code=500,
                 detail=f"Failed to list relationships: {str(e)}"
             )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TAXONOMY & ARCHITECTURE DIAGRAM ENDPOINTS
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.get("/api/v1/inventory/taxonomy")
+async def get_taxonomy(
+    csp: Optional[str] = Query(None, description="Filter by CSP (aws, azure, gcp, oci, alicloud, ibm, k8s)"),
+    category: Optional[str] = Query(None, description="Filter by category (compute, database, storage, ...)"),
+    min_priority: int = Query(5, ge=1, le=5, description="Include resources with priority <= this value"),
+):
+    """
+    Return the service classification taxonomy from service_classification table.
+
+    Used by the UI to:
+    - Know how to group/color/nest resources in architecture diagrams
+    - Filter resources by category/subcategory/service_model
+    - Determine container hierarchy (what nests inside what)
+    """
+    try:
+        db_config = get_database_config("inventory")
+        db_url = db_config.connection_string
+
+        import psycopg2
+        conn = psycopg2.connect(db_url)
+        try:
+            with conn.cursor() as cur:
+                conditions = []
+                params = []
+
+                if csp:
+                    conditions.append("csp = %s")
+                    params.append(csp)
+                if category:
+                    conditions.append("category = %s")
+                    params.append(category)
+                if min_priority < 5:
+                    conditions.append("diagram_priority <= %s")
+                    params.append(min_priority)
+
+                where = " AND ".join(conditions) if conditions else "TRUE"
+
+                cur.execute(f"""
+                    SELECT csp, resource_type, service, resource_name,
+                           display_name, scope, category, subcategory,
+                           service_model, managed_by, access_pattern,
+                           encryption_scope, is_container, container_parent,
+                           diagram_priority, csp_category
+                    FROM service_classification
+                    WHERE {where}
+                    ORDER BY csp, diagram_priority, category, service, resource_type
+                """, params)
+
+                columns = [desc[0] for desc in cur.description]
+                rows = [dict(zip(columns, row)) for row in cur.fetchall()]
+
+                # Build summary
+                categories_summary = {}
+                for r in rows:
+                    cat = r["category"]
+                    if cat not in categories_summary:
+                        categories_summary[cat] = {"count": 0, "subcategories": set()}
+                    categories_summary[cat]["count"] += 1
+                    if r.get("subcategory"):
+                        categories_summary[cat]["subcategories"].add(r["subcategory"])
+
+                # Convert sets to sorted lists for JSON
+                for cat_info in categories_summary.values():
+                    cat_info["subcategories"] = sorted(cat_info["subcategories"])
+
+                return {
+                    "total": len(rows),
+                    "classifications": rows,
+                    "categories_summary": categories_summary,
+                    "filters_applied": {
+                        "csp": csp, "category": category, "min_priority": min_priority
+                    }
+                }
+        finally:
+            conn.close()
+
+    except Exception as e:
+        logger.error("Failed to get taxonomy", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to get taxonomy: {str(e)}")
+
+
+@app.get("/api/v1/inventory/architecture")
+async def get_architecture_diagram(
+    tenant_id: str = Query(...),
+    scan_run_id: Optional[str] = Query(None),
+    max_priority: int = Query(2, ge=1, le=5, description="Show resources up to this priority level"),
+    include_relationships: bool = Query(True, description="Include relationship edges"),
+    csp: Optional[str] = Query(None, description="Filter by CSP"),
+):
+    """
+    Return a pre-nested hierarchy for architecture diagram rendering.
+
+    Combines:
+    - inventory_findings (WHAT exists)
+    - inventory_relationships (WHO connects to WHOM)
+    - resource_inventory_identifier classifications (HOW to organize)
+
+    Returns nested JSON:
+    {
+      accounts: [{
+        account_id, name, provider,
+        global_services: { identity: [...], storage: [...], ... },
+        regions: [{
+          name,
+          regional_services: { compute: [...], encryption: [...], ... },
+          vpcs: [{
+            vpc_id, name,
+            edge: [...],
+            security: [...],
+            subnets: [{
+              subnet_id, name,
+              resources_by_category: { compute: [...], database: [...] }
+            }]
+          }]
+        }]
+      }],
+      relationships: [{ from_uid, to_uid, relation_type, ... }]
+    }
+    """
+    import psycopg2
+    import psycopg2.extras
+
+    try:
+        db_config = get_database_config("inventory")
+        db_url = db_config.connection_string
+
+        conn = psycopg2.connect(db_url)
+        try:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                # ── Step 1: Resolve scan_run_id(s) ──
+                # Architecture needs ALL resources across ALL providers/scans.
+                # If "latest", find ALL distinct scan_run_ids for this tenant.
+                use_all_scans = False
+                scan_run_ids = []
+
+                if not scan_run_id or scan_run_id == "latest":
+                    cur.execute("""
+                        SELECT DISTINCT latest_scan_run_id
+                        FROM inventory_findings
+                        WHERE tenant_id = %s AND latest_scan_run_id IS NOT NULL
+                    """, (tenant_id,))
+                    rows = cur.fetchall()
+                    if not rows:
+                        return {"accounts": [], "relationships": [], "message": "No inventory data found"}
+                    scan_run_ids = [r["latest_scan_run_id"] for r in rows]
+                    scan_run_id = scan_run_ids[0]  # primary for response
+                    use_all_scans = True
+                else:
+                    scan_run_ids = [scan_run_id]
+
+                # ── Step 2: Load taxonomy from service_classification ──
+                # Load ALL taxonomy entries (not filtered by priority).
+                # Priority filtering happens in the asset query instead.
+                # This ensures _classify() can properly categorize every
+                # asset that passed the priority-filtered asset query.
+                csp_condition = ""
+                tax_params = []
+                if csp:
+                    csp_condition = "WHERE csp = %s"
+                    tax_params.append(csp)
+
+                cur.execute(f"""
+                    SELECT csp, resource_type, service, resource_name,
+                           display_name, scope, category, subcategory,
+                           service_model, managed_by, access_pattern,
+                           is_container, container_parent, diagram_priority,
+                           resource_role
+                    FROM service_classification
+                    {csp_condition}
+                """, tax_params)
+
+                taxonomy = {}
+                for row in cur.fetchall():
+                    # Key by csp.resource_type (dotted format matches inventory_findings)
+                    key = f"{row['csp']}.{row['resource_type']}"
+                    taxonomy[key] = dict(row)
+
+                # ── Step 3: Load assets (across all scan_run_ids) ──
+                csp_filter = ""
+                params = [tenant_id]
+                if csp:
+                    csp_filter = "AND provider = %s"
+                    params.append(csp)
+
+                if use_all_scans and len(scan_run_ids) > 1:
+                    # Load ALL assets across all scans
+                    placeholders = ", ".join(["%s"] * len(scan_run_ids))
+                    params.extend(scan_run_ids)
+                    scan_filter = f"AND latest_scan_run_id IN ({placeholders})"
+                else:
+                    params.append(scan_run_ids[0])
+                    scan_filter = "AND latest_scan_run_id = %s"
+
+                # Only load assets whose resource_type has taxonomy
+                # diagram_priority <= max_priority (or is a VPC/subnet
+                # container, or has no taxonomy entry at all — to avoid
+                # dropping unknown types silently).
+                params.append(max_priority)
+                cur.execute(f"""
+                    SELECT i.asset_id, i.resource_uid, i.provider,
+                           i.account_id, i.region, i.resource_type,
+                           i.resource_id, i.name, i.display_name,
+                           i.tags, i.risk_score, i.criticality,
+                           i.compliance_status, i.latest_scan_run_id,
+                           i.properties, i.configuration
+                    FROM inventory_findings i
+                    LEFT JOIN service_classification sc
+                      ON sc.csp = i.provider
+                     AND sc.resource_type = i.resource_type
+                    WHERE i.tenant_id = %s
+                      {csp_filter}
+                      {scan_filter}
+                      AND (
+                          sc.diagram_priority <= %s
+                          OR sc.resource_type IS NULL
+                          OR i.resource_type IN (
+                              'ec2.vpc', 'vpc.vpc', 'ec2.subnet', 'vpc.subnet',
+                              'network.virtual-network', 'network.subnet',
+                              'core.vcn', 'core.subnet', 'vpc.network',
+                              'vpc.subnetwork', 'is.vpc', 'is.subnet'
+                          )
+                      )
+                    ORDER BY i.account_id, i.region, i.resource_type
+                """, params)
+
+                assets = [dict(r) for r in cur.fetchall()]
+
+                # ── Step 4: Load relationships (ALL for tenant) ──
+                # Architecture diagrams need ALL containment relationships
+                # regardless of scan_run_id, because relationship scans
+                # and asset scans may have different IDs.  Loading only
+                # matching scan_ids drops most contained_by edges.
+                relationships = []
+                if include_relationships:
+                    cur.execute("""
+                        SELECT DISTINCT ON (from_uid, to_uid, relation_type)
+                               from_uid, to_uid, relation_type,
+                               from_resource_type, to_resource_type,
+                               relationship_strength, bidirectional
+                        FROM inventory_relationships
+                        WHERE tenant_id = %s
+                        ORDER BY from_uid, to_uid, relation_type
+                    """, [tenant_id])
+                    relationships = [dict(r) for r in cur.fetchall()]
+
+                # ── Step 5: Build nested hierarchy (v2 — modular builder) ──
+                hierarchy = build_architecture_hierarchy(assets, taxonomy, relationships)
+
+                return {
+                    **hierarchy,
+                    "scan_run_id": scan_run_id,
+                    "filters": {
+                        "max_priority": max_priority,
+                        "include_relationships": include_relationships,
+                        "csp": csp,
+                    },
+                    "stats": {
+                        "total_assets": len(assets),
+                        "total_relationships": len(relationships),
+                        "taxonomy_entries": len(taxonomy),
+                    }
+                }
+
+        finally:
+            conn.close()
+
+    except Exception as e:
+        logger.error("Failed to build architecture diagram", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to build architecture: {str(e)}")
+
+
+def _build_architecture_hierarchy_REMOVED():
+    """REMOVED: This function has been replaced by architecture_builder.build_architecture_hierarchy."""
+    raise NotImplementedError("Use build_architecture_hierarchy from architecture_builder module")
+
+
+
+
+@app.get("/api/v1/inventory/taxonomy/coverage")
+async def get_taxonomy_coverage():
+    """
+    Show classification coverage stats: how many inventory resource_types
+    have a matching entry in service_classification.
+    """
+    try:
+        db_config = get_database_config("inventory")
+        db_url = db_config.connection_string
+
+        import psycopg2
+        conn = psycopg2.connect(db_url)
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    WITH inv_types AS (
+                        SELECT DISTINCT provider AS csp, resource_type, COUNT(*) AS asset_count
+                        FROM inventory_findings
+                        GROUP BY provider, resource_type
+                    )
+                    SELECT
+                        i.csp,
+                        i.resource_type,
+                        i.asset_count,
+                        sc.category,
+                        sc.diagram_priority,
+                        CASE WHEN sc.id IS NOT NULL THEN true ELSE false END AS classified
+                    FROM inv_types i
+                    LEFT JOIN service_classification sc
+                        ON sc.csp = i.csp AND sc.resource_type = i.resource_type
+                    ORDER BY i.csp, classified, i.asset_count DESC
+                """)
+
+                columns = [desc[0] for desc in cur.description]
+                rows = [dict(zip(columns, row)) for row in cur.fetchall()]
+
+                # Summary
+                by_csp = {}
+                for r in rows:
+                    c = r["csp"]
+                    if c not in by_csp:
+                        by_csp[c] = {"total_types": 0, "classified": 0, "unclassified": 0,
+                                     "total_assets": 0, "classified_assets": 0}
+                    by_csp[c]["total_types"] += 1
+                    by_csp[c]["total_assets"] += r["asset_count"]
+                    if r["classified"]:
+                        by_csp[c]["classified"] += 1
+                        by_csp[c]["classified_assets"] += r["asset_count"]
+                    else:
+                        by_csp[c]["unclassified"] += 1
+
+                for v in by_csp.values():
+                    v["coverage_pct"] = round(v["classified"] / v["total_types"] * 100, 1) if v["total_types"] > 0 else 0
+
+                return {
+                    "summary": by_csp,
+                    "details": rows,
+                }
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.error("Failed to get taxonomy coverage", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":

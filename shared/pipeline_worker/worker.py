@@ -1,55 +1,37 @@
 """
-Threat-Engine SQS Pipeline Worker
-===================================
+Threat-Engine Pipeline Worker (HTTP)
+=====================================
 
-Polls the ``SQS_PIPELINE_QUEUE_URL`` queue for ``scan_requested`` events and
-runs the full engine pipeline sequentially:
+Stateless orchestrator — all state lives in scan_orchestration (PostgreSQL).
+orchestration_id is the sole identifier. No pipeline_id, no in-memory state.
 
-    inventory → check → threat → compliance + IAM + datasec (parallel)
+    POST /api/v1/pipeline/run  {"orchestration_id": "..."}
 
-Each stage is triggered via HTTP.  On success the message is deleted.  On
-failure the message is left in the queue — after ``maxReceiveCount`` retries
-(configured on the SQS queue) it is moved to the Dead-Letter Queue (DLQ).
+Pipeline stages (sequential/parallel):
+    discovery → check + inventory (parallel) → threat → compliance + IAM + datasec (parallel)
 
-Stage-level monitoring events are published to ``SQS_EVENTS_QUEUE_URL`` when
-that variable is set (optional).
-
-Environment variables
----------------------
-SQS_PIPELINE_QUEUE_URL  (required) Input queue URL (FIFO recommended)
-SQS_EVENTS_QUEUE_URL    (optional) Events queue URL for stage notifications
-SQS_POLL_INTERVAL_S     (optional) Seconds between empty polls (default: 5)
-SQS_VISIBILITY_TIMEOUT  (optional) Seconds visibility window (default: 3600)
-AWS_REGION              (optional) AWS region (default: ap-south-1)
-*_ENGINE_URL             (optional) Per-engine HTTP URL overrides
+Each stage is triggered via HTTP to the respective engine service.
+Each engine writes its scan_id back to scan_orchestration via update_orchestration_scan_id().
 
 Run
 ---
-    python -m shared.pipeline_worker.worker
-
-    # or directly
-    python shared/pipeline_worker/worker.py
+    uvicorn shared.pipeline_worker.worker:app --host 0.0.0.0 --port 8050
 """
 from __future__ import annotations
 
 import asyncio
 import logging
 import os
-import signal
 import sys
-import time
-from typing import Optional
+from datetime import datetime, timezone
+from typing import Optional, Dict, Any, List
 
-# Allow running directly or as a module
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from shared.common.sqs import SQSClient
-from shared.common.pipeline_events import (
-    PipelineEvent,
-    scan_complete,
-    stage_complete,
-    stage_failed,
-)
 from shared.pipeline_worker import handlers
 
 logging.basicConfig(
@@ -58,186 +40,314 @@ logging.basicConfig(
 )
 logger = logging.getLogger("pipeline_worker")
 
-# ── Config ────────────────────────────────────────────────────────────────────
+app = FastAPI(
+    title="Threat Engine Pipeline Worker",
+    description="Stateless orchestrator — all state in scan_orchestration (PostgreSQL)",
+    version="3.0.0",
+)
 
-QUEUE_URL: str = os.environ["SQS_PIPELINE_QUEUE_URL"]
-EVENTS_QUEUE_URL: Optional[str] = os.getenv("SQS_EVENTS_QUEUE_URL")
-POLL_INTERVAL: int = int(os.getenv("SQS_POLL_INTERVAL_S", "5"))
-VISIBILITY_TIMEOUT: int = int(os.getenv("SQS_VISIBILITY_TIMEOUT", "3600"))
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# ── Pipeline runner ───────────────────────────────────────────────────────────
+
+# ── DB helpers ───────────────────────────────────────────────────────────────
+
+def _get_orch_conn():
+    """Connect to threat_engine_onboarding (scan_orchestration table)."""
+    import psycopg2
+    return psycopg2.connect(
+        host=os.getenv("ONBOARDING_DB_HOST"),
+        port=int(os.getenv("ONBOARDING_DB_PORT", "5432")),
+        database=os.getenv("ONBOARDING_DB_NAME", "threat_engine_onboarding"),
+        user=os.getenv("ONBOARDING_DB_USER", "postgres"),
+        password=os.getenv("ONBOARDING_DB_PASSWORD"),
+    )
 
 
-async def run_pipeline(event: PipelineEvent, sqs: SQSClient) -> None:
-    """Execute the full pipeline for one ``scan_requested`` event.
+def _update_orchestration(orchestration_id: str, **kwargs) -> None:
+    """Update scan_orchestration columns. Only updates provided kwargs."""
+    if not kwargs:
+        return
+    set_clauses = ", ".join(f"{k} = %s" for k in kwargs)
+    values = list(kwargs.values()) + [orchestration_id]
+    try:
+        conn = _get_orch_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                f"UPDATE scan_orchestration SET {set_clauses} WHERE orchestration_id = %s::uuid",
+                values,
+            )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning(f"Failed to update orchestration {orchestration_id}: {e}")
 
-    Runs stages in order:
-      1. inventory
-      2. check
-      3. threat
-      4. compliance + iam + datasec (parallel)
 
-    Publishes ``stage_complete`` / ``stage_failed`` events to the events queue
-    if ``SQS_EVENTS_QUEUE_URL`` is configured.
+def _get_orchestration(orchestration_id: str) -> Optional[Dict[str, Any]]:
+    """Read full scan_orchestration row."""
+    try:
+        conn = _get_orch_conn()
+        from psycopg2.extras import RealDictCursor
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                "SELECT * FROM scan_orchestration WHERE orchestration_id = %s::uuid",
+                (orchestration_id,),
+            )
+            row = cur.fetchone()
+        conn.close()
+        return dict(row) if row else None
+    except Exception as e:
+        logger.error(f"Failed to read orchestration {orchestration_id}: {e}")
+        return None
 
-    Args:
-        event: The ``scan_requested`` PipelineEvent.
-        sqs: Shared SQS client instance.
+
+def _add_engine_completed(orchestration_id: str, engine: str) -> None:
+    """Append engine name to engines_completed JSONB array."""
+    try:
+        conn = _get_orch_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                """UPDATE scan_orchestration
+                   SET engines_completed = COALESCE(engines_completed, '[]'::jsonb) || %s::jsonb
+                   WHERE orchestration_id = %s::uuid""",
+                (f'["{engine}"]', orchestration_id),
+            )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning(f"Failed to add {engine} to engines_completed: {e}")
+
+
+# ── Models ───────────────────────────────────────────────────────────────────
+
+class PipelineRequest(BaseModel):
+    orchestration_id: str
+
+
+class PipelineResponse(BaseModel):
+    orchestration_id: str
+    status: str
+    message: str
+
+
+# ── Pipeline runner ──────────────────────────────────────────────────────────
+
+
+async def run_pipeline(orchestration_id: str) -> None:
+    """Execute the full pipeline for one scan.
+
+    All state is read/written to scan_orchestration in PostgreSQL.
+    This function is stateless — safe to run from any worker replica.
+
+    Stages:
+      0. discovery
+      1. check + inventory  (parallel)
+      2. threat             (needs check_scan_id)
+      3. compliance + iam + datasec  (parallel)
     """
-    oid = event.orchestration_id
-    tid = event.tenant_id
-    aid = event.account_id
-    prov = event.provider
+    _update_orchestration(orchestration_id, overall_status="running")
 
-    logger.info("pipeline start orchestration_id=%s account=%s", oid, aid)
-
-    check_scan_id: Optional[str] = None
-
-    # ── Stage 1: Inventory ────────────────────────────────────────────────
+    # ── Stage 0: Discovery ────────────────────────────────────────────
+    logger.info("[%s] Stage 0: discovery", orchestration_id[:8])
     try:
-        resp = await handlers.trigger_inventory(oid, tid, aid)
-        inv_scan_id = (
-            resp.get("scan_run_id") or resp.get("scan_id") or resp.get("inventory_scan_id")
+        resp = await handlers.trigger_discovery(orchestration_id)
+        disc_scan_id = resp.get("discovery_scan_id", "")
+        logger.info("[%s] discovery complete scan_id=%s", orchestration_id[:8], disc_scan_id)
+        _add_engine_completed(orchestration_id, "discovery")
+    except Exception as exc:
+        logger.error("[%s] discovery FAILED: %s", orchestration_id[:8], exc)
+        _update_orchestration(
+            orchestration_id,
+            overall_status="failed",
+            error_details=f'{{"stage": "discovery", "error": "{exc}"}}',
+            completed_at=datetime.now(timezone.utc),
         )
-        logger.info("inventory complete scan_id=%s", inv_scan_id)
-        _publish_event(sqs, stage_complete(oid, tid, aid, prov, "inventory", inv_scan_id or ""))
-    except Exception as exc:
-        logger.error("inventory failed oid=%s error=%s", oid, exc)
-        _publish_event(sqs, stage_failed(oid, tid, aid, prov, "inventory", str(exc)))
-        # Non-fatal — check can still use discovery_scan_id directly
+        return
 
-    # ── Stage 2: Check ────────────────────────────────────────────────────
-    try:
-        resp = await handlers.trigger_check(oid, prov)
-        check_scan_id = resp.get("check_scan_id") or resp.get("scan_id")
-        logger.info("check complete scan_id=%s", check_scan_id)
-        _publish_event(sqs, stage_complete(oid, tid, aid, prov, "check", check_scan_id or ""))
-    except Exception as exc:
-        logger.error("check failed oid=%s error=%s", oid, exc)
-        _publish_event(sqs, stage_failed(oid, tid, aid, prov, "check", str(exc)))
-        # Use orchestration_id as fallback for downstream
-
-    # ── Stage 3: Threat ───────────────────────────────────────────────────
-    try:
-        resp = await handlers.trigger_threat(oid, prov, check_scan_id)
-        threat_scan_id = resp.get("scan_run_id") or resp.get("scan_id") or oid
-        logger.info("threat complete scan_id=%s", threat_scan_id)
-        _publish_event(sqs, stage_complete(oid, tid, aid, prov, "threat", threat_scan_id))
-    except Exception as exc:
-        logger.error("threat failed oid=%s error=%s", oid, exc)
-        _publish_event(sqs, stage_failed(oid, tid, aid, prov, "threat", str(exc)))
-        # Continue — analytics engines still useful without threat data
-
-    # ── Stage 4: Compliance + IAM + DataSec (parallel) ───────────────────
-    results = await asyncio.gather(
-        handlers.trigger_compliance(oid),
-        handlers.trigger_iam(oid),
-        handlers.trigger_datasec(oid),
+    # ── Stage 1: Check + Inventory (parallel) ─────────────────────────
+    logger.info("[%s] Stage 1: check + inventory", orchestration_id[:8])
+    stage1_results = await asyncio.gather(
+        handlers.trigger_check(orchestration_id),
+        handlers.trigger_inventory(orchestration_id),
         return_exceptions=True,
     )
 
-    parallel_stages = ["compliance", "iam", "datasec"]
-    for stage_name, result in zip(parallel_stages, results):
-        if isinstance(result, Exception):
-            logger.error("%s failed oid=%s error=%s", stage_name, oid, result)
-            _publish_event(sqs, stage_failed(oid, tid, aid, prov, stage_name, str(result)))  # type: ignore[arg-type]
-        else:
-            sid = result.get("scan_id") or result.get(f"{stage_name}_scan_id") or ""
-            logger.info("%s complete scan_id=%s", stage_name, sid)
-            _publish_event(sqs, stage_complete(oid, tid, aid, prov, stage_name, sid))  # type: ignore[arg-type]
+    check_result = stage1_results[0]
+    if isinstance(check_result, Exception):
+        logger.error("[%s] check FAILED: %s", orchestration_id[:8], check_result)
+    else:
+        logger.info("[%s] check complete scan_id=%s", orchestration_id[:8],
+                    check_result.get("check_scan_id"))
+        _add_engine_completed(orchestration_id, "check")
 
-    # ── Final: publish scan_complete ──────────────────────────────────────
-    _publish_event(sqs, scan_complete(oid, tid, aid, prov))
-    logger.info("pipeline complete orchestration_id=%s", oid)
+    inv_result = stage1_results[1]
+    if isinstance(inv_result, Exception):
+        logger.error("[%s] inventory FAILED: %s", orchestration_id[:8], inv_result)
+    else:
+        logger.info("[%s] inventory complete scan_id=%s", orchestration_id[:8],
+                    inv_result.get("inventory_scan_id"))
+        _add_engine_completed(orchestration_id, "inventory")
 
-
-def _publish_event(sqs: SQSClient, event: PipelineEvent) -> None:
-    """Publish *event* to the events queue if configured (best-effort)."""
-    if not EVENTS_QUEUE_URL:
-        return
-    try:
-        sqs.publish(
-            EVENTS_QUEUE_URL,
-            event.to_sqs_body(),
-            deduplication_id=event.event_id,
-            group_id=event.orchestration_id,
+    # If check failed, we can't run threat/compliance — abort
+    if isinstance(check_result, Exception):
+        _update_orchestration(
+            orchestration_id,
+            overall_status="failed",
+            error_details=f'{{"stage": "check", "error": "{check_result}"}}',
+            completed_at=datetime.now(timezone.utc),
         )
+        return
+
+    # ── Stage 2: Threat ───────────────────────────────────────────────
+    logger.info("[%s] Stage 2: threat", orchestration_id[:8])
+    try:
+        resp = await handlers.trigger_threat(orchestration_id)
+        logger.info("[%s] threat complete scan_id=%s", orchestration_id[:8],
+                    resp.get("threat_scan_id"))
+        _add_engine_completed(orchestration_id, "threat")
     except Exception as exc:
-        logger.warning("failed to publish event type=%s error=%s", event.event_type, exc)
+        logger.error("[%s] threat FAILED: %s", orchestration_id[:8], exc)
+        # Continue to compliance anyway — it only needs check_scan_id
 
+    # ── Stage 3: Compliance + IAM + DataSec (parallel) ────────────────
+    logger.info("[%s] Stage 3: compliance + iam + datasec", orchestration_id[:8])
 
-# ── Main poll loop ────────────────────────────────────────────────────────────
+    # Read orchestration to get provider for iam/datasec
+    orch = _get_orchestration(orchestration_id)
+    provider = (orch or {}).get("provider", "aws")
 
-
-def run() -> None:
-    """Blocking main loop: poll queue, process messages, repeat."""
-    sqs = SQSClient()
-    logger.info(
-        "pipeline_worker starting queue=%s visibility=%ds",
-        QUEUE_URL.rsplit("/", 1)[-1],
-        VISIBILITY_TIMEOUT,
+    stage3_results = await asyncio.gather(
+        handlers.trigger_compliance(orchestration_id),
+        handlers.trigger_iam(orchestration_id, csp=provider),
+        handlers.trigger_datasec(orchestration_id, csp=provider),
+        return_exceptions=True,
     )
 
-    # Graceful shutdown on SIGTERM / SIGINT
-    _running = [True]
+    stage3_names = ["compliance", "iam", "datasec"]
+    for name, result in zip(stage3_names, stage3_results):
+        if isinstance(result, Exception):
+            logger.error("[%s] %s FAILED: %s", orchestration_id[:8], name, result)
+        else:
+            logger.info("[%s] %s complete scan_id=%s", orchestration_id[:8], name,
+                        result.get(f"{name}_scan_id"))
+            _add_engine_completed(orchestration_id, name)
 
-    def _stop(signum, frame):  # noqa: ANN001
-        logger.info("signal %d received — shutting down after current message", signum)
-        _running[0] = False
+    # ── Done ──────────────────────────────────────────────────────────
+    _update_orchestration(
+        orchestration_id,
+        overall_status="completed",
+        completed_at=datetime.now(timezone.utc),
+    )
+    logger.info("[%s] pipeline COMPLETE", orchestration_id[:8])
 
-    signal.signal(signal.SIGTERM, _stop)
-    signal.signal(signal.SIGINT, _stop)
 
-    while _running[0]:
-        messages = sqs.receive(
-            QUEUE_URL,
-            max_messages=1,
-            wait_seconds=20,
-            visibility_timeout=VISIBILITY_TIMEOUT,
+# ── API Endpoints ────────────────────────────────────────────────────────────
+
+
+@app.post("/api/v1/pipeline/run", response_model=PipelineResponse)
+async def trigger_pipeline(request: PipelineRequest):
+    """Trigger the full scan pipeline. Runs in background, returns immediately.
+
+    orchestration_id must already exist in scan_orchestration table
+    (created by onboarding engine).
+    """
+    orch = _get_orchestration(request.orchestration_id)
+    if not orch:
+        raise HTTPException(
+            status_code=404,
+            detail=f"orchestration_id {request.orchestration_id} not found in scan_orchestration",
         )
 
-        if not messages:
-            time.sleep(POLL_INTERVAL)
-            continue
-
-        msg = messages[0]
-        receipt = msg["ReceiptHandle"]
-
-        try:
-            event = PipelineEvent.from_sqs_message(msg)
-        except Exception as exc:
-            logger.error("malformed message — deleting to avoid infinite loop: %s", exc)
-            sqs.delete(QUEUE_URL, receipt)
-            continue
-
-        if event.event_type != "scan_requested":
-            logger.warning(
-                "unexpected event_type=%s in pipeline queue — deleting", event.event_type
-            )
-            sqs.delete(QUEUE_URL, receipt)
-            continue
-
-        logger.info(
-            "processing event_id=%s orchestration_id=%s",
-            event.event_id,
-            event.orchestration_id,
+    if orch.get("overall_status") == "running":
+        raise HTTPException(
+            status_code=409,
+            detail=f"Scan {request.orchestration_id} is already running",
         )
 
-        try:
-            asyncio.run(run_pipeline(event, sqs))
-            sqs.delete(QUEUE_URL, receipt)
-            logger.info("message acked event_id=%s", event.event_id)
-        except Exception as exc:
-            # Leave message in queue — SQS will re-deliver after visibility timeout.
-            # After maxReceiveCount failures, SQS moves it to the DLQ automatically.
-            logger.error(
-                "pipeline failed event_id=%s error=%s — message left for retry",
-                event.event_id,
-                exc,
-            )
+    asyncio.create_task(run_pipeline(request.orchestration_id))
 
-    logger.info("pipeline_worker stopped")
+    return PipelineResponse(
+        orchestration_id=request.orchestration_id,
+        status="running",
+        message="Pipeline started — discovery → check+inventory → threat → compliance+iam+datasec",
+    )
+
+
+@app.get("/api/v1/pipeline/{orchestration_id}")
+async def get_pipeline_status(orchestration_id: str):
+    """Get pipeline status from scan_orchestration table."""
+    orch = _get_orchestration(orchestration_id)
+    if not orch:
+        raise HTTPException(status_code=404, detail="Orchestration not found")
+
+    return {
+        "orchestration_id": str(orch["orchestration_id"]),
+        "overall_status": orch.get("overall_status"),
+        "engines_requested": orch.get("engines_requested"),
+        "engines_completed": orch.get("engines_completed"),
+        "discovery_scan_id": orch.get("discovery_scan_id"),
+        "check_scan_id": orch.get("check_scan_id"),
+        "inventory_scan_id": orch.get("inventory_scan_id"),
+        "threat_scan_id": orch.get("threat_scan_id"),
+        "compliance_scan_id": orch.get("compliance_scan_id"),
+        "iam_scan_id": orch.get("iam_scan_id"),
+        "datasec_scan_id": orch.get("datasec_scan_id"),
+        "started_at": str(orch.get("started_at")) if orch.get("started_at") else None,
+        "completed_at": str(orch.get("completed_at")) if orch.get("completed_at") else None,
+        "error_details": orch.get("error_details"),
+    }
+
+
+@app.get("/api/v1/pipeline/list")
+async def list_pipelines():
+    """List recent orchestrations from scan_orchestration table."""
+    try:
+        conn = _get_orch_conn()
+        from psycopg2.extras import RealDictCursor
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """SELECT orchestration_id, overall_status, engines_completed,
+                          started_at, completed_at
+                   FROM scan_orchestration
+                   ORDER BY created_at DESC LIMIT 20"""
+            )
+            rows = cur.fetchall()
+        conn.close()
+        return [
+            {
+                "orchestration_id": str(r["orchestration_id"]),
+                "status": r["overall_status"],
+                "engines_completed": r.get("engines_completed"),
+                "started_at": str(r["started_at"]) if r.get("started_at") else None,
+                "completed_at": str(r["completed_at"]) if r.get("completed_at") else None,
+            }
+            for r in rows
+        ]
+    except Exception as e:
+        logger.error(f"Failed to list pipelines: {e}")
+        return []
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+
+@app.get("/api/v1/health/live")
+async def liveness():
+    return {"status": "alive"}
+
+
+@app.get("/api/v1/health/ready")
+async def readiness():
+    return {"status": "ready"}
 
 
 if __name__ == "__main__":
-    run()
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8050)

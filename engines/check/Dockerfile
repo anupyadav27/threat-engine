@@ -27,6 +27,9 @@ COPY engines/check/engine_check_aws/services/ ./engine_check/engine_check_aws/se
 COPY engines/check/engine_check_aws/utils/    ./engine_check/engine_check_aws/utils/
 COPY engines/check/engine_check_aws/config/   ./engine_check/engine_check_aws/config/
 
+# ── Run scan entry point (for K8s Job execution) ───────────────────────────
+COPY engines/check/run_scan.py ./run_scan.py
+
 # ── Shared utilities (destination matches Python imports: engine_common.*) ────
 COPY shared/common/ ./engine_common/
 

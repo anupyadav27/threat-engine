@@ -9,10 +9,8 @@ import json
 import sys
 from typing import Optional, List, Dict, Any
 import time
-import random
 from fastapi import FastAPI, HTTPException, Query, Body
 import asyncio
-import threading
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -21,10 +19,11 @@ import psycopg2
 
 # Add common to path for logger import
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-from engine_common.logger import setup_logger, LogContext, log_duration, audit_log
+from engine_common.logger import setup_logger, LogContext, log_duration
 from engine_common.telemetry import configure_telemetry
 from engine_common.middleware import RequestLoggingMiddleware, CorrelationIDMiddleware
 from engine_common.orchestration import get_orchestration_metadata
+from engine_common.job_creator import create_engine_job
 
 from .schemas.threat_report_schema import (
     ThreatReport,
@@ -67,6 +66,13 @@ configure_telemetry("engine-threat", app)
 # NOTE: This is per-pod memory; for HA move to Redis/DB.
 threat_jobs: Dict[str, Dict[str, Any]] = {}
 
+# ── Scanner Job config ───────────────────────────────────────────────────────
+SCANNER_IMAGE = os.getenv("THREAT_SCANNER_IMAGE", "yadavanup84/engine-threat:v-job")
+SCANNER_CPU_REQUEST = os.getenv("SCANNER_CPU_REQUEST", "250m")
+SCANNER_MEM_REQUEST = os.getenv("SCANNER_MEM_REQUEST", "1Gi")
+SCANNER_CPU_LIMIT = os.getenv("SCANNER_CPU_LIMIT", "1")
+SCANNER_MEM_LIMIT = os.getenv("SCANNER_MEM_LIMIT", "2Gi")
+
 # Add logging middleware
 app.add_middleware(CorrelationIDMiddleware)
 app.add_middleware(RequestLoggingMiddleware, engine_name="engine-threat")
@@ -83,31 +89,6 @@ app.add_middleware(
 storage = ThreatStorage()
 
 
-# DEPRECATED: Replaced by get_orchestration_metadata() from engine_common.orchestration
-# def get_check_scan_id_from_orchestration(scan_run_id: str) -> Optional[str]:
-#     """Query scan_orchestration table to get check_scan_id for a given scan_run_id."""
-#     # This function is no longer used - use get_orchestration_metadata() instead
-#     # which returns ALL metadata (tenant_id, account_id, provider_type, etc.)
-#     pass
-
-# Placeholder to avoid breaking references
-def get_check_scan_id_from_orchestration(scan_run_id: str) -> Optional[str]:
-    try:
-        metadata = get_orchestration_metadata(scan_run_id)
-        if metadata:
-            logger.info(f"Found check_scan_id={metadata.get('check_scan_id')} for scan_run_id={scan_run_id}")
-            return metadata.get("check_scan_id")
-        else:
-            logger.warning(f"No check_scan_id found in scan_orchestration for scan_run_id={scan_run_id}")
-            return None
-    except Exception as e:
-        logger.error(f"Error querying scan_orchestration table: {e}", exc_info=True)
-        return None
-
-
-# NOTE: check_router and discovery_router removed — they depended on
-# engine_configscan.DatabaseManager which no longer exists. The underlying
-# data is now served via the /ui-data endpoint (ui_data_router).
 
 # Include unified UI data router (single endpoint for all UI views)
 try:
@@ -117,18 +98,30 @@ except ImportError as e:
     logger.warning("UI data router not available", extra={"extra_fields": {"error": str(e)}})
 
 
+def _get_threat_conn():
+    """Get a psycopg2 connection to the threat DB."""
+    return psycopg2.connect(
+        host=os.getenv("THREAT_DB_HOST", os.getenv("DB_HOST", "localhost")),
+        port=int(os.getenv("THREAT_DB_PORT", os.getenv("DB_PORT", "5432"))),
+        dbname=os.getenv("THREAT_DB_NAME", "threat_engine_threat"),
+        user=os.getenv("THREAT_DB_USER", os.getenv("DB_USER", "postgres")),
+        password=os.getenv("THREAT_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
+        connect_timeout=5,
+    )
+
+
 class ThreatReportRequest(BaseModel):
     """Request model for threat report generation"""
-    tenant_id: str
+    tenant_id: Optional[str] = None
     tenant_name: Optional[str] = None
     customer_id: Optional[str] = None
-    scan_run_id: str
-    cloud: Cloud
+    scan_run_id: Optional[str] = None
+    cloud: Cloud = Cloud.AWS
     trigger_type: TriggerType = TriggerType.MANUAL
     accounts: List[str] = []
     regions: List[str] = []
     services: List[str] = []
-    started_at: str
+    started_at: Optional[str] = None
     completed_at: Optional[str] = None
     engine_version: Optional[str] = None
     scan_context: Optional[Dict[str, Any]] = None
@@ -214,343 +207,140 @@ async def api_health():
         return {"status": "degraded", "database": "disconnected", "error": str(e), "service": "engine-threat", "version": "1.0.0"}
 
 
-@app.post("/api/v1/scan")
-async def generate_threat_report(request: ThreatReportRequest):
+class ThreatScanResponse(BaseModel):
+    threat_scan_id: str
+    status: str
+    message: str
+    orchestration_id: Optional[str] = None
+    provider: Optional[str] = None
+
+
+@app.post("/api/v1/scan", response_model=ThreatScanResponse)
+async def create_threat_scan(request: ThreatReportRequest):
     """
-    Run threat scan and generate threat report from check results.
+    Start a threat scan by creating a K8s Job on a spot node.
 
-    Supports both S3 and local file sources.
+    **Pipeline mode** — provide `orchestration_id` (or `scan_run_id`):
+      Fetches metadata from scan_orchestration table.
+
+    **Ad-hoc mode** — provide `check_scan_id` directly:
+      Uses the supplied check_scan_id with optional overrides.
     """
-    import time
-    start_time = time.time()
-    
-    # Determine check_scan_id and metadata
-    # Priority: direct check_scan_id (ad-hoc) > orchestration_id (pipeline)
-    check_query_scan_id = None
-    tenant_id = None
+    orch_id = request.orchestration_id or request.scan_run_id
+    threat_scan_id = orch_id
 
-    if request.check_scan_id:
-        # MODE 1: Ad-hoc mode - use provided check_scan_id and tenant_id
-        check_query_scan_id = request.check_scan_id
-        tenant_id = request.tenant_id
-        logger.info(f"Ad-hoc mode: Using direct check_scan_id: {check_query_scan_id}")
+    if not orch_id:
+        raise HTTPException(
+            status_code=400,
+            detail="orchestration_id (or scan_run_id) is required for Job-based execution",
+        )
 
-    elif request.orchestration_id or request.scan_run_id:
-        # MODE 2: Pipeline mode - query scan_orchestration for ALL metadata
-        orchestration_id = request.orchestration_id or request.scan_run_id
+    # Validate orchestration exists and check scan is done
+    try:
+        meta = get_orchestration_metadata(orch_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
-        try:
-            metadata = get_orchestration_metadata(orchestration_id)
-        except ValueError as e:
-            raise HTTPException(status_code=404, detail=str(e))
+    check_scan_id = meta.get("check_scan_id") or request.check_scan_id
+    if not check_scan_id:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Check scan not yet completed for orchestration_id={orch_id}",
+        )
 
-        check_query_scan_id = metadata.get("check_scan_id")
-        if not check_query_scan_id:
-            raise HTTPException(status_code=400, detail=f"Check not completed yet for orchestration_id={orchestration_id}")
+    provider = (meta.get("provider") or meta.get("provider_type", "aws")).lower()
+    tenant_id = meta.get("tenant_id") or request.tenant_id or "default-tenant"
 
-        # Get ALL metadata from orchestration table
-        tenant_id = metadata.get("tenant_id")
+    logger.info("Creating threat scanner Job", extra={
+        "extra_fields": {
+            "orchestration_id": orch_id,
+            "check_scan_id": check_scan_id,
+            "threat_scan_id": threat_scan_id,
+            "provider": provider,
+        }
+    })
 
-        logger.info(f"Pipeline mode: Got metadata from orchestration_id={orchestration_id}", extra={
-            "extra_fields": {
-                "check_scan_id": check_query_scan_id,
-                "tenant_id": tenant_id
-            }
-        })
-    else:
-        raise HTTPException(status_code=400, detail="Either check_scan_id OR orchestration_id must be provided")
-
-    with LogContext(
-        tenant_id=tenant_id,
-        scan_run_id=request.scan_run_id
-    ):
-        logger.info("Generating threat report", extra={
-            "extra_fields": {
-                "cloud": request.cloud.value,
-                "trigger_type": request.trigger_type.value,
-                "check_scan_id": check_query_scan_id,
-                "tenant_id": tenant_id
-            }
-        })
-
-        try:
-            # DB-first only: read failures from Check DB and enrich with rule_metadata.
-            if os.getenv("THREAT_USE_DATABASE", "true").lower() != "true":
-                raise HTTPException(status_code=400, detail="Threat engine is DB-only. Set THREAT_USE_DATABASE=true.")
-
-            logger.info("Loading check results from database with metadata enrichment", extra={
-                "extra_fields": {
-                    "check_scan_id": check_query_scan_id,
-                    "tenant_id": tenant_id
-                }
-            })
-
-            check_results = get_enriched_check_results(
-                scan_id=check_query_scan_id,  # Use the resolved check_scan_id
-                schema="check_db",
-                status_filter=["FAIL", "WARN"],
-                tenant_id=tenant_id,
+    # Pre-create threat_report row (so status endpoint works immediately)
+    try:
+        conn = _get_threat_conn()
+        # Ensure tenant exists (FK requirement)
+        with conn.cursor() as cur:
+            cur.execute(
+                """INSERT INTO tenants (tenant_id, tenant_name)
+                   VALUES (%s, %s) ON CONFLICT (tenant_id) DO NOTHING""",
+                (tenant_id, tenant_id),
             )
-
-            if not check_results:
-                raise HTTPException(status_code=404, detail=f"No failing check results found in database for check_scan_id={check_query_scan_id}")
-
-            logger.info("Normalizing check results from database (with metadata)", extra={
-                "extra_fields": {
-                    "total_results": len(check_results),
-                    "has_metadata": bool(check_results[0].get('severity'))
-                }
-            })
-
-            findings = normalize_db_check_results_to_findings(
-                check_results,
-                request.cloud,
-                include_metadata=True
+            cur.execute(
+                """INSERT INTO threat_report
+                   (threat_scan_id, tenant_id, provider, check_scan_id,
+                    scan_run_id, status, started_at, report_data)
+                   VALUES (%s, %s, %s, %s, %s, 'running', NOW(), %s)
+                   ON CONFLICT (threat_scan_id) DO UPDATE SET status = 'running'""",
+                (threat_scan_id, tenant_id, provider, check_scan_id,
+                 orch_id, json.dumps({"orchestration_id": orch_id, "mode": "job"})),
             )
-        
-            if not findings:
-                logger.info("No findings found, generating empty report")
-                # Return empty report if no findings
-                tenant = Tenant(tenant_id=request.tenant_id, tenant_name=request.tenant_name)
-                scan_context = ScanContext(
-                    scan_run_id=request.scan_run_id,
-                    trigger_type=request.trigger_type,
-                    cloud=request.cloud,
-                    accounts=request.accounts,
-                    regions=request.regions,
-                    services=request.services,
-                    started_at=request.started_at,
-                    completed_at=request.completed_at,
-                    engine_version=request.engine_version
-                )
-                
-                reporter = ThreatReporter()
-                report = reporter.generate_report(
-                    tenant=tenant,
-                    scan_context=scan_context,
-                    threats=[],
-                    misconfig_findings=[]
-                )
-                
-                # Persist even empty reports (DB is primary)
-                storage.save_report(report)
-                
-                duration_ms = (time.time() - start_time) * 1000
-                log_duration(logger, "Threat report generated (empty)", duration_ms)
-                audit_log(
-                    logger,
-                    "threat_report_generated",
-                    f"scan:{request.scan_run_id}",
-                    tenant_id=request.tenant_id,
-                    result="success",
-                    details={"threats_count": 0, "findings_count": 0}
-                )
-                
-                return report.dict()
-            
-            logger.info("Detecting threats", extra={
-                "extra_fields": {
-                    "findings_count": len(findings)
-                }
-            })
-            
-            # Detect threats
-            detector = ThreatDetector()
-            threats = detector.detect_threats(findings)
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning(f"Failed to pre-create threat_report: {e}")
 
-            # Drift detection (optional - skip if no discovery_scan_id or if it fails)
-            if request.discovery_scan_id:
-                try:
-                    from .database.discovery_queries import DiscoveryDatabaseQueries
-                    from .database.check_queries import CheckDatabaseQueries
-                    
-                    drift_detector = DriftDetector(discovery_queries=DiscoveryDatabaseQueries())
-                    check_drift_detector = CheckDriftDetector(check_queries=CheckDatabaseQueries())
-                    
-                    drift_threats = drift_detector.detect_configuration_drift(
-                        tenant_id=request.tenant_id,
-                        hierarchy_id=request.accounts[0] if request.accounts else None,
-                        service=request.services[0] if request.services else None,
-                        current_scan_id=request.discovery_scan_id
-                    )
-                    check_drift_threats = check_drift_detector.detect_check_status_drift(
-                        tenant_id=request.tenant_id,
-                        hierarchy_id=request.accounts[0] if request.accounts else None,
-                        service=request.services[0] if request.services else None,
-                        current_scan_id=request.scan_run_id
-                    )
-                    threats.extend(drift_threats)
-                    threats.extend(check_drift_threats)
-                except Exception as e:
-                    logger.warning(f"Drift detection failed (continuing without drift threats): {e}")
-            
-            logger.info("Threats detected", extra={
-                "extra_fields": {
-                    "threats_count": len(threats)
-                }
-            })
-            
-            # Generate report
-            tenant = Tenant(tenant_id=request.tenant_id, tenant_name=request.tenant_name)
-            scan_context = ScanContext(
-                scan_run_id=request.scan_run_id,
-                trigger_type=request.trigger_type,
-                cloud=request.cloud,
-                accounts=request.accounts,
-                regions=request.regions,
-                services=request.services,
-                started_at=request.started_at,
-                completed_at=request.completed_at,
-                engine_version=request.engine_version
+    # Create K8s Job on spot node
+    try:
+        job_name = create_engine_job(
+            engine_name="threat",
+            scan_id=threat_scan_id,
+            orchestration_id=orch_id,
+            image=SCANNER_IMAGE,
+            cpu_request=SCANNER_CPU_REQUEST,
+            mem_request=SCANNER_MEM_REQUEST,
+            cpu_limit=SCANNER_CPU_LIMIT,
+            mem_limit=SCANNER_MEM_LIMIT,
+            active_deadline_seconds=3600,
+        )
+    except Exception as e:
+        logger.error(f"Failed to create threat scanner Job: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to create scanner Job: {e}")
+
+    return ThreatScanResponse(
+        threat_scan_id=threat_scan_id,
+        status="running",
+        message=f"Scanner Job '{job_name}' created on spot node (image={SCANNER_IMAGE})",
+        orchestration_id=orch_id,
+        provider=provider,
+    )
+
+
+@app.get("/api/v1/threat/{threat_scan_id}/status")
+async def get_threat_scan_status(threat_scan_id: str):
+    """Get threat scan status from threat_report DB table."""
+    from psycopg2.extras import RealDictCursor
+    try:
+        conn = _get_threat_conn()
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                "SELECT threat_scan_id, status, provider, check_scan_id, "
+                "scan_run_id, started_at, completed_at, total_findings "
+                "FROM threat_report WHERE threat_scan_id = %s",
+                (threat_scan_id,),
             )
-            
-            reporter = ThreatReporter()
-            report = reporter.generate_report(
-                tenant=tenant,
-                scan_context=scan_context,
-                threats=threats,
-                misconfig_findings=findings
-            )
-            
-            # Save report to storage (writes to threat_report + threat_findings in threat DB)
-            storage.save_report(report)
+            row = cur.fetchone()
+        conn.close()
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Database error: {e}")
 
-            # ── Write threat_scan_id back to scan_orchestration (pipeline mode only) ──
-            if request.orchestration_id:
-                try:
-                    threat_scan_id = f"threat_{request.scan_run_id}"
-                    from engine_common.orchestration import update_orchestration_scan_id
-                    update_orchestration_scan_id(
-                        orchestration_id=request.orchestration_id,
-                        engine="threat",
-                        scan_id=threat_scan_id,
-                    )
-                    logger.info(f"Updated scan_orchestration with threat_scan_id={threat_scan_id}")
-                except Exception as e:
-                    logger.error(f"Failed to write threat_scan_id to orchestration: {e}")
-                    # Non-fatal — report is saved; downstream engines will fail gracefully
+    if not row:
+        raise HTTPException(status_code=404, detail="Threat scan not found")
 
-            # ── Run threat analysis (blast radius, risk scoring, attack chains) ──
-            analysis_count = 0
-            try:
-                analyzer = ThreatAnalyzer()
-                analyses = analyzer.analyze_scan(
-                    tenant_id=request.tenant_id,
-                    scan_run_id=request.scan_run_id,
-                    orchestration_id=request.orchestration_id,
-                )
-                if analyses:
-                    analysis_count = save_analyses_to_db(analyses)
-                    logger.info("Threat analysis complete", extra={
-                        "extra_fields": {
-                            "analyses_saved": analysis_count,
-                            "verdicts": {a["verdict"]: 0 for a in analyses},
-                        }
-                    })
-            except Exception as e:
-                logger.warning(f"Threat analysis failed (report still saved): {e}", exc_info=True)
-
-            duration_ms = (time.time() - start_time) * 1000
-            log_duration(logger, "Threat report generated", duration_ms)
-            audit_log(
-                logger,
-                "threat_report_generated",
-                f"scan:{request.scan_run_id}",
-                tenant_id=request.tenant_id,
-                result="success",
-                details={
-                    "threats_count": len(threats),
-                    "findings_count": len(findings),
-                    "analyses_count": analysis_count,
-                }
-            )
-
-            logger.info("Threat report saved", extra={
-                "extra_fields": {
-                    "threats_count": len(threats),
-                    "findings_count": len(findings),
-                    "analyses_count": analysis_count,
-                }
-            })
-
-            report_dict = report.dict()
-            report_dict["analysis_summary"] = {
-                "analyses_count": analysis_count,
-                "verdicts": {},
-            }
-            if analyses:
-                verdict_counts = {}
-                for a in analyses:
-                    v = a.get("verdict", "unknown")
-                    verdict_counts[v] = verdict_counts.get(v, 0) + 1
-                report_dict["analysis_summary"]["verdicts"] = verdict_counts
-                report_dict["analysis_summary"]["avg_risk_score"] = round(
-                    sum(a.get("risk_score", 0) for a in analyses) / len(analyses), 1
-                )
-
-            return report_dict
-        
-        except HTTPException:
-            raise
-        except Exception as e:
-            duration_ms = (time.time() - start_time) * 1000
-            logger.error("Failed to generate threat report", exc_info=True, extra={
-                "extra_fields": {
-                    "error": str(e),
-                    "duration_ms": duration_ms
-                }
-            })
-            audit_log(
-                logger,
-                "threat_report_generation_failed",
-                f"scan:{request.scan_run_id}",
-                tenant_id=request.tenant_id,
-                result="failure",
-                details={"error": str(e)}
-            )
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to generate threat report: {str(e)}"
-            )
-
-
-@app.post("/api/v1/threat/generate/async")
-async def generate_threat_report_async(request: ThreatReportRequest):
-    """
-    DB-first async wrapper for threat generation.
-
-    Returns immediately with a job_id so callers can poll `/api/v1/threat/jobs/{job_id}`.
-    """
-    job_id = f"threatjob_{int(time.time()*1000)}_{random.randint(1000,9999)}"
-    threat_jobs[job_id] = {
-        "job_id": job_id,
-        "status": "running",
-        "scan_run_id": request.scan_run_id,
-        "tenant_id": request.tenant_id,
-        "started_at": datetime.now(timezone.utc).isoformat(),
-        "error": None,
+    return {
+        "threat_scan_id": row["threat_scan_id"],
+        "status": row["status"],
+        "provider": row.get("provider"),
+        "check_scan_id": row.get("check_scan_id"),
+        "scan_run_id": row.get("scan_run_id"),
+        "started_at": str(row.get("started_at", "")),
+        "completed_at": str(row.get("completed_at", "")) if row.get("completed_at") else None,
+        "total_findings": row.get("total_findings", 0),
     }
-
-    def _worker():
-        try:
-            asyncio.run(generate_threat_report(request))
-            threat_jobs[job_id]["status"] = "completed"
-            threat_jobs[job_id]["completed_at"] = datetime.now(timezone.utc).isoformat()
-        except Exception as e:
-            threat_jobs[job_id]["status"] = "failed"
-            threat_jobs[job_id]["error"] = str(e)
-            threat_jobs[job_id]["completed_at"] = datetime.now(timezone.utc).isoformat()
-
-    threading.Thread(target=_worker, daemon=True).start()
-    return threat_jobs[job_id]
-
-
-@app.get("/api/v1/threat/jobs/{job_id}")
-async def get_threat_job(job_id: str):
-    job = threat_jobs.get(job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    return job
 
 
 @app.post("/api/v1/threat/generate/from-ndjson")
@@ -1045,43 +835,154 @@ async def get_threat_assets(
 # ============================================================================
 
 class ThreatUpdateRequest(BaseModel):
-    """Request model for updating threat"""
+    """Request model for updating threat status, assignee, or notes."""
     status: Optional[ThreatStatus] = None
     notes: Optional[str] = None
     assignee: Optional[str] = None
+    status_changed_by: Optional[str] = None
+
+
+def _update_threat_finding_in_db(
+    finding_id: str,
+    tenant_id: str,
+    *,
+    status: Optional[ThreatStatus] = None,
+    notes: Optional[str] = None,
+    assignee: Optional[str] = None,
+    status_changed_by: Optional[str] = None,
+) -> bool:
+    """Persist workflow field updates to the threat_findings table.
+
+    Builds a dynamic UPDATE statement based on which fields are provided.
+    When ``status`` is supplied, ``status_changed_at`` is set to NOW() and
+    ``status_changed_by`` is recorded if given.
+
+    Args:
+        finding_id: The unique finding_id in threat_findings.
+        tenant_id: Tenant scoping identifier.
+        status: New threat status value.
+        notes: Free-text notes to attach.
+        assignee: User or team assigned to this finding.
+        status_changed_by: Identity of the user changing status.
+
+    Returns:
+        True if exactly one row was updated, False otherwise.
+    """
+    set_clauses: list[str] = []
+    params: list[Any] = []
+
+    if status is not None:
+        set_clauses.append("status = %s")
+        params.append(status.value)
+        set_clauses.append("status_changed_at = NOW()")
+        if status_changed_by is not None:
+            set_clauses.append("status_changed_by = %s")
+            params.append(status_changed_by)
+
+    if notes is not None:
+        set_clauses.append("notes = %s")
+        params.append(notes)
+
+    if assignee is not None:
+        set_clauses.append("assignee = %s")
+        params.append(assignee)
+
+    if not set_clauses:
+        return False
+
+    params.extend([finding_id, tenant_id])
+    sql = (
+        f"UPDATE threat_findings SET {', '.join(set_clauses)} "
+        "WHERE finding_id = %s AND tenant_id = %s"
+    )
+
+    try:
+        conn = psycopg2.connect(
+            host=os.getenv("THREAT_DB_HOST", "localhost"),
+            port=int(os.getenv("THREAT_DB_PORT", "5432")),
+            dbname=os.getenv("THREAT_DB_NAME", "threat"),
+            user=os.getenv("THREAT_DB_USER", "postgres"),
+            password=os.getenv("THREAT_DB_PASSWORD", ""),
+            connect_timeout=5,
+        )
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql, params)
+                updated = cur.rowcount == 1
+            conn.commit()
+            return updated
+        finally:
+            conn.close()
+    except Exception:
+        logger.exception("Failed to update threat_findings for %s", finding_id)
+        return False
 
 
 @app.patch("/api/v1/threat/{threat_id}")
 async def update_threat(
     threat_id: str,
     update: ThreatUpdateRequest,
-    tenant_id: str = Query(..., description="Tenant identifier")
-):
-    """Update threat status, notes, or assignee"""
+    tenant_id: str = Query(..., description="Tenant identifier"),
+) -> Dict[str, Any]:
+    """Update threat status, notes, or assignee.
+
+    Persists changes to both the in-memory report cache (for backward
+    compatibility) and directly to the ``threat_findings`` table so that
+    workflow columns (assignee, notes, status_changed_at, status_changed_by)
+    are stored even when the report JSONB is not rewritten.
+
+    Args:
+        threat_id: Finding ID of the threat.
+        update: Fields to update.
+        tenant_id: Tenant identifier.
+
+    Returns:
+        Updated threat data dictionary.
+
+    Raises:
+        HTTPException: 400 if no fields provided, 404 if threat not found,
+            500 if the database update fails.
+    """
     if not update.status and not update.notes and not update.assignee:
         raise HTTPException(
             status_code=400,
-            detail="At least one field (status, notes, assignee) must be provided"
+            detail="At least one field (status, notes, assignee) must be provided",
         )
-    
+
     threat_data = storage.get_threat(threat_id, tenant_id)
     if not threat_data:
         raise HTTPException(
             status_code=404,
-            detail=f"Threat not found: {threat_id}"
+            detail=f"Threat not found: {threat_id}",
         )
-    
-    # Update status if provided
+
+    # Update in-memory cache / report JSONB (legacy path)
     if update.status:
         success = storage.update_threat_status(threat_id, update.status, update.notes)
         if not success:
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to update threat status"
-            )
-    
-    # Get updated threat
+            logger.warning("In-memory status update missed for %s (may not be cached)", threat_id)
+
+    # Persist workflow fields directly to threat_findings row
+    db_ok = _update_threat_finding_in_db(
+        finding_id=threat_id,
+        tenant_id=tenant_id,
+        status=update.status,
+        notes=update.notes,
+        assignee=update.assignee,
+        status_changed_by=update.status_changed_by,
+    )
+    if not db_ok:
+        logger.warning("threat_findings row update returned 0 rows for %s — row may not exist yet", threat_id)
+
+    # Return refreshed threat data
     updated_threat = storage.get_threat(threat_id, tenant_id)
+    if updated_threat and updated_threat.get("threat"):
+        # Overlay workflow fields from the request so the caller sees
+        # them immediately (DB read may lag behind for JSONB-based reads).
+        if update.assignee is not None:
+            updated_threat["threat"]["assignee"] = update.assignee
+        if update.notes is not None:
+            updated_threat["threat"]["notes"] = update.notes
     return updated_threat
 
 
@@ -2086,24 +1987,31 @@ async def get_graph_summary(
 async def get_attack_paths(
     tenant_id: str = Query(...),
     max_hops: int = Query(5, ge=1, le=10),
-    min_severity: str = Query("high"),
+    min_severity: str = Query("medium"),
+    entry_point: Optional[str] = Query(None, description="'internet', 'all', or a resource UID"),
 ):
     """
-    Find attack paths from Internet to resources with threats.
+    Find attack paths from any entry point to resources with threats.
 
-    This is the core "Wiz-style" attack path query.
+    entry_point options:
+      - None or 'internet': paths from Internet → resources (default)
+      - 'all': paths from ALL threatened resources
+      - resource UID: paths from a specific resource
+
+    Only traverses attack-relevant edges (attack_path_category != '').
     """
     try:
         gq = SecurityGraphQueries()
-        paths = gq.attack_paths_from_internet(
-            tenant_id=tenant_id, max_hops=max_hops, min_severity=min_severity
+        paths = gq.attack_paths(
+            tenant_id=tenant_id, max_hops=max_hops,
+            min_severity=min_severity, entry_point=entry_point,
         )
         gq.close()
 
         return {
             "attack_paths": paths,
             "total": len(paths),
-            "filters": {"max_hops": max_hops, "min_severity": min_severity},
+            "filters": {"max_hops": max_hops, "min_severity": min_severity, "entry_point": entry_point or "internet"},
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Attack path query failed: {str(e)}")
@@ -2135,11 +2043,31 @@ async def get_graph_blast_radius(
 async def get_internet_exposed(
     tenant_id: str = Query(...),
 ):
-    """Find all resources exposed to the internet."""
+    """Find all resources exposed to the internet.
+
+    Now uses the unified attack_paths() query with entry_point='internet'.
+    """
     try:
         gq = SecurityGraphQueries()
-        exposed = gq.internet_exposed_resources(tenant_id=tenant_id)
+        paths = gq.attack_paths(tenant_id=tenant_id, min_severity="low", entry_point="internet")
         gq.close()
+
+        # Deduplicate by resource_uid for the "exposed resources" view
+        seen = set()
+        exposed = []
+        for p in paths:
+            uid = p.get("resource_uid", "")
+            if uid and uid not in seen:
+                seen.add(uid)
+                exposed.append({
+                    "resource_uid": uid,
+                    "name": p.get("resource_name", ""),
+                    "resource_type": p.get("resource_type", ""),
+                    "risk_score": p.get("risk_score"),
+                    "threat_severity": p.get("threat_severity"),
+                    "hops": p.get("hops", 1),
+                })
+
         return {
             "exposed_resources": exposed,
             "total": len(exposed),
@@ -2289,10 +2217,12 @@ async def list_hunt_queries(
 
 
 @app.get("/api/v1/hunt/predefined")
-async def list_predefined_hunts():
-    """List pre-defined threat hunt queries (built into the system)."""
+async def list_predefined_hunts(
+    tenant_id: str = Query("__global__"),
+):
+    """List pre-defined threat hunt queries from DB."""
     gq = SecurityGraphQueries()
-    hunts = gq.list_predefined_hunts()
+    hunts = gq.list_predefined_hunts(tenant_id=tenant_id)
     gq.close()
     return {"hunts": hunts, "total": len(hunts)}
 

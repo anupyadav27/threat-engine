@@ -120,11 +120,11 @@ async def view_dashboard(
     results = await fetch_many([
         ("threat",     "/api/v1/threat/ui-data",        {"tenant_id": tenant_id, "scan_run_id": scan_run_id, "limit": "50", "days": "30"}),
         ("compliance", "/api/v1/compliance/ui-data",    {"tenant_id": tenant_id, "scan_id": "latest"}),
-        ("inventory",  "/api/v1/inventory/ui-data",     {"tenant_id": tenant_id, "scan_run_id": "latest", "limit": "0"}),
+        ("inventory",  "/api/v1/inventory/ui-data",     {"tenant_id": tenant_id, "scan_run_id": "latest"}),
         ("iam",        "/api/v1/iam-security/ui-data",  iam_params),
         ("datasec",    "/api/v1/data-security/ui-data", {"tenant_id": tenant_id, "scan_id": "latest"}),
         ("risk",       "/api/v1/risk/ui-data",          {"tenant_id": tenant_id}),
-        ("onboarding", "/api/v1/onboarding/ui-data",    {"tenant_id": tenant_id}),
+        ("onboarding", "/api/v1/cloud-accounts",          {"tenant_id": tenant_id}),
     ])
 
     (
@@ -143,20 +143,25 @@ async def view_dashboard(
 
     now = datetime.now(timezone.utc)
 
-    # ── Extract threat data ──────────────────────────────────────────────
+    # ── Extract threat data (now detection-level) ──────────────────────
     ts = threat_data.get("summary", {})
     if not isinstance(ts, dict):
         ts = {}
 
-    by_sev = ts.get("by_severity", {}) or ts.get("threats_by_severity", {})
-    if not isinstance(by_sev, dict):
-        by_sev = {}
+    # Detection-level counts (new shape)
+    total_threats = ts.get("total_detections", 0) or ts.get("total", 0) or ts.get("total_threats", 0)
+    crit_count = ts.get("critical", 0)
+    high_count = ts.get("high", 0)
 
-    total_threats = ts.get("total", 0) or ts.get("total_threats", 0)
-    crit_count = by_sev.get("critical", 0)
-    high_count = by_sev.get("high", 0)
+    # Build by_sev from summary directly (no nested by_severity in new shape)
+    by_sev = {
+        "critical": crit_count,
+        "high": high_count,
+        "medium": ts.get("medium", 0),
+        "low": ts.get("low", 0),
+    }
 
-    # Threat list (for recent threats, risky resources, critical alerts, critical actions)
+    # Threat list (detections, not findings)
     all_threats = threat_data.get("threats", [])
     if not isinstance(all_threats, list):
         all_threats = []

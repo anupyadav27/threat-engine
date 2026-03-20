@@ -457,7 +457,8 @@ class ScanOrchestrator:
         check_scan_id: Optional[str] = None,
         providers: Optional[List[str]] = None,
         accounts: Optional[List[str]] = None,
-        previous_scan_id: Optional[str] = None
+        previous_scan_id: Optional[str] = None,
+        scan_run_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Run inventory scan from discovery output (DB-first, two-pass).
@@ -480,13 +481,14 @@ class ScanOrchestrator:
             providers: Optional filter by providers
             accounts: Optional filter by accounts
             previous_scan_id: Optional previous scan for drift detection
+            scan_run_id: Optional scan ID (from orchestration). Auto-generated if not provided.
 
         Returns:
             Scan result with scan_run_id and artifact paths
         """
         from ..normalizer.resource_classifier import InventoryDecision
 
-        scan_run_id = str(_uuid.uuid4())
+        scan_run_id = scan_run_id or str(_uuid.uuid4())
         started_at = datetime.now(timezone.utc)
 
         # Step 1: Read ALL discovery records and split into root vs dependent
@@ -611,6 +613,16 @@ class ScanOrchestrator:
                 if not existing.metadata:
                     existing.metadata = {}
                 existing.metadata["configuration"] = merged_cfg
+
+                # Merge emitted_fields — critical for relationships.
+                # e.g. describe_instances carries VpcId/SubnetId while
+                # describe_instance_credit_specifications carries CpuCredits.
+                # New record fills gaps; existing keys take priority.
+                existing_ef = (existing.metadata or {}).get("emitted_fields", {})
+                new_ef = (asset.metadata or {}).get("emitted_fields", {})
+                if new_ef and isinstance(new_ef, dict) and isinstance(existing_ef, dict):
+                    merged_ef = {**new_ef, **existing_ef}
+                    existing.metadata["emitted_fields"] = merged_ef
 
                 # Also merge tags — new record may carry additional tags
                 if asset.tags:

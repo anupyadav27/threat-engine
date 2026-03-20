@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install dependencies
-COPY engines/discoveries/engine_discoveries_aws/requirements.txt ./requirements.txt
+COPY engines/discoveries/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy multi-cloud provider code
@@ -20,16 +20,19 @@ COPY engines/discoveries/common/ ./common/
 # Copy shared discovery utils (config_loader, filter_engine, pagination_engine)
 COPY engines/discoveries/utils/ ./utils/
 
-# Copy legacy engine_discoveries_aws config/database (still needed for config loading)
-COPY engines/discoveries/engine_discoveries_aws/config/ ./engine_discoveries_aws/config/
-COPY engines/discoveries/engine_discoveries_aws/database/ ./engine_discoveries_aws/database/
+# Copy Job entry point (used by K8s Jobs for on-demand scans)
+COPY engines/discoveries/run_scan.py ./run_scan.py
 
 # Shared utilities (destination matches Python imports: engine_common.*)
 COPY shared/common/ ./engine_common/
 
-# Onboarding storage (credential fetcher)
+# Shared database (orchestration_client, schemas — import as consolidated_services.*)
+COPY shared/database/ ./consolidated_services/
+
+# Onboarding storage + config (credential fetcher needs config.settings)
 COPY engines/onboarding/storage/ ./engine_onboarding/storage/
 COPY engines/onboarding/__init__.py ./engine_onboarding/
+COPY engines/onboarding/config.py ./engine_onboarding/
 
 # Set Python path
 ENV PYTHONPATH=/app

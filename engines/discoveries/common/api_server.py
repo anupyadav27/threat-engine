@@ -1,28 +1,23 @@
 """
-Common FastAPI server for Multi-CSP Discoveries Engine
+Common FastAPI server for Multi-CSP Discoveries Engine (Lightweight API)
 
-This server handles discovery scans for ALL cloud providers (AWS, Azure, GCP, OCI, AliCloud).
-It routes requests to the appropriate CSP-specific scanner based on the provider field.
+This server is a thin API layer that:
+1. Receives scan requests (orchestration_id)
+2. Creates a K8s Job on a spot node to run the actual scan
+3. Exposes scan status by reading discovery_report DB table
 
-Common Orchestration Flow:
-1. Receive orchestration_id from API request
-2. Get scan metadata from onboarding DB (scan_orchestration table)
-3. Retrieve credentials from Secrets Manager
-4. Select CSP-specific scanner based on provider
-5. Execute scan using common discovery engine
-6. Return scan_id to caller
+The heavy scan work runs in a separate K8s Job pod (run_scan.py).
 """
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Query
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
-import uuid
-import asyncio
-from datetime import datetime
-from pathlib import Path
 import sys
+import psycopg2
+import psycopg2.extras
 import os
+import logging
 
 # Add project root for engine_common
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
@@ -33,28 +28,15 @@ from consolidated_services.database.orchestration_client import (
     update_engine_scan_id,
 )
 
-# Import common orchestration components
-from common.orchestration.discovery_engine import DiscoveryEngine
 from common.database.database_manager import DatabaseManager
-from common.models.provider_interface import DiscoveryScanner, AuthenticationError, DiscoveryError
-
-# Import CSP-specific scanners
-from providers.aws.scanner.service_scanner import AWSDiscoveryScanner
-from providers.azure.scanner.service_scanner import AzureDiscoveryScanner
-from providers.gcp.scanner.service_scanner import GCPDiscoveryScanner
-from providers.oci.scanner.service_scanner import OCIDiscoveryScanner
-from providers.ibm.scanner.service_scanner import IBMDiscoveryScanner
-from providers.kubernetes.scanner.service_scanner import K8sDiscoveryScanner
-
-# Import SecretsManagerStorage for credential retrieval
-from engine_onboarding.storage.secrets_manager_storage import SecretsManagerStorage
+from engine_common.job_creator import create_engine_job
 
 logger = setup_logger(__name__, engine_name="engine-discoveries-common")
 
 app = FastAPI(
     title="Multi-CSP Discoveries Engine API",
-    description="API for running discovery scans across AWS, Azure, GCP, OCI, and AliCloud",
-    version="2.0.0"
+    description="Lightweight API layer — scans run as on-demand K8s Jobs on spot nodes",
+    version="3.0.0"
 )
 configure_telemetry("engine-discoveries", app)
 
@@ -67,39 +49,34 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Provider scanner registry - maps provider name to scanner class
-PROVIDER_SCANNERS = {
-    'aws': AWSDiscoveryScanner,
-    'azure': AzureDiscoveryScanner,
-    'gcp': GCPDiscoveryScanner,
-    'oci': OCIDiscoveryScanner,
-    'ibm': IBMDiscoveryScanner,
-    'k8s': K8sDiscoveryScanner,
-    # 'alicloud': AliCloudDiscoveryScanner,  # TODO: Implement
-}
+# Scanner image (same Docker image, different CMD)
+SCANNER_IMAGE = os.getenv(
+    "DISCOVERY_SCANNER_IMAGE",
+    "yadavanup84/engine-discoveries-aws:v-job",
+)
+SCANNER_NAMESPACE = os.getenv("SCANNER_NAMESPACE", "threat-engine-engines")
+SCANNER_SERVICE_ACCOUNT = os.getenv("SCANNER_SERVICE_ACCOUNT", "engine-sa")
+SCANNER_CPU_REQUEST = os.getenv("SCANNER_CPU_REQUEST", "4")
+SCANNER_MEM_REQUEST = os.getenv("SCANNER_MEM_REQUEST", "8Gi")
+SCANNER_CPU_LIMIT = os.getenv("SCANNER_CPU_LIMIT", "8")
+SCANNER_MEM_LIMIT = os.getenv("SCANNER_MEM_LIMIT", "16Gi")
 
-# Shared DatabaseManager for health checks
-_health_db_manager = None
+# Shared DatabaseManager for health checks and status queries
+_db_manager = None
 
-def _get_health_db_manager():
-    global _health_db_manager
-    if _health_db_manager is None:
+def _get_db_manager():
+    global _db_manager
+    if _db_manager is None:
         try:
-            _health_db_manager = DatabaseManager()
+            _db_manager = DatabaseManager()
         except Exception:
             pass
-    return _health_db_manager
+    return _db_manager
 
-# In-memory scan storage (use Redis/DB in production)
-scans = {}
-scan_tasks = {}  # Track running scan tasks for cancellation
 metrics = {
     "total_scans": 0,
     "successful_scans": 0,
     "failed_scans": 0,
-    "cancelled_scans": 0,
-    "total_duration_seconds": 0,
-    "service_counts": {}
 }
 
 
@@ -130,362 +107,157 @@ class DiscoveryResponse(BaseModel):
     provider: Optional[str] = None
 
 
-# Orchestration Integration Helper Functions
+# ── K8s Job creation ─────────────────────────────────────────────────────────
+
+def _create_scanner_job(discovery_scan_id: str, orchestration_id: str, provider: str) -> str:
+    """Create a K8s Job to run the discovery scan on a spot node."""
+    from kubernetes import client as k8s_client
+
+    extra_env = [
+        k8s_client.V1EnvVar(name="MAX_CONCURRENT_TASKS", value=os.getenv("MAX_CONCURRENT_TASKS", "400")),
+    ]
+    return create_engine_job(
+        engine_name="discovery",
+        scan_id=discovery_scan_id,
+        orchestration_id=orchestration_id,
+        image=SCANNER_IMAGE,
+        cpu_request=SCANNER_CPU_REQUEST,
+        mem_request=SCANNER_MEM_REQUEST,
+        cpu_limit=SCANNER_CPU_LIMIT,
+        mem_limit=SCANNER_MEM_LIMIT,
+        active_deadline_seconds=7200,
+        extra_env=extra_env,
+    )
+
+
+# ── Orchestration helper ─────────────────────────────────────────────────────
 
 async def _get_scan_context_from_orchestration(orchestration_id: str) -> Dict[str, Any]:
-    """
-    Query onboarding database for complete scan context using orchestration_id.
-
-    Returns:
-        {
-            "tenant_id": "...",
-            "customer_id": "...",
-            "account_id": "588989875114",  # AWS account, Azure subscription, GCP project, etc.
-            "provider": "aws" | "azure" | "gcp" | "oci" | "alicloud",
-            "hierarchy_id": "...",
-            "credential_type": "access_key" | "iam_role" | "service_principal" | "...",
-            "credential_ref": "threat-engine/account/..." | "arn:aws:iam::...",
-            "include_services": ["ec2", "s3"] or None (all services),
-            "include_regions": ["us-east-1", "eastus"] or None (all regions),
-            "discovery_scan_id": "..." (if already exists - for retry scenarios)
-        }
-    """
+    """Query onboarding DB for scan context using orchestration_id."""
     try:
-        logger.info(f"Retrieving orchestration metadata for orchestration_id: {orchestration_id}")
         metadata = get_orchestration_metadata(orchestration_id)
-
         if not metadata:
-            raise ValueError(f"No orchestration metadata found for orchestration_id: {orchestration_id}")
-
-        logger.info(f"Successfully retrieved orchestration metadata", extra={
-            "extra_fields": {
-                "orchestration_id": orchestration_id,
-                "account_id": metadata.get('account_id'),
-                "provider": metadata.get('provider')
-            }
-        })
-
+            raise ValueError(f"No orchestration metadata for {orchestration_id}")
         return metadata
     except Exception as e:
         logger.error(f"Failed to retrieve orchestration metadata: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to retrieve orchestration metadata: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-async def _retrieve_credentials_from_secrets_manager(
-    account_id: str,
-    credential_ref: str,
-    provider: str
-) -> Dict[str, Any]:
-    """
-    Retrieve credentials from Secrets Manager using credential_ref.
-
-    Args:
-        account_id: Cloud account ID (AWS account, Azure subscription, GCP project, etc.)
-        credential_ref: Secrets Manager path (e.g., "threat-engine/account/588989875114")
-        provider: CSP name (aws, azure, gcp, oci)
-
-    Returns:
-        Credentials dict ready to use for CSP authentication
-    """
-    try:
-        secrets_manager = SecretsManagerStorage()
-
-        # Retrieve secret using account_id
-        secret_data = secrets_manager.retrieve(account_id=account_id)
-
-        logger.info(f"Retrieved credentials from Secrets Manager: {credential_ref}")
-
-        if not isinstance(secret_data, dict) or not secret_data:
-            raise ValueError(f"Empty/invalid credentials found in secret: {credential_ref}")
-
-        # Normalize credential_type based on provider
-        cred_type_raw = (secret_data.get("credential_type") or "").lower()
-
-        if provider == "aws":
-            if cred_type_raw in ("aws_access_key", "access_key", "access_key_id"):
-                secret_data["credential_type"] = "access_key"
-            elif "role" in cred_type_raw:
-                secret_data["credential_type"] = "iam_role"
-        elif provider == "azure":
-            if "service_principal" in cred_type_raw:
-                secret_data["credential_type"] = "service_principal"
-            elif "managed_identity" in cred_type_raw:
-                secret_data["credential_type"] = "managed_identity"
-        elif provider == "gcp":
-            if "service_account" in cred_type_raw:
-                secret_data["credential_type"] = "service_account"
-        elif provider == "oci":
-            if "api_key" in cred_type_raw or "user_principal" in cred_type_raw:
-                secret_data["credential_type"] = "api_key"
-        elif provider == "ibm":
-            if "api_key" in cred_type_raw:
-                secret_data["credential_type"] = "ibm_api_key"
-        elif provider == "k8s":
-            if "in_cluster" in cred_type_raw:
-                secret_data["credential_type"] = "in_cluster"
-            elif "kubeconfig" in cred_type_raw:
-                secret_data["credential_type"] = "kubeconfig"
-
-        return secret_data
-
-    except Exception as e:
-        logger.error(f"Failed to retrieve credentials from Secrets Manager: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to retrieve credentials: {str(e)}"
-        )
-
-
-def _get_scanner_for_provider(provider: str, credentials: Dict[str, Any]) -> DiscoveryScanner:
-    """
-    Get CSP-specific scanner instance based on provider.
-
-    Args:
-        provider: CSP name (aws, azure, gcp, oci, alicloud)
-        credentials: Provider-specific credentials
-
-    Returns:
-        Instantiated scanner implementing DiscoveryScanner interface
-
-    Raises:
-        HTTPException: If provider not supported
-    """
-    provider_lower = provider.lower()
-
-    if provider_lower not in PROVIDER_SCANNERS:
-        supported = ', '.join(PROVIDER_SCANNERS.keys())
-        raise HTTPException(
-            status_code=400,
-            detail=f"Provider '{provider}' not supported. Supported providers: {supported}"
-        )
-
-    scanner_class = PROVIDER_SCANNERS[provider_lower]
-    scanner = scanner_class(credentials=credentials, provider=provider_lower)
-
-    logger.info(f"Selected scanner: {scanner_class.__name__} for provider: {provider}")
-
-    return scanner
-
+# ── POST /api/v1/discovery — create a K8s Job ───────────────────────────────
 
 @app.post("/api/v1/discovery", response_model=DiscoveryResponse)
-async def create_discovery(request: DiscoveryRequest, background_tasks: BackgroundTasks):
+async def create_discovery(request: DiscoveryRequest):
     """
-    Run discovery scan - discovers cloud resources across all supported CSPs.
-
-    Supports two modes:
-    1. Orchestration mode: Provide orchestration_id to fetch metadata from onboarding database
-    2. Legacy mode: Provide all parameters directly (backward compatibility)
+    Trigger a discovery scan by creating a K8s Job on a spot node.
 
     Flow:
-    1. Get scan metadata from onboarding DB (if orchestration_id provided)
-    2. Retrieve credentials from Secrets Manager
-    3. Select CSP-specific scanner based on provider
-    4. Execute scan using common discovery engine
-    5. Return scan_id
+    1. Resolve orchestration metadata (account, provider)
+    2. Pre-create discovery_report row in DB (status=running)
+    3. Create K8s Job (spot node, high CPU/RAM)
+    4. Return discovery_scan_id immediately
     """
-    discovery_scan_id = str(uuid.uuid4())
     orchestration_id = request.orchestration_id
 
-    # If orchestration_id provided, fetch metadata and credentials from database
-    if orchestration_id:
-        try:
-            # Get scan context from onboarding DB (scan_orchestration table)
-            metadata = await _get_scan_context_from_orchestration(orchestration_id)
+    if not orchestration_id:
+        raise HTTPException(status_code=400, detail="orchestration_id is required")
 
-            # Extract provider
-            provider = metadata.get('provider', 'aws')
+    discovery_scan_id = orchestration_id
 
-            # Retrieve credentials from Secrets Manager
-            account_id = metadata.get('account_id')
-            credential_ref = metadata.get('credential_ref')
-            credential_type = (metadata.get("credential_type") or "").lower()
+    try:
+        # 1. Resolve orchestration metadata
+        metadata = await _get_scan_context_from_orchestration(orchestration_id)
+        provider = metadata.get("provider", "aws")
+        account_id = metadata.get("account_id")
+        tenant_id = metadata.get("tenant_id", "default-tenant")
+        customer_id = metadata.get("customer_id", "default")
+        hierarchy_id = metadata.get("hierarchy_id") or account_id
 
-            if not account_id or not credential_ref:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Missing account_id or credential_ref in orchestration metadata"
-                )
-
-            # Handle role-based credentials (AWS IAM role, Azure managed identity, etc.)
-            if credential_type in ("aws_iam_role", "iam_role", "role", "managed_identity"):
-                cred_data = {
-                    "credential_type": credential_type,
-                    "role_arn": credential_ref,  # AWS
-                    "external_id": metadata.get("external_id"),
-                }
-            else:
-                cred_data = await _retrieve_credentials_from_secrets_manager(
-                    account_id=account_id,
-                    credential_ref=credential_ref,
-                    provider=provider
-                )
-
-            # Populate request with orchestration metadata.
-            # Request-body values take priority over orchestration metadata
-            # (allows parallel scan partitioning via include_services).
-            request.tenant_id = metadata.get('tenant_id', 'default-tenant')
-            request.customer_id = metadata.get('customer_id', 'default')
-            request.provider = provider
-            request.hierarchy_id = metadata.get('hierarchy_id') or account_id
-            request.hierarchy_type = metadata.get('hierarchy_type', 'account')
-            request.include_services = request.include_services or metadata.get('include_services')
-            request.include_regions = request.include_regions or metadata.get('include_regions')
-            request.exclude_regions = request.exclude_regions or metadata.get('exclude_regions')
-            request.credentials = cred_data
-            request.use_database = True  # Always use database when orchestrated
-
-            logger.info("Orchestration mode enabled", extra={
-                "extra_fields": {
-                    "orchestration_id": orchestration_id,
-                    "account_id": account_id,
-                    "provider": provider,
-                    "discovery_scan_id": discovery_scan_id
-                }
-            })
-
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error(f"Failed to process orchestration request: {e}", exc_info=True)
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to process orchestration request: {str(e)}"
+        # 2. Pre-create scan record in DB so GET endpoint works immediately
+        db = _get_db_manager()
+        if db:
+            db.create_scan(
+                scan_id=discovery_scan_id,
+                customer_id=customer_id,
+                tenant_id=tenant_id,
+                provider=provider,
+                hierarchy_id=hierarchy_id,
+                metadata={"orchestration_id": orchestration_id, "mode": "job"},
             )
 
-    # Validate provider is supported
-    provider = request.provider
-    if provider.lower() not in PROVIDER_SCANNERS:
-        supported = ', '.join(PROVIDER_SCANNERS.keys())
-        raise HTTPException(
-            status_code=400,
-            detail=f"Provider '{provider}' not supported. Supported providers: {supported}"
-        )
-
-    # Select CSP-specific scanner
-    scanner = _get_scanner_for_provider(provider, request.credentials)
-
-    # Execute scan in background using common discovery engine
-    background_tasks.add_task(
-        _run_discovery_scan,
-        discovery_scan_id=discovery_scan_id,
-        orchestration_id=orchestration_id,
-        scanner=scanner,
-        request=request
-    )
-
-    # Update orchestration table with discovery_scan_id if orchestration mode
-    if orchestration_id:
+        # 3. Update orchestration table
         try:
             update_engine_scan_id(
                 orchestration_id=orchestration_id,
                 engine="discovery",
-                scan_id=discovery_scan_id
+                scan_id=discovery_scan_id,
             )
         except Exception as e:
-            logger.warning(f"Failed to update orchestration table with scan_id: {e}")
+            logger.warning(f"Failed to update orchestration table: {e}")
 
-    metrics["total_scans"] += 1
+        # 4. Create K8s Job on spot node
+        job_name = _create_scanner_job(discovery_scan_id, orchestration_id, provider)
 
-    return DiscoveryResponse(
-        discovery_scan_id=discovery_scan_id,
-        status="running",
-        message=f"Discovery scan started for provider: {provider}",
-        orchestration_id=orchestration_id,
-        provider=provider
-    )
+        metrics["total_scans"] += 1
 
+        return DiscoveryResponse(
+            discovery_scan_id=discovery_scan_id,
+            status="running",
+            message=f"Scanner Job '{job_name}' created on spot node (image={SCANNER_IMAGE})",
+            orchestration_id=orchestration_id,
+            provider=provider,
+        )
 
-async def _run_discovery_scan(
-    discovery_scan_id: str,
-    orchestration_id: Optional[str],
-    scanner: DiscoveryScanner,
-    request: DiscoveryRequest
-):
-    """
-    Execute discovery scan using common orchestration engine.
-
-    This function is CSP-agnostic. It uses the common DiscoveryEngine
-    which calls scanner methods for CSP-specific operations.
-    """
-    start_time = datetime.now()
-
-    try:
-        # Authenticate scanner to cloud provider
-        scanner.authenticate()
-
-        # Create common discovery engine
-        db_manager = DatabaseManager()
-        discovery_engine = DiscoveryEngine(scanner=scanner, db_manager=db_manager)
-
-        # Build scan metadata
-        metadata = {
-            "discovery_scan_id": discovery_scan_id,
-            "orchestration_id": orchestration_id,
-            "provider": request.provider,
-            "tenant_id": request.tenant_id,
-            "customer_id": request.customer_id,
-            "hierarchy_id": request.hierarchy_id,
-            "hierarchy_type": request.hierarchy_type,
-            "include_services": request.include_services,
-            "include_regions": request.include_regions,
-            "exclude_regions": request.exclude_regions,
-            "use_database": request.use_database
-        }
-
-        # Execute scan using common engine
-        await discovery_engine.run_scan(metadata=metadata)
-
-        # Update scan status
-        scans[discovery_scan_id] = {
-            "status": "completed",
-            "provider": request.provider,
-            "started_at": start_time.isoformat(),
-            "completed_at": datetime.now().isoformat()
-        }
-
-        metrics["successful_scans"] += 1
-        duration = (datetime.now() - start_time).total_seconds()
-        metrics["total_duration_seconds"] += duration
-
-        logger.info(f"Discovery scan completed: {discovery_scan_id}", extra={
-            "extra_fields": {
-                "discovery_scan_id": discovery_scan_id,
-                "provider": request.provider,
-                "duration_seconds": duration
-            }
-        })
-
-    except AuthenticationError as e:
-        logger.error(f"Authentication failed for scan {discovery_scan_id}: {e}")
-        scans[discovery_scan_id] = {"status": "failed", "error": f"Authentication error: {str(e)}"}
-        metrics["failed_scans"] += 1
-
-    except DiscoveryError as e:
-        logger.error(f"Discovery failed for scan {discovery_scan_id}: {e}")
-        scans[discovery_scan_id] = {"status": "failed", "error": f"Discovery error: {str(e)}"}
-        metrics["failed_scans"] += 1
-
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Discovery scan failed: {discovery_scan_id}", exc_info=True)
-        scans[discovery_scan_id] = {"status": "failed", "error": str(e)}
-        metrics["failed_scans"] += 1
+        logger.error(f"Failed to create discovery scan: {e}", exc_info=True)
+        # Mark as failed if DB row was created
+        try:
+            db = _get_db_manager()
+            if db:
+                db.update_scan_status(discovery_scan_id, "failed")
+        except Exception:
+            pass
+        raise HTTPException(status_code=500, detail=str(e))
 
+
+# ── GET /api/v1/discovery/{scan_id} — read status from DB ───────────────────
 
 @app.get("/api/v1/discovery/{scan_id}")
 async def get_scan_status(scan_id: str):
-    """Get status of discovery scan (CSP-agnostic)"""
-    if scan_id not in scans:
-        raise HTTPException(status_code=404, detail="Scan not found")
-    return scans[scan_id]
+    """Get discovery scan status from discovery_report DB table."""
+    db = _get_db_manager()
+    if not db:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
+    conn = db._get_connection()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                "SELECT status, provider, metadata, scan_timestamp "
+                "FROM discovery_report WHERE discovery_scan_id = %s",
+                (scan_id,),
+            )
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Scan not found")
+
+            meta = row["metadata"] if isinstance(row["metadata"], dict) else {}
+            return {
+                "status": row["status"],
+                "provider": row.get("provider"),
+                "started_at": str(row.get("scan_timestamp") or ""),
+                "metadata": meta,
+            }
+    finally:
+        db._return_connection(conn)
 
 
 @app.get("/health")
 async def health_check():
     """Health check endpoint (CSP-agnostic)"""
-    db = _get_health_db_manager()
+    db = _get_db_manager()
     if db is None:
         return {"status": "degraded", "database": "unavailable"}
 

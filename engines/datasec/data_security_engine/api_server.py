@@ -14,10 +14,11 @@ from datetime import datetime
 
 # Add common to path for logger import
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-from engine_common.logger import setup_logger, LogContext, log_duration, audit_log, security_event_log
+from engine_common.logger import setup_logger
 from engine_common.telemetry import configure_telemetry
 from engine_common.middleware import RequestLoggingMiddleware, CorrelationIDMiddleware
 from engine_common.orchestration import get_orchestration_metadata
+from engine_common.job_creator import create_engine_job
 
 from .input.threat_db_reader import ThreatDBReader
 from .input.rule_db_reader import RuleDBReader
@@ -29,6 +30,13 @@ from .storage.report_storage import ReportStorage
 import json
 
 logger = setup_logger(__name__, engine_name="engine-datasec")
+
+# ── Scanner Job config ───────────────────────────────────────────────────────
+SCANNER_IMAGE = os.getenv("DATASEC_SCANNER_IMAGE", "yadavanup84/engine-datasec:v-job")
+SCANNER_CPU_REQUEST = os.getenv("SCANNER_CPU_REQUEST", "100m")
+SCANNER_MEM_REQUEST = os.getenv("SCANNER_MEM_REQUEST", "512Mi")
+SCANNER_CPU_LIMIT = os.getenv("SCANNER_CPU_LIMIT", "250m")
+SCANNER_MEM_LIMIT = os.getenv("SCANNER_MEM_LIMIT", "1Gi")
 
 app = FastAPI(
     title="Data Security Engine API",
@@ -147,179 +155,124 @@ async def api_health():
         return {"status": "degraded", "database": "disconnected", "error": str(e), "service": "engine-datasec", "version": "1.0.0"}
 
 
-@app.post("/api/v1/data-security/scan", response_model=ReportResponse)
+def _get_datasec_conn():
+    """Get psycopg2 connection to the DataSec database for status queries."""
+    import psycopg2
+    return psycopg2.connect(
+        host=os.getenv("DATASEC_DB_HOST", os.getenv("DB_HOST", "localhost")),
+        port=int(os.getenv("DATASEC_DB_PORT", os.getenv("DB_PORT", "5432"))),
+        dbname=os.getenv("DATASEC_DB_NAME", "threat_engine_datasec"),
+        user=os.getenv("DATASEC_DB_USER", os.getenv("DB_USER", "postgres")),
+        password=os.getenv("DATASEC_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
+        sslmode=os.getenv("DB_SSLMODE", "prefer"),
+    )
+
+
+@app.post("/api/v1/data-security/scan")
 async def generate_report(request: ScanRequest):
     """
-    Generate comprehensive data security report.
+    Start a data security scan by creating a K8s Job on a spot node.
 
-    Combines enriched configScan findings with new analysis:
-    - Data classification (PII/PCI/PHI detection)
-    - Data lineage (flow tracking)
-    - Data residency (geographic compliance)
-    - Data activity monitoring (anomaly detection)
+    **Pipeline mode** -- provide `orchestration_id`:
+      Fetches metadata from scan_orchestration table.
+
+    **Ad-hoc mode** -- provide `scan_id`:
+      Uses the supplied threat_scan_id.
+
+    Returns immediately with datasec_scan_id. Poll status via
+    GET /api/v1/data-security/{datasec_scan_id}/status.
     """
-    import time
-    start_time = time.time()
+    if not request.orchestration_id and not request.scan_id:
+        raise HTTPException(status_code=400, detail="Either scan_id OR orchestration_id must be provided")
 
-    # Determine threat_scan_id and tenant_id
-    # Priority: direct scan_id (ad-hoc) > orchestration_id (pipeline)
-    threat_scan_id = None
-    tenant_id = request.tenant_id
-
-    if request.scan_id:
-        # MODE 1: Ad-hoc mode - use provided threat scan_id
-        threat_scan_id = request.scan_id
-        logger.info(f"Ad-hoc mode: Using direct threat_scan_id: {threat_scan_id}")
-
-    elif request.orchestration_id:
-        # MODE 2: Pipeline mode - query scan_orchestration for threat_scan_id
+    if request.orchestration_id:
+        orch_id = request.orchestration_id
+        datasec_scan_id = orch_id
         try:
-            metadata = get_orchestration_metadata(request.orchestration_id)
+            metadata = get_orchestration_metadata(orch_id)
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e))
 
         threat_scan_id = metadata.get("threat_scan_id")
         if not threat_scan_id:
-            raise HTTPException(status_code=400, detail=f"Threat scan not completed yet for orchestration_id={request.orchestration_id}")
+            raise HTTPException(status_code=400, detail=f"Threat scan not completed yet for orchestration_id={orch_id}")
 
-        # Get tenant_id and csp from orchestration metadata
         tenant_id = metadata.get("tenant_id") or request.tenant_id
-        # Derive CSP from orchestration provider if not explicitly provided
-        orchestration_csp = metadata.get("provider") or metadata.get("provider_type") or metadata.get("csp")
-        if orchestration_csp and not request.scan_id:
-            # In pipeline mode, use orchestration CSP (normalize to lowercase)
-            request = request.model_copy(update={"csp": orchestration_csp.lower()})
-
-        logger.info(f"Pipeline mode: Got threat_scan_id={threat_scan_id} from orchestration_id={request.orchestration_id}, csp={request.csp}")
-
+        csp = (metadata.get("provider") or metadata.get("provider_type", "aws")).lower()
+        logger.info(f"Pipeline mode: orch={orch_id} threat={threat_scan_id} csp={csp}")
     else:
-        raise HTTPException(status_code=400, detail="Either scan_id OR orchestration_id must be provided")
+        # Ad-hoc: orchestration_id is required for Job-based execution
+        raise HTTPException(status_code=400, detail="orchestration_id is required for Job-based execution")
 
-    with LogContext(tenant_id=tenant_id, scan_run_id=threat_scan_id):
-        logger.info("Generating data security report", extra={
-            "extra_fields": {
-                "scan_id": threat_scan_id,
-                "csp": request.csp,
-                "include_classification": request.include_classification,
-                "include_lineage": request.include_lineage,
-                "include_residency": request.include_residency,
-                "include_activity": request.include_activity
-            }
-        })
-        try:
-            logger.info("Generating data security report", extra={
-                "extra_fields": {
-                    "scan_id": threat_scan_id,
-                    "csp": request.csp
-                }
-            })
-
-            report = reporter.generate_report(
-                csp=request.csp,
-                scan_id=threat_scan_id,
-                tenant_id=tenant_id,
-                include_classification=request.include_classification,
-                include_lineage=request.include_lineage,
-                include_residency=request.include_residency,
-                include_activity=request.include_activity,
-                allowed_regions=request.allowed_regions,
-                max_findings=request.max_findings,
+    # Pre-create datasec_report row in DB (so status endpoint works immediately)
+    try:
+        conn = _get_datasec_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                """INSERT INTO datasec_report
+                   (datasec_scan_id, tenant_id, provider, threat_scan_id, status, generated_at, metadata)
+                   VALUES (%s, %s, %s, %s, 'running', NOW(), %s)
+                   ON CONFLICT (datasec_scan_id) DO UPDATE SET status = 'running'""",
+                (datasec_scan_id, tenant_id, csp, threat_scan_id,
+                 json.dumps({"orchestration_id": orch_id, "mode": "job"})),
             )
-            
-            # Add report_id if missing
-            if "report_id" not in report:
-                import uuid as uuid_lib
-                report["report_id"] = str(uuid_lib.uuid4())
-            
-            # Save to local file storage
-            try:
-                report_path = report_storage.save_report(
-                    report=report,
-                    tenant_id=tenant_id,
-                    scan_id=threat_scan_id
-                )
-                logger.info(f"Data security report saved to: {report_path}")
-            except Exception as e:
-                logger.error(f"Error saving data security report to file storage: {e}")
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning(f"Failed to pre-create datasec_report: {e}")
 
-            # Save to /output for S3 sync
-            try:
-                output_dir = os.getenv("OUTPUT_DIR", "/output")
-                if output_dir and os.path.exists(output_dir):
-                    datasec_dir = os.path.join(output_dir, "datasec", tenant_id, threat_scan_id)
-                    os.makedirs(datasec_dir, exist_ok=True)
+    # Create K8s Job on spot node
+    try:
+        job_name = create_engine_job(
+            engine_name="datasec",
+            scan_id=datasec_scan_id,
+            orchestration_id=orch_id,
+            image=SCANNER_IMAGE,
+            cpu_request=SCANNER_CPU_REQUEST,
+            mem_request=SCANNER_MEM_REQUEST,
+            cpu_limit=SCANNER_CPU_LIMIT,
+            mem_limit=SCANNER_MEM_LIMIT,
+            active_deadline_seconds=1800,
+        )
+    except Exception as e:
+        logger.error(f"Failed to create DataSec scanner Job: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to create scanner Job: {e}")
 
-                    with open(os.path.join(datasec_dir, "datasec_report.json"), "w") as f:
-                        json.dump(report, f, indent=2, default=str)
+    return {
+        "datasec_scan_id": datasec_scan_id,
+        "status": "running",
+        "message": f"Scanner Job '{job_name}' created on spot node (image={SCANNER_IMAGE})",
+        "orchestration_id": orch_id,
+    }
 
-                    logger.info(f"DataSec report saved to {datasec_dir}")
-            except Exception as e:
-                logger.error(f"Error saving DataSec report to output dir: {e}")
 
-            # Save to database
-            try:
-                from .storage.datasec_db_writer import save_datasec_report_to_db
-                saved_id = save_datasec_report_to_db(report)
-                logger.info(f"DataSec report saved to database: {saved_id}")
-            except Exception as e:
-                logger.error(f"Error saving DataSec report to database: {e}", exc_info=True)
-
-            # Update scan_orchestration with datasec_scan_id (if in pipeline mode)
-            if request.orchestration_id:
-                try:
-                    from engine_common.orchestration import update_orchestration_scan_id
-                    datasec_scan_id = report.get("report_id") or report.get("datasec_scan_id")
-                    update_orchestration_scan_id(
-                        orchestration_id=request.orchestration_id,
-                        engine="datasec",
-                        scan_id=datasec_scan_id,
-                    )
-                    logger.info(f"Updated scan_orchestration with datasec_scan_id: {datasec_scan_id}")
-                except Exception as e:
-                    logger.error(f"Failed to update scan_orchestration: {e}")
-                    # Don't fail the request - this is tracking only
-            
-            duration_ms = (time.time() - start_time) * 1000
-            log_duration(logger, "Data security report generated", duration_ms)
-            audit_log(
-                logger,
-                "datasec_report_generated",
-                f"scan:{request.scan_id}",
-                tenant_id=request.tenant_id,
-                result="success",
-                details={
-                    "csp": request.csp,
-                    "findings_count": len(report.get("findings", []))
-                }
+@app.get("/api/v1/data-security/{datasec_scan_id}/status")
+async def get_datasec_status(datasec_scan_id: str):
+    """Get DataSec scan status from datasec_report DB table."""
+    from psycopg2.extras import RealDictCursor
+    try:
+        conn = _get_datasec_conn()
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                "SELECT datasec_scan_id, status, provider, threat_scan_id, generated_at, metadata "
+                "FROM datasec_report WHERE datasec_scan_id = %s",
+                (datasec_scan_id,),
             )
-            
-            logger.info("Data security report generated successfully", extra={
-                "extra_fields": {
-                    "findings_count": len(report.get("findings", [])),
-                    "classification_count": len(report.get("classification", []))
-                }
-            })
-            
-            return report
-        
-        except Exception as e:
-            duration_ms = (time.time() - start_time) * 1000
-            logger.error("Error generating data security report", exc_info=True, extra={
-                "extra_fields": {
-                    "error": str(e),
-                    "scan_id": request.scan_id,
-                    "duration_ms": duration_ms
-                }
-            })
-            audit_log(
-                logger,
-                "datasec_report_generation_failed",
-                f"scan:{request.scan_id}",
-                tenant_id=request.tenant_id,
-                result="failure",
-                details={"error": str(e)}
-            )
-            raise HTTPException(status_code=500, detail=str(e))
+            row = cur.fetchone()
+        conn.close()
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Database error: {e}")
+
+    if not row:
+        raise HTTPException(status_code=404, detail=f"DataSec scan {datasec_scan_id} not found")
+
+    return {
+        "datasec_scan_id": row["datasec_scan_id"],
+        "status": row["status"],
+        "provider": row.get("provider"),
+        "threat_scan_id": row.get("threat_scan_id"),
+        "generated_at": str(row.get("generated_at")) if row.get("generated_at") else None,
+    }
 
 
 @app.get("/api/v1/data-security/catalog")
@@ -973,7 +926,7 @@ async def get_service_data_security(
 
 # ── Standard route aliases ─────────────────────────────────────────────────────
 # POST /api/v1/scan — standard scan alias (same handler as /api/v1/data-security/scan)
-app.add_api_route("/api/v1/scan", generate_report, methods=["POST"], response_model=ReportResponse)
+app.add_api_route("/api/v1/scan", generate_report, methods=["POST"])
 
 # GET /api/v1/datasec/* — standard prefix aliases for all /api/v1/data-security/* routes
 from fastapi import APIRouter as _APIRouter

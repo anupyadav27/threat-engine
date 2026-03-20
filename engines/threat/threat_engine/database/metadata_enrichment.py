@@ -98,7 +98,7 @@ def get_enriched_check_results(
                     cf.hierarchy_id,
                     cf.hierarchy_type,
                     cf.rule_id,
-                    cf.resource_arn,
+                    cf.resource_uid AS resource_arn,
                     cf.resource_uid,
                     cf.resource_id,
                     cf.resource_type,
@@ -144,7 +144,7 @@ def get_enriched_check_results(
                 query += " AND cf.tenant_id = %s"
                 params.append(tenant_id)
 
-            query += " ORDER BY rm.severity DESC, cf.rule_id, cf.resource_arn"
+            query += " ORDER BY rm.severity DESC, cf.rule_id, cf.resource_uid"
 
             cur.execute(query, params)
 

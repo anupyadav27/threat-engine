@@ -1,23 +1,17 @@
-# Pipeline Worker — polls SQS and drives the engine pipeline asynchronously.
+# Pipeline Worker — HTTP server that orchestrates the full engine pipeline.
 #
 # Build:
-#   docker build -t yadavanup84/pipeline-worker:v1 \
+#   docker build -t yadavanup84/pipeline-worker:v7-http \
 #     -f shared/pipeline_worker/Dockerfile .
-#   docker push yadavanup84/pipeline-worker:v1
+#   docker push yadavanup84/pipeline-worker:v7-http
 #
 # Deploy:
-#   kubectl apply -f deployment/aws/eks/pipeline-worker/pipeline-worker.yaml \
-#     -n threat-engine-engines
+#   kubectl apply -f deployment/aws/eks/pipeline-worker/pipeline-worker.yaml
 #
-# Enable SQS mode on onboarding engine by adding SQS_PIPELINE_QUEUE_URL to
-# its deployment (see engine-onboarding.yaml).  The worker and onboarding
-# must share the same queue URL.
-#
-# IAM requirements:
-#   The pod's IRSA role (or node instance profile) needs:
-#     sqs:SendMessage, sqs:ReceiveMessage, sqs:DeleteMessage,
-#     sqs:ChangeMessageVisibility, sqs:GetQueueAttributes
-#   on both the pipeline queue and the events queue ARNs.
+# Trigger:
+#   curl -X POST http://pipeline-worker:8050/api/v1/pipeline/run \
+#     -H 'Content-Type: application/json' \
+#     -d '{"orchestration_id":"...","tenant_id":"...","account_id":"...","provider":"aws"}'
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -28,7 +22,7 @@ metadata:
     app: pipeline-worker
     component: pipeline
 spec:
-  replicas: 1   # Scale up for higher concurrency (each replica handles one scan)
+  replicas: 1
   selector:
     matchLabels:
       app: pipeline-worker
@@ -38,53 +32,30 @@ spec:
         app: pipeline-worker
         component: pipeline
     spec:
-      serviceAccountName: engine-sa   # IRSA → threat-engine-platform-role (SQS + S3 + SecretsManager)
-      # Prefer on-demand nodes — worker drives long-running pipeline
+      serviceAccountName: engine-sa
       affinity:
         nodeAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 100
-              preference:
-                matchExpressions:
-                  - key: node-type
-                    operator: NotIn
-                    values: ["spot"]
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: node-type
+                operator: NotIn
+                values: ["spot"]
 
       containers:
         - name: pipeline-worker
-          image: yadavanup84/pipeline-worker:v3
+          image: yadavanup84/pipeline-worker:v-refactor
           imagePullPolicy: Always
+          ports:
+            - containerPort: 8050
 
           env:
-            # ── SQS config ─────────────────────────────────────────────────
-            - name: SQS_PIPELINE_QUEUE_URL
-              valueFrom:
-                configMapKeyRef:
-                  name: sqs-config
-                  key: SQS_PIPELINE_QUEUE_URL
-            - name: SQS_EVENTS_QUEUE_URL
-              valueFrom:
-                configMapKeyRef:
-                  name: sqs-config
-                  key: SQS_EVENTS_QUEUE_URL
-                  optional: true
-            - name: SQS_VISIBILITY_TIMEOUT
-              valueFrom:
-                configMapKeyRef:
-                  name: sqs-config
-                  key: SQS_VISIBILITY_TIMEOUT
-            - name: SQS_POLL_INTERVAL_S
-              valueFrom:
-                configMapKeyRef:
-                  name: sqs-config
-                  key: SQS_POLL_INTERVAL_S
-
-            # ── AWS region ────────────────────────────────────────────────
             - name: AWS_REGION
               value: "ap-south-1"
 
-            # ── Engine service URLs ───────────────────────────────────────
-            # Defaults match K8s DNS; override here only if non-standard.
+            # Engine service URLs (defaults match K8s DNS)
+            - name: DISCOVERIES_ENGINE_URL
+              value: "http://engine-discoveries.threat-engine-engines.svc.cluster.local"
             - name: INVENTORY_ENGINE_URL
               value: "http://engine-inventory.threat-engine-engines.svc.cluster.local"
             - name: CHECK_ENGINE_URL
@@ -98,6 +69,21 @@ spec:
             - name: DATASEC_ENGINE_URL
               value: "http://engine-datasec.threat-engine-engines.svc.cluster.local"
 
+            # Onboarding DB (for scan_orchestration table)
+            - name: ONBOARDING_DB_HOST
+              value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+            - name: ONBOARDING_DB_PORT
+              value: "5432"
+            - name: ONBOARDING_DB_NAME
+              value: "threat_engine_onboarding"
+            - name: ONBOARDING_DB_USER
+              value: "postgres"
+            - name: ONBOARDING_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-db-passwords
+                  key: ONBOARDING_DB_PASSWORD
+
           resources:
             requests:
               cpu: "100m"
@@ -106,10 +92,33 @@ spec:
               cpu: "500m"
               memory: "256Mi"
 
-          # Liveness: touch /tmp/alive on each probe to confirm Python process is healthy
           livenessProbe:
-            exec:
-              command: ["python", "-c", "open('/tmp/alive', 'w').close()"]
-            initialDelaySeconds: 15
-            periodSeconds: 60
-            failureThreshold: 3
+            httpGet:
+              path: /api/v1/health/live
+              port: 8050
+            initialDelaySeconds: 10
+            periodSeconds: 30
+
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health/ready
+              port: 8050
+            initialDelaySeconds: 5
+            periodSeconds: 10
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pipeline-worker
+  namespace: threat-engine-engines
+  labels:
+    app: pipeline-worker
+spec:
+  selector:
+    app: pipeline-worker
+  ports:
+    - port: 8050
+      targetPort: 8050
+      protocol: TCP
+  type: ClusterIP

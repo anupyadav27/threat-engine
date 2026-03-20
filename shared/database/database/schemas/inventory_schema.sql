@@ -399,6 +399,10 @@ CREATE TABLE IF NOT EXISTS resource_inventory_identifier (
                                                   -- Matches split_part(inventory_findings.resource_type, '.', 2)
                                                   -- Lookup: WHERE csp='aws' AND service='ec2' AND canonical_type='security-group'
 
+    -- Asset security classification (used by threat engine for attack path target scoring)
+    -- Values: secrets, data_store, identity, compute, network, messaging, monitoring, deployment, governance
+    asset_category            VARCHAR(50),
+
     -- Inventory classification flags
     can_inventory_from_roots  BOOLEAN NOT NULL DEFAULT TRUE,
                                                   -- TRUE  = resource appears in root/independent op output
@@ -457,6 +461,8 @@ CREATE INDEX IF NOT EXISTS idx_rii_csp              ON resource_inventory_identi
 CREATE INDEX IF NOT EXISTS idx_rii_classification   ON resource_inventory_identifier(classification);
 CREATE INDEX IF NOT EXISTS idx_rii_should_inventory ON resource_inventory_identifier(should_inventory)
     WHERE should_inventory = TRUE;
+CREATE INDEX IF NOT EXISTS idx_rii_asset_category   ON resource_inventory_identifier(asset_category)
+    WHERE asset_category IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_rii_arn_entity       ON resource_inventory_identifier(arn_entity)
     WHERE arn_entity IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_rii_root_ops_gin     ON resource_inventory_identifier USING GIN(root_ops);
@@ -506,6 +512,11 @@ CREATE TABLE IF NOT EXISTS resource_relationship_rules (
     source_field_item  VARCHAR(200),           -- for array fields: sub-field to extract per item
     target_uid_pattern TEXT         NOT NULL,  -- pattern to build target UID, e.g. arn:aws:ec2:{region}:{account_id}:vpc/{VpcId}
 
+    -- Attack path classification
+    -- NULL = not an attack path (defensive/organizational edge)
+    -- Values: exposure, lateral_movement, privilege_escalation, data_access, execution, data_flow
+    attack_path_category VARCHAR(50),
+
     -- Control
     is_active         BOOLEAN      NOT NULL DEFAULT TRUE,
     rule_source       VARCHAR(50)  NOT NULL DEFAULT 'auto',  -- auto | curated | migrated
@@ -529,6 +540,9 @@ CREATE INDEX IF NOT EXISTS idx_rrr_csp
 CREATE INDEX IF NOT EXISTS idx_rrr_service
     ON resource_relationship_rules(csp, service)
     WHERE is_active = TRUE AND service IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_rrr_attack_path
+    ON resource_relationship_rules(relation_type, attack_path_category)
+    WHERE is_active = TRUE AND attack_path_category IS NOT NULL;
 
 -- Auto-update timestamp trigger
 DROP TRIGGER IF EXISTS update_rrr_updated_at ON resource_relationship_rules;

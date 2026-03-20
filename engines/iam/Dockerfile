@@ -7,6 +7,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code (destination paths match Python imports)
 COPY engines/iam/iam_engine/ ./iam_engine/
+
+# Run scan entry point (for K8s Job execution)
+COPY engines/iam/run_scan.py ./run_scan.py
+
 COPY shared/common/ ./engine_common/
 
 ENV PYTHONPATH=/app

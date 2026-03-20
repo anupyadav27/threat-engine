@@ -340,7 +340,7 @@ export default function InventoryPage() {
         </div>
         <div className="flex gap-2">
           <button
-            onClick={() => router.push('/inventory/graph')}
+            onClick={() => router.push('/inventory/architecture')}
             className="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors"
             style={{
               backgroundColor: 'var(--accent-primary)',
@@ -348,7 +348,18 @@ export default function InventoryPage() {
             }}
           >
             <Network className="w-4 h-4" />
-            Graph View
+            Architecture View
+          </button>
+          <button
+            onClick={() => router.push('/inventory/graph')}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg transition-colors"
+            style={{
+              backgroundColor: 'var(--bg-tertiary)',
+              color: 'var(--text-secondary)',
+            }}
+          >
+            <Network className="w-4 h-4" />
+            Graph (v1)
           </button>
           <button
             className="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors"

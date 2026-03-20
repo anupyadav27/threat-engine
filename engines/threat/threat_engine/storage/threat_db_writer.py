@@ -80,8 +80,8 @@ def save_report_to_db(report: ThreatReport) -> str:
     cloud = c.value if hasattr(c, "value") else str(c)
     generated_at = _ts_with_tz(report.generated_at)
 
-    # Generate a unique threat_scan_id for this report
-    threat_scan_id = f"threat_{scan_run_id}"
+    # Use scan_run_id directly as threat_scan_id (set by caller / orchestration)
+    threat_scan_id = scan_run_id
 
     conn = psycopg2.connect(_connection_string())
 
@@ -356,14 +356,12 @@ def get_report_from_db(tenant_id: str, scan_run_id: str) -> Optional[Dict[str, A
     conn = psycopg2.connect(_connection_string())
 
     try:
-        threat_scan_id = f"threat_{scan_run_id}"
-
-        # Get report summary
+        # Get report summary — match by scan_run_id or threat_scan_id (both could be the same)
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("""
                 SELECT * FROM threat_report
                 WHERE tenant_id = %s AND (scan_run_id = %s OR threat_scan_id = %s)
-            """, (tenant_id, scan_run_id, threat_scan_id))
+            """, (tenant_id, scan_run_id, scan_run_id))
             scan = cur.fetchone()
 
         if not scan:
@@ -544,16 +542,16 @@ def update_report_in_db(tenant_id: str, scan_run_id: str, report_dict: Dict[str,
     conn = psycopg2.connect(_connection_string())
 
     try:
-        threat_scan_id = f"threat_{scan_run_id}"
         with conn.cursor() as cur:
             cur.execute("""
                 UPDATE threat_report
                 SET report_data = %s
-                WHERE tenant_id = %s AND threat_scan_id = %s
+                WHERE tenant_id = %s AND (threat_scan_id = %s OR scan_run_id = %s)
             """, (
                 Json(report_dict, dumps=lambda o: json.dumps(o, default=_default_json)),
                 tenant_id,
-                threat_scan_id,
+                scan_run_id,
+                scan_run_id,
             ))
         conn.commit()
         return True

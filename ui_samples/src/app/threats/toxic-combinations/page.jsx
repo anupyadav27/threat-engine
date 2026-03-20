@@ -1,555 +1,877 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import {
-  AlertTriangle,
   Zap,
+  AlertTriangle,
   Target,
   TrendingUp,
-  ArrowRight,
   ChevronRight,
-  Lock,
-  Eye,
+  ChevronDown,
+  ChevronUp,
+  X,
   Shield,
-  Database,
-  Cloud,
-  Activity,
+  ExternalLink,
+  Layers,
 } from 'lucide-react';
-import { getFromEngine } from '@/lib/api';
+import { fetchView } from '@/lib/api';
 import KpiCard from '@/components/shared/KpiCard';
 import SeverityBadge from '@/components/shared/SeverityBadge';
+import LoadingSkeleton from '@/components/shared/LoadingSkeleton';
+import EmptyState from '@/components/shared/EmptyState';
+import DataTable from '@/components/shared/DataTable';
+import ThreatsSubNav from '@/components/shared/ThreatsSubNav';
 
-/**
- * Toxic Combinations Page - Compound Risk Analysis
- * Identifies resources with dangerous overlapping misconfigurations that create exponential risk
- * Backend API: GET /api/v1/graph/toxic-combinations, /api/v1/threat/resources/{resource_uid}/posture
- */
-export default function ToxicCombinationsPage() {
-  const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [toxicCombos, setToxicCombos] = useState([]);
-  const [selectedMatrixCell, setSelectedMatrixCell] = useState(null);
-  const [matrixDetail, setMatrixDetail] = useState(null);
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
 
+const TAB_COMBINATIONS = 'combinations';
+const TAB_MATRIX = 'matrix';
 
-  // Mock combination matrix data
-  const misconfigCategories = [
-    'Public Access',
-    'Weak Encryption',
-    'Excessive Permissions',
-    'Logging Disabled',
-    'Unpatched Systems',
-  ];
+const SEVERITY_FOR_SCORE = (score) => {
+  if (score >= 90) return 'critical';
+  if (score >= 75) return 'high';
+  if (score >= 50) return 'medium';
+  return 'low';
+};
 
-  const [matrix, setMatrix] = useState({});
-  const [error, setError] = useState(null);
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
 
-  // Fetch toxic combinations on mount
-  useEffect(() => {
-    const fetchCombinations = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const [combosRes, matrixRes] = await Promise.allSettled([
-          getFromEngine('threat', '/api/v1/graph/toxic-combinations'),
-          getFromEngine('threat', '/api/v1/graph/toxic-combinations/matrix'),
-        ]);
+/** Segmented toxicity score bar */
+function ToxicityBar({ score }) {
+  const segments = 10;
+  const filled = Math.round((score / 100) * segments);
+  const color =
+    score >= 90 ? '#ef4444' : score >= 75 ? '#f97316' : score >= 50 ? '#eab308' : '#3b82f6';
 
-        if (combosRes.status === 'fulfilled' && combosRes.value && !combosRes.value.error) {
-          const raw = Array.isArray(combosRes.value) ? combosRes.value : (combosRes.value.combinations || combosRes.value.results || []);
-          setToxicCombos(raw);
-        } else {
-          setError('Failed to load toxic combinations data.');
-        }
-
-        if (matrixRes.status === 'fulfilled' && matrixRes.value && !matrixRes.value.error) {
-          setMatrix(matrixRes.value.matrix || matrixRes.value || {});
-        }
-      } catch (err) {
-        console.warn('Error fetching toxic combinations:', err);
-        setError('Failed to load toxic combinations data.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchCombinations();
-  }, []);
-
-  // Calculate statistics
-  const stats = {
-    totalCombos: toxicCombos.length,
-    criticalCombos: toxicCombos.filter((c) => c.toxicityScore >= 90).length,
-    resourcesAtRisk: toxicCombos.length,
-    avgMultiplier: (
-      toxicCombos.reduce((sum, c) => sum + c.riskMultiplier, 0) /
-      (toxicCombos.length || 1)
-    ).toFixed(2),
-  };
-
-  // Render toxicity score with compound visualization
-  const ToxicityMeter = ({ score, multiplier }) => {
-    const segments = 10;
-    const filledSegments = Math.ceil((score / 100) * segments);
-
-    return (
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <div className="flex gap-1">
-            {Array.from({ length: segments }).map((_, idx) => (
-              <div
-                key={idx}
-                className="h-2 rounded-sm transition-all"
-                style={{
-                  width: '8px',
-                  backgroundColor:
-                    idx < filledSegments
-                      ? score >= 90
-                        ? '#ef4444'
-                        : score >= 75
-                        ? '#f97316'
-                        : '#eab308'
-                      : 'var(--bg-tertiary)',
-                }}
-              />
-            ))}
-          </div>
-          <span className="text-sm font-bold" style={{ color: score >= 90 ? '#ef4444' : '#f97316' }}>
-            {score}
-          </span>
-        </div>
-        <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
-          Risk Multiplier: <span style={{ color: 'var(--accent-warning)' }}>×{multiplier}</span>
-        </div>
-      </div>
-    );
-  };
-
-  // Render interconnected factor visualization
-  const FactorConnector = ({ factors }) => {
-    return (
-      <div className="relative py-4">
-        <div className="flex items-center justify-between gap-2">
-          {factors.map((factor, idx) => (
-            <div key={idx} className="flex-1 space-y-2">
-              <div
-                className="px-3 py-2 rounded-lg text-xs font-medium text-center transition-all cursor-pointer hover:scale-105"
-                style={{
-                  backgroundColor:
-                    factor.severity === 'critical'
-                      ? 'rgba(239, 68, 68, 0.15)'
-                      : 'rgba(249, 115, 22, 0.15)',
-                  borderLeft: `3px solid ${factor.severity === 'critical' ? '#ef4444' : '#f97316'}`,
-                  color: factor.severity === 'critical' ? '#fecaca' : '#fed7aa',
-                }}
-              >
-                {factor.name}
-              </div>
-              {idx < factors.length - 1 && (
-                <div className="flex justify-center">
-                  <ArrowRight
-                    className="w-4 h-4"
-                    style={{ color: 'var(--accent-warning)' }}
-                  />
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-        <div className="mt-3 p-3 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-          <p className="text-xs font-semibold" style={{ color: 'var(--accent-danger)' }}>
-            = {factors.length > 2 ? 'EXPONENTIAL RISK' : 'COMPOUND RISK'}
-          </p>
-        </div>
-      </div>
-    );
-  };
-
-  // Render combination matrix heatmap
-  const CombinationMatrix = () => {
-    const maxValue = 52;
-    const getIntensity = (value) => {
-      const intensity = (value / maxValue) * 100;
-      return intensity;
-    };
-
-    return (
-      <div className="rounded-xl p-6 border transition-colors duration-200" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-        <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
-          Misconfig Co-occurrence Matrix
-        </h3>
-        <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
-          Cell intensity shows how often misconfigurations appear together
-        </p>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr style={{ borderBottomColor: 'var(--border-primary)' }} className="border-b">
-                <th className="text-left py-3 px-3" style={{ color: 'var(--text-tertiary)' }}>
-                  Config Type
-                </th>
-                {misconfigCategories.map((cat) => (
-                  <th
-                    key={cat}
-                    className="text-center py-3 px-2"
-                    style={{ color: 'var(--text-tertiary)' }}
-                  >
-                    <div className="transform -rotate-45 origin-center h-12 flex items-center justify-center">
-                      <span className="whitespace-nowrap text-xs">{cat}</span>
-                    </div>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {misconfigCategories.map((rowCat, rowIdx) => (
-                <tr
-                  key={rowCat}
-                  style={{ borderBottomColor: 'var(--border-primary)' }}
-                  className="border-b"
-                >
-                  <td className="py-3 px-3 text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
-                    {rowCat}
-                  </td>
-                  {misconfigCategories.map((colCat, colIdx) => {
-                    const value = matrix[rowCat]?.[colIdx] || 0;
-                    const intensity = getIntensity(value);
-
-                    return (
-                      <td
-                        key={`${rowCat}-${colCat}`}
-                        className="py-3 px-2 text-center cursor-pointer transition-all hover:scale-110"
-                        onClick={() => {
-                          setSelectedMatrixCell({ row: rowCat, col: colCat });
-                          setMatrixDetail({
-                            combinations: value,
-                            resources: Math.floor(value / 2),
-                          });
-                        }}
-                        style={{
-                          backgroundColor: `rgba(239, 68, 68, ${intensity / 100})`,
-                          color: intensity > 50 ? '#fff' : 'var(--text-secondary)',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <span className="font-semibold">{value}</span>
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {selectedMatrixCell && matrixDetail && (
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex gap-0.5">
+        {Array.from({ length: segments }).map((_, i) => (
           <div
-            className="mt-4 p-4 rounded-lg border"
+            key={i}
+            className="h-2.5 w-2 rounded-sm"
             style={{
-              backgroundColor: 'var(--bg-secondary)',
-              borderColor: 'var(--accent-danger)',
+              backgroundColor: i < filled ? color : 'var(--bg-tertiary)',
+            }}
+          />
+        ))}
+      </div>
+      <span className="text-sm font-bold tabular-nums" style={{ color }}>
+        {score}/100
+      </span>
+    </div>
+  );
+}
+
+/** Factor pill badges */
+function FactorPills({ factors }) {
+  if (!factors || factors.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-2">
+      {factors.map((f, i) => {
+        const sev = f.severity || 'high';
+        const bgMap = {
+          critical: 'rgba(239,68,68,0.15)',
+          high: 'rgba(249,115,22,0.15)',
+          medium: 'rgba(234,179,8,0.15)',
+          low: 'rgba(59,130,246,0.15)',
+        };
+        const textMap = {
+          critical: '#fca5a5',
+          high: '#fdba74',
+          medium: '#fde047',
+          low: '#93c5fd',
+        };
+        const borderMap = {
+          critical: '#ef4444',
+          high: '#f97316',
+          medium: '#eab308',
+          low: '#3b82f6',
+        };
+        return (
+          <span
+            key={i}
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg"
+            style={{
+              backgroundColor: bgMap[sev] || bgMap.high,
+              color: textMap[sev] || textMap.high,
+              borderLeft: `3px solid ${borderMap[sev] || borderMap.high}`,
             }}
           >
-            <p className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
-              {selectedMatrixCell.row} + {selectedMatrixCell.col}
-            </p>
-            <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-              <strong>{matrixDetail.combinations}</strong> co-occurrences affecting{' '}
-              <strong>{matrixDetail.resources}</strong> resources
-            </p>
+            {f.name || f}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Combination card with expand/collapse */
+function CombinationCard({ combo, isExpanded, onToggle }) {
+  const severity = SEVERITY_FOR_SCORE(combo.toxicityScore ?? combo.toxicity_score ?? 0);
+  const toxScore = combo.toxicityScore ?? combo.toxicity_score ?? 0;
+  const multiplier = combo.riskMultiplier ?? combo.risk_multiplier ?? 1;
+  const factors = combo.factors ?? [];
+  const resourceName = combo.resourceName ?? combo.resource_name ?? 'Unknown';
+  const resourceType = combo.resourceType ?? combo.resource_type ?? '';
+  const provider = combo.provider ?? combo.csp ?? 'AWS';
+  const affectedCount = combo.affectedResources ?? combo.affected_resources ?? 0;
+  const techniques = combo.techniquesMapped ?? combo.techniques ?? [];
+  const actions = combo.priorityActions ?? combo.remediation_actions ?? [];
+  const resources = combo.resources ?? [];
+  const exposure = combo.estimatedExposure ?? combo.estimated_exposure ?? 0;
+
+  const resourceColumns = useMemo(
+    () => [
+      { accessorKey: 'name', header: 'Resource', size: 200 },
+      { accessorKey: 'type', header: 'Type', size: 140 },
+      { accessorKey: 'region', header: 'Region', size: 120 },
+      {
+        accessorKey: 'risk_score',
+        header: 'Risk',
+        size: 80,
+        cell: ({ getValue }) => {
+          const v = getValue();
+          const c = v >= 80 ? '#ef4444' : v >= 60 ? '#f97316' : '#eab308';
+          return <span className="font-bold" style={{ color: c }}>{v}</span>;
+        },
+      },
+    ],
+    []
+  );
+
+  return (
+    <div
+      className="rounded-xl border transition-all duration-200"
+      style={{
+        backgroundColor: 'var(--bg-card)',
+        borderColor: severity === 'critical' ? 'rgba(239,68,68,0.4)' : 'var(--border-primary)',
+        borderLeftWidth: severity === 'critical' ? '4px' : '1px',
+        borderLeftColor: severity === 'critical' ? '#ef4444' : undefined,
+      }}
+    >
+      {/* Collapsed header -- always visible */}
+      <button
+        onClick={onToggle}
+        className="w-full text-left p-5 focus:outline-none"
+      >
+        <div className="flex items-start justify-between gap-4">
+          {/* Left: severity + name + factors */}
+          <div className="flex-1 min-w-0 space-y-3">
+            <div className="flex items-center gap-3 flex-wrap">
+              <SeverityBadge severity={severity} />
+              <h3
+                className="text-base font-semibold truncate"
+                style={{ color: 'var(--text-primary)' }}
+              >
+                {resourceName}
+              </h3>
+              {resourceType && (
+                <span
+                  className="text-xs px-2.5 py-0.5 rounded-full"
+                  style={{
+                    backgroundColor: 'var(--bg-secondary)',
+                    color: 'var(--text-secondary)',
+                  }}
+                >
+                  {resourceType}
+                </span>
+              )}
+              <span
+                className="text-xs px-2.5 py-0.5 rounded-full font-medium"
+                style={{
+                  backgroundColor:
+                    provider.toUpperCase() === 'AWS'
+                      ? 'rgba(255,153,0,0.12)'
+                      : 'rgba(0,120,212,0.12)',
+                  color:
+                    provider.toUpperCase() === 'AWS' ? '#FF9900' : '#0078D4',
+                }}
+              >
+                {provider.toUpperCase()}
+              </span>
+            </div>
+
+            {/* Toxicity bar + multiplier */}
+            <div className="flex items-center gap-6">
+              <div className="space-y-1">
+                <p
+                  className="text-[10px] font-semibold uppercase tracking-wider"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  Toxicity
+                </p>
+                <ToxicityBar score={toxScore} />
+              </div>
+              <div className="space-y-1 text-center">
+                <p
+                  className="text-[10px] font-semibold uppercase tracking-wider"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  Multiplier
+                </p>
+                <p
+                  className="text-lg font-bold"
+                  style={{ color: '#f97316' }}
+                >
+                  x{multiplier}
+                </p>
+              </div>
+            </div>
+
+            {/* Factor pills */}
+            <FactorPills factors={factors} />
           </div>
-        )}
-      </div>
-    );
-  };
 
-  // Render priority remediation queue
-  const RemediationQueue = () => {
-    const sortedByPriority = [...toxicCombos].sort(
-      (a, b) => b.toxicityScore - a.toxicityScore
-    );
+          {/* Right: affected + chevron */}
+          <div className="flex items-center gap-3 flex-shrink-0 pt-1">
+            {affectedCount > 0 && (
+              <div className="text-right">
+                <p
+                  className="text-xs"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  Resources
+                </p>
+                <p
+                  className="text-lg font-bold"
+                  style={{ color: 'var(--text-primary)' }}
+                >
+                  {affectedCount}
+                </p>
+              </div>
+            )}
+            {isExpanded ? (
+              <ChevronUp
+                className="w-5 h-5"
+                style={{ color: 'var(--text-muted)' }}
+              />
+            ) : (
+              <ChevronDown
+                className="w-5 h-5"
+                style={{ color: 'var(--text-muted)' }}
+              />
+            )}
+          </div>
+        </div>
+      </button>
 
-    return (
-      <div className="rounded-xl p-6 border transition-colors duration-200" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-        <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
-          Priority Remediation Queue
-        </h3>
-        <div className="space-y-3">
-          {sortedByPriority.map((combo, idx) => (
+      {/* Expanded detail */}
+      {isExpanded && (
+        <div
+          className="px-5 pb-5 space-y-4 border-t"
+          style={{ borderColor: 'var(--border-primary)' }}
+        >
+          {/* MITRE techniques */}
+          {techniques.length > 0 && (
+            <div className="pt-4">
+              <p
+                className="text-[10px] font-semibold uppercase tracking-wider mb-2"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                MITRE ATT&CK Techniques
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {techniques.map((t) => (
+                  <code
+                    key={t}
+                    className="text-xs px-2 py-1 rounded font-mono"
+                    style={{
+                      backgroundColor: 'rgba(239,68,68,0.1)',
+                      color: '#ef4444',
+                      border: '1px solid rgba(239,68,68,0.2)',
+                    }}
+                  >
+                    {t}
+                  </code>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Remediation actions */}
+          {actions.length > 0 && (
+            <div>
+              <p
+                className="text-[10px] font-semibold uppercase tracking-wider mb-2"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                Remediation Priority
+              </p>
+              <ol className="space-y-1.5">
+                {actions.map((action, i) => (
+                  <li
+                    key={i}
+                    className="flex items-start gap-2 text-sm"
+                    style={{ color: 'var(--text-secondary)' }}
+                  >
+                    <span
+                      className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold mt-0.5"
+                      style={{
+                        backgroundColor: 'rgba(59,130,246,0.15)',
+                        color: '#3b82f6',
+                      }}
+                    >
+                      {i + 1}
+                    </span>
+                    {action}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+
+          {/* Affected resources table */}
+          {resources.length > 0 && (
+            <div>
+              <p
+                className="text-[10px] font-semibold uppercase tracking-wider mb-2"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                Affected Resources
+              </p>
+              <DataTable
+                data={resources}
+                columns={resourceColumns}
+                pageSize={5}
+                emptyMessage="No resource details available"
+              />
+            </div>
+          )}
+
+          {/* Estimated exposure */}
+          {exposure > 0 && (
             <div
-              key={combo.id}
-              className="flex items-center gap-4 p-4 rounded-lg border cursor-pointer transition-all hover:border-opacity-100"
-              style={{
-                backgroundColor: 'var(--bg-secondary)',
-                borderColor: combo.toxicityScore >= 90 ? '#ef4444' : 'var(--border-primary)',
-                borderLeftWidth: '4px',
-              }}
-              onClick={() => router.push(`/threats/toxic-combinations/${combo.id}`)}
+              className="flex items-center justify-between p-3 rounded-lg"
+              style={{ backgroundColor: 'rgba(239,68,68,0.08)' }}
             >
-              <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--accent-primary)' }}>
-                {idx + 1}
-              </div>
+              <span
+                className="text-xs font-semibold"
+                style={{ color: 'var(--text-secondary)' }}
+              >
+                Estimated Records at Risk
+              </span>
+              <span className="text-base font-bold" style={{ color: '#ef4444' }}>
+                {exposure.toLocaleString()}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm truncate" style={{ color: 'var(--text-primary)' }}>
-                  {combo.resourceName}
-                </p>
-                <p className="text-xs mt-1 truncate" style={{ color: 'var(--text-tertiary)' }}>
-                  {combo.resourceType} • {combo.provider}
-                </p>
-              </div>
+/** Heatmap co-occurrence matrix */
+function CoOccurrenceMatrix({ matrixData, categories, onCellClick }) {
+  // Compute max value for intensity normalization
+  const maxCount = useMemo(() => {
+    if (!matrixData || !categories) return 1;
+    let max = 1;
+    categories.forEach((row) => {
+      categories.forEach((col) => {
+        const v = matrixData?.[row]?.[col] ?? 0;
+        if (v > max) max = v;
+      });
+    });
+    return max;
+  }, [matrixData, categories]);
 
-              <div className="flex items-center gap-3 flex-shrink-0">
-                <div className="text-right">
-                  <p className="text-sm font-bold" style={{ color: '#ef4444' }}>
-                    {combo.toxicityScore}
-                  </p>
-                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                    ×{combo.riskMultiplier}
-                  </p>
+  if (!categories || categories.length === 0) {
+    return (
+      <EmptyState
+        icon={<Layers className="w-12 h-12" />}
+        title="No Matrix Data"
+        description="Co-occurrence matrix will appear once toxic combinations are detected."
+      />
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs border-collapse">
+        <thead>
+          <tr>
+            <th
+              className="text-left py-3 px-3 sticky left-0 z-10"
+              style={{
+                color: 'var(--text-muted)',
+                backgroundColor: 'var(--bg-card)',
+              }}
+            />
+            {categories.map((cat) => (
+              <th
+                key={cat}
+                className="text-center py-3 px-2"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                <div
+                  className="h-20 flex items-end justify-center"
+                  style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
+                >
+                  <span className="whitespace-nowrap text-[10px] font-medium transform rotate-180">
+                    {cat}
+                  </span>
                 </div>
-                <ChevronRight className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
-              </div>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {categories.map((rowCat, ri) => (
+            <tr key={rowCat}>
+              <td
+                className="py-2.5 px-3 text-xs font-medium whitespace-nowrap sticky left-0 z-10"
+                style={{
+                  color: 'var(--text-secondary)',
+                  backgroundColor: 'var(--bg-card)',
+                }}
+              >
+                {rowCat}
+              </td>
+              {categories.map((colCat, ci) => {
+                const isDiag = ri === ci;
+                const value = matrixData?.[rowCat]?.[colCat] ?? 0;
+                const intensity = isDiag ? 0 : value / maxCount;
+
+                return (
+                  <td
+                    key={colCat}
+                    className="py-2.5 px-2 text-center transition-transform duration-100"
+                    onClick={() => {
+                      if (!isDiag && value > 0) {
+                        onCellClick?.({ row: rowCat, col: colCat, count: value });
+                      }
+                    }}
+                    title={
+                      isDiag
+                        ? rowCat
+                        : `${value} resources have both "${rowCat}" and "${colCat}"`
+                    }
+                    style={{
+                      backgroundColor: isDiag
+                        ? 'var(--bg-tertiary)'
+                        : `rgba(239, 68, 68, ${Math.max(intensity * 0.85, 0.03)})`,
+                      color:
+                        isDiag
+                          ? 'var(--text-muted)'
+                          : intensity > 0.5
+                          ? '#fff'
+                          : 'var(--text-secondary)',
+                      cursor: isDiag || value === 0 ? 'default' : 'pointer',
+                    }}
+                  >
+                    <span className="font-semibold tabular-nums">
+                      {isDiag ? '-' : value}
+                    </span>
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** Modal/drawer for matrix cell detail */
+function MatrixCellDetail({ cell, onClose }) {
+  if (!cell) return null;
+  return (
+    <div
+      className="mt-4 p-4 rounded-lg border animate-in fade-in duration-200"
+      style={{
+        backgroundColor: 'var(--bg-secondary)',
+        borderColor: 'rgba(239,68,68,0.3)',
+      }}
+    >
+      <div className="flex items-start justify-between mb-3">
+        <div>
+          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+            {cell.row} + {cell.col}
+          </p>
+          <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
+            <span className="font-bold">{cell.count}</span> resources have both conditions
+          </p>
+        </div>
+        <button
+          onClick={onClose}
+          className="p-1 rounded hover:opacity-70 transition-opacity"
+          style={{ color: 'var(--text-muted)' }}
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Example resources from BFF if available */}
+      {cell.examples && cell.examples.length > 0 && (
+        <div className="space-y-2">
+          {cell.examples.map((ex, i) => (
+            <div
+              key={i}
+              className="flex items-center justify-between p-2 rounded text-xs"
+              style={{ backgroundColor: 'var(--bg-tertiary)' }}
+            >
+              <span style={{ color: 'var(--text-primary)' }}>
+                {ex.name || ex.resource_name || ex.uid}
+              </span>
+              <span style={{ color: 'var(--text-muted)' }}>
+                {ex.type || ex.resource_type}
+              </span>
             </div>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Page skeleton
+// ---------------------------------------------------------------------------
+
+function PageSkeleton() {
+  return (
+    <div className="space-y-6">
+      {/* KPI strip */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div
+            key={i}
+            className="rounded-xl p-6 border animate-pulse"
+            style={{
+              backgroundColor: 'var(--bg-card)',
+              borderColor: 'var(--border-primary)',
+            }}
+          >
+            <div
+              className="h-4 w-24 rounded mb-4"
+              style={{ backgroundColor: 'var(--bg-tertiary)' }}
+            />
+            <div
+              className="h-8 w-16 rounded mb-2"
+              style={{ backgroundColor: 'var(--bg-tertiary)' }}
+            />
+            <div
+              className="h-3 w-20 rounded"
+              style={{ backgroundColor: 'var(--bg-tertiary)' }}
+            />
+          </div>
+        ))}
       </div>
+      <LoadingSkeleton rows={4} cols={3} />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main page component
+// ---------------------------------------------------------------------------
+
+export default function ToxicCombinationsPage() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // Tab state from URL
+  const activeTab = searchParams.get('tab') || TAB_COMBINATIONS;
+
+  const setActiveTab = useCallback(
+    (tab) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set('tab', tab);
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    },
+    [router, pathname, searchParams]
+  );
+
+  // Data state
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [data, setData] = useState(null);
+
+  // UI state
+  const [expandedCards, setExpandedCards] = useState(new Set());
+  const [selectedCell, setSelectedCell] = useState(null);
+
+  // Fetch BFF data
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      setLoading(true);
+      setError(null);
+
+      const result = await fetchView('threats/toxic-combinations');
+
+      if (cancelled) return;
+
+      if (result?.error) {
+        setError(result.error);
+      } else {
+        setData(result);
+      }
+      setLoading(false);
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Derived data
+  const kpi = data?.kpi ?? {};
+  const combinations = data?.combinations ?? data?.toxicCombinations ?? [];
+  const matrixData = data?.coOccurrenceMatrix?.data ?? data?.coOccurrenceMatrix ?? data?.matrix?.data ?? data?.matrix ?? {};
+  const matrixCategories = useMemo(() => {
+    if (data?.coOccurrenceMatrix?.categories) return data.coOccurrenceMatrix.categories;
+    if (data?.matrix?.categories) return data.matrix.categories;
+    // Derive from matrix keys
+    if (matrixData && typeof matrixData === 'object') {
+      const keys = Object.keys(matrixData);
+      return keys.length > 0 ? keys : [];
+    }
+    return [];
+  }, [data, matrixData]);
+
+  // KPI values with fallbacks
+  const totalCombos = kpi.total ?? kpi.totalCombinations ?? combinations.length;
+  const criticalCount =
+    kpi.critical ??
+    kpi.criticalCombinations ??
+    combinations.filter(
+      (c) => (c.toxicityScore ?? c.toxicity_score ?? 0) >= 90
+    ).length;
+  const resourcesAffected =
+    kpi.resourcesAtRisk ??
+    kpi.resources_at_risk ??
+    combinations.reduce(
+      (sum, c) => sum + (c.affectedResources ?? c.affected_resources ?? 1),
+      0
     );
-  };
+  const avgToxicity = useMemo(() => {
+    if (kpi.avgMultiplier ?? kpi.avg_multiplier) {
+      return kpi.avgMultiplier ?? kpi.avg_multiplier;
+    }
+    if (combinations.length === 0) return 0;
+    const total = combinations.reduce(
+      (sum, c) => sum + (c.toxicityScore ?? c.toxicity_score ?? 0),
+      0
+    );
+    return (total / combinations.length).toFixed(1);
+  }, [kpi, combinations]);
+
+  // Card expand/collapse
+  const toggleCard = useCallback((id) => {
+    setExpandedCards((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  // Matrix cell click
+  const handleCellClick = useCallback((cell) => {
+    setSelectedCell(cell);
+  }, []);
+
+  // -----------------------------------------------------------------------
+  // Render
+  // -----------------------------------------------------------------------
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
+      {/* Header + Breadcrumb */}
       <div>
-        <h1 className="text-3xl font-bold" style={{ color: 'var(--text-primary)' }}>
+        <div className="flex items-center gap-2 text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
+          <button
+            onClick={() => router.push('/threats')}
+            className="hover:underline"
+            style={{ color: 'var(--text-secondary)' }}
+          >
+            Threats
+          </button>
+          <ChevronRight className="w-3 h-3" />
+          <span style={{ color: 'var(--text-primary)' }}>Toxic Combinations</span>
+        </div>
+        <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
           Toxic Combinations
         </h1>
-        <p className="mt-1" style={{ color: 'var(--text-secondary)' }}>
-          Identify resources with dangerous overlapping misconfigurations that compound risk.
-          A single misconfiguration is bad; multiple overlapping misconfigurations can be catastrophic.
+        <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
+          Compound risk scenarios where multiple findings on a single resource amplify risk
+          exponentially.
         </p>
       </div>
 
+      {/* Threats Sub-Navigation */}
+      <ThreatsSubNav />
+
+      {/* Loading state */}
+      {loading && <PageSkeleton />}
+
       {/* Error state */}
-      {error && toxicCombos.length === 0 && (
-        <div className="rounded-lg p-4 border" style={{ backgroundColor: '#dc26262a', borderColor: '#ef4444' }}>
-          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{error}</p>
+      {!loading && error && (
+        <div
+          className="rounded-xl p-5 border"
+          style={{
+            backgroundColor: 'rgba(239,68,68,0.08)',
+            borderColor: 'rgba(239,68,68,0.3)',
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 flex-shrink-0" style={{ color: '#ef4444' }} />
+            <div>
+              <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                Failed to load toxic combinations
+              </p>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+                {error}
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
       {/* Empty state */}
-      {!loading && !error && toxicCombos.length === 0 && (
-        <div className="rounded-lg p-8 border text-center" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No toxic combinations detected. Run a threat scan to identify compound risks.</p>
+      {!loading && !error && combinations.length === 0 && (
+        <EmptyState
+          icon={<Shield className="w-12 h-12" />}
+          title="No Toxic Combinations Detected"
+          description="Run a threat scan to identify compound risk scenarios. Toxic combinations emerge when multiple misconfigurations overlap on a single resource."
+        />
+      )}
+
+      {/* KPI strip */}
+      {!loading && !error && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <KpiCard
+            title="Total Combinations"
+            value={totalCombos}
+            subtitle="Compound risk scenarios"
+            icon={<Zap className="w-5 h-5" />}
+            color="red"
+          />
+          <KpiCard
+            title="Critical"
+            value={criticalCount}
+            subtitle="Toxicity >= 90"
+            icon={<AlertTriangle className="w-5 h-5" />}
+            color="red"
+          />
+          <KpiCard
+            title="Resources Affected"
+            value={resourcesAffected}
+            subtitle="Unique resources"
+            icon={<Target className="w-5 h-5" />}
+            color="orange"
+          />
+          <KpiCard
+            title="Avg Toxicity Score"
+            value={avgToxicity}
+            subtitle="Mean across combos"
+            icon={<TrendingUp className="w-5 h-5" />}
+            color="purple"
+          />
         </div>
       )}
 
-      {/* KPI Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard
-          title="Toxic Combinations"
-          value={stats.totalCombos}
-          subtitle="Identified"
-          icon={<Zap className="w-5 h-5" />}
-          color="red"
-        />
-        <KpiCard
-          title="Critical Combos"
-          value={stats.criticalCombos}
-          subtitle="Score ≥90"
-          icon={<AlertTriangle className="w-5 h-5" />}
-          color="red"
-        />
-        <KpiCard
-          title="Resources at Risk"
-          value={stats.resourcesAtRisk}
-          subtitle="Immediate action"
-          icon={<Target className="w-5 h-5" />}
-          color="orange"
-        />
-        <KpiCard
-          title="Avg Risk Multiplier"
-          value={`${stats.avgMultiplier}x`}
-          subtitle="Compound effect"
-          icon={<TrendingUp className="w-5 h-5" />}
-          color="purple"
-        />
-      </div>
+      {/* Tabs */}
+      {!loading && !error && combinations.length > 0 && (
+        <>
+          <div
+            className="flex border-b"
+            style={{ borderColor: 'var(--border-primary)' }}
+          >
+            {[
+              { key: TAB_COMBINATIONS, label: 'Combinations List' },
+              { key: TAB_MATRIX, label: 'Co-occurrence Matrix' },
+            ].map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className="px-5 py-3 text-sm font-medium transition-colors duration-150 relative"
+                style={{
+                  color:
+                    activeTab === tab.key
+                      ? 'var(--text-primary)'
+                      : 'var(--text-muted)',
+                }}
+              >
+                {tab.label}
+                {activeTab === tab.key && (
+                  <div
+                    className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full"
+                    style={{ backgroundColor: '#3b82f6' }}
+                  />
+                )}
+              </button>
+            ))}
+          </div>
 
-      {/* Toxic Combination Cards */}
-      <div className="space-y-4">
-        <div>
-          <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-            Toxic Combination Details
-          </h2>
-          <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
-            Each resource below has multiple overlapping security issues. Click any card for detailed remediation steps.
-          </p>
-        </div>
+          {/* Tab 1: Combinations List */}
+          {activeTab === TAB_COMBINATIONS && (
+            <div className="space-y-4">
+              {combinations.map((combo, idx) => {
+                const id = combo.id ?? combo.combination_id ?? `combo-${idx}`;
+                return (
+                  <CombinationCard
+                    key={id}
+                    combo={combo}
+                    isExpanded={expandedCards.has(id)}
+                    onToggle={() => toggleCard(id)}
+                  />
+                );
+              })}
+            </div>
+          )}
 
-        <div className="space-y-4">
-          {toxicCombos.map((combo) => (
+          {/* Tab 2: Co-occurrence Matrix */}
+          {activeTab === TAB_MATRIX && (
             <div
-              key={combo.id}
-              className="rounded-xl p-6 border transition-all hover:border-opacity-100 cursor-pointer"
+              className="rounded-xl p-6 border"
               style={{
                 backgroundColor: 'var(--bg-card)',
-                borderColor: combo.toxicityScore >= 90 ? '#ef4444' : 'var(--border-primary)',
-                borderLeftWidth: combo.toxicityScore >= 90 ? '4px' : '1px',
+                borderColor: 'var(--border-primary)',
               }}
-              onClick={() => router.push(`/threats/toxic-combinations/${combo.id}`)}
             >
-              {/* Header: Resource Info */}
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-                      {combo.resourceName}
-                    </h3>
-                    <span
-                      className="text-xs px-3 py-1 rounded-full font-medium"
-                      style={{
-                        backgroundColor: 'var(--bg-secondary)',
-                        color: 'var(--text-secondary)',
-                      }}
-                    >
-                      {combo.resourceType}
-                    </span>
-                    <span
-                      className="text-xs px-3 py-1 rounded-full font-medium"
-                      style={{
-                        backgroundColor: combo.provider === 'AWS' ? 'rgba(255, 153, 0, 0.1)' : 'rgba(34, 136, 204, 0.1)',
-                        color: combo.provider === 'AWS' ? '#ff9900' : '#2288cc',
-                      }}
-                    >
-                      {combo.provider}
-                    </span>
-                  </div>
-                  <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                    {combo.compoundRisk}
-                  </p>
-                </div>
+              <div className="mb-4">
+                <h3
+                  className="text-lg font-semibold"
+                  style={{ color: 'var(--text-primary)' }}
+                >
+                  Misconfig Co-occurrence Matrix
+                </h3>
+                <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
+                  Cell intensity shows how frequently threat categories appear together on the same
+                  resource. Click a cell for details.
+                </p>
               </div>
 
-              {/* Toxicity Score Section */}
-              <div className="mb-4 pb-4 border-b" style={{ borderColor: 'var(--border-primary)' }}>
-                <p className="text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-                  Toxicity Score
-                </p>
-                <ToxicityMeter score={combo.toxicityScore} multiplier={combo.riskMultiplier} />
-              </div>
+              <CoOccurrenceMatrix
+                matrixData={matrixData}
+                categories={matrixCategories}
+                onCellClick={handleCellClick}
+              />
 
-              {/* Factor Connector */}
-              <div className="mb-4 pb-4 border-b" style={{ borderColor: 'var(--border-primary)' }}>
-                <p className="text-xs font-semibold mb-3 uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-                  Overlapping Factors
-                </p>
-                <FactorConnector factors={combo.factors} />
-              </div>
-
-              {/* MITRE Techniques */}
-              <div className="mb-4 pb-4 border-b" style={{ borderColor: 'var(--border-primary)' }}>
-                <p className="text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-                  Attack Chain
-                </p>
-                <p className="text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>
-                  {combo.affectedTechniques}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {combo.techniquesMapped.map((tech) => (
-                    <code
-                      key={tech}
-                      className="text-xs px-2 py-1 rounded font-mono"
-                      style={{
-                        backgroundColor: 'var(--bg-tertiary)',
-                        color: 'var(--accent-primary)',
-                      }}
-                    >
-                      {tech}
-                    </code>
-                  ))}
-                </div>
-              </div>
-
-              {/* Priority Actions */}
-              <div className="mb-4 pb-4 border-b" style={{ borderColor: 'var(--border-primary)' }}>
-                <p className="text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-                  Recommended Actions
-                </p>
-                <ul className="space-y-2">
-                  {combo.priorityActions.slice(0, 2).map((action, idx) => (
-                    <li key={idx} className="flex items-start gap-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
-                      <span style={{ color: 'var(--accent-warning)' }} className="font-bold mt-0.5">
-                        ✓
-                      </span>
-                      {action}
-                    </li>
-                  ))}
-                  {combo.priorityActions.length > 2 && (
-                    <li className="text-xs italic" style={{ color: 'var(--text-muted)' }}>
-                      +{combo.priorityActions.length - 2} more actions
-                    </li>
-                  )}
-                </ul>
-              </div>
-
-              {/* Data Impact */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
-                    Potential Records at Risk
-                  </p>
-                  <p className="text-lg font-bold" style={{ color: '#ef4444' }}>
-                    {combo.estimatedExposure.toLocaleString()}
-                  </p>
-                </div>
-                <ChevronRight className="w-5 h-5" style={{ color: 'var(--text-muted)' }} />
-              </div>
+              <MatrixCellDetail
+                cell={selectedCell}
+                onClose={() => setSelectedCell(null)}
+              />
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Combination Matrix */}
-      <CombinationMatrix />
-
-      {/* Priority Remediation Queue */}
-      <RemediationQueue />
-
-      {/* Risk Compounding Explanation */}
-      <div className="rounded-xl p-6 border transition-colors duration-200" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-        <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
-          Understanding Toxic Combinations
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-          <div className="p-4 rounded-lg" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-            <p className="font-semibold mb-2" style={{ color: 'var(--accent-warning)' }}>
-              Single Issue
-            </p>
-            <p style={{ color: 'var(--text-secondary)' }}>
-              One misconfiguration (e.g., public access) has limited impact if other controls exist.
-            </p>
-          </div>
-          <div className="p-4 rounded-lg" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-            <p className="font-semibold mb-2" style={{ color: 'var(--accent-danger)' }}>
-              Two Factors
-            </p>
-            <p style={{ color: 'var(--text-secondary)' }}>
-              Multiple overlapping issues bypass defenses (e.g., public + no encryption = direct data exposure).
-            </p>
-          </div>
-          <div className="p-4 rounded-lg" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-            <p className="font-semibold mb-2" style={{ color: '#ff4444' }}>
-              Three+ Factors
-            </p>
-            <p style={{ color: 'var(--text-secondary)' }}>
-              Exponential risk multiplier. Complete security failure enabling full compromise and data loss.
-            </p>
-          </div>
-        </div>
-      </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

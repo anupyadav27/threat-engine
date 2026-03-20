@@ -8,6 +8,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code (destination paths match Python imports)
 COPY engines/threat/threat_engine/ ./threat_engine/
+COPY engines/threat/run_scan.py ./run_scan.py
 COPY shared/common/ ./engine_common/
 COPY shared/database/ ./consolidated_services/
 ENV PYTHONPATH=/app

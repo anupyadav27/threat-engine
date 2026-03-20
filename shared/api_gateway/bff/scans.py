@@ -71,7 +71,7 @@ async def view_scans(
     """Scan history, scheduled scans, and coverage -- built from onboarding/ui-data."""
 
     results = await fetch_many([
-        ("onboarding", "/api/v1/onboarding/ui-data", {"tenant_id": tenant_id}),
+        ("onboarding", "/api/v1/cloud-accounts", {"tenant_id": tenant_id}),
     ])
 
     onboarding_data = results[0]

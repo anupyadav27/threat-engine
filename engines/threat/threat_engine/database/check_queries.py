@@ -14,65 +14,28 @@ from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
 from pathlib import Path
 
-# Add configScan engine to path for DatabaseManager
-THREAT_ENGINE_ROOT = Path(__file__).parent.parent.parent.parent
-CONFIGSCAN_ENGINE_PATH = THREAT_ENGINE_ROOT / "engine_configscan" / "engine_configscan_aws"
 
-if str(CONFIGSCAN_ENGINE_PATH) not in sys.path:
-    sys.path.insert(0, str(CONFIGSCAN_ENGINE_PATH))
-
-try:
-    from engine.database_manager import DatabaseManager
-except ImportError as e:
-    print(f"Warning: DatabaseManager import failed: {e}")
-    print(f"Tried path: {CONFIGSCAN_ENGINE_PATH}")
-    DatabaseManager = None
-
-# Import NDJSON reader as fallback
-try:
-    from .ndjson_reader import NDJSONCheckReader
-except ImportError:
-    NDJSONCheckReader = None
+def _get_check_conn():
+    """Return a fresh psycopg2 connection to the check DB via env vars."""
+    return psycopg2.connect(
+        host=os.getenv("CHECK_DB_HOST", "localhost"),
+        port=int(os.getenv("CHECK_DB_PORT", "5432")),
+        dbname=os.getenv("CHECK_DB_NAME", "threat_engine_check"),
+        user=os.getenv("CHECK_DB_USER", "postgres"),
+        password=os.getenv("CHECK_DB_PASSWORD", ""),
+        connect_timeout=10,
+    )
 
 
 class CheckDatabaseQueries:
-    """Database queries for check results using existing DatabaseManager with NDJSON fallback"""
-    
-    def __init__(self, db_manager: Optional['DatabaseManager'] = None, use_ndjson_fallback: bool = True):
-        """
-        Initialize with existing DatabaseManager or create new one
-        
-        Args:
-            db_manager: Optional DatabaseManager instance (reuses connection pool)
-            use_ndjson_fallback: If True, fallback to NDJSON when database is empty
-        """
-        self.use_ndjson_fallback = use_ndjson_fallback
-        self.ndjson_reader = None
-        
-        if db_manager:
-            self.db = db_manager
-            self.own_connection = False
-        elif DatabaseManager:
-            try:
-                self.db = DatabaseManager()
-                self.own_connection = True
-            except Exception as e:
-                print(f"Warning: DatabaseManager initialization failed: {e}")
-                self.db = None
-                self.own_connection = False
-        else:
-            self.db = None
-            self.own_connection = False
-        
-        # Initialize NDJSON reader if fallback enabled
-        if use_ndjson_fallback and NDJSONCheckReader:
-            self.ndjson_reader = NDJSONCheckReader()
-    
+    """Database queries for check results using direct psycopg2 connections."""
+
+    def __init__(self, **kwargs):
+        """Initialize — connection is created per-query."""
+        pass
+
     def _has_database_data(self, tenant_id: str) -> bool:
         """Check if database has data for tenant"""
-        if not self.db:
-            return False
-        
         try:
             result = self._execute_query_one(
                 "SELECT COUNT(*) as count FROM check_findings WHERE tenant_id = %s LIMIT 1",
@@ -81,32 +44,10 @@ class CheckDatabaseQueries:
             return result and result.get('count', 0) > 0
         except Exception:
             return False
-    
-    def _get_ndjson_fallback(self, method_name: str, *args, **kwargs):
-        """Get data from NDJSON fallback"""
-        if not self.ndjson_reader:
-            raise ValueError("NDJSON fallback not available")
-        
-        method = getattr(self.ndjson_reader, method_name, None)
-        if not method:
-            raise ValueError(f"Method {method_name} not found in NDJSON reader")
-        
-        return method(*args, **kwargs)
-    
-    def __del__(self):
-        """Close connection if we own it"""
-        if self.own_connection and hasattr(self, 'db'):
-            try:
-                self.db.close()
-            except Exception:
-                pass
-    
+
     def _execute_query(self, query: str, params: List = None):
-        """
-        Execute a query using DatabaseManager.
-        Returns cursor with results.
-        """
-        conn = self.db._get_connection()
+        """Execute a query using direct psycopg2 connection."""
+        conn = _get_check_conn()
         try:
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute(query, params or [])
@@ -117,11 +58,11 @@ class CheckDatabaseQueries:
             conn.rollback()
             raise e
         finally:
-            self.db._return_connection(conn)
-    
+            conn.close()
+
     def _execute_query_one(self, query: str, params: List = None):
         """Execute a query and return single result"""
-        conn = self.db._get_connection()
+        conn = _get_check_conn()
         try:
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute(query, params or [])
@@ -132,7 +73,7 @@ class CheckDatabaseQueries:
             conn.rollback()
             raise e
         finally:
-            self.db._return_connection(conn)
+            conn.close()
     
     def get_dashboard_stats(self, tenant_id: str, customer_id: Optional[str] = None,
                            limit_recent_scans: int = 5) -> Dict[str, Any]:
@@ -142,14 +83,14 @@ class CheckDatabaseQueries:
         Falls back to NDJSON if database is empty.
         """
         # Try database first
-        if self.db and self._has_database_data(tenant_id):
+        if self._has_database_data(tenant_id):
             try:
                 return self._get_dashboard_stats_db(tenant_id, customer_id, limit_recent_scans)
             except Exception as e:
                 print(f"Database query failed, using NDJSON fallback: {e}")
         
         # Fallback to NDJSON
-        if self.use_ndjson_fallback and self.ndjson_reader:
+        if False:  # NDJSON fallback removed — DB-only mode
             return self._get_ndjson_fallback('get_dashboard_stats', tenant_id, customer_id, limit_recent_scans)
         
         # Return empty if no fallback
@@ -189,7 +130,7 @@ class CheckDatabaseQueries:
                 SUM(CASE WHEN status = 'PASS' THEN 1 ELSE 0 END) as passed,
                 SUM(CASE WHEN status = 'FAIL' THEN 1 ELSE 0 END) as failed,
                 SUM(CASE WHEN status = 'ERROR' THEN 1 ELSE 0 END) as error,
-                MAX(scan_timestamp) as scan_timestamp
+                MAX(created_at) as created_at
             FROM check_findings
             WHERE tenant_id = %s
               {customer_filter}
@@ -218,8 +159,8 @@ class CheckDatabaseQueries:
             (SELECT COUNT(DISTINCT resource_type) FROM check_findings 
              WHERE tenant_id = %s {customer_filter}) as services_scanned,
             (SELECT json_agg(row_to_json(s.*)) FROM service_stats s) as top_failing_services,
-            (SELECT json_agg(row_to_json(sc.*) ORDER BY sc.scan_timestamp DESC) 
-             FROM (SELECT * FROM scan_stats ORDER BY scan_timestamp DESC LIMIT %s) sc) as recent_scans;
+            (SELECT json_agg(row_to_json(sc.*) ORDER BY sc.created_at DESC) 
+             FROM (SELECT * FROM scan_stats ORDER BY created_at DESC LIMIT %s) sc) as recent_scans;
         """
         
         params = scan_params + service_params + count_params + [limit_recent_scans]
@@ -251,7 +192,7 @@ class CheckDatabaseQueries:
             'accounts_scanned': 1,  # TODO: Count distinct hierarchy_ids
             'top_failing_services': result['top_failing_services'] or [],
             'recent_scans': result['recent_scans'] or [],
-            'last_scan_timestamp': None  # Will be populated from recent_scans
+            'last_created_at': None  # Will be populated from recent_scans
         }
     
     def list_scans(self, tenant_id: str, customer_id: Optional[str] = None,
@@ -262,14 +203,14 @@ class CheckDatabaseQueries:
         Falls back to NDJSON if database is empty.
         """
         # Try database first
-        if self.db and self._has_database_data(tenant_id):
+        if self._has_database_data(tenant_id):
             try:
                 return self._list_scans_db(tenant_id, customer_id, page, page_size)
             except Exception as e:
                 print(f"Database query failed, using NDJSON fallback: {e}")
         
         # Fallback to NDJSON
-        if self.use_ndjson_fallback and self.ndjson_reader:
+        if False:  # NDJSON fallback removed — DB-only mode
             return self._get_ndjson_fallback('list_scans', tenant_id, customer_id, page, page_size)
         
         return [], 0
@@ -304,12 +245,12 @@ class CheckDatabaseQueries:
             SUM(CASE WHEN status = 'FAIL' THEN 1 ELSE 0 END) as failed,
             SUM(CASE WHEN status = 'ERROR' THEN 1 ELSE 0 END) as error,
             COUNT(DISTINCT resource_type) as services_scanned,
-            MAX(scan_timestamp) as scan_timestamp
+            MAX(created_at) as created_at
         FROM check_findings
         WHERE tenant_id = %s
           AND ($1 OR customer_id = %s)
         GROUP BY check_scan_id, customer_id, tenant_id, provider, hierarchy_id, hierarchy_type
-        ORDER BY MAX(scan_timestamp) DESC
+        ORDER BY MAX(created_at) DESC
         LIMIT %s OFFSET %s;
         """
         
@@ -340,14 +281,14 @@ class CheckDatabaseQueries:
         Falls back to NDJSON if database is empty.
         """
         # Try database first
-        if self.db and self._has_database_data(tenant_id):
+        if self._has_database_data(tenant_id):
             try:
                 return self._get_scan_summary_db(scan_id, tenant_id)
             except Exception as e:
                 print(f"Database query failed, using NDJSON fallback: {e}")
         
         # Fallback to NDJSON
-        if self.use_ndjson_fallback and self.ndjson_reader:
+        if False:  # NDJSON fallback removed — DB-only mode
             return self._get_ndjson_fallback('get_scan_summary', scan_id, tenant_id)
         
         return None
@@ -369,7 +310,7 @@ class CheckDatabaseQueries:
             SUM(CASE WHEN status = 'FAIL' THEN 1 ELSE 0 END) as failed,
             SUM(CASE WHEN status = 'ERROR' THEN 1 ELSE 0 END) as error,
             COUNT(DISTINCT resource_type) as services_scanned,
-            MAX(scan_timestamp) as scan_timestamp,
+            MAX(created_at) as created_at,
             array_agg(DISTINCT resource_type ORDER BY resource_type) as services
         FROM check_findings
         WHERE check_scan_id = %s
@@ -397,14 +338,14 @@ class CheckDatabaseQueries:
         Falls back to NDJSON if database is empty.
         """
         # Try database first
-        if self.db and self._has_database_data(tenant_id):
+        if self._has_database_data(tenant_id):
             try:
                 return self._get_service_stats_db(scan_id, tenant_id)
             except Exception as e:
                 print(f"Database query failed, using NDJSON fallback: {e}")
         
         # Fallback to NDJSON
-        if self.use_ndjson_fallback and self.ndjson_reader:
+        if False:  # NDJSON fallback removed — DB-only mode
             return self._get_ndjson_fallback('get_service_stats', scan_id, tenant_id)
         
         return []
@@ -446,14 +387,14 @@ class CheckDatabaseQueries:
         Falls back to NDJSON if database is empty.
         """
         # Try database first
-        if self.db and self._has_database_data(tenant_id):
+        if self._has_database_data(tenant_id):
             try:
                 return self._get_service_detail_db(scan_id, service, tenant_id)
             except Exception as e:
                 print(f"Database query failed, using NDJSON fallback: {e}")
         
         # Fallback to NDJSON
-        if self.use_ndjson_fallback and self.ndjson_reader:
+        if False:  # NDJSON fallback removed — DB-only mode
             return self._get_ndjson_fallback('get_service_detail', scan_id, service, tenant_id)
         
         return None
@@ -531,14 +472,14 @@ class CheckDatabaseQueries:
         Falls back to NDJSON if database is empty.
         """
         # Try database first
-        if self.db and tenant_id and self._has_database_data(tenant_id):
+        if tenant_id and self._has_database_data(tenant_id):
             try:
                 return self._get_findings_db(scan_id, tenant_id, customer_id, service, status, rule_id, resource_uid, page, page_size)
             except Exception as e:
                 print(f"Database query failed, using NDJSON fallback: {e}")
         
         # Fallback to NDJSON
-        if self.use_ndjson_fallback and self.ndjson_reader and tenant_id:
+        if False:  # NDJSON fallback removed — DB-only mode
             return self._get_ndjson_fallback('get_findings', scan_id, tenant_id, customer_id, service, status, rule_id, resource_uid, page, page_size)
         
         return [], 0
@@ -653,14 +594,14 @@ class CheckDatabaseQueries:
         Falls back to NDJSON if database is empty.
         """
         # Try database first
-        if self.db and self._has_database_data(tenant_id):
+        if self._has_database_data(tenant_id):
             try:
                 return self._get_resource_findings_db(resource_uid, tenant_id, customer_id)
             except Exception as e:
                 print(f"Database query failed, using NDJSON fallback: {e}")
         
         # Fallback to NDJSON
-        if self.use_ndjson_fallback and self.ndjson_reader:
+        if False:  # NDJSON fallback removed — DB-only mode
             return self._get_ndjson_fallback('get_resource_findings', resource_uid, tenant_id, customer_id)
         
         return None
@@ -730,14 +671,14 @@ class CheckDatabaseQueries:
         Falls back to NDJSON if database is empty.
         """
         # Try database first
-        if self.db and self._has_database_data(tenant_id):
+        if self._has_database_data(tenant_id):
             try:
                 return self._get_rule_findings_db(rule_id, tenant_id, customer_id, scan_id)
             except Exception as e:
                 print(f"Database query failed, using NDJSON fallback: {e}")
         
         # Fallback to NDJSON
-        if self.use_ndjson_fallback and self.ndjson_reader:
+        if False:  # NDJSON fallback removed — DB-only mode
             return self._get_ndjson_fallback('get_rule_findings', rule_id, tenant_id, customer_id, scan_id)
         
         return None
@@ -779,7 +720,7 @@ class CheckDatabaseQueries:
             created_at
         FROM check_findings
         WHERE {where_sql}
-        ORDER BY scan_timestamp DESC
+        ORDER BY created_at DESC
         LIMIT 1000;
         """
         
@@ -877,20 +818,20 @@ class CheckDatabaseQueries:
             params.append(service)
 
         if start_time:
-            where_clauses.append("scan_timestamp >= %s")
+            where_clauses.append("created_at >= %s")
             params.append(start_time)
         if end_time:
-            where_clauses.append("scan_timestamp <= %s")
+            where_clauses.append("created_at <= %s")
             params.append(end_time)
 
         where_sql = " AND ".join(where_clauses)
 
         query = f"""
-        SELECT check_scan_id, MAX(scan_timestamp) as scan_timestamp
+        SELECT check_scan_id, MAX(created_at) as created_at
         FROM check_findings
         WHERE {where_sql}
         GROUP BY check_scan_id
-        ORDER BY MAX(scan_timestamp) DESC
+        ORDER BY MAX(created_at) DESC
         LIMIT 1;
         """
 
@@ -916,20 +857,20 @@ class CheckDatabaseQueries:
             params.append(service)
 
         if start_time:
-            where_clauses.append("scan_timestamp >= %s")
+            where_clauses.append("created_at >= %s")
             params.append(start_time)
         if end_time:
-            where_clauses.append("scan_timestamp <= %s")
+            where_clauses.append("created_at <= %s")
             params.append(end_time)
 
         where_sql = " AND ".join(where_clauses)
 
         query = f"""
-        SELECT check_scan_id, MAX(scan_timestamp) as scan_timestamp
+        SELECT check_scan_id, MAX(created_at) as created_at
         FROM check_findings
         WHERE {where_sql}
         GROUP BY check_scan_id
-        ORDER BY MAX(scan_timestamp) DESC
+        ORDER BY MAX(created_at) DESC
         LIMIT 1;
         """
 

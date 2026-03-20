@@ -32,8 +32,8 @@ async def view_compliance(
     # ── 3 parallel calls instead of 5 ────────────────────────────────────
     results = await fetch_many([
         ("compliance", "/api/v1/compliance/ui-data", {"tenant_id": tenant_id, "scan_id": "latest"}),
-        ("onboarding", "/api/v1/onboarding/ui-data", {"tenant_id": tenant_id}),
-        ("threat",     "/api/v1/threat/ui-data",     {"tenant_id": tenant_id, "scan_run_id": "latest", "limit": "0"}),
+        ("onboarding", "/api/v1/cloud-accounts", {"tenant_id": tenant_id}),
+        ("threat",     "/api/v1/threat/ui-data",     {"tenant_id": tenant_id, "scan_run_id": "latest", "limit": "1"}),
     ])
 
     compliance_data, onboarding_data, threat_data = results

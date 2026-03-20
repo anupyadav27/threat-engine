@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   ArrowLeft,
+  ArrowRight,
   Copy,
   Check,
   Shield,
@@ -969,6 +971,38 @@ export default function AssetDetailPage() {
               ))}
             </div>
           )}
+
+          {/* Cross-navigation links to Threats module */}
+          <div
+            className="flex items-center gap-4 rounded-lg px-4 py-3 border"
+            style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)' }}
+          >
+            <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
+              Explore in Threats:
+            </span>
+            <Link
+              href={`/threats?search=${encodeURIComponent(assetId)}`}
+              className="text-xs flex items-center gap-1 font-medium hover:opacity-80 transition-opacity"
+              style={{ color: 'var(--accent-primary)' }}
+            >
+              View All Threats <ArrowRight className="w-3 h-3" />
+            </Link>
+            <Link
+              href={`/threats/blast-radius?resource_uid=${encodeURIComponent(assetId)}`}
+              className="text-xs flex items-center gap-1 font-medium hover:opacity-80 transition-opacity"
+              style={{ color: 'var(--accent-primary)' }}
+            >
+              Blast Radius <ArrowRight className="w-3 h-3" />
+            </Link>
+            <Link
+              href="/threats/attack-paths"
+              className="text-xs flex items-center gap-1 font-medium hover:opacity-80 transition-opacity"
+              style={{ color: 'var(--accent-primary)' }}
+            >
+              Attack Paths <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+
           <div
             className="rounded-lg p-6 border"
             style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}

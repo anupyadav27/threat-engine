@@ -172,6 +172,7 @@ class DatabaseManager:
                     (discovery_scan_id, customer_id, tenant_id, provider, hierarchy_id, hierarchy_type,
                      region, service, scan_type, status, metadata)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (discovery_scan_id) DO NOTHING
                 """, (
                     scan_id, customer_id, tenant_id, provider,
                     hierarchy_id, hierarchy_type, region, service,

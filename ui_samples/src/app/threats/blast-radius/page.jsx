@@ -1,59 +1,93 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Search, ChevronRight, AlertTriangle, Shield, Zap } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import {
+  Search,
+  ChevronRight,
+  AlertTriangle,
+  Shield,
+  Zap,
+  Network,
+  ExternalLink,
+  Globe,
+  X,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
+  ArrowRight,
+} from 'lucide-react';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+  Cell,
+} from 'recharts';
+
+import { fetchView } from '@/lib/api';
 import KpiCard from '@/components/shared/KpiCard';
-import SeverityBadge from '@/components/shared/SeverityBadge';
-import { getFromEngine } from '@/lib/api';
+import SearchBar from '@/components/shared/SearchBar';
+import LoadingSkeleton from '@/components/shared/LoadingSkeleton';
+import EmptyState from '@/components/shared/EmptyState';
+import DataTable from '@/components/shared/DataTable';
+import ThreatsSubNav from '@/components/shared/ThreatsSubNav';
 
-
-// Force-directed graph simulation
+// ---------------------------------------------------------------------------
+// Force Simulation Engine
+// ---------------------------------------------------------------------------
 class ForceSimulation {
-  constructor(nodes, links, width, height) {
+  constructor(nodes, edges, width, height) {
     this.nodes = nodes;
-    this.links = links;
+    this.edges = edges;
     this.width = width;
     this.height = height;
-    this.alpha = 1;
-    this.alphaDecay = 0.01;
-    this.charge = -300;
-    this.linkDistance = 80;
+    this.alpha = 1.0;
+    this.alphaDecay = 0.012;
+    this.charge = -400;
+    this.linkDistance = 120;
+    this.centerStrength = 0.04;
     this.centerX = width / 2;
     this.centerY = height / 2;
 
-    // Initialize node positions
+    // Place nodes in a radial layout seeded by depth (hops)
     this.nodes.forEach((node, i) => {
-      if (!node.x) {
-        const angle = (i / this.nodes.length) * Math.PI * 2;
-        const radius = 100 + Math.random() * 50;
+      if (node.x == null) {
+        const angle = (i / Math.max(this.nodes.length, 1)) * Math.PI * 2;
+        const radius = 60 + (node.hops || 0) * 90 + Math.random() * 30;
         node.x = this.centerX + Math.cos(angle) * radius;
         node.y = this.centerY + Math.sin(angle) * radius;
       }
-      node.vx = (Math.random() - 0.5) * 2;
-      node.vy = (Math.random() - 0.5) * 2;
+      node.vx = 0;
+      node.vy = 0;
     });
   }
 
+  /** Run a single tick of the simulation. Returns current alpha. */
   tick() {
-    // Apply forces
-    this.applyChargeForce();
-    this.applyLinkForce();
-    this.applyCenterForce();
-    this.updatePositions();
-    this.alpha *= (1 - this.alphaDecay);
+    this._chargeForce();
+    this._linkForce();
+    this._centerForce();
+    this._integrate();
+    this.alpha *= 1 - this.alphaDecay;
+    return this.alpha;
   }
 
-  applyChargeForce() {
-    for (let i = 0; i < this.nodes.length; i++) {
-      for (let j = i + 1; j < this.nodes.length; j++) {
-        const a = this.nodes[i];
-        const b = this.nodes[j];
+  _chargeForce() {
+    const nodes = this.nodes;
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i];
+        const b = nodes[j];
         const dx = b.x - a.x;
         const dy = b.y - a.y;
-        const distance = Math.sqrt(dx * dx + dy * dy) || 0.1;
-        const force = (this.charge / (distance * distance)) * this.alpha;
-        const fx = (dx / distance) * force;
-        const fy = (dy / distance) * force;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        const force = (this.charge / (dist * dist)) * this.alpha;
+        const fx = (dx / dist) * force;
+        const fy = (dy / dist) * force;
         a.vx -= fx;
         a.vy -= fy;
         b.vx += fx;
@@ -62,14 +96,15 @@ class ForceSimulation {
     }
   }
 
-  applyLinkForce() {
-    this.links.forEach((link) => {
-      const a = this.nodes[link.source];
-      const b = this.nodes[link.target];
+  _linkForce() {
+    this.edges.forEach((edge) => {
+      const a = this.nodes[edge.source];
+      const b = this.nodes[edge.target];
+      if (!a || !b) return;
       const dx = b.x - a.x;
       const dy = b.y - a.y;
-      const distance = Math.sqrt(dx * dx + dy * dy) || 0.1;
-      const force = ((distance - this.linkDistance) / distance) * 0.1 * this.alpha;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      const force = ((dist - this.linkDistance) / dist) * 0.15 * this.alpha;
       const fx = dx * force;
       const fy = dy * force;
       a.vx += fx;
@@ -79,666 +114,829 @@ class ForceSimulation {
     });
   }
 
-  applyCenterForce() {
+  _centerForce() {
     this.nodes.forEach((node) => {
-      const dx = this.centerX - node.x;
-      const dy = this.centerY - node.y;
-      const distance = Math.sqrt(dx * dx + dy * dy) || 0.1;
-      const force = 0.02 * this.alpha;
-      node.vx += (dx / distance) * force;
-      node.vy += (dy / distance) * force;
+      node.vx += (this.centerX - node.x) * this.centerStrength * this.alpha;
+      node.vy += (this.centerY - node.y) * this.centerStrength * this.alpha;
     });
   }
 
-  updatePositions() {
+  _integrate() {
+    const pad = 30;
     this.nodes.forEach((node) => {
-      node.vx *= 0.95;
-      node.vy *= 0.95;
+      node.vx *= 0.9;
+      node.vy *= 0.9;
       node.x += node.vx;
       node.y += node.vy;
-
-      // Boundary conditions
-      if (node.x < 20) node.x = 20;
-      if (node.x > this.width - 20) node.x = this.width - 20;
-      if (node.y < 20) node.y = 20;
-      if (node.y > this.height - 20) node.y = this.height - 20;
+      node.x = Math.max(pad, Math.min(this.width - pad, node.x));
+      node.y = Math.max(pad, Math.min(this.height - pad, node.y));
     });
   }
 }
 
-// SVG Graph Visualization Component
-function BlastRadiusGraph({ data, onNodeClick, selectedNodeUid }) {
+// ---------------------------------------------------------------------------
+// ForceGraph — custom SVG force-directed graph
+// ---------------------------------------------------------------------------
+function ForceGraph({ nodes, edges, selectedId, onNodeClick }) {
   const svgRef = useRef(null);
-  const simulationRef = useRef(null);
-  const animationRef = useRef(null);
+  const containerRef = useRef(null);
+  const simRef = useRef(null);
+  const rafRef = useRef(null);
+  const [, forceRender] = useState(0);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [hoveredNode, setHoveredNode] = useState(null);
-  const [tooltip, setTooltip] = useState(null);
+  const draggingRef = useRef(false);
+  const panStartRef = useRef(null);
 
-  const WIDTH = 1000;
-  const HEIGHT = 600;
+  const WIDTH = 960;
+  const HEIGHT = 560;
 
-  const nodes = useMemo(() => {
-    const n = [
-      {
-        id: 0,
-        uid: data.source_resource.uid,
-        label: data.source_resource.resource_type.split('::')[1],
-        type: data.source_resource.resource_type,
-        hops: 0,
-        threats: [],
-        finding_count: 0,
-        isSource: true,
-      },
-      ...data.reachable_resources.map((r, i) => ({
-        id: i + 1,
-        uid: r.uid,
-        label: r.resource_type.split('::')[1],
-        type: r.resource_type,
-        hops: r.hops,
-        threats: r.threats,
-        finding_count: r.finding_count,
-        isSource: false,
-      })),
-    ];
-    return n;
-  }, [data]);
-
-  const links = useMemo(() => {
-    return data.reachable_resources
-      .map((resource, i) => ({
-        source: 0,
-        target: i + 1,
-        distance: resource.hops,
-      }))
-      .concat(
-        data.reachable_resources.slice(1).flatMap((resource, i) => {
-          const connectedIndices = [];
-          data.reachable_resources.forEach((other, j) => {
-            if (other.hops === resource.hops + 1 && Math.random() > 0.6) {
-              connectedIndices.push(j + 1);
-            }
-          });
-          return connectedIndices.map((target) => ({
-            source: i + 1,
-            target,
-            distance: 1,
-          }));
-        })
-      );
-  }, [data]);
-
+  // Run simulation
   useEffect(() => {
-    if (!svgRef.current) return;
-
-    simulationRef.current = new ForceSimulation(nodes, links, WIDTH, HEIGHT);
+    if (!nodes.length) return;
+    // Deep-clone nodes so simulation can mutate positions
+    const simNodes = nodes.map((n) => ({ ...n }));
+    simRef.current = { nodes: simNodes };
+    const sim = new ForceSimulation(simNodes, edges, WIDTH, HEIGHT);
+    let ticks = 0;
+    const maxTicks = 200;
 
     const animate = () => {
-      simulationRef.current.tick();
-      if (simulationRef.current.alpha > 0.001) {
-        animationRef.current = requestAnimationFrame(animate);
+      const alpha = sim.tick();
+      ticks++;
+      forceRender((v) => v + 1);
+      if (alpha > 0.002 && ticks < maxTicks) {
+        rafRef.current = requestAnimationFrame(animate);
       }
     };
+    rafRef.current = requestAnimationFrame(animate);
 
-    animationRef.current = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(animationRef.current);
-  }, [nodes, links]);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [nodes, edges]);
 
-  const handleMouseWheel = useCallback((e) => {
+  // Zoom via scroll
+  const handleWheel = useCallback((e) => {
     e.preventDefault();
-    const newZoom = zoom * (1 - e.deltaY * 0.001);
-    setZoom(Math.max(0.5, Math.min(3, newZoom)));
-  }, [zoom]);
+    setZoom((z) => Math.max(0.3, Math.min(4, z * (1 - e.deltaY * 0.001))));
+  }, []);
 
-  const handleMouseDown = useCallback((e) => {
-    if (e.button !== 2) return; // Right-click
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const startPan = { ...pan };
+  // Pan via drag on background
+  const handlePointerDown = useCallback(
+    (e) => {
+      // Only left mouse for pan on background
+      if (e.target !== svgRef.current && e.target.tagName !== 'rect') return;
+      draggingRef.current = true;
+      panStartRef.current = { x: e.clientX - pan.x * zoom, y: e.clientY - pan.y * zoom };
+      svgRef.current?.setPointerCapture?.(e.pointerId);
+    },
+    [pan, zoom],
+  );
 
-    const handleMouseMove = (moveEvent) => {
+  const handlePointerMove = useCallback(
+    (e) => {
+      if (!draggingRef.current || !panStartRef.current) return;
       setPan({
-        x: startPan.x + (moveEvent.clientX - startX) / zoom,
-        y: startPan.y + (moveEvent.clientY - startY) / zoom,
+        x: (e.clientX - panStartRef.current.x) / zoom,
+        y: (e.clientY - panStartRef.current.y) / zoom,
       });
-    };
+    },
+    [zoom],
+  );
 
-    const handleMouseUp = () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
+  const handlePointerUp = useCallback(() => {
+    draggingRef.current = false;
+    panStartRef.current = null;
+  }, []);
 
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  }, [pan, zoom]);
+  const resetView = useCallback(() => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  }, []);
 
-  const getNodeColor = (node) => {
-    if (node.isSource) return 'rgb(100, 116, 255)';
-    if (node.threats.length > 0) return 'rgb(239, 68, 68)';
-    if (node.finding_count > 0) return 'rgb(249, 115, 22)';
-    return 'rgb(34, 197, 94)';
+  const simNodes = simRef.current?.nodes || [];
+
+  // Determine node color
+  const nodeColor = (node) => {
+    if (node.isSource) return '#3b82f6'; // blue
+    if ((node.threats || 0) > 0) return '#ef4444'; // red
+    if ((node.findingCount || 0) > 0) return '#f97316'; // orange
+    return '#22c55e'; // green
   };
 
-  const handleNodeHover = (node, e) => {
-    if (node.isSource || node.threats.length > 0) {
-      setHoveredNode(node.id);
-      setTooltip({
-        x: e.clientX,
-        y: e.clientY,
-        content: node,
-      });
-    }
+  const nodeRadius = (node) => {
+    if (node.isSource) return 24;
+    return 14 + Math.min(Math.sqrt(node.findingCount || 0) * 2, 10);
   };
 
-  if (!nodes.length) return null;
+  // Truncate label
+  const truncate = (s, len = 14) => (s && s.length > len ? s.slice(0, len - 1) + '\u2026' : s);
 
   return (
-    <div className="relative w-full bg-gradient-to-br from-[var(--bg-secondary)] to-[var(--bg-card)] rounded-lg border border-[var(--border-primary)] overflow-hidden">
+    <div ref={containerRef} className="relative w-full rounded-xl border overflow-hidden" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)' }}>
+      {/* Zoom controls */}
+      <div className="absolute top-3 right-3 z-10 flex flex-col gap-1">
+        <button
+          onClick={() => setZoom((z) => Math.min(4, z * 1.3))}
+          className="p-1.5 rounded-lg border"
+          style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)', color: 'var(--text-secondary)' }}
+          title="Zoom in"
+        >
+          <ZoomIn className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => setZoom((z) => Math.max(0.3, z / 1.3))}
+          className="p-1.5 rounded-lg border"
+          style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)', color: 'var(--text-secondary)' }}
+          title="Zoom out"
+        >
+          <ZoomOut className="w-4 h-4" />
+        </button>
+        <button
+          onClick={resetView}
+          className="p-1.5 rounded-lg border"
+          style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)', color: 'var(--text-secondary)' }}
+          title="Reset view"
+        >
+          <RotateCcw className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Legend */}
+      <div
+        className="absolute bottom-3 left-3 z-10 rounded-lg border p-3 text-xs space-y-1.5"
+        style={{ backgroundColor: 'rgba(20,20,20,0.85)', borderColor: 'var(--border-primary)', color: 'var(--text-secondary)' }}
+      >
+        <div className="font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>Legend</div>
+        {[
+          { color: '#3b82f6', label: 'Source' },
+          { color: '#ef4444', label: 'Threats' },
+          { color: '#f97316', label: 'Findings' },
+          { color: '#22c55e', label: 'Clean' },
+        ].map((item) => (
+          <div key={item.label} className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: item.color }} />
+            <span>{item.label}</span>
+          </div>
+        ))}
+      </div>
+
       <svg
         ref={svgRef}
-        width={WIDTH}
-        height={HEIGHT}
+        viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         className="w-full cursor-grab active:cursor-grabbing"
-        style={{ background: 'radial-gradient(circle at center, rgba(15,23,42,0.8) 0%, rgba(15,23,42,0.95) 100%)' }}
-        onWheel={handleMouseWheel}
-        onMouseDown={handleMouseDown}
+        style={{ minHeight: 400, maxHeight: 600, background: 'radial-gradient(ellipse at center, rgba(30,30,40,0.6) 0%, rgba(10,10,10,0.95) 100%)' }}
+        onWheel={handleWheel}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
         onContextMenu={(e) => e.preventDefault()}
       >
         <defs>
-          <linearGradient id="grad-threat" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="rgb(239, 68, 68)" />
-            <stop offset="100%" stopColor="rgb(220, 38, 38)" />
-          </linearGradient>
-          <linearGradient id="grad-warning" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="rgb(249, 115, 22)" />
-            <stop offset="100%" stopColor="rgb(234, 88, 12)" />
-          </linearGradient>
-          <linearGradient id="grad-clean" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="rgb(34, 197, 94)" />
-            <stop offset="100%" stopColor="rgb(22, 163, 74)" />
-          </linearGradient>
-          <filter id="glow">
-            <feGaussianBlur stdDeviation="2" result="coloredBlur" />
+          <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="rgba(148,163,184,0.4)" />
+          </marker>
+          <filter id="node-glow">
+            <feGaussianBlur stdDeviation="3" result="blur" />
             <feMerge>
-              <feMergeNode in="coloredBlur" />
+              <feMergeNode in="blur" />
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
         </defs>
 
+        {/* Invisible rect for pan drag target */}
+        <rect x="0" y="0" width={WIDTH} height={HEIGHT} fill="transparent" />
+
         <g transform={`translate(${pan.x},${pan.y}) scale(${zoom})`}>
-          {/* Draw links */}
-          {links.map((link, i) => {
-            const source = nodes[link.source];
-            const target = nodes[link.target];
+          {/* Edges */}
+          {edges.map((edge, i) => {
+            const s = simNodes[edge.source];
+            const t = simNodes[edge.target];
+            if (!s || !t) return null;
             return (
-              <g key={`link-${i}`}>
-                <path
-                  d={`M ${source.x} ${source.y} Q ${(source.x + target.x) / 2} ${(source.y + target.y) / 2 - 20} ${target.x} ${target.y}`}
-                  stroke="rgba(148, 163, 184, 0.3)"
-                  strokeWidth="2"
-                  fill="none"
-                  strokeDasharray="5,5"
-                />
-                <text
-                  x={(source.x + target.x) / 2}
-                  y={(source.y + target.y) / 2 - 25}
-                  fontSize="11"
-                  fill="rgba(148, 163, 184, 0.6)"
-                  textAnchor="middle"
-                >
-                  {link.distance}h
-                </text>
-              </g>
+              <line
+                key={`e-${i}`}
+                x1={s.x}
+                y1={s.y}
+                x2={t.x}
+                y2={t.y}
+                stroke="rgba(148,163,184,0.25)"
+                strokeWidth={1.5}
+                markerEnd="url(#arrowhead)"
+              />
             );
           })}
 
-          {/* Draw nodes */}
-          {nodes.map((node) => {
-            const radius = node.isSource ? 28 : 18 + Math.sqrt(node.finding_count) * 2;
-            const isSelected = node.uid === selectedNodeUid;
-            const isHovered = hoveredNode === node.id;
+          {/* Nodes */}
+          {simNodes.map((node) => {
+            const r = nodeRadius(node);
+            const fill = nodeColor(node);
+            const isSelected = node.uid === selectedId;
 
             return (
               <g
                 key={node.id}
-                onMouseEnter={(e) => handleNodeHover(node, e)}
-                onMouseLeave={() => {
-                  setHoveredNode(null);
-                  setTooltip(null);
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onNodeClick(node);
                 }}
-                onClick={() => onNodeClick(node)}
                 style={{ cursor: 'pointer' }}
-                filter={isHovered || isSelected ? 'url(#glow)' : undefined}
               >
+                {/* Selection ring */}
+                {isSelected && (
+                  <circle cx={node.x} cy={node.y} r={r + 5} fill="none" stroke="#93c5fd" strokeWidth={2.5} filter="url(#node-glow)" />
+                )}
                 <circle
                   cx={node.x}
                   cy={node.y}
-                  r={radius}
-                  fill={getNodeColor(node)}
-                  opacity={0.85}
-                  stroke={isSelected ? 'rgb(147, 197, 253)' : 'rgba(255,255,255,0.2)'}
-                  strokeWidth={isSelected ? 3 : 1}
-                  style={{
-                    transition: 'all 0.2s ease',
-                    filter: isHovered ? 'drop-shadow(0 0 8px rgba(100,116,255,0.6))' : 'drop-shadow(0 0 4px rgba(0,0,0,0.3))',
-                  }}
+                  r={r}
+                  fill={fill}
+                  opacity={0.9}
+                  stroke="rgba(255,255,255,0.15)"
+                  strokeWidth={1}
                 />
                 <text
                   x={node.x}
-                  y={node.y + 4}
-                  fontSize="12"
-                  fontWeight="600"
-                  fill="white"
+                  y={node.y + r + 14}
+                  fontSize="10"
+                  fill="rgba(245,245,245,0.8)"
                   textAnchor="middle"
                   pointerEvents="none"
+                  fontWeight="500"
                 >
-                  {node.label}
+                  {truncate(node.resourceName || node.resourceType)}
                 </text>
               </g>
             );
           })}
         </g>
       </svg>
-
-      {/* Tooltip */}
-      {tooltip && (
-        <div
-          className="absolute bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-lg p-3 text-xs z-50 pointer-events-none max-w-xs"
-          style={{
-            left: `${tooltip.x + 10}px`,
-            top: `${tooltip.y + 10}px`,
-          }}
-        >
-          <div className="font-semibold text-[var(--text-primary)] mb-1">
-            {tooltip.content.label}
-          </div>
-          <div className="text-[var(--text-secondary)] text-xs mb-2">
-            {tooltip.content.type}
-          </div>
-          <div className="flex gap-3">
-            <div>Hops: <span className="font-semibold text-[var(--accent-primary)]">{tooltip.content.hops}</span></div>
-            <div>Findings: <span className="font-semibold">{tooltip.content.finding_count}</span></div>
-            {tooltip.content.threats.length > 0 && (
-              <div>Threats: <span className="font-semibold text-[var(--accent-danger)]">{tooltip.content.threats.length}</span></div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Legend */}
-      <div className="absolute bottom-4 left-4 bg-[var(--bg-card)]/80 backdrop-blur-sm border border-[var(--border-primary)] rounded-lg p-3 text-xs">
-        <div className="font-semibold text-[var(--text-primary)] mb-2">Legend</div>
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full" style={{ background: 'rgb(100, 116, 255)' }} />
-            <span>Source Resource</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full" style={{ background: 'rgb(239, 68, 68)' }} />
-            <span>With Threats</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full" style={{ background: 'rgb(249, 115, 22)' }} />
-            <span>With Findings</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full" style={{ background: 'rgb(34, 197, 94)' }} />
-            <span>Clean</span>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
 
-// Depth Distribution Chart
-function DepthChart({ distribution }) {
-  const maxValue = Math.max(...Object.values(distribution));
+// ---------------------------------------------------------------------------
+// Detail Panel (right column)
+// ---------------------------------------------------------------------------
+function DetailPanel({ node, allNodes, onClose }) {
+  if (!node) return null;
+
+  const riskScore = node.riskScore ?? 0;
+  const riskColor = riskScore >= 80 ? '#ef4444' : riskScore >= 60 ? '#f97316' : riskScore >= 40 ? '#eab308' : '#22c55e';
+
+  // Find connected nodes
+  const connected = allNodes.filter((n) => n.uid !== node.uid && Math.abs((n.hops || 0) - (node.hops || 0)) <= 1);
 
   return (
-    <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-lg p-6">
-      <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4">Depth Distribution</h3>
-      <div className="flex items-end gap-4 h-40">
-        {Object.entries(distribution).map(([depth, count]) => (
-          <div key={depth} className="flex-1 flex flex-col items-center">
-            <div className="w-full relative h-32 bg-[var(--bg-secondary)] rounded-t-lg overflow-hidden flex items-end">
-              <div
-                className="w-full bg-gradient-to-t from-[var(--accent-primary)] to-[var(--accent-primary)]/70 transition-all duration-300 hover:opacity-80"
-                style={{ height: `${(count / maxValue) * 100}%` }}
-              />
-            </div>
-            <div className="text-xs text-[var(--text-secondary)] mt-2">Hop {depth}</div>
-            <div className="text-sm font-semibold text-[var(--text-primary)]">{count}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// Internet Exposed Resources Table
-function InternetExposedTable({ resources }) {
-  return (
-    <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-lg p-6 overflow-x-auto">
-      <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4">Internet-Exposed Resources</h3>
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-[var(--border-primary)]">
-            <th className="text-left py-3 px-4 text-[var(--text-secondary)] font-medium">Resource</th>
-            <th className="text-left py-3 px-4 text-[var(--text-secondary)] font-medium">Type</th>
-            <th className="text-left py-3 px-4 text-[var(--text-secondary)] font-medium">Region</th>
-            <th className="text-left py-3 px-4 text-[var(--text-secondary)] font-medium">Risk Score</th>
-            <th className="text-left py-3 px-4 text-[var(--text-secondary)] font-medium">Threats</th>
-            <th className="text-left py-3 px-4 text-[var(--text-secondary)] font-medium">Findings</th>
-          </tr>
-        </thead>
-        <tbody>
-          {resources.map((resource) => (
-            <tr key={resource.uid} className="border-b border-[var(--border-primary)] hover:bg-[var(--bg-secondary)] transition-colors">
-              <td className="py-3 px-4 text-[var(--text-primary)] truncate font-mono text-xs">{resource.uid.split(':').pop()}</td>
-              <td className="py-3 px-4">
-                <span className="px-2 py-1 rounded bg-[var(--bg-secondary)] text-[var(--text-secondary)] text-xs">
-                  {resource.resource_type.split('::')[1]}
-                </span>
-              </td>
-              <td className="py-3 px-4 text-[var(--text-secondary)]">{resource.region}</td>
-              <td className="py-3 px-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-16 h-2 bg-[var(--bg-secondary)] rounded-full overflow-hidden">
-                    <div
-                      className={`h-full ${resource.risk_score >= 80 ? 'bg-[var(--accent-danger)]' : resource.risk_score >= 60 ? 'bg-[var(--accent-warning)]' : 'bg-[var(--accent-success)]'}`}
-                      style={{ width: `${resource.risk_score}%` }}
-                    />
-                  </div>
-                  <span className="font-semibold text-xs">{resource.risk_score}</span>
-                </div>
-              </td>
-              <td className="py-3 px-4">
-                {resource.threats > 0 ? (
-                  <span className="text-[var(--accent-danger)] font-semibold flex items-center gap-1">
-                    <AlertTriangle size={14} />
-                    {resource.threats}
-                  </span>
-                ) : (
-                  <span className="text-[var(--text-secondary)]">—</span>
-                )}
-              </td>
-              <td className="py-3 px-4 text-[var(--text-primary)] font-semibold">{resource.findings}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-// Resource Detail Panel
-function ResourceDetailPanel({ resource, onClose }) {
-  if (!resource) return null;
-
-  return (
-    <div className="absolute right-0 top-0 bottom-0 w-80 bg-[var(--bg-card)] border-l border-[var(--border-primary)] shadow-2xl overflow-y-auto z-40">
-      <div className="sticky top-0 bg-[var(--bg-card)] border-b border-[var(--border-primary)] px-6 py-4 flex items-center justify-between">
-        <h3 className="font-semibold text-[var(--text-primary)]">Resource Details</h3>
-        <button
-          onClick={onClose}
-          className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-        >
-          ×
+    <div
+      className="rounded-xl border overflow-y-auto"
+      style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: 'var(--border-primary)' }}>
+        <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Resource Details</h3>
+        <button onClick={onClose} className="hover:opacity-70 transition-opacity" style={{ color: 'var(--text-secondary)' }}>
+          <X className="w-4 h-4" />
         </button>
       </div>
 
-      <div className="p-6 space-y-4">
+      <div className="p-4 space-y-5">
+        {/* Resource Info */}
         <div>
-          <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">Type</label>
-          <p className="text-sm text-[var(--text-primary)] mt-1">{resource.type}</p>
+          <p className="text-xs font-medium uppercase tracking-wide mb-1" style={{ color: 'var(--text-secondary)' }}>Name</p>
+          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{node.resourceName || 'N/A'}</p>
+        </div>
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide mb-1" style={{ color: 'var(--text-secondary)' }}>Type</p>
+          <p className="text-sm" style={{ color: 'var(--text-primary)' }}>{node.resourceType || 'N/A'}</p>
+        </div>
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide mb-1" style={{ color: 'var(--text-secondary)' }}>ARN / UID</p>
+          <p className="text-xs font-mono break-all" style={{ color: 'var(--text-secondary)' }}>{node.uid || 'N/A'}</p>
         </div>
 
+        {/* Risk Score */}
         <div>
-          <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">Resource ID</label>
-          <p className="text-xs text-[var(--text-secondary)] mt-1 font-mono break-all">{resource.uid}</p>
-        </div>
-
-        <div>
-          <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">Hop Distance</label>
-          <p className="text-sm text-[var(--text-primary)] mt-1">{resource.hops} hops from source</p>
-        </div>
-
-        <div>
-          <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">Findings</label>
-          <div className="flex items-center gap-2 mt-2">
-            <div className="flex-1 h-2 bg-[var(--bg-secondary)] rounded-full overflow-hidden">
-              <div
-                className="h-full bg-[var(--accent-warning)]"
-                style={{ width: `${Math.min(resource.finding_count * 20, 100)}%` }}
-              />
-            </div>
-            <span className="text-sm font-semibold">{resource.finding_count}</span>
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-secondary)' }}>Risk Score</p>
+            <span className="text-sm font-bold" style={{ color: riskColor }}>{riskScore}</span>
+          </div>
+          <div className="w-full h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+            <div className="h-full rounded-full transition-all duration-500" style={{ width: `${riskScore}%`, backgroundColor: riskColor }} />
           </div>
         </div>
 
-        {resource.threats && resource.threats.length > 0 && (
+        {/* Counts */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-lg p-3 border" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)' }}>
+            <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Threats</p>
+            <p className="text-lg font-bold text-red-400">{node.threats ?? 0}</p>
+          </div>
+          <div className="rounded-lg p-3 border" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)' }}>
+            <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Findings</p>
+            <p className="text-lg font-bold text-orange-400">{node.findingCount ?? 0}</p>
+          </div>
+        </div>
+
+        {/* Hop distance */}
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide mb-1" style={{ color: 'var(--text-secondary)' }}>Hop Distance</p>
+          <p className="text-sm" style={{ color: 'var(--text-primary)' }}>{node.hops ?? 0} hops from source</p>
+        </div>
+
+        {/* Connected resources */}
+        {connected.length > 0 && (
           <div>
-            <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase">Active Threats</label>
-            <div className="mt-2 space-y-1">
-              {resource.threats.map((threat) => (
-                <div key={threat} className="flex items-center gap-2 text-xs">
-                  <AlertTriangle size={12} className="text-[var(--accent-danger)]" />
-                  <span className="text-[var(--text-secondary)]">Threat ID: {threat}</span>
+            <p className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: 'var(--text-secondary)' }}>
+              Connected Resources ({connected.length})
+            </p>
+            <div className="space-y-1.5 max-h-40 overflow-y-auto">
+              {connected.slice(0, 10).map((n) => (
+                <div key={n.uid} className="flex items-center gap-2 text-xs px-2 py-1.5 rounded" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                  <span
+                    className="w-2 h-2 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: n.isSource ? '#3b82f6' : (n.threats || 0) > 0 ? '#ef4444' : (n.findingCount || 0) > 0 ? '#f97316' : '#22c55e' }}
+                  />
+                  <span className="truncate" style={{ color: 'var(--text-primary)' }}>{n.resourceName || n.resourceType}</span>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        <div className="pt-4 border-t border-[var(--border-primary)]">
-          <button className="w-full py-2 px-4 bg-[var(--accent-primary)] text-white rounded-lg text-sm font-medium hover:bg-[var(--accent-primary)]/90 transition-colors flex items-center justify-center gap-2">
-            <Zap size={14} />
-            Analyze Resource
-          </button>
+        {/* Actions */}
+        <div className="pt-2 space-y-2 border-t" style={{ borderColor: 'var(--border-primary)' }}>
+          <a
+            href={`/inventory?resource_uid=${encodeURIComponent(node.uid || '')}`}
+            className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+          >
+            View in Inventory
+            <ArrowRight className="w-3.5 h-3.5" />
+          </a>
         </div>
       </div>
     </div>
   );
 }
 
+// ---------------------------------------------------------------------------
+// Depth Distribution BarChart (Recharts)
+// ---------------------------------------------------------------------------
+function DepthDistributionChart({ distribution }) {
+  const chartData = useMemo(() => {
+    if (!distribution) return [];
+    return Object.entries(distribution)
+      .sort(([a], [b]) => Number(a) - Number(b))
+      .map(([depth, count]) => ({ depth: `Depth ${depth}`, count: Number(count) }));
+  }, [distribution]);
+
+  if (!chartData.length) return null;
+
+  const barColors = ['#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#c084fc', '#d8b4fe'];
+
+  return (
+    <div className="rounded-xl border p-6" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+      <h3 className="text-sm font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>Depth Distribution</h3>
+      <ResponsiveContainer width="100%" height={220}>
+        <BarChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+          <XAxis dataKey="depth" tick={{ fill: '#a3a3a3', fontSize: 12 }} axisLine={false} tickLine={false} />
+          <YAxis tick={{ fill: '#a3a3a3', fontSize: 12 }} axisLine={false} tickLine={false} allowDecimals={false} />
+          <RechartsTooltip
+            contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#f5f5f5' }}
+            cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+          />
+          <Bar dataKey="count" radius={[6, 6, 0, 0]} maxBarSize={48}>
+            {chartData.map((_, idx) => (
+              <Cell key={idx} fill={barColors[idx % barColors.length]} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Internet-Exposed Table Columns
+// ---------------------------------------------------------------------------
+const internetExposedColumns = [
+  {
+    accessorKey: 'uid',
+    header: 'Resource',
+    cell: ({ getValue }) => {
+      const uid = getValue();
+      const name = uid ? uid.split(':').pop() || uid.split('/').pop() || uid : 'N/A';
+      return (
+        <span className="font-mono text-xs truncate block max-w-[200px]" title={uid} style={{ color: 'var(--text-primary)' }}>
+          {name}
+        </span>
+      );
+    },
+  },
+  {
+    accessorKey: 'resourceType',
+    header: 'Type',
+    cell: ({ getValue }) => {
+      const t = getValue() || '';
+      const short = t.includes('.') ? t.split('.').pop() : t;
+      return (
+        <span className="px-2 py-0.5 rounded text-xs" style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-secondary)' }}>
+          {short}
+        </span>
+      );
+    },
+  },
+  {
+    accessorKey: 'region',
+    header: 'Region',
+    cell: ({ getValue }) => <span style={{ color: 'var(--text-secondary)' }}>{getValue() || '-'}</span>,
+  },
+  {
+    accessorKey: 'riskScore',
+    header: 'Risk',
+    cell: ({ getValue }) => {
+      const score = Number(getValue()) || 0;
+      const color = score >= 80 ? '#ef4444' : score >= 60 ? '#f97316' : score >= 40 ? '#eab308' : '#22c55e';
+      return (
+        <div className="flex items-center gap-2">
+          <div className="w-14 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+            <div className="h-full rounded-full" style={{ width: `${score}%`, backgroundColor: color }} />
+          </div>
+          <span className="text-xs font-semibold" style={{ color }}>{score}</span>
+        </div>
+      );
+    },
+  },
+  {
+    accessorKey: 'threats',
+    header: 'Threats',
+    cell: ({ getValue }) => {
+      const v = Number(getValue()) || 0;
+      return v > 0 ? (
+        <span className="flex items-center gap-1 text-red-400 font-semibold text-xs">
+          <AlertTriangle className="w-3.5 h-3.5" />
+          {v}
+        </span>
+      ) : (
+        <span style={{ color: 'var(--text-secondary)' }}>&mdash;</span>
+      );
+    },
+  },
+  {
+    accessorKey: 'findings',
+    header: 'Findings',
+    cell: ({ getValue }) => <span className="font-semibold text-xs" style={{ color: 'var(--text-primary)' }}>{getValue() ?? 0}</span>,
+  },
+];
+
+// ---------------------------------------------------------------------------
 // Main Page Component
+// ---------------------------------------------------------------------------
 export default function BlastRadiusPage() {
-  const [searchInput, setSearchInput] = useState('');
-  const [blastRadiusData, setBlastRadiusData] = useState(null);
-  const [graphSummary, setGraphSummary] = useState(null);
-  const [internetExposed, setInternetExposed] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [selectedNode, setSelectedNode] = useState(null);
+  const searchParams = useSearchParams();
+  const initialResourceUid = searchParams.get('resource_uid') || '';
+
+  const [searchInput, setSearchInput] = useState(initialResourceUid);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [pageData, setPageData] = useState(null);
+  const [selectedNode, setSelectedNode] = useState(null);
 
-  useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        setLoading(true);
-        const summary = await getFromEngine('threat', '/api/v1/graph/summary', {});
-        if (summary && !summary.error) setGraphSummary(summary);
+  // ---- Data Fetching ----
 
-        const exposed = await getFromEngine('threat', '/api/v1/graph/internet-exposed', {});
-        if (exposed && !exposed.error) {
-          const list = Array.isArray(exposed) ? exposed : (exposed.exposed_resources || null);
-          if (list) setInternetExposed(list);
-        }
-
-        const blastData = await getFromEngine(
-          'threat',
-          '/api/v1/graph/blast-radius/latest',
-          {}
-        );
-        if (blastData && !blastData.error) setBlastRadiusData(blastData);
-      } catch (err) {
-        console.warn('Error loading data:', err);
-        setError('Failed to load blast radius data. Please check that the Threat engine is running.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadInitialData();
-  }, []);
-
-  const handleSearch = async (e) => {
-    e.preventDefault();
-    if (!searchInput.trim()) return;
-
+  const loadData = useCallback(async (resourceUid) => {
     try {
       setLoading(true);
       setError(null);
-      const data = await getFromEngine('threat', `/api/v1/graph/blast-radius/${encodeURIComponent(searchInput)}`, {});
-      if (data && !data.error) {
-        setBlastRadiusData(data);
-        setSelectedNode(null);
+      setSelectedNode(null);
+
+      const params = {};
+      if (resourceUid) params.resource_uid = resourceUid;
+
+      const data = await fetchView('threats/blast-radius', params);
+
+      if (data?.error) {
+        setError(data.error);
+        setPageData(null);
       } else {
-        setError(`No blast radius data found for: ${searchInput}`);
+        setPageData(data);
       }
     } catch (err) {
-      setError(`Failed to load blast radius for: ${searchInput}`);
+      setError(err instanceof Error ? err.message : 'Failed to load blast radius data.');
+      setPageData(null);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const stats = graphSummary || {
-    total_nodes: 0,
-    internet_exposed_count: 0,
-    avg_blast_radius: 0,
-    resources_with_threats: 0,
-  };
+  // Initial load
+  useEffect(() => {
+    loadData(initialResourceUid || undefined);
+  }, [loadData, initialResourceUid]);
+
+  // Search handler
+  const handleSearch = useCallback(
+    (e) => {
+      if (e) e.preventDefault();
+      if (searchInput.trim()) {
+        loadData(searchInput.trim());
+      } else {
+        loadData(undefined);
+      }
+    },
+    [searchInput, loadData],
+  );
+
+  // ---- Derive graph data structures from BFF response ----
+
+  const { graphNodes, graphEdges, kpi, blastRadius, internetExposed } = useMemo(() => {
+    if (!pageData) {
+      return { graphNodes: [], graphEdges: [], kpi: null, blastRadius: null, internetExposed: [] };
+    }
+
+    const kpi = pageData.kpi || null;
+    const blast = pageData.blastRadius || null;
+    const exposed = pageData.internetExposed || [];
+
+    if (!blast || !blast.sourceResource) {
+      return { graphNodes: [], graphEdges: [], kpi, blastRadius: blast, internetExposed: exposed };
+    }
+
+    // Build nodes: source + reachable
+    const src = blast.sourceResource;
+    const reachable = blast.reachableResources || [];
+
+    const nodes = [
+      {
+        id: 0,
+        uid: src.uid,
+        resourceType: src.resourceType,
+        resourceName: src.resourceName || (src.uid ? src.uid.split(':').pop() : 'Source'),
+        riskScore: src.riskScore ?? 0,
+        hops: 0,
+        threats: 0,
+        findingCount: 0,
+        isSource: true,
+      },
+      ...reachable.map((r, i) => ({
+        id: i + 1,
+        uid: r.uid,
+        resourceType: r.resourceType || '',
+        resourceName: r.resourceName || (r.uid ? r.uid.split(':').pop() : `Resource ${i + 1}`),
+        riskScore: r.riskScore ?? 0,
+        hops: r.hops ?? 1,
+        threats: r.threats ?? 0,
+        findingCount: r.findingCount ?? 0,
+        region: r.region || '',
+        isSource: false,
+      })),
+    ];
+
+    // Build edges: source -> hop 1, hop N -> hop N+1 (deterministic, not random)
+    const edgesArr = [];
+    const uidToIdx = new Map(nodes.map((n, i) => [n.uid, i]));
+
+    // Connect source to every hop-1 node
+    nodes.forEach((n, i) => {
+      if (n.hops === 1) {
+        edgesArr.push({ source: 0, target: i });
+      }
+    });
+
+    // Connect hop N to hop N+1 (pair by order)
+    const byHop = {};
+    nodes.forEach((n, i) => {
+      if (i === 0) return;
+      const h = n.hops || 1;
+      if (!byHop[h]) byHop[h] = [];
+      byHop[h].push(i);
+    });
+
+    const hopLevels = Object.keys(byHop).map(Number).sort((a, b) => a - b);
+    for (let hi = 0; hi < hopLevels.length - 1; hi++) {
+      const currentLevel = byHop[hopLevels[hi]];
+      const nextLevel = byHop[hopLevels[hi + 1]];
+      if (!currentLevel || !nextLevel) continue;
+      // Distribute next-level nodes across current-level nodes
+      nextLevel.forEach((targetIdx, j) => {
+        const sourceIdx = currentLevel[j % currentLevel.length];
+        edgesArr.push({ source: sourceIdx, target: targetIdx });
+      });
+    }
+
+    return { graphNodes: nodes, graphEdges: edgesArr, kpi, blastRadius: blast, internetExposed: exposed };
+  }, [pageData]);
+
+  // ---- Render ----
+
+  const kpiCards = useMemo(() => {
+    const k = kpi || {};
+    return [
+      { title: 'Total Nodes', value: k.totalNodes ?? 0, icon: <Network className="w-5 h-5" />, color: 'blue', subtitle: 'Resources in graph' },
+      { title: 'Internet Exposed', value: k.internetExposed ?? 0, icon: <Globe className="w-5 h-5" />, color: 'red', subtitle: 'Publicly accessible' },
+      { title: 'High Risk', value: k.resourcesWithThreats ?? 0, icon: <AlertTriangle className="w-5 h-5" />, color: 'orange', subtitle: 'Active threats detected' },
+      { title: 'Edges', value: graphEdges.length, icon: <Zap className="w-5 h-5" />, color: 'purple', subtitle: 'Resource relationships' },
+    ];
+  }, [kpi, graphEdges.length]);
+
+  // Depth distribution chart data
+  const depthDistribution = blastRadius?.depthDistribution || null;
 
   return (
-    <div className="min-h-screen bg-[var(--bg-primary)] p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-[var(--text-primary)] mb-2">Blast Radius Analysis</h1>
-          <p className="text-[var(--text-secondary)]">
-            Visualize the impact radius of resources and identify cascading security risks across your cloud infrastructure.
-          </p>
-        </div>
-
-        {/* KPI Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <KpiCard
-            title="Total Nodes"
-            value={stats.total_nodes}
-            description="Resources in graph"
-            icon={Shield}
-            trend="stable"
-          />
-          <KpiCard
-            title="Internet-Exposed"
-            value={stats.internet_exposed_count}
-            description="Publicly accessible"
-            icon={AlertTriangle}
-            trend="down"
-            trendValue="-2"
-          />
-          <KpiCard
-            title="Avg Blast Radius"
-            value={stats.avg_blast_radius.toFixed(1)}
-            description="Reachable resources"
-            icon={Zap}
-            trend="up"
-            trendValue="+5"
-          />
-          <KpiCard
-            title="With Threats"
-            value={stats.resources_with_threats}
-            description="Active threats detected"
-            icon={AlertTriangle}
-            trend="up"
-            trendValue="+1"
-          />
-        </div>
-
-        {/* Search Bar */}
-        <form onSubmit={handleSearch} className="mb-8">
-          <div className="relative flex gap-3">
-            <div className="flex-1 relative">
-              <input
-                type="text"
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Enter resource ARN or UID to analyze blast radius..."
-                className="w-full px-4 py-3 bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] placeholder-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
-              />
-              <Search className="absolute right-4 top-3.5 text-[var(--text-secondary)] pointer-events-none" size={20} />
-            </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-6 py-3 bg-[var(--accent-primary)] text-white rounded-lg font-medium hover:bg-[var(--accent-primary)]/90 disabled:opacity-50 transition-colors flex items-center gap-2"
-            >
-              <ChevronRight size={18} />
-              Analyze
-            </button>
+    <div className="min-h-screen p-6 lg:p-8" style={{ backgroundColor: 'var(--bg-primary)' }}>
+      <div className="max-w-[1600px] mx-auto space-y-6">
+        {/* Header + Breadcrumb */}
+        <div>
+          <div className="flex items-center gap-2 text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>
+            <a href="/threats" className="hover:underline">Threats</a>
+            <ChevronRight className="w-3 h-3" />
+            <span style={{ color: 'var(--text-primary)' }}>Blast Radius</span>
           </div>
-          {error && <p className="text-[var(--accent-danger)] text-sm mt-2">{error}</p>}
-        </form>
-
-        {/* Main Content */}
-        {blastRadiusData ? (
-          <div className="grid grid-cols-1 gap-8">
-            {/* Graph Visualization */}
-            <div className="relative">
-              <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-4">
-                Blast Radius: {blastRadiusData.source_resource.resource_type.split('::')[1]}
-              </h2>
-              <BlastRadiusGraph
-                data={blastRadiusData}
-                onNodeClick={setSelectedNode}
-                selectedNodeUid={selectedNode?.uid}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Blast Radius</h1>
+              <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
+                Visualize downstream impact from a compromised resource.
+              </p>
+            </div>
+            <form onSubmit={handleSearch} className="flex gap-2 w-full sm:w-auto">
+              <SearchBar
+                value={searchInput}
+                onChange={setSearchInput}
+                placeholder="Enter resource ARN or UID..."
+                style={{ minWidth: 280, flex: 1 }}
               />
-              {selectedNode && (
-                <ResourceDetailPanel resource={selectedNode} onClose={() => setSelectedNode(null)} />
-              )}
+              <button
+                type="submit"
+                disabled={loading}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-1.5 flex-shrink-0"
+              >
+                <Search className="w-4 h-4" />
+                Analyze
+              </button>
+            </form>
+          </div>
+        </div>
+
+        {/* Threats Sub-Navigation */}
+        <ThreatsSubNav />
+
+        {/* Error banner */}
+        {error && (
+          <div className="flex items-center gap-3 px-4 py-3 rounded-lg border border-red-500/30 bg-red-500/10">
+            <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0" />
+            <p className="text-sm text-red-400">{error}</p>
+          </div>
+        )}
+
+        {/* Loading state */}
+        {loading && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="h-28 rounded-xl animate-pulse" style={{ backgroundColor: 'var(--bg-card)' }} />
+              ))}
+            </div>
+            <LoadingSkeleton rows={6} cols={3} />
+          </div>
+        )}
+
+        {/* Empty state */}
+        {!loading && !error && !pageData && (
+          <EmptyState
+            icon={<Network className="w-12 h-12" />}
+            title="No Blast Radius Data"
+            description="Enter a resource ARN or UID above to analyze its blast radius, or wait for the BFF view to return summary data."
+          />
+        )}
+
+        {/* Main content */}
+        {!loading && pageData && (
+          <>
+            {/* KPI Strip */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {kpiCards.map((card) => (
+                <KpiCard
+                  key={card.title}
+                  title={card.title}
+                  value={card.value}
+                  subtitle={card.subtitle}
+                  icon={card.icon}
+                  color={card.color}
+                />
+              ))}
             </div>
 
-            {/* Bottom Row - Charts and Tables */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <DepthChart distribution={blastRadiusData.depth_distribution} />
-              <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-lg p-6">
-                <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4">Blast Radius Summary</h3>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[var(--text-secondary)]">Total Reachable Resources</span>
-                    <span className="text-2xl font-bold text-[var(--accent-primary)]">
-                      {blastRadiusData.reachable_count}
+            {/* Two-column layout: Graph + Detail */}
+            {graphNodes.length > 0 ? (
+              <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6">
+                {/* Left: Force Graph */}
+                <div>
+                  <h2 className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>
+                    {blastRadius?.sourceResource?.resourceName
+                      ? `Blast Radius: ${blastRadius.sourceResource.resourceName}`
+                      : 'Blast Radius Graph'}
+                    <span className="ml-2 text-xs font-normal" style={{ color: 'var(--text-secondary)' }}>
+                      ({graphNodes.length} nodes, {graphEdges.length} edges)
                     </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-[var(--text-secondary)]">Resources with Threats</span>
-                    <span className="text-2xl font-bold text-[var(--accent-danger)]">
-                      {blastRadiusData.resources_with_threats}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-[var(--text-secondary)]">Max Hop Distance</span>
-                    <span className="text-2xl font-bold text-[var(--accent-warning)]">
-                      {Math.max(...Object.keys(blastRadiusData.depth_distribution).map(Number))}
-                    </span>
-                  </div>
+                  </h2>
+                  <ForceGraph
+                    nodes={graphNodes}
+                    edges={graphEdges}
+                    selectedId={selectedNode?.uid}
+                    onNodeClick={setSelectedNode}
+                  />
+                </div>
+
+                {/* Right: Detail Panel */}
+                <div className="lg:sticky lg:top-6 self-start">
+                  {selectedNode ? (
+                    <DetailPanel
+                      node={selectedNode}
+                      allNodes={graphNodes}
+                      onClose={() => setSelectedNode(null)}
+                    />
+                  ) : (
+                    <div
+                      className="rounded-xl border p-8 flex flex-col items-center justify-center text-center"
+                      style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)', minHeight: 300 }}
+                    >
+                      <Shield className="w-10 h-10 mb-3" style={{ color: 'var(--text-secondary)' }} />
+                      <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
+                        Click a node in the graph to view details
+                      </p>
+                      <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
+                        Resource type, risk score, threats, and connected resources will appear here.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
+            ) : (
+              <EmptyState
+                icon={<Network className="w-12 h-12" />}
+                title="No Graph Data"
+                description="The blast radius response did not include graph nodes. Try searching for a specific resource ARN."
+              />
+            )}
+
+            {/* Below graph: Depth distribution + Internet exposed table */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Depth Distribution Chart */}
+              {depthDistribution && Object.keys(depthDistribution).length > 0 && (
+                <DepthDistributionChart distribution={depthDistribution} />
+              )}
+
+              {/* Blast Radius Summary card */}
+              {blastRadius && (
+                <div className="rounded-xl border p-6" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+                  <h3 className="text-sm font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>Blast Radius Summary</h3>
+                  <div className="space-y-4">
+                    {[
+                      { label: 'Total Reachable', value: blastRadius.reachableCount ?? 0, color: '#3b82f6' },
+                      { label: 'Resources with Threats', value: blastRadius.resourcesWithThreats ?? 0, color: '#ef4444' },
+                      {
+                        label: 'Max Hop Distance',
+                        value: depthDistribution
+                          ? Math.max(...Object.keys(depthDistribution).map(Number), 0)
+                          : 0,
+                        color: '#f97316',
+                      },
+                      { label: 'Average Blast Radius', value: kpi?.avgBlastRadius != null ? Number(kpi.avgBlastRadius).toFixed(1) : '0', color: '#8b5cf6' },
+                    ].map((item) => (
+                      <div key={item.label} className="flex items-center justify-between">
+                        <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{item.label}</span>
+                        <span className="text-xl font-bold" style={{ color: item.color }}>{item.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Internet Exposed Table */}
             {internetExposed && internetExposed.length > 0 && (
-              <InternetExposedTable resources={internetExposed} />
+              <div>
+                <h2 className="text-sm font-semibold mb-3 flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                  <Globe className="w-4 h-4 text-red-400" />
+                  Internet-Exposed Resources
+                  <span className="text-xs font-normal px-2 py-0.5 rounded-full bg-red-500/15 text-red-400">
+                    {internetExposed.length}
+                  </span>
+                </h2>
+                <DataTable
+                  data={internetExposed}
+                  columns={internetExposedColumns}
+                  pageSize={10}
+                  emptyMessage="No internet-exposed resources found."
+                />
+              </div>
             )}
-          </div>
-        ) : loading ? (
-          <div className="flex items-center justify-center h-96 text-[var(--text-secondary)]">
-            Loading blast radius data...
-          </div>
-        ) : null}
+          </>
+        )}
       </div>
     </div>
   );

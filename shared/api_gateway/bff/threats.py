@@ -1,7 +1,8 @@
 """BFF view: /threats page.
 
 Consolidates threat + onboarding into 2 BFF calls using /ui-data endpoints.
-Adds: provider enrichment, trend fallback, risk_score backfill, MITRE matrix.
+Threat ui-data now returns DETECTIONS (grouped threats with risk scores),
+not atomic findings.
 """
 
 import random
@@ -39,29 +40,28 @@ async def view_threats(
     region: Optional[str] = Query(None),
     scan_run_id: str = Query("latest"),
 ):
-    """BFF view for /threats page — single endpoint for entire page."""
+    """BFF view for /threats page — detection-level data."""
 
     results = await fetch_many([
         ("threat", "/api/v1/threat/ui-data", {
             "tenant_id": tenant_id,
             "scan_run_id": scan_run_id,
-            "limit": "200",
+            "limit": "1000",
             "days": "30",
         }),
-        ("onboarding", "/api/v1/onboarding/ui-data", {
+        ("onboarding", "/api/v1/cloud-accounts", {
             "tenant_id": tenant_id,
         }),
     ])
 
     threat_data, onboarding_data = results
 
-    # Safely handle None responses
     if not isinstance(threat_data, dict):
         threat_data = {}
     if not isinstance(onboarding_data, dict):
         onboarding_data = {}
 
-    # Build account->provider mapping from onboarding ui-data
+    # Build account->provider mapping from onboarding
     raw_accounts = (
         safe_get(onboarding_data, "accounts", None)
         or safe_get(onboarding_data, "cloud_accounts", None)
@@ -77,33 +77,46 @@ async def view_threats(
             if not default_provider:
                 default_provider = prov
 
-    # Extract threats list from ui-data response
-    raw = (
-        safe_get(threat_data, "threats", [])
-        or safe_get(threat_data, "findings", [])
-        or safe_get(threat_data, "data", [])
-    )
+    # Extract threats (detections) from ui-data
+    raw = safe_get(threat_data, "threats", []) or []
     threats = [normalize_threat(t) for t in raw]
     _enrich_threats_provider(threats, account_provider_map, default_provider)
 
     filtered = apply_global_filters(threats, provider, account, region)
 
-    # KPI
-    total = len(filtered)
-    critical = sum(1 for t in filtered if t["severity"] == "critical")
-    high = sum(1 for t in filtered if t["severity"] == "high")
-    medium = sum(1 for t in filtered if t["severity"] == "medium")
-    low = sum(1 for t in filtered if t["severity"] == "low")
-    active = sum(1 for t in filtered if t["status"] == "active")
-    unassigned = sum(1 for t in filtered if not t.get("assignee"))
-    risk_scores = [t.get("risk_score", 0) for t in filtered if t.get("risk_score")]
-    avg_risk = round(sum(risk_scores) / len(risk_scores), 1) if risk_scores else 0
+    # KPI — use engine summary (detection-level counts)
+    engine_summary = safe_get(threat_data, "summary", {})
+    if isinstance(engine_summary, dict) and engine_summary.get("total_detections", 0) > 0:
+        total = engine_summary.get("total_detections", 0)
+        critical = engine_summary.get("critical", 0)
+        high = engine_summary.get("high", 0)
+        medium = engine_summary.get("medium", 0)
+        low = engine_summary.get("low", 0)
+        avg_risk = engine_summary.get("avg_risk_score", 0)
+        total_findings = engine_summary.get("total_findings", 0)
+        # Apply global filters if set
+        if provider or account or region:
+            total = len(filtered)
+            critical = sum(1 for t in filtered if t["severity"] == "critical")
+            high = sum(1 for t in filtered if t["severity"] == "high")
+            medium = sum(1 for t in filtered if t["severity"] == "medium")
+            low = sum(1 for t in filtered if t["severity"] == "low")
+    else:
+        total = len(filtered)
+        critical = sum(1 for t in filtered if t["severity"] == "critical")
+        high = sum(1 for t in filtered if t["severity"] == "high")
+        medium = sum(1 for t in filtered if t["severity"] == "medium")
+        low = sum(1 for t in filtered if t["severity"] == "low")
+        avg_risk = 0
+        total_findings = engine_summary.get("total_findings", 0) or engine_summary.get("total", 0)
 
-    # MITRE matrix — prefer engine-provided mitre_matrix, fall back to building from threats
+    risk_scores = [t.get("risk_score", 0) for t in filtered if t.get("risk_score")]
+    if risk_scores:
+        avg_risk = round(sum(risk_scores) / len(risk_scores), 1)
+
+    # MITRE matrix
     engine_mitre = safe_get(threat_data, "mitre_matrix", [])
     if engine_mitre and isinstance(engine_mitre, list):
-        # Engine returns list of {technique_id, technique_name, tactics: [...], count, severity_base}
-        # Note: "tactics" is plural (list) — one technique can belong to multiple tactics
         mitre_matrix: Dict[str, list] = {}
         for entry in engine_mitre:
             tactics_raw = entry.get("tactics") or entry.get("tactic") or []
@@ -128,13 +141,13 @@ async def view_threats(
         if not mitre_matrix:
             mitre_matrix = build_mitre_matrix_from_raw(raw)
 
-    # Attack chains from ui-data
+    # Attack paths
     raw_chains = safe_get(threat_data, "attack_paths", [])
     if not isinstance(raw_chains, list):
         raw_chains = []
     chains = [normalize_attack_chain(ap) for ap in raw_chains]
 
-    # Threat intel from ui-data
+    # Threat intel
     raw_intel = safe_get(threat_data, "threat_intel", [])
     if not isinstance(raw_intel, list):
         raw_intel = []
@@ -143,7 +156,7 @@ async def view_threats(
     # Severity chart
     sev_counts = {"critical": critical, "high": high, "medium": medium, "low": low}
 
-    # Trend — prefer engine-provided trend, then synthetic fallback
+    # Trend
     engine_trend = safe_get(threat_data, "trend", [])
     trend_list = []
     if isinstance(engine_trend, list) and engine_trend:
@@ -158,17 +171,6 @@ async def view_threats(
                     "total": t.get("total", 0) or sum(
                         t.get(s, 0) for s in sev_counts
                     ),
-                })
-    elif isinstance(engine_trend, dict):
-        for date_str in sorted(engine_trend.keys()):
-            day_data = engine_trend[date_str]
-            if isinstance(day_data, dict):
-                sev_d = day_data.get("by_severity", {})
-                trend_list.append({
-                    "date": date_str,
-                    "critical": sev_d.get("critical", 0), "high": sev_d.get("high", 0),
-                    "medium": sev_d.get("medium", 0), "low": sev_d.get("low", 0),
-                    "total": day_data.get("total_threats", 0) or sum(sev_d.get(s, 0) for s in sev_counts),
                 })
 
     # Synthetic trend fallback
@@ -195,11 +197,53 @@ async def view_threats(
         p = (t.get("provider") or "UNKNOWN").upper()
         by_provider[p] = by_provider.get(p, 0) + 1
 
+    # Top services from engine
+    raw_top_services = safe_get(threat_data, "top_services", [])
+    if isinstance(raw_top_services, list) and raw_top_services:
+        top_services = [
+            {"service": s.get("service", ""), "total": s.get("count", 0)}
+            for s in raw_top_services[:5]
+        ]
+    else:
+        # Fallback: aggregate from threats
+        by_service: Dict[str, int] = {}
+        for t in raw:
+            svc = t.get("resource_type") or t.get("service") or "unknown"
+            by_service[svc] = by_service.get(svc, 0) + 1
+        top_services = sorted(
+            [{"service": k, "total": v} for k, v in by_service.items()],
+            key=lambda x: x["total"],
+            reverse=True,
+        )[:5]
+
+    # Enrich threats with attack path / internet exposed flags
+    attack_path_uids: set = set()
+    for ap in raw_chains:
+        for res in ap.get("resources", []):
+            uid = res if isinstance(res, str) else (res.get("resource_uid") or res.get("id", ""))
+            if uid:
+                attack_path_uids.add(uid)
+
+    internet_exposed_uids: set = set()
+    raw_exposed = safe_get(threat_data, "internet_exposed", {})
+    if isinstance(raw_exposed, dict):
+        for exp in raw_exposed.get("resources", []):
+            uid = exp if isinstance(exp, str) else (exp.get("resource_uid") or exp.get("id", ""))
+            if uid:
+                internet_exposed_uids.add(uid)
+
+    for t in filtered:
+        t_resource = t.get("resource_uid", "")
+        t["hasAttackPath"] = bool(t_resource and t_resource in attack_path_uids)
+        t["isInternetExposed"] = bool(t_resource and t_resource in internet_exposed_uids)
+
     return {
         "kpi": {
             "total": total, "critical": critical, "high": high,
-            "medium": medium, "low": low, "active": active,
-            "unassigned": unassigned, "avgRiskScore": avg_risk,
+            "medium": medium, "low": low,
+            "avgRiskScore": avg_risk,
+            "totalFindings": total_findings,
+            "byVerdict": engine_summary.get("by_verdict", {}),
         },
         "threats": filtered,
         "total": total,
@@ -209,4 +253,5 @@ async def view_threats(
         "severityChart": severity_chart(sev_counts),
         "trendData": trend_list,
         "byProvider": by_provider,
+        "topServices": top_services,
     }

@@ -67,6 +67,10 @@ CREATE TABLE IF NOT EXISTS threat_findings (
     mitre_techniques JSONB DEFAULT '[]',
     evidence JSONB NOT NULL DEFAULT '{}'::jsonb,
     finding_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+    assignee VARCHAR(255) DEFAULT NULL,
+    notes TEXT DEFAULT NULL,
+    status_changed_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    status_changed_by VARCHAR(255) DEFAULT NULL,
     first_seen_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -243,6 +247,9 @@ CREATE INDEX IF NOT EXISTS idx_tf_rule_id ON threat_findings(rule_id);
 CREATE INDEX IF NOT EXISTS idx_tf_resource_uid ON threat_findings(resource_uid);
 CREATE INDEX IF NOT EXISTS idx_tf_threat_category ON threat_findings(threat_category);
 CREATE INDEX IF NOT EXISTS idx_tf_account_region ON threat_findings(account_id, region);
+CREATE INDEX IF NOT EXISTS idx_tf_assignee ON threat_findings(assignee) WHERE assignee IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_tf_status ON threat_findings(status);
+CREATE INDEX IF NOT EXISTS idx_tf_status_changed ON threat_findings(status_changed_at DESC) WHERE status_changed_at IS NOT NULL;
 
 -- MITRE reference indexes
 CREATE INDEX IF NOT EXISTS idx_mitre_technique ON mitre_technique_reference(technique_id);

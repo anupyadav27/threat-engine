@@ -10,6 +10,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY engines/datasec/data_security_engine/ ./data_security_engine/
 COPY engines/datasec/config/ ./config/
 COPY engines/datasec/scripts/ ./scripts/
+
+# Run scan entry point (for K8s Job execution)
+COPY engines/datasec/run_scan.py ./run_scan.py
+
 COPY shared/common/ ./engine_common/
 COPY shared/database/ ./consolidated_services/
 

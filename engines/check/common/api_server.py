@@ -15,21 +15,19 @@ Request modes:
   2. Ad-hoc    — supply discovery_scan_id + tenant_id + hierarchy_id directly.
 """
 
-import asyncio
 import os
 import sys
-import uuid
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 # engine_common is one level above engine_check/
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-from engine_common.logger import LogContext, setup_logger
+from engine_common.logger import setup_logger
 from engine_common.orchestration import get_orchestration_metadata
+from engine_common.job_creator import create_engine_job
 
 # Common layer
 from common.database.database_manager import DatabaseManager
@@ -88,14 +86,18 @@ def _get_health_db() -> Optional[DatabaseManager]:
     return _health_db
 
 
-# ── In-memory scan registry ──────────────────────────────────────────────────
+# ── Scanner Job config ───────────────────────────────────────────────────────
 
-scans: Dict[str, Dict] = {}
+SCANNER_IMAGE = os.getenv("CHECK_SCANNER_IMAGE", "yadavanup84/engine-check:v-job")
+SCANNER_CPU_REQUEST = os.getenv("SCANNER_CPU_REQUEST", "500m")
+SCANNER_MEM_REQUEST = os.getenv("SCANNER_MEM_REQUEST", "2Gi")
+SCANNER_CPU_LIMIT = os.getenv("SCANNER_CPU_LIMIT", "1")
+SCANNER_MEM_LIMIT = os.getenv("SCANNER_MEM_LIMIT", "4Gi")
+
 metrics: Dict[str, Any] = {
     "total_scans": 0,
     "successful_scans": 0,
     "failed_scans": 0,
-    "total_duration_seconds": 0,
 }
 
 
@@ -170,91 +172,24 @@ def _default_services(provider: str) -> List[str]:
         return []
 
 
-# ── Background task ───────────────────────────────────────────────────────────
-
-
-def _run_check_sync(check_scan_id: str, request: CheckRequest) -> None:
-    """Execute check scan synchronously (runs in a thread pool)."""
-    with LogContext(tenant_id=request.tenant_id, scan_run_id=check_scan_id):
-        start = datetime.now(timezone.utc)
-        try:
-            # No authenticate() — DB-only engine
-            evaluator = _get_evaluator(request.provider)
-            db_manager = DatabaseManager()
-            engine = CheckEngine(evaluator=evaluator, db_manager=db_manager)
-
-            services = request.include_services or _default_services(request.provider)
-
-            results = engine.run_check_scan(
-                discovery_scan_id=request.discovery_scan_id,
-                check_scan_id=check_scan_id,
-                customer_id=request.customer_id or "default",
-                tenant_id=request.tenant_id or "default-tenant",
-                provider=request.provider,
-                hierarchy_id=request.hierarchy_id or request.discovery_scan_id or "",
-                hierarchy_type=request.hierarchy_type,
-                services=services,
-                check_source=request.check_source,
-            )
-
-            duration = (datetime.now(timezone.utc) - start).total_seconds()
-            scans[check_scan_id].update(
-                {
-                    "status": "completed",
-                    "results": results,
-                    "completed_at": datetime.now(timezone.utc).isoformat(),
-                }
-            )
-            metrics["successful_scans"] += 1
-            metrics["total_duration_seconds"] += duration
-
-            logger.info(
-                "Check scan completed: %s — %d checks in %.1fs",
-                check_scan_id,
-                results.get("total_checks", 0),
-                duration,
-            )
-
-        except CheckEvaluationError as exc:
-            logger.error("Check evaluation error for %s: %s", check_scan_id, exc)
-            scans[check_scan_id].update(
-                {"status": "failed", "error": str(exc), "completed_at": datetime.now(timezone.utc).isoformat()}
-            )
-            metrics["failed_scans"] += 1
-
-        except Exception as exc:
-            logger.error("Check scan failed: %s", check_scan_id, exc_info=True)
-            scans[check_scan_id].update(
-                {"status": "failed", "error": str(exc), "completed_at": datetime.now(timezone.utc).isoformat()}
-            )
-            metrics["failed_scans"] += 1
-
-
-async def _run_check(check_scan_id: str, request: CheckRequest) -> None:
-    """Offload to thread pool — keeps event loop free."""
-    await asyncio.to_thread(_run_check_sync, check_scan_id, request)
-
-
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 
 @app.post("/api/v1/scan", response_model=CheckResponse)
-async def create_check(request: CheckRequest, background_tasks: BackgroundTasks):
+async def create_check(request: CheckRequest):
     """
-    Start a compliance check scan.
+    Start a compliance check scan by creating a K8s Job on a spot node.
 
     **Pipeline mode** — provide `orchestration_id`:
-      Fetches tenant_id, hierarchy_id, discovery_scan_id, and provider from
-      the scan_orchestration table. No credentials needed.
+      Fetches metadata from scan_orchestration table.
 
     **Ad-hoc mode** — provide `discovery_scan_id`:
-      Uses the supplied discovery_scan_id with optional tenant/hierarchy overrides.
+      Uses the supplied discovery_scan_id with optional overrides.
     """
-    check_scan_id = str(uuid.uuid4())
     orch_id = request.orchestration_id or request.scan_run_id
+    check_scan_id = orch_id
 
     if orch_id:
-        # ── Pipeline mode ────────────────────────────────────────────────────
         meta = await _fetch_orchestration(orch_id)
 
         discovery_scan_id = meta.get("discovery_scan_id")
@@ -265,103 +200,145 @@ async def create_check(request: CheckRequest, background_tasks: BackgroundTasks)
             )
 
         provider = meta.get("provider") or meta.get("provider_type", "aws")
-        account_id = meta.get("account_id")
-
-        request.orchestration_id = orch_id
-        request.discovery_scan_id = discovery_scan_id
-        request.tenant_id = request.tenant_id or meta.get("tenant_id", "default-tenant")
-        request.customer_id = request.customer_id or meta.get("customer_id", "default")
-        request.provider = provider
-        request.hierarchy_id = (
-            request.hierarchy_id or meta.get("hierarchy_id") or account_id or ""
-        )
-        request.hierarchy_type = meta.get("hierarchy_type", "account")
-        request.include_services = request.include_services or meta.get("include_services")
-
-        logger.info(
-            "Pipeline mode: orch=%s disc=%s provider=%s",
-            orch_id, discovery_scan_id, provider,
-        )
+        logger.info("Pipeline mode: orch=%s disc=%s provider=%s", orch_id, discovery_scan_id, provider)
 
     elif request.discovery_scan_id:
-        # ── Ad-hoc mode ──────────────────────────────────────────────────────
         logger.info("Ad-hoc mode: discovery_scan_id=%s", request.discovery_scan_id)
+        if not orch_id:
+            raise HTTPException(
+                status_code=400,
+                detail="orchestration_id required for Job-based execution",
+            )
 
     else:
         raise HTTPException(
             status_code=400,
-            detail="Either orchestration_id or discovery_scan_id must be provided",
+            detail="orchestration_id is required",
         )
 
     # Validate provider
-    if request.provider.lower() not in PROVIDER_EVALUATORS:
+    provider = (request.provider or "aws").lower()
+    if provider not in PROVIDER_EVALUATORS:
         supported = ", ".join(PROVIDER_EVALUATORS)
         raise HTTPException(
             status_code=400,
-            detail=f"Provider '{request.provider}' not supported. Supported: {supported}",
+            detail=f"Provider '{provider}' not supported. Supported: {supported}",
         )
 
-    # Register scan
-    scans[check_scan_id] = {
-        "status": "running",
-        "provider": request.provider,
-        "discovery_scan_id": request.discovery_scan_id,
-        "started_at": datetime.now(timezone.utc).isoformat(),
-    }
-    metrics["total_scans"] += 1
+    # Resolve metadata for report row
+    tenant_id = request.tenant_id or "default-tenant"
+    customer_id = request.customer_id or "default"
+    disc_scan_id = request.discovery_scan_id or ""
+    hierarchy_id = request.hierarchy_id or ""
 
-    background_tasks.add_task(_run_check, check_scan_id, request)
+    # Pre-create check_report row in DB (so status endpoint works immediately)
+    try:
+        import json as _json
+        conn = _get_check_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                """INSERT INTO check_report
+                   (check_scan_id, customer_id, tenant_id, provider, discovery_scan_id,
+                    hierarchy_id, status, scan_timestamp, metadata)
+                   VALUES (%s, %s, %s, %s, %s, %s, 'running', NOW(), %s)
+                   ON CONFLICT (check_scan_id) DO UPDATE SET status = 'running'""",
+                (check_scan_id, customer_id, tenant_id, provider,
+                 disc_scan_id, hierarchy_id,
+                 _json.dumps({"orchestration_id": orch_id, "mode": "job"})),
+            )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning(f"Failed to pre-create check_report: {e}")
+
+    # Create K8s Job on spot node
+    try:
+        job_name = create_engine_job(
+            engine_name="check",
+            scan_id=check_scan_id,
+            orchestration_id=orch_id,
+            image=SCANNER_IMAGE,
+            cpu_request=SCANNER_CPU_REQUEST,
+            mem_request=SCANNER_MEM_REQUEST,
+            cpu_limit=SCANNER_CPU_LIMIT,
+            mem_limit=SCANNER_MEM_LIMIT,
+            active_deadline_seconds=3600,
+        )
+    except Exception as e:
+        logger.error(f"Failed to create check scanner Job: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to create scanner Job: {e}")
+
+    metrics["total_scans"] += 1
 
     return CheckResponse(
         check_scan_id=check_scan_id,
         status="running",
-        message=f"Check scan started for provider: {request.provider}",
+        message=f"Scanner Job '{job_name}' created on spot node (image={SCANNER_IMAGE})",
         orchestration_id=orch_id,
-        provider=request.provider,
+        provider=provider,
     )
 
 
 @app.get("/api/v1/check/{check_scan_id}/status")
 async def get_check_status(check_scan_id: str):
-    """Get status and summary for a check scan."""
-    if check_scan_id not in scans:
+    """Get check scan status from check_report DB table."""
+    from psycopg2.extras import RealDictCursor
+    try:
+        conn = _get_check_conn()
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                "SELECT check_scan_id, status, provider, discovery_scan_id, scan_timestamp, metadata "
+                "FROM check_report WHERE check_scan_id = %s",
+                (check_scan_id,),
+            )
+            row = cur.fetchone()
+        conn.close()
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Database error: {e}")
+
+    if not row:
         raise HTTPException(status_code=404, detail="Check scan not found")
-    data = scans[check_scan_id]
+
     return {
-        "check_scan_id": check_scan_id,
-        "status": data["status"],
-        "provider": data.get("provider"),
-        "discovery_scan_id": data.get("discovery_scan_id"),
-        "error": data.get("error"),
-        "started_at": data.get("started_at"),
-        "completed_at": data.get("completed_at"),
-        "results": data.get("results"),
+        "check_scan_id": row["check_scan_id"],
+        "status": row["status"],
+        "provider": row.get("provider"),
+        "discovery_scan_id": row.get("discovery_scan_id"),
+        "started_at": str(row.get("scan_timestamp", "")),
     }
 
 
 @app.get("/api/v1/checks")
 async def list_checks(
+    tenant_id: str = Query(...),
     status: Optional[str] = Query(None),
     provider: Optional[str] = Query(None),
-    discovery_scan_id: Optional[str] = Query(None),
     limit: int = Query(50, ge=1, le=1000),
 ):
-    """List check scans with optional filters."""
-    result = [
-        {
-            "check_scan_id": sid,
-            "status": d.get("status"),
-            "provider": d.get("provider"),
-            "discovery_scan_id": d.get("discovery_scan_id"),
-            "started_at": d.get("started_at"),
-            "completed_at": d.get("completed_at"),
-        }
-        for sid, d in scans.items()
-        if (not status or d.get("status") == status)
-        and (not provider or d.get("provider") == provider)
-        and (not discovery_scan_id or d.get("discovery_scan_id") == discovery_scan_id)
-    ]
-    return {"scans": result[:limit], "total": len(result)}
+    """List check scans from DB."""
+    from psycopg2.extras import RealDictCursor
+    try:
+        conn = _get_check_conn()
+        conditions = ["tenant_id = %s"]
+        params: list = [tenant_id]
+        if status:
+            conditions.append("status = %s")
+            params.append(status)
+        if provider:
+            conditions.append("provider = %s")
+            params.append(provider.lower())
+        where = " AND ".join(conditions)
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                f"SELECT check_scan_id, status, provider, discovery_scan_id, scan_timestamp "
+                f"FROM check_report WHERE {where} ORDER BY scan_timestamp DESC LIMIT %s",
+                params + [limit],
+            )
+            rows = cur.fetchall()
+        conn.close()
+        return {"scans": rows, "total": len(rows)}
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Database error: {e}")
 
 
 @app.get("/api/v1/providers")

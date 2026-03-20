@@ -1000,6 +1000,7 @@ class InventoryDBLoader:
                 discovered_uids = [row[0] for row in cur.fetchall()]
         except Exception as e:
             logger.warning(f"Graph BFS CTE failed: {e}")
+            self.conn.rollback()
             return {"nodes": [], "relationships": [], "exposure": []}
 
         if not discovered_uids:
@@ -1012,7 +1013,7 @@ class InventoryDBLoader:
                 cur.execute(
                     """SELECT DISTINCT ON (resource_uid)
                        resource_uid, name, resource_type, provider,
-                       account_id, region, tags, metadata, config_hash
+                       account_id, region, tags, labels, properties, configuration
                     FROM inventory_findings
                     WHERE tenant_id = %s AND resource_uid = ANY(%s)
                     ORDER BY resource_uid, updated_at DESC""",
@@ -1021,6 +1022,7 @@ class InventoryDBLoader:
                 nodes = [dict(r) for r in cur.fetchall()]
         except Exception as e:
             logger.warning(f"Graph BFS asset load failed: {e}")
+            self.conn.rollback()
 
         # Step 4: Load ALL relationships where both endpoints are discovered
         relationships = []
@@ -1038,6 +1040,7 @@ class InventoryDBLoader:
                 relationships = [dict(r) for r in cur.fetchall()]
         except Exception as e:
             logger.warning(f"Graph BFS relationship load failed: {e}")
+            self.conn.rollback()
 
         # Step 5: Load global-service assets referenced by discovered relationships
         global_nodes = []
@@ -1046,7 +1049,7 @@ class InventoryDBLoader:
                 cur.execute(
                     """SELECT DISTINCT ON (f.resource_uid)
                        f.resource_uid, f.name, f.resource_type, f.provider,
-                       f.account_id, f.region, f.tags, f.metadata
+                       f.account_id, f.region, f.tags, f.properties, f.configuration
                     FROM inventory_findings f
                     WHERE f.tenant_id = %s
                       AND f.resource_uid IN (
@@ -1066,6 +1069,7 @@ class InventoryDBLoader:
                 global_nodes = [dict(r) for r in cur.fetchall()]
         except Exception as e:
             logger.warning(f"Graph BFS global services load failed: {e}")
+            self.conn.rollback()
 
         # Also load relationships TO global nodes
         global_uids = [n["resource_uid"] for n in global_nodes]
@@ -1126,7 +1130,7 @@ class InventoryDBLoader:
                     cur.execute(
                         """SELECT DISTINCT ON (resource_uid)
                                resource_uid, name, resource_type, provider,
-                               account_id, region, tags, metadata, config_hash
+                               account_id, region, tags, properties, configuration
                         FROM inventory_findings
                         WHERE tenant_id = %s
                           AND resource_uid != ALL(%s)

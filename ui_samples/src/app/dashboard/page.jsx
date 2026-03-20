@@ -20,6 +20,7 @@ import {
   Filter,
   ChevronRight,
 } from 'lucide-react';
+import Link from 'next/link';
 import { fetchView } from '@/lib/api';
 import { useGlobalFilter } from '@/lib/global-filter-context';
 import KpiCard from '@/components/shared/KpiCard';
@@ -706,6 +707,71 @@ export default function DashboardPage() {
           {(!activeCloudProviders || activeCloudProviders.length === 0) ? (
             <p className="col-span-3 text-sm text-center py-4" style={{ color: 'var(--text-tertiary)' }}>No cloud provider data available</p>
           ) : activeCloudProviders.map((p) => renderCloudProviderCard(p))}
+        </div>
+      </div>
+
+      {/* ── Threats Summary Card ──────────────────────────────────────────── */}
+      <div className="rounded-xl border overflow-hidden"
+        style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+        <div className="px-6 py-4 border-b flex items-center justify-between"
+          style={{ borderColor: 'var(--border-primary)' }}>
+          <div className="flex items-center gap-2">
+            <Shield className="w-5 h-5" style={{ color: '#ef4444' }} />
+            <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
+              Threats Overview
+            </h2>
+          </div>
+          <Link href="/threats" className="text-xs flex items-center gap-1 font-semibold"
+            style={{ color: 'var(--accent-primary)' }}>
+            View All Threats <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
+        <div className="px-6 py-5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+            <div className="rounded-lg p-4 border"
+              style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)' }}>
+              <p className="text-2xl font-bold" style={{ color: '#ef4444' }}>
+                {kpiData.activeThreats ?? 0}
+              </p>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Active Threats</p>
+            </div>
+            <div className="rounded-lg p-4 border"
+              style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)' }}>
+              <p className="text-2xl font-bold" style={{ color: '#f97316' }}>
+                {kpiData.criticalHighFindings ?? 0}
+              </p>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Critical + High Findings</p>
+            </div>
+            <div className="rounded-lg p-4 border"
+              style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)' }}>
+              <p className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
+                {kpiData.attackSurfaceScore ?? 0}
+              </p>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Attack Surface Score</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <Link href="/threats"
+              className="text-xs flex items-center gap-1 font-semibold hover:opacity-80 transition-opacity"
+              style={{ color: 'var(--accent-primary)' }}>
+              View All Threats <ArrowRight className="w-3 h-3" />
+            </Link>
+            <Link href="/threats/attack-paths"
+              className="text-xs flex items-center gap-1 font-semibold hover:opacity-80 transition-opacity"
+              style={{ color: 'var(--accent-primary)' }}>
+              Attack Paths <ArrowRight className="w-3 h-3" />
+            </Link>
+            <Link href="/threats/internet-exposed"
+              className="text-xs flex items-center gap-1 font-semibold hover:opacity-80 transition-opacity"
+              style={{ color: 'var(--accent-primary)' }}>
+              Internet Exposed <ArrowRight className="w-3 h-3" />
+            </Link>
+            <Link href="/threats/analytics"
+              className="text-xs flex items-center gap-1 font-semibold hover:opacity-80 transition-opacity"
+              style={{ color: 'var(--accent-primary)' }}>
+              Analytics <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
         </div>
       </div>
 

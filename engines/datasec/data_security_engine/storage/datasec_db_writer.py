@@ -27,6 +27,100 @@ def _get_datasec_db_connection():
     )
 
 
+def save_module_results_to_db(
+    datasec_scan_id: str,
+    tenant_id: str,
+    provider: str,
+    module_results: Dict[str, List],
+    summary: Dict[str, Any],
+) -> None:
+    """
+    Save ModuleResult objects from the new modular architecture.
+    Updates datasec_report with summary, inserts datasec_findings per result.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    conn = _get_datasec_db_connection()
+    now = datetime.now(timezone.utc)
+
+    try:
+        with conn.cursor() as cur:
+            # Ensure tenant
+            cur.execute(
+                "INSERT INTO tenants (tenant_id, tenant_name) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                (tenant_id, tenant_id),
+            )
+
+            # Update report with summary
+            cur.execute("""
+                UPDATE datasec_report SET
+                    total_findings = %s,
+                    datasec_relevant_findings = %s,
+                    findings_by_module = %s::jsonb,
+                    report_data = %s::jsonb,
+                    status = 'completed',
+                    generated_at = %s
+                WHERE datasec_scan_id = %s
+            """, (
+                summary.get("total_findings", 0),
+                summary.get("findings_by_status", {}).get("FAIL", 0),
+                json.dumps(summary.get("findings_by_module", {})),
+                json.dumps(summary),
+                now,
+                datasec_scan_id,
+            ))
+
+            # Insert findings from all modules
+            count = 0
+            for category, results in module_results.items():
+                for r in results:
+                    if r.status == "PASS":
+                        continue  # Only store failures
+                    finding_id = f"ds_{uuid.uuid4().hex[:16]}"
+                    cur.execute("""
+                        INSERT INTO datasec_findings (
+                            finding_id, datasec_scan_id, tenant_id,
+                            rule_id, datasec_modules, severity, status,
+                            resource_type, resource_uid,
+                            data_classification, sensitivity_score,
+                            finding_data, first_seen_at, last_seen_at
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
+                        ON CONFLICT (finding_id) DO NOTHING
+                    """, (
+                        finding_id,
+                        datasec_scan_id,
+                        tenant_id,
+                        r.rule_id,
+                        [r.category],
+                        r.severity,
+                        r.status,
+                        r.resource_type,
+                        r.resource_uid,
+                        r.sensitive_data_types,
+                        r.confidence,
+                        json.dumps({
+                            "title": r.title,
+                            "description": r.description,
+                            "remediation": r.remediation,
+                            "evidence": r.evidence,
+                            "compliance_frameworks": r.compliance_frameworks,
+                        }, default=str),
+                        now,
+                        now,
+                    ))
+                    count += 1
+
+        conn.commit()
+        logger.info(f"Saved {count} datasec findings to DB for scan {datasec_scan_id}")
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
 def save_datasec_report_to_db(report: Dict[str, Any]) -> str:
     """
     Save data security report to database.

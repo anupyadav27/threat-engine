@@ -68,6 +68,10 @@ CREATE TABLE IF NOT EXISTS threat_findings (
     mitre_techniques JSONB DEFAULT '[]',
     evidence JSONB NOT NULL DEFAULT '{}'::jsonb,
     finding_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+    assignee VARCHAR(255) DEFAULT NULL,
+    notes TEXT DEFAULT NULL,
+    status_changed_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    status_changed_by VARCHAR(255) DEFAULT NULL,
     first_seen_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

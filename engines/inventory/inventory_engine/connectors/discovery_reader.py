@@ -38,6 +38,7 @@ class DiscoveryReader:
         self,
         scan_id: str,
         account_id: Optional[str] = None,
+        account_ids: Optional[list] = None,
         region: Optional[str] = None,
         service: Optional[str] = None
     ) -> Iterator[Dict[str, Any]]:

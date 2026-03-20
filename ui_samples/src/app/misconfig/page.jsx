@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   AlertTriangle, Shield, ShieldAlert, ShieldCheck, Search,
   RefreshCw, X, ChevronRight, ExternalLink, Copy, Check,
-  Download, FileSpreadsheet, Filter,
+  Download, FileSpreadsheet, Filter, ArrowRight,
 } from 'lucide-react';
 import { useGlobalFilter } from '@/lib/global-filter-context';
 import DataTable from '@/components/shared/DataTable';
@@ -698,6 +699,25 @@ export default function MisconfigurationsPage() {
           <span className="text-xs" style={{ color: ago > 30 ? '#ef4444' : 'var(--text-muted)' }}>
             {ago}d ago
           </span>
+        );
+      },
+    },
+    {
+      id: 'threat_link',
+      header: '',
+      size: 100,
+      enableSorting: false,
+      cell: (info) => {
+        const ruleId = info.row.original.rule_id;
+        return (
+          <Link
+            href={`/threats?search=${encodeURIComponent(ruleId || '')}`}
+            className="inline-flex items-center gap-1 text-xs font-medium hover:opacity-80 transition-opacity whitespace-nowrap"
+            style={{ color: 'var(--accent-primary)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            View Threat <ArrowRight className="w-3 h-3" />
+          </Link>
         );
       },
     },

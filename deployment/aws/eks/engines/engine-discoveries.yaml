@@ -81,18 +81,13 @@ spec:
               key: ONBOARDING_DB_PASSWORD
         - name: ORCHESTRATION_ENABLED
           value: "true"
-        volumeMounts:
-        - name: output
-          mountPath: /output
-        - name: input
-          mountPath: /input
         resources:
           requests:
-            memory: "1Gi"
-            cpu: "500m"
+            memory: "256Mi"
+            cpu: "100m"
           limits:
-            memory: "3500Mi"
-            cpu: "1500m"
+            memory: "512Mi"
+            cpu: "500m"
         livenessProbe:
           httpGet:
             path: /api/v1/health/live
@@ -110,76 +105,7 @@ spec:
           timeoutSeconds: 5
           failureThreshold: 6
 
-      # S3 sync sidecar - syncs output to S3 and downloads input from S3 (rules, etc.)
-      - name: s3-sync
-        image: amazon/aws-cli:latest
-        command: ["/bin/sh", "-c"]
-        args:
-          - |
-            echo "S3 Sync Sidecar starting..."
-            echo "Bucket: s3://${S3_BUCKET}"
-            echo "Input: s3://${S3_BUCKET}/engine_input/${ENGINE_NAME}/ -> /input"
-            echo "Output: /output -> s3://${S3_BUCKET}/engine_output/${ENGINE_NAME}/"
-            
-            # Initial sync of input from S3 (optional)
-            if aws s3 ls "s3://${S3_BUCKET}/engine_input/${ENGINE_NAME}/" 2>/dev/null; then
-              echo "Syncing input from S3..."
-              aws s3 sync "s3://${S3_BUCKET}/engine_input/${ENGINE_NAME}/" /input --region ${AWS_REGION} || true
-            else
-              echo "No input data in S3 yet"
-            fi
-            
-            # Continuous sync loop
-            while true; do
-              # Sync output TO S3 (every 30s)
-              if [ -d "/output" ] && [ "$(ls -A /output 2>/dev/null)" ]; then
-                echo "$(date): Syncing output to S3..."
-                aws s3 sync /output "s3://${S3_BUCKET}/engine_output/${ENGINE_NAME}/" \
-                  --region ${AWS_REGION} \
-                  --exclude "*.tmp" \
-                  --exclude "*.lock" \
-                  --delete || echo "Sync failed, retrying..."
-              fi
-              
-              # Sync input FROM S3 (every 5 minutes for rule updates)
-              if [ $((SECONDS % 300)) -eq 0 ]; then
-                aws s3 sync "s3://${S3_BUCKET}/engine_input/${ENGINE_NAME}/" /input \
-                  --region ${AWS_REGION} 2>/dev/null || true
-              fi
-              
-              sleep 30
-            done
-        env:
-        - name: S3_BUCKET
-          valueFrom:
-            configMapKeyRef:
-              name: s3-mount-config
-              key: s3-bucket
-        - name: AWS_REGION
-          valueFrom:
-            configMapKeyRef:
-              name: s3-mount-config
-              key: s3-region
-        - name: ENGINE_NAME
-          value: "discoveries"
-        volumeMounts:
-        - name: output
-          mountPath: /output
-        - name: input
-          mountPath: /input
-        resources:
-          requests:
-            memory: "64Mi"
-            cpu: "25m"
-          limits:
-            memory: "256Mi"
-            cpu: "200m"
-
-      volumes:
-      - name: output
-        emptyDir: {}
-      - name: input
-        emptyDir: {}
+      # No sidecar needed — discoveries writes directly to DB
 ---
 apiVersion: v1
 kind: Service

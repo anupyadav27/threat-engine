@@ -27,7 +27,7 @@ async def view_reports(
 
     results = await fetch_many([
         ("compliance", "/api/v1/compliance/ui-data", {"tenant_id": tenant_id, "scan_id": "latest"}),
-        ("onboarding", "/api/v1/onboarding/ui-data", {"tenant_id": tenant_id}),
+        ("onboarding", "/api/v1/cloud-accounts", {"tenant_id": tenant_id}),
     ])
 
     compliance_data, onboarding_data = results

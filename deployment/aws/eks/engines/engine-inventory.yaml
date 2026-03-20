@@ -25,7 +25,7 @@ spec:
       serviceAccountName: engine-sa
       containers:
       - name: engine-inventory
-        image: yadavanup84/inventory-engine:v12-graph-enrich
+        image: yadavanup84/inventory-engine:v-refactor
         imagePullPolicy: Always
         ports:
         - containerPort: 8022
@@ -75,34 +75,54 @@ spec:
               optional: true
         - name: PORT
           value: "8022"
-        - name: S3_BUCKET
-          valueFrom:
-            configMapKeyRef:
-              name: s3-mount-config
-              key: s3-bucket
-        - name: AWS_REGION
-          valueFrom:
-            configMapKeyRef:
-              name: s3-mount-config
-              key: s3-region
-        - name: OUTPUT_DIR
-          value: "/output"
         - name: ENGINE_NAME
           value: "inventory"
         - name: USE_DATABASE
           value: "true"
-        volumeMounts:
-        - name: output
-          mountPath: /output
-        - name: input
-          mountPath: /input
+        # ── Scanner Job config ────────────────────────────────────────────
+        - name: INVENTORY_SCANNER_IMAGE
+          value: "yadavanup84/inventory-engine:v-refactor"
+        - name: SCANNER_CPU_REQUEST
+          value: "250m"
+        - name: SCANNER_MEM_REQUEST
+          value: "1Gi"
+        - name: SCANNER_CPU_LIMIT
+          value: "1"
+        - name: SCANNER_MEM_LIMIT
+          value: "2Gi"
+        # ── Onboarding DB (for orchestration metadata) ────────────────────
+        - name: ONBOARDING_DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: threat-engine-db-config
+              key: ONBOARDING_DB_HOST
+        - name: ONBOARDING_DB_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: threat-engine-db-config
+              key: ONBOARDING_DB_PORT
+        - name: ONBOARDING_DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: threat-engine-db-config
+              key: ONBOARDING_DB_NAME
+        - name: ONBOARDING_DB_USER
+          valueFrom:
+            configMapKeyRef:
+              name: threat-engine-db-config
+              key: ONBOARDING_DB_USER
+        - name: ONBOARDING_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: ONBOARDING_DB_PASSWORD
         resources:
           requests:
-            memory: "256Mi"
+            memory: "128Mi"
             cpu: "100m"
           limits:
-            memory: "1Gi"
-            cpu: "500m"
+            memory: "256Mi"
+            cpu: "250m"
         livenessProbe:
           httpGet:
             path: /api/v1/health/live
@@ -117,48 +137,6 @@ spec:
           initialDelaySeconds: 10
           periodSeconds: 10
           failureThreshold: 3
-
-      - name: s3-sync
-        image: amazon/aws-cli:latest
-        command: ["/bin/sh", "-c"]
-        args:
-          - |
-            while true; do
-              if [ -d "/output" ] && [ "$(ls -A /output 2>/dev/null)" ]; then
-                aws s3 sync /output "s3://${S3_BUCKET}/engine_output/${ENGINE_NAME}/" \
-                  --region ${AWS_REGION} --exclude "*.tmp" --exclude "*.lock" --delete 2>/dev/null
-              fi
-              sleep 30
-            done
-        env:
-        - name: S3_BUCKET
-          valueFrom:
-            configMapKeyRef:
-              name: s3-mount-config
-              key: s3-bucket
-        - name: AWS_REGION
-          valueFrom:
-            configMapKeyRef:
-              name: s3-mount-config
-              key: s3-region
-        - name: ENGINE_NAME
-          value: "inventory"
-        volumeMounts:
-        - name: output
-          mountPath: /output
-        resources:
-          requests:
-            memory: "64Mi"
-            cpu: "25m"
-          limits:
-            memory: "128Mi"
-            cpu: "100m"
-
-      volumes:
-      - name: output
-        emptyDir: {}
-      - name: input
-        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
