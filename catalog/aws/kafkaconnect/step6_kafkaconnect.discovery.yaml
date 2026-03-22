@@ -1,0 +1,166 @@
+# ============================================================
+# Discovery YAML — kafkaconnect (AWS)
+# Generated: 2026-02-21T04:56:58Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: kafkaconnect
+services:
+  client: kafkaconnect
+  module: boto3.client
+discovery:
+  # ── ListConnectors ──
+  - discovery_id: aws.kafkaconnect.list_connectors
+    calls:
+      - action: list_connectors
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.connectors }}'
+      item:
+        Status: '{{ item.Status }}'
+        Enabled: '{{ item.Enabled }}'
+        capacity: '{{ item.capacity }}'
+        connectorArn: '{{ item.connectorArn }}'
+        connectorDescription: '{{ item.connectorDescription }}'
+        connectorName: '{{ item.connectorName }}'
+        connectorState: '{{ item.connectorState }}'
+        creationTime: '{{ item.creationTime }}'
+        currentVersion: '{{ item.currentVersion }}'
+        customPlugin: '{{ item.customPlugin }}'
+        endTime: '{{ item.endTime }}'
+        kafkaCluster: '{{ item.kafkaCluster }}'
+        kafkaClusterClientAuthentication: '{{ item.kafkaClusterClientAuthentication }}'
+        kafkaClusterEncryptionInTransit: '{{ item.kafkaClusterEncryptionInTransit }}'
+        kafkaConnectVersion: '{{ item.kafkaConnectVersion }}'
+        logDelivery: '{{ item.logDelivery }}'
+        plugins: '{{ item.plugins }}'
+        serviceExecutionRoleArn: '{{ item.serviceExecutionRoleArn }}'
+        stateDescription: '{{ item.stateDescription }}'
+        workerConfiguration: '{{ item.workerConfiguration }}'
+  # ── ListCustomPlugins ──
+  - discovery_id: aws.kafkaconnect.list_custom_plugins
+    calls:
+      - action: list_custom_plugins
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.customPlugins }}'
+      item:
+        creationTime: '{{ item.creationTime }}'
+        customPluginArn: '{{ item.customPluginArn }}'
+        customPluginState: '{{ item.customPluginState }}'
+        description: '{{ item.description }}'
+        latestRevision: '{{ item.latestRevision }}'
+        name: '{{ item.name }}'
+  # ── ListWorkerConfigurations ──
+  - discovery_id: aws.kafkaconnect.list_worker_configurations
+    calls:
+      - action: list_worker_configurations
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.workerConfigurations }}'
+      item:
+        creationTime: '{{ item.creationTime }}'
+        description: '{{ item.description }}'
+        latestRevision: '{{ item.latestRevision }}'
+        name: '{{ item.name }}'
+        workerConfigurationArn: '{{ item.workerConfigurationArn }}'
+        workerConfigurationState: '{{ item.workerConfigurationState }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── DescribeConnector ──
+  - discovery_id: aws.kafkaconnect.describe_connector
+    for_each: aws.kafkaconnect.list_connectors
+    calls:
+      - action: describe_connector
+        params:
+          connectorArn: '{{ item.connectorArn }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.plugins }}'
+      item:
+        customPlugin: '{{ item.customPlugin }}'
+        stateDescription: '{{ item.stateDescription }}'
+  # ── DescribeConnectorOperation ──
+  - discovery_id: aws.kafkaconnect.describe_connector_operation
+    calls:
+      - action: describe_connector_operation
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.operationSteps }}'
+      item:
+        stepState: '{{ item.stepState }}'
+        stepType: '{{ item.stepType }}'
+  # ── DescribeCustomPlugin ──
+  - discovery_id: aws.kafkaconnect.describe_custom_plugin
+    for_each: aws.kafkaconnect.list_custom_plugins
+    calls:
+      - action: describe_custom_plugin
+        params:
+          customPluginArn: '{{ item.customPluginArn }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.latestRevision }}'
+      item:
+        contentType: '{{ item.contentType }}'
+        creationTime: '{{ item.creationTime }}'
+        description: '{{ item.description }}'
+        fileDescription: '{{ item.fileDescription }}'
+        location: '{{ item.location }}'
+        revision: '{{ item.revision }}'
+  # ── DescribeWorkerConfiguration ──
+  - discovery_id: aws.kafkaconnect.describe_worker_configuration
+    for_each: aws.kafkaconnect.list_worker_configurations
+    calls:
+      - action: describe_worker_configuration
+        params:
+          workerConfigurationArn: '{{ item.workerConfigurationArn }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.connectors }}'
+      item:
+        creationTime: '{{ item.creationTime }}'
+        description: '{{ item.description }}'
+        propertiesFileContent: '{{ item.propertiesFileContent }}'
+        revision: '{{ item.revision }}'
+  # ── ListConnectorOperations ──
+  - discovery_id: aws.kafkaconnect.list_connector_operations
+    for_each: aws.kafkaconnect.list_connectors
+    calls:
+      - action: list_connector_operations
+        params:
+          connectorArn: '{{ item.connectorArn }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.connectorOperations }}'
+      item:
+        connectorOperationArn: '{{ item.connectorOperationArn }}'
+        connectorOperationState: '{{ item.connectorOperationState }}'
+        connectorOperationType: '{{ item.connectorOperationType }}'
+        creationTime: '{{ item.creationTime }}'
+        endTime: '{{ item.endTime }}'
+  # ── ListTagsForResource ──
+  - discovery_id: aws.kafkaconnect.list_tags_for_resource
+    calls:
+      - action: list_tags_for_resource
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        tags: '{{ response.tags }}'

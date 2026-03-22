@@ -1,0 +1,243 @@
+# ============================================================
+# Discovery YAML — looker (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 8 | independent: 5 | dependent: 3
+# ops with fields: 8/8 | dep ops with chain: 3/3
+# ============================================================
+version: '1.0'
+provider: gcp
+service: looker
+
+services:
+  client: looker
+  module: "googleapiclient.discovery.build('looker', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Gets information about a location.
+  # ── gcp.looker.projects.locations.get ──
+  - discovery_id: gcp.looker.projects.locations.get
+    # python: svc.projects().locations().get(**params).execute()
+    calls:
+      - action: projects.locations.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        displayName: '{{ response.displayName }}'
+        labels: '{{ response.labels }}'
+        locationId: '{{ response.locationId }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+  # List backups of Looker instance.
+  # ── gcp.looker.projects.locations.instances.backups.list ──
+  - discovery_id: gcp.looker.projects.locations.instances.backups.list
+    # python: svc.projects().locations().instances().backups().list(**params).execute()
+    calls:
+      - action: projects.locations.instances.backups.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.backups }}'
+      item:
+        createTime: '{{ item.createTime }}'
+        encryptionConfig: '{{ item.encryptionConfig }}'
+        expireTime: '{{ item.expireTime }}'
+        name: '{{ item.name }}'
+        state: '{{ item.state }}'
+  # Lists Instances in a given project and location.
+  # ── gcp.looker.projects.locations.instances.list ──
+  - discovery_id: gcp.looker.projects.locations.instances.list
+    # python: svc.projects().locations().instances().list(**params).execute()
+    calls:
+      - action: projects.locations.instances.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.instances }}'
+      item:
+        adminSettings: '{{ item.adminSettings }}'
+        catalogIntegrationEnabled: '{{ item.catalogIntegrationEnabled }}'
+        classType: '{{ item.classType }}'
+        consumerNetwork: '{{ item.consumerNetwork }}'
+        controlledEgressConfig: '{{ item.controlledEgressConfig }}'
+        controlledEgressEnabled: '{{ item.controlledEgressEnabled }}'
+        createTime: '{{ item.createTime }}'
+        customDomain: '{{ item.customDomain }}'
+        denyMaintenancePeriod: '{{ item.denyMaintenancePeriod }}'
+        egressPublicIp: '{{ item.egressPublicIp }}'
+        encryptionConfig: '{{ item.encryptionConfig }}'
+        fipsEnabled: '{{ item.fipsEnabled }}'
+        geminiEnabled: '{{ item.geminiEnabled }}'
+        ingressPrivateIp: '{{ item.ingressPrivateIp }}'
+        ingressPublicIp: '{{ item.ingressPublicIp }}'
+        lastDenyMaintenancePeriod: '{{ item.lastDenyMaintenancePeriod }}'
+        linkedLspProjectNumber: '{{ item.linkedLspProjectNumber }}'
+        lookerUri: '{{ item.lookerUri }}'
+        lookerVersion: '{{ item.lookerVersion }}'
+        maintenanceSchedule: '{{ item.maintenanceSchedule }}'
+        maintenanceWindow: '{{ item.maintenanceWindow }}'
+        name: '{{ item.name }}'
+        oauthConfig: '{{ item.oauthConfig }}'
+        periodicExportConfig: '{{ item.periodicExportConfig }}'
+        platformEdition: '{{ item.platformEdition }}'
+        privateIpEnabled: '{{ item.privateIpEnabled }}'
+        pscConfig: '{{ item.pscConfig }}'
+        pscEnabled: '{{ item.pscEnabled }}'
+        publicIpEnabled: '{{ item.publicIpEnabled }}'
+        reservedRange: '{{ item.reservedRange }}'
+        satisfiesPzi: '{{ item.satisfiesPzi }}'
+        satisfiesPzs: '{{ item.satisfiesPzs }}'
+        softDeleteReason: '{{ item.softDeleteReason }}'
+        state: '{{ item.state }}'
+        suspendedTime: '{{ item.suspendedTime }}'
+        updateTime: '{{ item.updateTime }}'
+        userMetadata: '{{ item.userMetadata }}'
+  # Lists information about the supported locations for this service.
+  # ── gcp.looker.projects.locations.list ──
+  - discovery_id: gcp.looker.projects.locations.list
+    # python: svc.projects().locations().list(**params).execute()
+    calls:
+      - action: projects.locations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.locations }}'
+      item:
+        displayName: '{{ item.displayName }}'
+        labels: '{{ item.labels }}'
+        locationId: '{{ item.locationId }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+  # Lists operations that match the specified filter in the request. If the server doesn't support this 
+  # ── gcp.looker.projects.locations.operations.list ──
+  - discovery_id: gcp.looker.projects.locations.operations.list
+    # python: svc.projects().locations().operations().list(**params).execute()
+    calls:
+      - action: projects.locations.operations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.operations }}'
+      item:
+        done: '{{ item.done }}'
+        error: '{{ item.error }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+        response: '{{ item.response }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── gcp.looker.projects.locations.instances.backups.get [dependent] ──
+  - discovery_id: gcp.looker.projects.locations.instances.backups.get
+    for_each: gcp.looker.projects.locations.instances.backups.list
+    # python: svc.projects().locations().instances().backups().get(**params).execute()
+    calls:
+      - action: projects.locations.instances.backups.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        createTime: '{{ response.createTime }}'
+        encryptionConfig: '{{ response.encryptionConfig }}'
+        expireTime: '{{ response.expireTime }}'
+        name: '{{ response.name }}'
+        state: '{{ response.state }}'
+    # required_params: ['name']
+  # Gets details of a single Instance.
+  # ── gcp.looker.projects.locations.instances.get [dependent] ──
+  - discovery_id: gcp.looker.projects.locations.instances.get
+    for_each: gcp.looker.projects.locations.instances.list
+    # python: svc.projects().locations().instances().get(**params).execute()
+    calls:
+      - action: projects.locations.instances.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        adminSettings: '{{ response.adminSettings }}'
+        catalogIntegrationEnabled: '{{ response.catalogIntegrationEnabled }}'
+        classType: '{{ response.classType }}'
+        consumerNetwork: '{{ response.consumerNetwork }}'
+        controlledEgressConfig: '{{ response.controlledEgressConfig }}'
+        controlledEgressEnabled: '{{ response.controlledEgressEnabled }}'
+        createTime: '{{ response.createTime }}'
+        customDomain: '{{ response.customDomain }}'
+        denyMaintenancePeriod: '{{ response.denyMaintenancePeriod }}'
+        egressPublicIp: '{{ response.egressPublicIp }}'
+        encryptionConfig: '{{ response.encryptionConfig }}'
+        fipsEnabled: '{{ response.fipsEnabled }}'
+        geminiEnabled: '{{ response.geminiEnabled }}'
+        ingressPrivateIp: '{{ response.ingressPrivateIp }}'
+        ingressPublicIp: '{{ response.ingressPublicIp }}'
+        lastDenyMaintenancePeriod: '{{ response.lastDenyMaintenancePeriod }}'
+        linkedLspProjectNumber: '{{ response.linkedLspProjectNumber }}'
+        lookerUri: '{{ response.lookerUri }}'
+        lookerVersion: '{{ response.lookerVersion }}'
+        maintenanceSchedule: '{{ response.maintenanceSchedule }}'
+        maintenanceWindow: '{{ response.maintenanceWindow }}'
+        name: '{{ response.name }}'
+        oauthConfig: '{{ response.oauthConfig }}'
+        periodicExportConfig: '{{ response.periodicExportConfig }}'
+        platformEdition: '{{ response.platformEdition }}'
+        privateIpEnabled: '{{ response.privateIpEnabled }}'
+        pscConfig: '{{ response.pscConfig }}'
+        pscEnabled: '{{ response.pscEnabled }}'
+        publicIpEnabled: '{{ response.publicIpEnabled }}'
+        reservedRange: '{{ response.reservedRange }}'
+        satisfiesPzi: '{{ response.satisfiesPzi }}'
+        satisfiesPzs: '{{ response.satisfiesPzs }}'
+        softDeleteReason: '{{ response.softDeleteReason }}'
+        state: '{{ response.state }}'
+        suspendedTime: '{{ response.suspendedTime }}'
+        updateTime: '{{ response.updateTime }}'
+        userMetadata: '{{ response.userMetadata }}'
+    # required_params: ['name']
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.looker.projects.locations.operations.get [dependent] ──
+  - discovery_id: gcp.looker.projects.locations.operations.get
+    for_each: gcp.looker.projects.locations.operations.list
+    # python: svc.projects().locations().operations().get(**params).execute()
+    calls:
+      - action: projects.locations.operations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']

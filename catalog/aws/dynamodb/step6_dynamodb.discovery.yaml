@@ -1,0 +1,431 @@
+# ============================================================
+# Discovery YAML — dynamodb (AWS)
+# Generated: 2026-02-21T04:56:58Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: dynamodb
+services:
+  client: dynamodb
+  module: boto3.client
+discovery:
+  # ── DescribeEndpoints ──
+  - discovery_id: aws.dynamodb.describe_endpoints
+    calls:
+      - action: describe_endpoints
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Endpoints }}'
+      item:
+        Address: '{{ item.Address }}'
+        CachePeriodInMinutes: '{{ item.CachePeriodInMinutes }}'
+        Endpoints: '{{ item.Endpoints }}'
+  # ── DescribeLimits ──
+  - discovery_id: aws.dynamodb.describe_limits
+    calls:
+      - action: describe_limits
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.AccountMaxReadCapacityUnits }}'
+      item:
+        AccountMaxReadCapacityUnits: '{{ item.AccountMaxReadCapacityUnits }}'
+        AccountMaxWriteCapacityUnits: '{{ item.AccountMaxWriteCapacityUnits }}'
+        TableMaxReadCapacityUnits: '{{ item.TableMaxReadCapacityUnits }}'
+        TableMaxWriteCapacityUnits: '{{ item.TableMaxWriteCapacityUnits }}'
+  # ── ListBackups ──
+  - discovery_id: aws.dynamodb.list_backups
+    calls:
+      - action: list_backups
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.BackupSummaries }}'
+      item:
+        BackupArn: '{{ item.BackupArn }}'
+        BackupCreationDateTime: '{{ item.BackupCreationDateTime }}'
+        BackupExpiryDateTime: '{{ item.BackupExpiryDateTime }}'
+        BackupName: '{{ item.BackupName }}'
+        BackupSizeBytes: '{{ item.BackupSizeBytes }}'
+        BackupStatus: '{{ item.BackupStatus }}'
+        BackupType: '{{ item.BackupType }}'
+        TableArn: '{{ item.TableArn }}'
+        TableId: '{{ item.TableId }}'
+        TableName: '{{ item.TableName }}'
+  # ── ListContributorInsights ──
+  - discovery_id: aws.dynamodb.list_contributor_insights
+    calls:
+      - action: list_contributor_insights
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ContributorInsightsSummaries }}'
+      item:
+        ContributorInsightsMode: '{{ item.ContributorInsightsMode }}'
+        ContributorInsightsStatus: '{{ item.ContributorInsightsStatus }}'
+        IndexName: '{{ item.IndexName }}'
+        TableName: '{{ item.TableName }}'
+  # ── ListExports ──
+  - discovery_id: aws.dynamodb.list_exports
+    calls:
+      - action: list_exports
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ExportSummaries }}'
+      item:
+        ExportArn: '{{ item.ExportArn }}'
+        ExportStatus: '{{ item.ExportStatus }}'
+        ExportType: '{{ item.ExportType }}'
+  # ── ListGlobalTables ──
+  - discovery_id: aws.dynamodb.list_global_tables
+    calls:
+      - action: list_global_tables
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.GlobalTables }}'
+      item:
+        GlobalTableName: '{{ item.GlobalTableName }}'
+        ReplicationGroup: '{{ item.ReplicationGroup }}'
+  # ── ListImports ──
+  - discovery_id: aws.dynamodb.list_imports
+    calls:
+      - action: list_imports
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ImportSummaryList }}'
+      item:
+        CloudWatchLogGroupArn: '{{ item.CloudWatchLogGroupArn }}'
+        EndTime: '{{ item.EndTime }}'
+        ImportArn: '{{ item.ImportArn }}'
+        ImportStatus: '{{ item.ImportStatus }}'
+        InputFormat: '{{ item.InputFormat }}'
+        S3BucketSource: '{{ item.S3BucketSource }}'
+        StartTime: '{{ item.StartTime }}'
+        TableArn: '{{ item.TableArn }}'
+  # ── ListTables ──
+  - discovery_id: aws.dynamodb.list_tables
+    calls:
+      - action: list_tables
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.TableNames }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── DescribeBackup ──
+  - discovery_id: aws.dynamodb.describe_backup
+    for_each: aws.dynamodb.list_backups
+    calls:
+      - action: describe_backup
+        params:
+          BackupArn: '{{ item.BackupArn }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.BackupDescription }}'
+      item:
+        BackupDetails: '{{ item.BackupDetails }}'
+        SourceTableDetails: '{{ item.SourceTableDetails }}'
+        SourceTableFeatureDetails: '{{ item.SourceTableFeatureDetails }}'
+  # ── DescribeContinuousBackups ──
+  - discovery_id: aws.dynamodb.describe_continuous_backups
+    for_each: aws.dynamodb.list_backups
+    calls:
+      - action: describe_continuous_backups
+        params:
+          TableName: '{{ item.TableName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ContinuousBackupsDescription }}'
+      item:
+        ContinuousBackupsStatus: '{{ item.ContinuousBackupsStatus }}'
+        PointInTimeRecoveryDescription: '{{ item.PointInTimeRecoveryDescription }}'
+  # ── DescribeContributorInsights ──
+  - discovery_id: aws.dynamodb.describe_contributor_insights
+    for_each: aws.dynamodb.list_backups
+    calls:
+      - action: describe_contributor_insights
+        params:
+          TableName: '{{ item.TableName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ContributorInsightsRuleList }}'
+  # ── DescribeExport ──
+  - discovery_id: aws.dynamodb.describe_export
+    for_each: aws.dynamodb.list_exports
+    calls:
+      - action: describe_export
+        params:
+          ExportArn: '{{ item.ExportArn }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ExportDescription }}'
+      item:
+        BilledSizeBytes: '{{ item.BilledSizeBytes }}'
+        ClientToken: '{{ item.ClientToken }}'
+        EndTime: '{{ item.EndTime }}'
+        ExportArn: '{{ item.ExportArn }}'
+        ExportFormat: '{{ item.ExportFormat }}'
+        ExportManifest: '{{ item.ExportManifest }}'
+        ExportStatus: '{{ item.ExportStatus }}'
+        ExportTime: '{{ item.ExportTime }}'
+        ExportType: '{{ item.ExportType }}'
+        FailureCode: '{{ item.FailureCode }}'
+        FailureMessage: '{{ item.FailureMessage }}'
+        IncrementalExportSpecification: '{{ item.IncrementalExportSpecification }}'
+        ItemCount: '{{ item.ItemCount }}'
+        S3Bucket: '{{ item.S3Bucket }}'
+        S3BucketOwner: '{{ item.S3BucketOwner }}'
+        S3Prefix: '{{ item.S3Prefix }}'
+        S3SseAlgorithm: '{{ item.S3SseAlgorithm }}'
+        S3SseKmsKeyId: '{{ item.S3SseKmsKeyId }}'
+        StartTime: '{{ item.StartTime }}'
+        TableArn: '{{ item.TableArn }}'
+        TableId: '{{ item.TableId }}'
+  # ── DescribeGlobalTable ──
+  - discovery_id: aws.dynamodb.describe_global_table
+    for_each: aws.dynamodb.list_global_tables
+    calls:
+      - action: describe_global_table
+        params:
+          GlobalTableName: '{{ item.GlobalTableName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.GlobalTableDescription }}'
+      item:
+        CreationDateTime: '{{ item.CreationDateTime }}'
+        GlobalTableArn: '{{ item.GlobalTableArn }}'
+        GlobalTableName: '{{ item.GlobalTableName }}'
+        GlobalTableStatus: '{{ item.GlobalTableStatus }}'
+        ReplicationGroup: '{{ item.ReplicationGroup }}'
+  # ── DescribeGlobalTableSettings ──
+  - discovery_id: aws.dynamodb.describe_global_table_settings
+    for_each: aws.dynamodb.list_global_tables
+    calls:
+      - action: describe_global_table_settings
+        params:
+          GlobalTableName: '{{ item.GlobalTableName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ReplicaSettings }}'
+      item:
+        DestinationArn: '{{ item.DestinationArn }}'
+        Enabled: '{{ item.Enabled }}'
+        Format: '{{ item.Format }}'
+        Level: '{{ item.Level }}'
+        RegionName: '{{ item.RegionName }}'
+        ReplicaBillingModeSummary: '{{ item.ReplicaBillingModeSummary }}'
+        ReplicaGlobalSecondaryIndexSettings: '{{ item.ReplicaGlobalSecondaryIndexSettings }}'
+        ReplicaProvisionedReadCapacityAutoScalingSettings: '{{ item.ReplicaProvisionedReadCapacityAutoScalingSettings }}'
+        ReplicaProvisionedReadCapacityUnits: '{{ item.ReplicaProvisionedReadCapacityUnits }}'
+        ReplicaProvisionedWriteCapacityAutoScalingSettings: '{{ item.ReplicaProvisionedWriteCapacityAutoScalingSettings }}'
+        ReplicaProvisionedWriteCapacityUnits: '{{ item.ReplicaProvisionedWriteCapacityUnits }}'
+        ReplicaStatus: '{{ item.ReplicaStatus }}'
+        ReplicaTableClassSummary: '{{ item.ReplicaTableClassSummary }}'
+  # ── DescribeImport ──
+  - discovery_id: aws.dynamodb.describe_import
+    for_each: aws.dynamodb.list_imports
+    calls:
+      - action: describe_import
+        params:
+          ImportArn: '{{ item.ImportArn }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ExportDescription }}'
+      item:
+        ClientToken: '{{ item.ClientToken }}'
+        CloudWatchLogGroupArn: '{{ item.CloudWatchLogGroupArn }}'
+        EndTime: '{{ item.EndTime }}'
+        ErrorCount: '{{ item.ErrorCount }}'
+        FailureCode: '{{ item.FailureCode }}'
+        FailureMessage: '{{ item.FailureMessage }}'
+        ImportArn: '{{ item.ImportArn }}'
+        ImportStatus: '{{ item.ImportStatus }}'
+        ImportedItemCount: '{{ item.ImportedItemCount }}'
+        InputCompressionType: '{{ item.InputCompressionType }}'
+        InputFormat: '{{ item.InputFormat }}'
+        InputFormatOptions: '{{ item.InputFormatOptions }}'
+        ProcessedItemCount: '{{ item.ProcessedItemCount }}'
+        ProcessedSizeBytes: '{{ item.ProcessedSizeBytes }}'
+        S3BucketSource: '{{ item.S3BucketSource }}'
+        StartTime: '{{ item.StartTime }}'
+        TableArn: '{{ item.TableArn }}'
+        TableCreationParameters: '{{ item.TableCreationParameters }}'
+        TableId: '{{ item.TableId }}'
+  # ── DescribeKinesisStreamingDestination ──
+  - discovery_id: aws.dynamodb.describe_kinesis_streaming_destination
+    for_each: aws.dynamodb.list_backups
+    calls:
+      - action: describe_kinesis_streaming_destination
+        params:
+          TableName: '{{ item.TableName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.KinesisDataStreamDestinations }}'
+      item:
+        ApproximateCreationDateTimePrecision: '{{ item.ApproximateCreationDateTimePrecision }}'
+        DestinationStatus: '{{ item.DestinationStatus }}'
+        DestinationStatusDescription: '{{ item.DestinationStatusDescription }}'
+        StreamArn: '{{ item.StreamArn }}'
+  # ── DescribeTable ──
+  - discovery_id: aws.dynamodb.describe_table
+    for_each: aws.dynamodb.list_backups
+    calls:
+      - action: describe_table
+        params:
+          TableName: '{{ item.TableName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Table }}'
+      item:
+        ArchivalSummary: '{{ item.ArchivalSummary }}'
+        AttributeDefinitions: '{{ item.AttributeDefinitions }}'
+        BillingModeSummary: '{{ item.BillingModeSummary }}'
+        CreationDateTime: '{{ item.CreationDateTime }}'
+        DeletionProtectionEnabled: '{{ item.DeletionProtectionEnabled }}'
+        GlobalSecondaryIndexes: '{{ item.GlobalSecondaryIndexes }}'
+        GlobalTableVersion: '{{ item.GlobalTableVersion }}'
+        GlobalTableWitnesses: '{{ item.GlobalTableWitnesses }}'
+        ItemCount: '{{ item.ItemCount }}'
+        KeySchema: '{{ item.KeySchema }}'
+        LatestStreamArn: '{{ item.LatestStreamArn }}'
+        LatestStreamLabel: '{{ item.LatestStreamLabel }}'
+        LocalSecondaryIndexes: '{{ item.LocalSecondaryIndexes }}'
+        MultiRegionConsistency: '{{ item.MultiRegionConsistency }}'
+        OnDemandThroughput: '{{ item.OnDemandThroughput }}'
+        ProvisionedThroughput: '{{ item.ProvisionedThroughput }}'
+        Replicas: '{{ item.Replicas }}'
+        RestoreSummary: '{{ item.RestoreSummary }}'
+        SSEDescription: '{{ item.SSEDescription }}'
+        StreamSpecification: '{{ item.StreamSpecification }}'
+        TableArn: '{{ item.TableArn }}'
+        TableClassSummary: '{{ item.TableClassSummary }}'
+        TableId: '{{ item.TableId }}'
+        TableName: '{{ item.TableName }}'
+        TableSizeBytes: '{{ item.TableSizeBytes }}'
+        TableStatus: '{{ item.TableStatus }}'
+        WarmThroughput: '{{ item.WarmThroughput }}'
+  # ── DescribeTableReplicaAutoScaling ──
+  - discovery_id: aws.dynamodb.describe_table_replica_auto_scaling
+    for_each: aws.dynamodb.list_backups
+    calls:
+      - action: describe_table_replica_auto_scaling
+        params:
+          TableName: '{{ item.TableName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Table }}'
+      item:
+        Replicas: '{{ item.Replicas }}'
+        TableName: '{{ item.TableName }}'
+        TableStatus: '{{ item.TableStatus }}'
+  # ── DescribeTimeToLive ──
+  - discovery_id: aws.dynamodb.describe_time_to_live
+    for_each: aws.dynamodb.list_backups
+    calls:
+      - action: describe_time_to_live
+        params:
+          TableName: '{{ item.TableName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.TimeToLiveDescription }}'
+      item:
+        AttributeName: '{{ item.AttributeName }}'
+        TimeToLiveStatus: '{{ item.TimeToLiveStatus }}'
+  # ── GetItem ──
+  - discovery_id: aws.dynamodb.get_item
+    for_each: aws.dynamodb.list_backups
+    calls:
+      - action: get_item
+        params:
+          TableName: '{{ item.TableName }}'
+          Key: '{{ item.Key }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ConsumedCapacity }}'
+      item:
+        CapacityUnits: '{{ item.CapacityUnits }}'
+        GlobalSecondaryIndexes: '{{ item.GlobalSecondaryIndexes }}'
+        LocalSecondaryIndexes: '{{ item.LocalSecondaryIndexes }}'
+        ReadCapacityUnits: '{{ item.ReadCapacityUnits }}'
+        Table: '{{ item.Table }}'
+        TableName: '{{ item.TableName }}'
+        WriteCapacityUnits: '{{ item.WriteCapacityUnits }}'
+  # ── GetResourcePolicy ──
+  - discovery_id: aws.dynamodb.get_resource_policy
+    calls:
+      - action: get_resource_policy
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Policy }}'
+      item:
+        Policy: '{{ item.Policy }}'
+        Statement: '{{ item.Statement }}'
+        Version: '{{ item.Version }}'
+  # ── ListTagsOfResource ──
+  - discovery_id: aws.dynamodb.list_tags_of_resource
+    calls:
+      - action: list_tags_of_resource
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Tags }}'
+      item:
+        Key: '{{ item.Key }}'
+        Value: '{{ item.Value }}'
+  # ── Query ──
+  - discovery_id: aws.dynamodb.query
+    calls:
+      - action: query
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Items }}'
+  # ── Scan ──
+  - discovery_id: aws.dynamodb.scan
+    calls:
+      - action: scan
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Items }}'

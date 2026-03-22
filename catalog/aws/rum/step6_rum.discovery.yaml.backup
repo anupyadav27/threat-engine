@@ -1,0 +1,85 @@
+version: '1.0'
+provider: aws
+service: rum
+services:
+  client: rum
+  module: boto3.client
+discovery:
+- discovery_id: aws.rum.listAppMonitors
+  calls:
+  - action: listAppMonitors
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.AppMonitorSummaries }}'
+    item:
+      Name: '{{ item.Name }}'
+      Id: '{{ item.Id }}'
+      Created: '{{ item.Created }}'
+      LastModified: '{{ item.LastModified }}'
+      State: '{{ item.State }}'
+      Platform: '{{ item.Platform }}'
+- discovery_id: aws.rum.getAppMonitor
+  calls:
+  - action: getAppMonitor
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.AppMonitor }}'
+    item:
+      Name: '{{ item.Name }}'
+      Domain: '{{ item.Domain }}'
+      DomainList: '{{ item.DomainList }}'
+      Id: '{{ item.Id }}'
+      Created: '{{ item.Created }}'
+      LastModified: '{{ item.LastModified }}'
+      Tags: '{{ item.Tags }}'
+      State: '{{ item.State }}'
+      AppMonitorConfiguration: '{{ item.AppMonitorConfiguration }}'
+      DataStorage: '{{ item.DataStorage }}'
+      CustomEvents: '{{ item.CustomEvents }}'
+      DeobfuscationConfiguration: '{{ item.DeobfuscationConfiguration }}'
+      Platform: '{{ item.Platform }}'
+- discovery_id: aws.rum.getAppMonitorData
+  calls:
+  - action: getAppMonitorData
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Events }}'
+- discovery_id: aws.rum.getResourcePolicy
+  calls:
+  - action: getResourcePolicy
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.PolicyDocument }}'
+- discovery_id: aws.rum.listRumMetricsDestinations
+  calls:
+  - action: listRumMetricsDestinations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Destinations }}'
+    item:
+      Destination: '{{ item.Destination }}'
+      DestinationArn: '{{ item.DestinationArn }}'
+      IamRoleArn: '{{ item.IamRoleArn }}'
+- discovery_id: aws.rum.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ResourceArn }}'
+checks: []

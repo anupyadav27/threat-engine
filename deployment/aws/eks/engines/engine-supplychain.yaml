@@ -1,0 +1,109 @@
+# =============================================================================
+# Supply Chain Engine — K8s Manifest — Task 3.8 [Seq 70 | AD]
+# Deployment + ClusterIP Service on port 8008
+# Pipeline Layer 3 (runs after container + network engines)
+# =============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: engine-supplychain
+  namespace: threat-engine-engines
+  labels:
+    app: engine-supplychain
+    tier: layer-3
+    engine: supplychain
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: engine-supplychain
+  template:
+    metadata:
+      labels:
+        app: engine-supplychain
+        tier: layer-3
+        engine: supplychain
+    spec:
+      serviceAccountName: threat-engine-sa
+      containers:
+        - name: engine-supplychain
+          image: yadavanup84/engine-supplychain:v1.0
+          ports:
+            - containerPort: 8008
+              protocol: TCP
+          env:
+            # Database configuration (shared host)
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: db-host
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: db-port
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: external-secret-db-passwords
+                  key: db-user
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: external-secret-db-passwords
+                  key: db-password
+            # Database names
+            - name: SC_DB_NAME
+              value: threat_engine_supplychain
+            - name: DISCOVERY_DB_NAME
+              value: threat_engine_discovery
+            - name: CONTAINER_DB_NAME
+              value: threat_engine_container
+            - name: EXTERNAL_DB_NAME
+              value: threat_engine_external
+            - name: ONBOARDING_DB_NAME
+              value: threat_engine_onboarding
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health/live
+              port: 8008
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health/ready
+              port: 8008
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 5
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: engine-supplychain
+  namespace: threat-engine-engines
+  labels:
+    app: engine-supplychain
+spec:
+  type: ClusterIP
+  selector:
+    app: engine-supplychain
+  ports:
+    - name: http
+      port: 8008
+      targetPort: 8008
+      protocol: TCP

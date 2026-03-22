@@ -1,0 +1,292 @@
+# ============================================================
+# Discovery YAML — cloudasset (v1)
+# Generated: 2026-02-21T03:06:39Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 15 | independent: 4 | dependent: 11
+# ops with fields: 15/15 | dep ops with chain: 2/11
+# ============================================================
+version: '1.0'
+provider: gcp
+service: cloudasset
+
+services:
+  client: cloudasset
+  module: "googleapiclient.discovery.build('cloudasset', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists assets with time and resource types and returns paged results in response.
+  # ── gcp.cloudasset.assets.list ──
+  - discovery_id: gcp.cloudasset.assets.list
+    # python: svc.assets().list(**params).execute()
+    calls:
+      - action: assets.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.assets }}'
+      item:
+        accessLevel: '{{ item.accessLevel }}'
+        accessPolicy: '{{ item.accessPolicy }}'
+        ancestors: '{{ item.ancestors }}'
+        assetExceptions: '{{ item.assetExceptions }}'
+        assetType: '{{ item.assetType }}'
+        iamPolicy: '{{ item.iamPolicy }}'
+        name: '{{ item.name }}'
+        orgPolicy: '{{ item.orgPolicy }}'
+        osInventory: '{{ item.osInventory }}'
+        relatedAsset: '{{ item.relatedAsset }}'
+        relatedAssets: '{{ item.relatedAssets }}'
+        resource: '{{ item.resource }}'
+        servicePerimeter: '{{ item.servicePerimeter }}'
+        updateTime: '{{ item.updateTime }}'
+  # Lists all asset feeds in a parent project/folder/organization.
+  # ── gcp.cloudasset.feeds.list ──
+  - discovery_id: gcp.cloudasset.feeds.list
+    # python: svc.feeds().list(**params).execute()
+    calls:
+      - action: feeds.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.feeds }}'
+      item:
+        assetNames: '{{ item.assetNames }}'
+        assetTypes: '{{ item.assetTypes }}'
+        condition: '{{ item.condition }}'
+        contentType: '{{ item.contentType }}'
+        feedOutputConfig: '{{ item.feedOutputConfig }}'
+        name: '{{ item.name }}'
+        relationshipTypes: '{{ item.relationshipTypes }}'
+  # Lists all saved queries in a parent project/folder/organization.
+  # ── gcp.cloudasset.savedQueries.list ──
+  - discovery_id: gcp.cloudasset.savedQueries.list
+    # python: svc.savedQueries().list(**params).execute()
+    calls:
+      - action: savedQueries.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.savedQueries }}'
+      item:
+        content: '{{ item.content }}'
+        createTime: '{{ item.createTime }}'
+        creator: '{{ item.creator }}'
+        description: '{{ item.description }}'
+        labels: '{{ item.labels }}'
+        lastUpdateTime: '{{ item.lastUpdateTime }}'
+        lastUpdater: '{{ item.lastUpdater }}'
+        name: '{{ item.name }}'
+  # Batch gets the update history of assets that overlap a time window. For IAM_POLICY content, this API
+  # ── gcp.cloudasset.v1.batchGetAssetsHistory ──
+  - discovery_id: gcp.cloudasset.v1.batchGetAssetsHistory
+    # python: svc.v1().batchGetAssetsHistory(**params).execute()
+    calls:
+      - action: v1.batchGetAssetsHistory
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        assets: '{{ response.assets }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets effective IAM policies for a batch of resources.
+  # ── gcp.cloudasset.effectiveIamPolicies.batchGet [dependent] ──
+  - discovery_id: gcp.cloudasset.effectiveIamPolicies.batchGet
+    # python: svc.effectiveIamPolicies().batchGet(**params).execute()
+    calls:
+      - action: effectiveIamPolicies.batchGet
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        policyResults: '{{ response.policyResults }}'
+    # required_params: ['scope']
+  # Gets details about an asset feed.
+  # ── gcp.cloudasset.feeds.get [dependent] ──
+  - discovery_id: gcp.cloudasset.feeds.get
+    for_each: gcp.cloudasset.feeds.list
+    # python: svc.feeds().get(**params).execute()
+    calls:
+      - action: feeds.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        assetNames: '{{ response.assetNames }}'
+        assetTypes: '{{ response.assetTypes }}'
+        condition: '{{ response.condition }}'
+        contentType: '{{ response.contentType }}'
+        feedOutputConfig: '{{ response.feedOutputConfig }}'
+        name: '{{ response.name }}'
+        relationshipTypes: '{{ response.relationshipTypes }}'
+    # required_params: ['name']
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.cloudasset.operations.get [dependent] ──
+  - discovery_id: gcp.cloudasset.operations.get
+    # python: svc.operations().get(**params).execute()
+    calls:
+      - action: operations.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']
+  # Gets details about a saved query.
+  # ── gcp.cloudasset.savedQueries.get [dependent] ──
+  - discovery_id: gcp.cloudasset.savedQueries.get
+    for_each: gcp.cloudasset.savedQueries.list
+    # python: svc.savedQueries().get(**params).execute()
+    calls:
+      - action: savedQueries.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        content: '{{ response.content }}'
+        createTime: '{{ response.createTime }}'
+        creator: '{{ response.creator }}'
+        description: '{{ response.description }}'
+        labels: '{{ response.labels }}'
+        lastUpdateTime: '{{ response.lastUpdateTime }}'
+        lastUpdater: '{{ response.lastUpdater }}'
+        name: '{{ response.name }}'
+    # required_params: ['name']
+  # Analyzes IAM policies to answer which identities have what accesses on which resources.
+  # ── gcp.cloudasset.v1.analyzeIamPolicy [dependent] ──
+  - discovery_id: gcp.cloudasset.v1.analyzeIamPolicy
+    # python: svc.v1().analyzeIamPolicy(**params).execute()
+    calls:
+      - action: v1.analyzeIamPolicy
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        fullyExplored: '{{ response.fullyExplored }}'
+        mainAnalysis: '{{ response.mainAnalysis }}'
+        serviceAccountImpersonationAnalysis: '{{ response.serviceAccountImpersonationAnalysis }}'
+    # required_params: ['scope']
+  # Analyze moving a resource to a specified destination without kicking off the actual move. The analys
+  # ── gcp.cloudasset.v1.analyzeMove [dependent] ──
+  - discovery_id: gcp.cloudasset.v1.analyzeMove
+    # python: svc.v1().analyzeMove(**params).execute()
+    calls:
+      - action: v1.analyzeMove
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        moveAnalysis: '{{ response.moveAnalysis }}'
+    # required_params: ['resource']
+  # Analyzes organization policies under a scope.
+  # ── gcp.cloudasset.v1.analyzeOrgPolicies [dependent] ──
+  - discovery_id: gcp.cloudasset.v1.analyzeOrgPolicies
+    # python: svc.v1().analyzeOrgPolicies(**params).execute()
+    calls:
+      - action: v1.analyzeOrgPolicies
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        constraint: '{{ response.constraint }}'
+        orgPolicyResults: '{{ response.orgPolicyResults }}'
+    # required_params: ['scope']
+  # Analyzes organization policies governed assets (Google Cloud resources or policies) under a scope. T
+  # ── gcp.cloudasset.v1.analyzeOrgPolicyGovernedAssets [dependent] ──
+  - discovery_id: gcp.cloudasset.v1.analyzeOrgPolicyGovernedAssets
+    # python: svc.v1().analyzeOrgPolicyGovernedAssets(**params).execute()
+    calls:
+      - action: v1.analyzeOrgPolicyGovernedAssets
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        constraint: '{{ response.constraint }}'
+        governedAssets: '{{ response.governedAssets }}'
+    # required_params: ['scope']
+  # Analyzes organization policies governed containers (projects, folders or organization) under a scope
+  # ── gcp.cloudasset.v1.analyzeOrgPolicyGovernedContainers [dependent] ──
+  - discovery_id: gcp.cloudasset.v1.analyzeOrgPolicyGovernedContainers
+    # python: svc.v1().analyzeOrgPolicyGovernedContainers(**params).execute()
+    calls:
+      - action: v1.analyzeOrgPolicyGovernedContainers
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        constraint: '{{ response.constraint }}'
+        governedContainers: '{{ response.governedContainers }}'
+    # required_params: ['scope']
+  # Searches all IAM policies within the specified scope, such as a project, folder, or organization. Th
+  # ── gcp.cloudasset.v1.searchAllIamPolicies [dependent] ──
+  - discovery_id: gcp.cloudasset.v1.searchAllIamPolicies
+    # python: svc.v1().searchAllIamPolicies(**params).execute()
+    calls:
+      - action: v1.searchAllIamPolicies
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        results: '{{ response.results }}'
+    # required_params: ['scope']
+  # Searches all Google Cloud resources within the specified scope, such as a project, folder, or organi
+  # ── gcp.cloudasset.v1.searchAllResources [dependent] ──
+  - discovery_id: gcp.cloudasset.v1.searchAllResources
+    # python: svc.v1().searchAllResources(**params).execute()
+    calls:
+      - action: v1.searchAllResources
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        results: '{{ response.results }}'
+    # required_params: ['scope']

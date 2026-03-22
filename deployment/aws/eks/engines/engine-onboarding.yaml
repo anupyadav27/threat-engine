@@ -25,7 +25,7 @@ spec:
       serviceAccountName: engine-sa
       containers:
       - name: engine-onboarding
-        image: yadavanup84/threat-engine-onboarding-api:latest
+        image: yadavanup84/threat-engine-onboarding-api:v-std-cols
         imagePullPolicy: Always
         ports:
         - containerPort: 8008
@@ -92,6 +92,39 @@ spec:
             configMapKeyRef:
               name: platform-config
               key: log-level
+        # ── OpenTelemetry ─────────────────────────────────────────────────
+        - name: OTEL_SERVICE_NAME
+          value: "engine-onboarding"
+        - name: OTEL_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_ENABLED
+              optional: true
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_EXPORTER_OTLP_ENDPOINT
+              optional: true
+        - name: OTEL_EXPORTER_OTLP_INSECURE
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_EXPORTER_OTLP_INSECURE
+              optional: true
+        - name: OTEL_TRACES_SAMPLER
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_TRACES_SAMPLER
+              optional: true
+        - name: OTEL_PROPAGATORS
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_PROPAGATORS
+              optional: true
         - name: DATABASE_URL
           valueFrom:
             configMapKeyRef:
@@ -102,6 +135,19 @@ spec:
           value: "threat_engine_onboarding"
         - name: DB_SCHEMA
           value: "public"
+        # ── SQS async pipeline (optional — enables async mode when set) ──────
+        - name: SQS_PIPELINE_QUEUE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: sqs-config
+              key: SQS_PIPELINE_QUEUE_URL
+              optional: true
+        - name: SQS_EVENTS_QUEUE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: sqs-config
+              key: SQS_EVENTS_QUEUE_URL
+              optional: true
         - name: ROOT_PATH
           value: "/onboarding"
         - name: PORT
@@ -138,13 +184,13 @@ spec:
             cpu: "1000m"
         livenessProbe:
           httpGet:
-            path: /api/v1/health
+            path: /api/v1/health/live
             port: 8008
           initialDelaySeconds: 30
           periodSeconds: 10
         readinessProbe:
           httpGet:
-            path: /api/v1/health
+            path: /api/v1/health/ready
             port: 8008
           initialDelaySeconds: 10
           periodSeconds: 5

@@ -1,0 +1,46 @@
+-- ================================================================
+-- Filter Rules — MERGED INTO rule_discoveries.filter_rules
+-- ================================================================
+-- The standalone filter_rules table has been merged into the
+-- rule_discoveries table (threat_engine_check) as a JSONB column.
+--
+-- Rationale: Avoids a separate table join at runtime. The discovery
+-- engine reads all service config in a single row fetch from
+-- rule_discoveries (boto3_client_name, discoveries_data, filter_rules).
+--
+-- Column added to rule_discoveries:
+--   filter_rules JSONB DEFAULT '{}'::jsonb
+--
+-- Format stored per service row:
+--   {
+--     "api_filters": [
+--       {
+--         "discovery_id":  "aws.ec2.describe_snapshots",
+--         "filter_type":   "api_param",
+--         "api_parameter": "OwnerIds",
+--         "api_value":     ["self"],
+--         "priority":      10,
+--         "description":   "Only return snapshots owned by the account"
+--       }
+--     ],
+--     "response_filters": [
+--       {
+--         "discovery_id":  "aws.kms.list_aliases",
+--         "filter_type":   "exclude_pattern",
+--         "field_path":    "AliasName",
+--         "pattern":       "^alias/aws/",
+--         "pattern_type":  "prefix",
+--         "priority":      100,
+--         "description":   "Exclude AWS-managed KMS aliases"
+--       }
+--     ]
+--   }
+--
+-- Populated by: consolidated_services/database/scripts/sync_discoveries_to_db.py
+-- Read by:      engine_discoveries/utils/config_loader.py → get_filter_rules()
+--               engine_discoveries/utils/filter_engine.py
+--
+-- RDS migration (run once if upgrading from separate filter_rules table):
+--   ALTER TABLE rule_discoveries
+--     ADD COLUMN IF NOT EXISTS filter_rules JSONB DEFAULT '{}'::jsonb;
+-- ================================================================

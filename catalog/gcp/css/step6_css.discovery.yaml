@@ -1,0 +1,151 @@
+# ============================================================
+# Discovery YAML — css (v1)
+# Generated: 2026-02-21T03:06:39Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 6 | independent: 5 | dependent: 1
+# ops with fields: 6/6 | dep ops with chain: 1/1
+# ============================================================
+version: '1.0'
+provider: gcp
+service: css
+
+services:
+  client: css
+  module: "googleapiclient.discovery.build('css', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists the processed CSS Products in your CSS Center account. The response might contain fewer items 
+  # ── gcp.css.accounts.cssProducts.list ──
+  - discovery_id: gcp.css.accounts.cssProducts.list
+    # python: svc.accounts().cssProducts().list(**params).execute()
+    calls:
+      - action: accounts.cssProducts.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.cssProducts }}'
+      item:
+        attributes: '{{ item.attributes }}'
+        contentLanguage: '{{ item.contentLanguage }}'
+        cssProductStatus: '{{ item.cssProductStatus }}'
+        customAttributes: '{{ item.customAttributes }}'
+        feedLabel: '{{ item.feedLabel }}'
+        name: '{{ item.name }}'
+        rawProvidedId: '{{ item.rawProvidedId }}'
+  # Retrieves a single CSS/MC account by ID.
+  # ── gcp.css.accounts.get ──
+  - discovery_id: gcp.css.accounts.get
+    # python: svc.accounts().get(**params).execute()
+    calls:
+      - action: accounts.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accountType: '{{ response.accountType }}'
+        automaticLabelIds: '{{ response.automaticLabelIds }}'
+        displayName: '{{ response.displayName }}'
+        fullName: '{{ response.fullName }}'
+        homepageUri: '{{ response.homepageUri }}'
+        labelIds: '{{ response.labelIds }}'
+        name: '{{ response.name }}'
+        parent: '{{ response.parent }}'
+  # Lists the labels owned by an account.
+  # ── gcp.css.accounts.labels.list ──
+  - discovery_id: gcp.css.accounts.labels.list
+    # python: svc.accounts().labels().list(**params).execute()
+    calls:
+      - action: accounts.labels.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.labels }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        description: '{{ item.description }}'
+        displayName: '{{ item.displayName }}'
+        labelId: '{{ item.labelId }}'
+        labelType: '{{ item.labelType }}'
+        name: '{{ item.name }}'
+  # Lists all the accounts under the specified CSS account ID, and optionally filters by label ID and ac
+  # ── gcp.css.accounts.listChildAccounts ──
+  - discovery_id: gcp.css.accounts.listChildAccounts
+    # python: svc.accounts().listChildAccounts(**params).execute()
+    calls:
+      - action: accounts.listChildAccounts
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.accounts }}'
+      item:
+        accountType: '{{ item.accountType }}'
+        automaticLabelIds: '{{ item.automaticLabelIds }}'
+        displayName: '{{ item.displayName }}'
+        fullName: '{{ item.fullName }}'
+        homepageUri: '{{ item.homepageUri }}'
+        labelIds: '{{ item.labelIds }}'
+        name: '{{ item.name }}'
+        parent: '{{ item.parent }}'
+  # Lists the daily call quota and usage per group for your CSS Center account.
+  # ── gcp.css.accounts.quotas.list ──
+  - discovery_id: gcp.css.accounts.quotas.list
+    # python: svc.accounts().quotas().list(**params).execute()
+    calls:
+      - action: accounts.quotas.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.quotas }}'
+      item:
+        methodDetails: '{{ item.methodDetails }}'
+        name: '{{ item.name }}'
+        quotaLimit: '{{ item.quotaLimit }}'
+        quotaMinuteLimit: '{{ item.quotaMinuteLimit }}'
+        quotaUsage: '{{ item.quotaUsage }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Retrieves the processed CSS Product from your CSS Center account. After inserting, updating, or dele
+  # ── gcp.css.accounts.cssProducts.get [dependent] ──
+  - discovery_id: gcp.css.accounts.cssProducts.get
+    for_each: gcp.css.accounts.cssProducts.list
+    # python: svc.accounts().cssProducts().get(**params).execute()
+    calls:
+      - action: accounts.cssProducts.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        attributes: '{{ response.attributes }}'
+        contentLanguage: '{{ response.contentLanguage }}'
+        cssProductStatus: '{{ response.cssProductStatus }}'
+        customAttributes: '{{ response.customAttributes }}'
+        feedLabel: '{{ response.feedLabel }}'
+        name: '{{ response.name }}'
+        rawProvidedId: '{{ response.rawProvidedId }}'
+    # required_params: ['name']

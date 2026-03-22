@@ -1,0 +1,150 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: engine-ai-security
+  namespace: threat-engine-engines
+  labels:
+    app: engine-ai-security
+    engine: ai-security
+    layer: "2"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: engine-ai-security
+  template:
+    metadata:
+      labels:
+        app: engine-ai-security
+        engine: ai-security
+        layer: "2"
+    spec:
+      containers:
+        - name: engine-ai-security
+          image: yadavanup84/engine-ai-security:v1.0
+          ports:
+            - containerPort: 8032
+          env:
+            - name: AI_SECURITY_DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: DB_HOST
+            - name: AI_SECURITY_DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: DB_PORT
+            - name: AI_SECURITY_DB_NAME
+              value: "threat_engine_ai_security"
+            - name: AI_SECURITY_DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: external-secret-db-passwords
+                  key: DB_USER
+            - name: AI_SECURITY_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: external-secret-db-passwords
+                  key: DB_PASSWORD
+            - name: DISCOVERY_DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: DB_HOST
+            - name: DISCOVERY_DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: DB_PORT
+            - name: DISCOVERY_DB_NAME
+              value: "threat_engine_discoveries"
+            - name: DISCOVERY_DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: external-secret-db-passwords
+                  key: DB_USER
+            - name: DISCOVERY_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: external-secret-db-passwords
+                  key: DB_PASSWORD
+            - name: LOG_DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: DB_HOST
+            - name: LOG_DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: DB_PORT
+            - name: LOG_DB_NAME
+              value: "threat_engine_logs"
+            - name: LOG_DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: external-secret-db-passwords
+                  key: DB_USER
+            - name: LOG_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: external-secret-db-passwords
+                  key: DB_PASSWORD
+            - name: EXTERNAL_DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: DB_HOST
+            - name: EXTERNAL_DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: DB_PORT
+            - name: EXTERNAL_DB_NAME
+              value: "threat_engine_external"
+            - name: EXTERNAL_DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: external-secret-db-passwords
+                  key: DB_USER
+            - name: EXTERNAL_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: external-secret-db-passwords
+                  key: DB_PASSWORD
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health/live
+              port: 8032
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health/ready
+              port: 8032
+            initialDelaySeconds: 15
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: engine-ai-security
+  namespace: threat-engine-engines
+  labels:
+    app: engine-ai-security
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8032
+      targetPort: 8032
+      protocol: TCP
+  selector:
+    app: engine-ai-security

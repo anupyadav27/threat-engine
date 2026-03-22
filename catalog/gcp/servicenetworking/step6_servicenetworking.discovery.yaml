@@ -1,0 +1,211 @@
+# ============================================================
+# Discovery YAML — servicenetworking (v1)
+# Generated: 2026-02-21T03:06:41Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 10 | independent: 5 | dependent: 5
+# ops with fields: 10/10 | dep ops with chain: 4/5
+# ============================================================
+version: '1.0'
+provider: gcp
+service: servicenetworking
+
+services:
+  client: servicenetworking
+  module: "googleapiclient.discovery.build('servicenetworking', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # List the private connections that are configured in a service consumer's VPC network.
+  # ── gcp.servicenetworking.services.connections.list ──
+  - discovery_id: gcp.servicenetworking.services.connections.list
+    # python: svc.services().connections().list(**params).execute()
+    calls:
+      - action: services.connections.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.connections }}'
+      item:
+        network: '{{ item.network }}'
+        peering: '{{ item.peering }}'
+        reservedPeeringRanges: '{{ item.reservedPeeringRanges }}'
+        service: '{{ item.service }}'
+  # Producers can use this method to retrieve information about the DNS record set added to the private 
+  # ── gcp.servicenetworking.services.dnsRecordSets.get ──
+  - discovery_id: gcp.servicenetworking.services.dnsRecordSets.get
+    # python: svc.services().dnsRecordSets().get(**params).execute()
+    calls:
+      - action: services.dnsRecordSets.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        data: '{{ response.data }}'
+        domain: '{{ response.domain }}'
+        ttl: '{{ response.ttl }}'
+        type: '{{ response.type }}'
+  # Producers can use this method to retrieve a list of available DNS RecordSets available inside the pr
+  # ── gcp.servicenetworking.services.dnsRecordSets.list ──
+  - discovery_id: gcp.servicenetworking.services.dnsRecordSets.list
+    # python: svc.services().dnsRecordSets().list(**params).execute()
+    calls:
+      - action: services.dnsRecordSets.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.dnsRecordSets }}'
+      item:
+        data: '{{ item.data }}'
+        domain: '{{ item.domain }}'
+        ttl: '{{ item.ttl }}'
+        type: '{{ item.type }}'
+  # * Service producers can use this method to retrieve a list of available DNS zones in the shared prod
+  # ── gcp.servicenetworking.services.projects.global.networks.dnsZones.list ──
+  - discovery_id: gcp.servicenetworking.services.projects.global.networks.dnsZones.list
+    # python: svc.services().projects().global().networks().dnsZones().list(**params).execute()
+    calls:
+      - action: services.projects.global.networks.dnsZones.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.dnsZones }}'
+      item:
+        consumerPeeringZone: '{{ item.consumerPeeringZone }}'
+        producerPrivateZone: '{{ item.producerPrivateZone }}'
+  # Lists peered DNS domains for a connection.
+  # ── gcp.servicenetworking.services.projects.global.networks.peeredDnsDomains.list ──
+  - discovery_id: gcp.servicenetworking.services.projects.global.networks.peeredDnsDomains.list
+    # python: svc.services().projects().global().networks().peeredDnsDomains().list(**params).execute()
+    calls:
+      - action: services.projects.global.networks.peeredDnsDomains.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.peeredDnsDomains }}'
+      item:
+        dnsSuffix: '{{ item.dnsSuffix }}'
+        name: '{{ item.name }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.servicenetworking.operations.get [dependent] ──
+  - discovery_id: gcp.servicenetworking.operations.get
+    for_each: gcp.servicenetworking.operations.list
+    # python: svc.operations().get(**params).execute()
+    calls:
+      - action: operations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']
+  # Lists operations that match the specified filter in the request. If the server doesn't support this 
+  # ── gcp.servicenetworking.operations.list [dependent] ──
+  - discovery_id: gcp.servicenetworking.operations.list
+    # python: svc.operations().list(**params).execute()
+    calls:
+      - action: operations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.operations }}'
+      item:
+        done: '{{ item.done }}'
+        error: '{{ item.error }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+        response: '{{ item.response }}'
+    # required_params: ['name']
+  # Service producers can use this method to retrieve a DNS zone in the shared producer host project and
+  # ── gcp.servicenetworking.services.projects.global.networks.dnsZones.get [dependent] ──
+  - discovery_id: gcp.servicenetworking.services.projects.global.networks.dnsZones.get
+    for_each: gcp.servicenetworking.services.projects.global.networks.dnsZones.list
+    # python: svc.services().projects().global().networks().dnsZones().get(**params).execute()
+    calls:
+      - action: services.projects.global.networks.dnsZones.get
+        params:
+          name: '{{ item.network }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        consumerPeeringZone: '{{ response.consumerPeeringZone }}'
+        producerPrivateZone: '{{ response.producerPrivateZone }}'
+    # required_params: ['name']
+  # Service producers use this method to get the configuration of their connection including the import/
+  # ── gcp.servicenetworking.services.projects.global.networks.get [dependent] ──
+  - discovery_id: gcp.servicenetworking.services.projects.global.networks.get
+    for_each: gcp.servicenetworking.services.connections.list
+    # python: svc.services().projects().global().networks().get(**params).execute()
+    calls:
+      - action: services.projects.global.networks.get
+        params:
+          name: '{{ item.network }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        cloudsqlConfigs: '{{ response.cloudsqlConfigs }}'
+        consumerExportCustomRoutes: '{{ response.consumerExportCustomRoutes }}'
+        consumerExportSubnetRoutesWithPublicIp: '{{ response.consumerExportSubnetRoutesWithPublicIp }}'
+        consumerImportCustomRoutes: '{{ response.consumerImportCustomRoutes }}'
+        consumerImportSubnetRoutesWithPublicIp: '{{ response.consumerImportSubnetRoutesWithPublicIp }}'
+        producerExportCustomRoutes: '{{ response.producerExportCustomRoutes }}'
+        producerExportSubnetRoutesWithPublicIp: '{{ response.producerExportSubnetRoutesWithPublicIp }}'
+        producerImportCustomRoutes: '{{ response.producerImportCustomRoutes }}'
+        producerImportSubnetRoutesWithPublicIp: '{{ response.producerImportSubnetRoutesWithPublicIp }}'
+        producerNetwork: '{{ response.producerNetwork }}'
+        reservedRanges: '{{ response.reservedRanges }}'
+        usedIpRanges: '{{ response.usedIpRanges }}'
+        vpcScReferenceArchitectureEnabled: '{{ response.vpcScReferenceArchitectureEnabled }}'
+    # required_params: ['name']
+  # Consumers use this method to find out the state of VPC Service Controls. The controls could be enabl
+  # ── gcp.servicenetworking.services.projects.global.networks.getVpcServiceControls [dependent] ──
+  - discovery_id: gcp.servicenetworking.services.projects.global.networks.getVpcServiceControls
+    for_each: gcp.servicenetworking.services.connections.list
+    # python: svc.services().projects().global().networks().getVpcServiceControls(**params).execute()
+    calls:
+      - action: services.projects.global.networks.getVpcServiceControls
+        params:
+          name: '{{ item.network }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        enabled: '{{ response.enabled }}'
+    # required_params: ['name']

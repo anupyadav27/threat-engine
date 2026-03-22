@@ -1,0 +1,46 @@
+# Discovery YAML — hybridkubernetes (Azure)
+# Generated: 2026-02-21T05:02:44Z
+# Actions use Azure Python SDK snake_case names (azure-mgmt-*)
+version: '1.0'
+provider: azure
+service: hybridkubernetes
+services:
+  client: hybridkubernetes
+  module: azure.mgmt.hybridkubernetes
+discovery:
+  # ── list_by_resource_group ──
+  - discovery_id: azure.hybridkubernetes.list_by_resource_group
+    calls:
+      - action: list_by_resource_group
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        value: '{{ item.value }}'
+  # ── list_by_subscription ──
+  - discovery_id: azure.hybridkubernetes.list_by_subscription
+    calls:
+      - action: list_by_subscription
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        value: '{{ item.value }}'
+  # ── Dependent ops ──
+  # ── list_cluster_user_credential [dependent] ──
+  - discovery_id: azure.hybridkubernetes.list_cluster_user_credential
+    calls:
+      - action: list_cluster_user_credential
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.hybrid_connection_config }}'
+      item:
+        hybrid_connection_config: '{{ item.hybrid_connection_config }}'
+        kubeconfigs: '{{ item.kubeconfigs }}'
+    # required_params: ['cluster_name', 'properties']

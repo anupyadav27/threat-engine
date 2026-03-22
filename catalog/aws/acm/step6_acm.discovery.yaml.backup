@@ -1,0 +1,105 @@
+version: '1.0'
+provider: aws
+service: acm
+services:
+  client: acm
+  module: boto3.client
+discovery:
+- discovery_id: aws.acm.getAccountConfiguration
+  calls:
+  - action: getAccountConfiguration
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ExpiryEvents }}'
+    item:
+      DaysBeforeExpiry: '{{ item.DaysBeforeExpiry }}'
+- discovery_id: aws.acm.listCertificates
+  calls:
+  - action: listCertificates
+    save_as: response
+    on_error: continue
+    params:
+      MaxItems: 1000
+  emit:
+    as: item
+    items_for: '{{ response.CertificateSummaryList }}'
+    item:
+      CertificateArn: '{{ item.CertificateArn }}'
+      DomainName: '{{ item.DomainName }}'
+      SubjectAlternativeNameSummaries: '{{ item.SubjectAlternativeNameSummaries }}'
+      HasAdditionalSubjectAlternativeNames: '{{ item.HasAdditionalSubjectAlternativeNames
+        }}'
+      Status: '{{ item.Status }}'
+      Type: '{{ item.Type }}'
+      KeyAlgorithm: '{{ item.KeyAlgorithm }}'
+      KeyUsages: '{{ item.KeyUsages }}'
+      ExtendedKeyUsages: '{{ item.ExtendedKeyUsages }}'
+      ExportOption: '{{ item.ExportOption }}'
+      InUse: '{{ item.InUse }}'
+      Exported: '{{ item.Exported }}'
+      RenewalEligibility: '{{ item.RenewalEligibility }}'
+      NotBefore: '{{ item.NotBefore }}'
+      NotAfter: '{{ item.NotAfter }}'
+      CreatedAt: '{{ item.CreatedAt }}'
+      IssuedAt: '{{ item.IssuedAt }}'
+      ImportedAt: '{{ item.ImportedAt }}'
+      RevokedAt: '{{ item.RevokedAt }}'
+      ManagedBy: '{{ item.ManagedBy }}'
+- discovery_id: aws.acm.describeCertificate
+  calls:
+  - action: describeCertificate
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Certificate }}'
+    item:
+      CertificateArn: '{{ item.CertificateArn }}'
+      DomainName: '{{ item.DomainName }}'
+      SubjectAlternativeNames: '{{ item.SubjectAlternativeNames }}'
+      ManagedBy: '{{ item.ManagedBy }}'
+      DomainValidationOptions: '{{ item.DomainValidationOptions }}'
+      Serial: '{{ item.Serial }}'
+      Subject: '{{ item.Subject }}'
+      Issuer: '{{ item.Issuer }}'
+      CreatedAt: '{{ item.CreatedAt }}'
+      IssuedAt: '{{ item.IssuedAt }}'
+      ImportedAt: '{{ item.ImportedAt }}'
+      Status: '{{ item.Status }}'
+      RevokedAt: '{{ item.RevokedAt }}'
+      RevocationReason: '{{ item.RevocationReason }}'
+      NotBefore: '{{ item.NotBefore }}'
+      NotAfter: '{{ item.NotAfter }}'
+      KeyAlgorithm: '{{ item.KeyAlgorithm }}'
+      SignatureAlgorithm: '{{ item.SignatureAlgorithm }}'
+      InUseBy: '{{ item.InUseBy }}'
+      FailureReason: '{{ item.FailureReason }}'
+      Type: '{{ item.Type }}'
+      RenewalSummary: '{{ item.RenewalSummary }}'
+      KeyUsages: '{{ item.KeyUsages }}'
+      ExtendedKeyUsages: '{{ item.ExtendedKeyUsages }}'
+      CertificateAuthorityArn: '{{ item.CertificateAuthorityArn }}'
+      RenewalEligibility: '{{ item.RenewalEligibility }}'
+      Options: '{{ item.Options }}'
+- discovery_id: aws.acm.getCertificate
+  calls:
+  - action: getCertificate
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Certificate }}'
+- discovery_id: aws.acm.listTagsForCertificate
+  calls:
+  - action: listTagsForCertificate
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+    item:
+      Key: '{{ item.Key }}'
+      Value: '{{ item.Value }}'
+checks: []

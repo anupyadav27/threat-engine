@@ -1,0 +1,213 @@
+# ============================================================
+# Discovery YAML — edr (AWS)
+# Generated: 2026-02-21T04:56:58Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: edr
+services:
+  client: edr
+  module: boto3.client
+discovery:
+  # ── ListCases ──
+  - discovery_id: aws.edr.list_cases
+    calls:
+      - action: list_cases
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        action: '{{ item.action }}'
+        actionType: '{{ item.actionType }}'
+        actualIncidentStartDate: '{{ item.actualIncidentStartDate }}'
+        attachmentPresignedUrl: '{{ item.attachmentPresignedUrl }}'
+        body: '{{ item.body }}'
+        caseArn: '{{ item.caseArn }}'
+        caseAttachments: '{{ item.caseAttachments }}'
+        caseId: '{{ item.caseId }}'
+        caseMetadata: '{{ item.caseMetadata }}'
+        caseStatus: '{{ item.caseStatus }}'
+        closedDate: '{{ item.closedDate }}'
+        closureCode: '{{ item.closureCode }}'
+        content: '{{ item.content }}'
+        createdDate: '{{ item.createdDate }}'
+        creator: '{{ item.creator }}'
+        description: '{{ item.description }}'
+        engagementType: '{{ item.engagementType }}'
+        eventTimestamp: '{{ item.eventTimestamp }}'
+        feedback: '{{ item.feedback }}'
+        impactedAccounts: '{{ item.impactedAccounts }}'
+        impactedAwsRegions: '{{ item.impactedAwsRegions }}'
+        impactedServices: '{{ item.impactedServices }}'
+        investigationId: '{{ item.investigationId }}'
+        lastUpdated: '{{ item.lastUpdated }}'
+        lastUpdatedBy: '{{ item.lastUpdatedBy }}'
+        lastUpdatedDate: '{{ item.lastUpdatedDate }}'
+        message: '{{ item.message }}'
+        pendingAction: '{{ item.pendingAction }}'
+        principal: '{{ item.principal }}'
+        reportedIncidentStartDate: '{{ item.reportedIncidentStartDate }}'
+        resolverType: '{{ item.resolverType }}'
+        status: '{{ item.status }}'
+        threatActorIpAddresses: '{{ item.threatActorIpAddresses }}'
+        title: '{{ item.title }}'
+        watchers: '{{ item.watchers }}'
+  # ── ListMemberships ──
+  - discovery_id: aws.edr.list_memberships
+    calls:
+      - action: list_memberships
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        membershipArn: '{{ item.membershipArn }}'
+        membershipId: '{{ item.membershipId }}'
+        membershipStatus: '{{ item.membershipStatus }}'
+        region: '{{ item.region }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── GetCase ──
+  - discovery_id: aws.edr.get_case
+    for_each: aws.edr.list_cases
+    calls:
+      - action: get_case
+        params:
+          caseId: '{{ item.caseId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.nextToken }}'
+      item:
+        actualIncidentStartDate: '{{ item.actualIncidentStartDate }}'
+        caseAttachments: '{{ item.caseAttachments }}'
+        caseMetadata: '{{ item.caseMetadata }}'
+        closureCode: '{{ item.closureCode }}'
+        description: '{{ item.description }}'
+        impactedAccounts: '{{ item.impactedAccounts }}'
+        impactedAwsRegions: '{{ item.impactedAwsRegions }}'
+        impactedServices: '{{ item.impactedServices }}'
+        region: '{{ item.region }}'
+        reportedIncidentStartDate: '{{ item.reportedIncidentStartDate }}'
+        threatActorIpAddresses: '{{ item.threatActorIpAddresses }}'
+        watchers: '{{ item.watchers }}'
+  # ── GetCaseAttachmentDownloadUrl ──
+  - discovery_id: aws.edr.get_case_attachment_download_url
+    for_each: aws.edr.list_cases
+    calls:
+      - action: get_case_attachment_download_url
+        params:
+          caseId: '{{ item.caseId }}'
+          attachmentId: '{{ item.attachmentId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.nextToken }}'
+      item:
+        attachmentPresignedUrl: '{{ item.attachmentPresignedUrl }}'
+  # ── GetCaseAttachmentUploadUrl ──
+  - discovery_id: aws.edr.get_case_attachment_upload_url
+    for_each: aws.edr.list_cases
+    calls:
+      - action: get_case_attachment_upload_url
+        params:
+          caseId: '{{ item.caseId }}'
+          fileName: '{{ item.fileName }}'
+          contentLength: '{{ item.contentLength }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        attachmentPresignedUrl: '{{ response.attachmentPresignedUrl }}'
+  # ── GetMembership ──
+  - discovery_id: aws.edr.get_membership
+    for_each: aws.edr.list_memberships
+    calls:
+      - action: get_membership
+        params:
+          membershipId: '{{ item.membershipId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.incidentResponseTeam }}'
+      item:
+        Status: '{{ item.Status }}'
+        Enabled: '{{ item.Enabled }}'
+        communicationPreferences: '{{ item.communicationPreferences }}'
+        email: '{{ item.email }}'
+        jobTitle: '{{ item.jobTitle }}'
+        name: '{{ item.name }}'
+  # ── ListCaseEdits ──
+  - discovery_id: aws.edr.list_case_edits
+    for_each: aws.edr.list_cases
+    calls:
+      - action: list_case_edits
+        params:
+          caseId: '{{ item.caseId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        action: '{{ item.action }}'
+        eventTimestamp: '{{ item.eventTimestamp }}'
+        message: '{{ item.message }}'
+        principal: '{{ item.principal }}'
+  # ── ListComments ──
+  - discovery_id: aws.edr.list_comments
+    for_each: aws.edr.list_cases
+    calls:
+      - action: list_comments
+        params:
+          caseId: '{{ item.caseId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        body: '{{ item.body }}'
+        commentId: '{{ item.commentId }}'
+        createdDate: '{{ item.createdDate }}'
+        creator: '{{ item.creator }}'
+        lastUpdatedBy: '{{ item.lastUpdatedBy }}'
+        lastUpdatedDate: '{{ item.lastUpdatedDate }}'
+  # ── ListInvestigations ──
+  - discovery_id: aws.edr.list_investigations
+    for_each: aws.edr.list_cases
+    calls:
+      - action: list_investigations
+        params:
+          caseId: '{{ item.caseId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.investigationActions }}'
+      item:
+        actionType: '{{ item.actionType }}'
+        content: '{{ item.content }}'
+        feedback: '{{ item.feedback }}'
+        investigationId: '{{ item.investigationId }}'
+        lastUpdated: '{{ item.lastUpdated }}'
+        status: '{{ item.status }}'
+        title: '{{ item.title }}'
+  # ── ListTagsForResource ──
+  - discovery_id: aws.edr.list_tags_for_resource
+    calls:
+      - action: list_tags_for_resource
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        tags: '{{ response.tags }}'

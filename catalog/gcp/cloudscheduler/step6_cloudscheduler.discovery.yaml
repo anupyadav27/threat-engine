@@ -1,0 +1,176 @@
+# ============================================================
+# Discovery YAML — cloudscheduler (v1)
+# Generated: 2026-02-21T03:06:39Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 7 | independent: 5 | dependent: 2
+# ops with fields: 7/7 | dep ops with chain: 2/2
+# ============================================================
+version: '1.0'
+provider: gcp
+service: cloudscheduler
+
+services:
+  client: cloudscheduler
+  module: "googleapiclient.discovery.build('cloudscheduler', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Gets information about a location.
+  # ── gcp.cloudscheduler.projects.locations.get ──
+  - discovery_id: gcp.cloudscheduler.projects.locations.get
+    # python: svc.projects().locations().get(**params).execute()
+    calls:
+      - action: projects.locations.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        displayName: '{{ response.displayName }}'
+        labels: '{{ response.labels }}'
+        locationId: '{{ response.locationId }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+  # Gets the Scheduler config in the project/region.
+  # ── gcp.cloudscheduler.projects.locations.getCmekConfig ──
+  - discovery_id: gcp.cloudscheduler.projects.locations.getCmekConfig
+    # python: svc.projects().locations().getCmekConfig(**params).execute()
+    calls:
+      - action: projects.locations.getCmekConfig
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        kmsKeyName: '{{ response.kmsKeyName }}'
+        name: '{{ response.name }}'
+  # Lists jobs.
+  # ── gcp.cloudscheduler.projects.locations.jobs.list ──
+  - discovery_id: gcp.cloudscheduler.projects.locations.jobs.list
+    # python: svc.projects().locations().jobs().list(**params).execute()
+    calls:
+      - action: projects.locations.jobs.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.jobs }}'
+      item:
+        appEngineHttpTarget: '{{ item.appEngineHttpTarget }}'
+        attemptDeadline: '{{ item.attemptDeadline }}'
+        description: '{{ item.description }}'
+        httpTarget: '{{ item.httpTarget }}'
+        lastAttemptTime: '{{ item.lastAttemptTime }}'
+        name: '{{ item.name }}'
+        pubsubTarget: '{{ item.pubsubTarget }}'
+        retryConfig: '{{ item.retryConfig }}'
+        satisfiesPzs: '{{ item.satisfiesPzs }}'
+        schedule: '{{ item.schedule }}'
+        scheduleTime: '{{ item.scheduleTime }}'
+        state: '{{ item.state }}'
+        status: '{{ item.status }}'
+        timeZone: '{{ item.timeZone }}'
+        userUpdateTime: '{{ item.userUpdateTime }}'
+  # Lists information about the supported locations for this service. This method can be called in two w
+  # ── gcp.cloudscheduler.projects.locations.list ──
+  - discovery_id: gcp.cloudscheduler.projects.locations.list
+    # python: svc.projects().locations().list(**params).execute()
+    calls:
+      - action: projects.locations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.locations }}'
+      item:
+        displayName: '{{ item.displayName }}'
+        labels: '{{ item.labels }}'
+        locationId: '{{ item.locationId }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+  # Lists operations that match the specified filter in the request. If the server doesn't support this 
+  # ── gcp.cloudscheduler.projects.locations.operations.list ──
+  - discovery_id: gcp.cloudscheduler.projects.locations.operations.list
+    # python: svc.projects().locations().operations().list(**params).execute()
+    calls:
+      - action: projects.locations.operations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.operations }}'
+      item:
+        done: '{{ item.done }}'
+        error: '{{ item.error }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+        response: '{{ item.response }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets a job.
+  # ── gcp.cloudscheduler.projects.locations.jobs.get [dependent] ──
+  - discovery_id: gcp.cloudscheduler.projects.locations.jobs.get
+    for_each: gcp.cloudscheduler.projects.locations.jobs.list
+    # python: svc.projects().locations().jobs().get(**params).execute()
+    calls:
+      - action: projects.locations.jobs.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        appEngineHttpTarget: '{{ response.appEngineHttpTarget }}'
+        attemptDeadline: '{{ response.attemptDeadline }}'
+        description: '{{ response.description }}'
+        httpTarget: '{{ response.httpTarget }}'
+        lastAttemptTime: '{{ response.lastAttemptTime }}'
+        name: '{{ response.name }}'
+        pubsubTarget: '{{ response.pubsubTarget }}'
+        retryConfig: '{{ response.retryConfig }}'
+        satisfiesPzs: '{{ response.satisfiesPzs }}'
+        schedule: '{{ response.schedule }}'
+        scheduleTime: '{{ response.scheduleTime }}'
+        state: '{{ response.state }}'
+        status: '{{ response.status }}'
+        timeZone: '{{ response.timeZone }}'
+        userUpdateTime: '{{ response.userUpdateTime }}'
+    # required_params: ['name']
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.cloudscheduler.projects.locations.operations.get [dependent] ──
+  - discovery_id: gcp.cloudscheduler.projects.locations.operations.get
+    for_each: gcp.cloudscheduler.projects.locations.operations.list
+    # python: svc.projects().locations().operations().get(**params).execute()
+    calls:
+      - action: projects.locations.operations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']

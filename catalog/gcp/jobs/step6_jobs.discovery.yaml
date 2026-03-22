@@ -1,0 +1,223 @@
+# ============================================================
+# Discovery YAML — jobs (v3p1beta1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 7 | independent: 4 | dependent: 3
+# ops with fields: 7/7 | dep ops with chain: 2/3
+# ============================================================
+version: '1.0'
+provider: gcp
+service: jobs
+
+services:
+  client: jobs
+  module: "googleapiclient.discovery.build('jobs', 'v3p1beta1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists all companies associated with the service account.
+  # ── gcp.jobs.projects.companies.list ──
+  - discovery_id: gcp.jobs.projects.companies.list
+    # python: svc.projects().companies().list(**params).execute()
+    calls:
+      - action: projects.companies.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.companies }}'
+      item:
+        careerSiteUri: '{{ item.careerSiteUri }}'
+        derivedInfo: '{{ item.derivedInfo }}'
+        displayName: '{{ item.displayName }}'
+        eeoText: '{{ item.eeoText }}'
+        externalId: '{{ item.externalId }}'
+        headquartersAddress: '{{ item.headquartersAddress }}'
+        hiringAgency: '{{ item.hiringAgency }}'
+        imageUri: '{{ item.imageUri }}'
+        keywordSearchableJobCustomAttributes: '{{ item.keywordSearchableJobCustomAttributes }}'
+        name: '{{ item.name }}'
+        size: '{{ item.size }}'
+        suspended: '{{ item.suspended }}'
+        websiteUri: '{{ item.websiteUri }}'
+  # Completes the specified prefix with keyword suggestions. Intended for use by a job search auto-compl
+  # ── gcp.jobs.projects.complete ──
+  - discovery_id: gcp.jobs.projects.complete
+    # python: svc.projects().complete(**params).execute()
+    calls:
+      - action: projects.complete
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        completionResults: '{{ response.completionResults }}'
+        metadata: '{{ response.metadata }}'
+  # Lists jobs by filter.
+  # ── gcp.jobs.projects.jobs.list ──
+  - discovery_id: gcp.jobs.projects.jobs.list
+    # python: svc.projects().jobs().list(**params).execute()
+    calls:
+      - action: projects.jobs.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.jobs }}'
+      item:
+        addresses: '{{ item.addresses }}'
+        applicationInfo: '{{ item.applicationInfo }}'
+        companyDisplayName: '{{ item.companyDisplayName }}'
+        companyName: '{{ item.companyName }}'
+        compensationInfo: '{{ item.compensationInfo }}'
+        customAttributes: '{{ item.customAttributes }}'
+        degreeTypes: '{{ item.degreeTypes }}'
+        department: '{{ item.department }}'
+        derivedInfo: '{{ item.derivedInfo }}'
+        description: '{{ item.description }}'
+        employmentTypes: '{{ item.employmentTypes }}'
+        incentives: '{{ item.incentives }}'
+        jobBenefits: '{{ item.jobBenefits }}'
+        jobEndTime: '{{ item.jobEndTime }}'
+        jobLevel: '{{ item.jobLevel }}'
+        jobStartTime: '{{ item.jobStartTime }}'
+        languageCode: '{{ item.languageCode }}'
+        name: '{{ item.name }}'
+        postingCreateTime: '{{ item.postingCreateTime }}'
+        postingExpireTime: '{{ item.postingExpireTime }}'
+        postingPublishTime: '{{ item.postingPublishTime }}'
+        postingRegion: '{{ item.postingRegion }}'
+        postingUpdateTime: '{{ item.postingUpdateTime }}'
+        processingOptions: '{{ item.processingOptions }}'
+        promotionValue: '{{ item.promotionValue }}'
+        qualifications: '{{ item.qualifications }}'
+        requisitionId: '{{ item.requisitionId }}'
+        responsibilities: '{{ item.responsibilities }}'
+        title: '{{ item.title }}'
+        visibility: '{{ item.visibility }}'
+  # Searches for jobs using the provided SearchJobsRequest. This call constrains the visibility of jobs 
+  # ── gcp.jobs.projects.jobs.search ──
+  - discovery_id: gcp.jobs.projects.jobs.search
+    # python: svc.projects().jobs().search(**params).execute()
+    calls:
+      - action: projects.jobs.search
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.jobs }}'
+      item:
+        commuteInfo: '{{ item.commuteInfo }}'
+        job: '{{ item.job }}'
+        jobSummary: '{{ item.jobSummary }}'
+        jobTitleSnippet: '{{ item.jobTitleSnippet }}'
+        searchTextSnippet: '{{ item.searchTextSnippet }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Retrieves specified company.
+  # ── gcp.jobs.projects.companies.get [dependent] ──
+  - discovery_id: gcp.jobs.projects.companies.get
+    for_each: gcp.jobs.projects.companies.list
+    # python: svc.projects().companies().get(**params).execute()
+    calls:
+      - action: projects.companies.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        careerSiteUri: '{{ response.careerSiteUri }}'
+        derivedInfo: '{{ response.derivedInfo }}'
+        displayName: '{{ response.displayName }}'
+        eeoText: '{{ response.eeoText }}'
+        externalId: '{{ response.externalId }}'
+        headquartersAddress: '{{ response.headquartersAddress }}'
+        hiringAgency: '{{ response.hiringAgency }}'
+        imageUri: '{{ response.imageUri }}'
+        keywordSearchableJobCustomAttributes: '{{ response.keywordSearchableJobCustomAttributes }}'
+        name: '{{ response.name }}'
+        size: '{{ response.size }}'
+        suspended: '{{ response.suspended }}'
+        websiteUri: '{{ response.websiteUri }}'
+    # required_params: ['name']
+  # Retrieves the specified job, whose status is OPEN or recently EXPIRED within the last 90 days.
+  # ── gcp.jobs.projects.jobs.get [dependent] ──
+  - discovery_id: gcp.jobs.projects.jobs.get
+    for_each: gcp.jobs.projects.jobs.list
+    # python: svc.projects().jobs().get(**params).execute()
+    calls:
+      - action: projects.jobs.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        addresses: '{{ response.addresses }}'
+        applicationInfo: '{{ response.applicationInfo }}'
+        companyDisplayName: '{{ response.companyDisplayName }}'
+        companyName: '{{ response.companyName }}'
+        compensationInfo: '{{ response.compensationInfo }}'
+        customAttributes: '{{ response.customAttributes }}'
+        degreeTypes: '{{ response.degreeTypes }}'
+        department: '{{ response.department }}'
+        derivedInfo: '{{ response.derivedInfo }}'
+        description: '{{ response.description }}'
+        employmentTypes: '{{ response.employmentTypes }}'
+        incentives: '{{ response.incentives }}'
+        jobBenefits: '{{ response.jobBenefits }}'
+        jobEndTime: '{{ response.jobEndTime }}'
+        jobLevel: '{{ response.jobLevel }}'
+        jobStartTime: '{{ response.jobStartTime }}'
+        languageCode: '{{ response.languageCode }}'
+        name: '{{ response.name }}'
+        postingCreateTime: '{{ response.postingCreateTime }}'
+        postingExpireTime: '{{ response.postingExpireTime }}'
+        postingPublishTime: '{{ response.postingPublishTime }}'
+        postingRegion: '{{ response.postingRegion }}'
+        postingUpdateTime: '{{ response.postingUpdateTime }}'
+        processingOptions: '{{ response.processingOptions }}'
+        promotionValue: '{{ response.promotionValue }}'
+        qualifications: '{{ response.qualifications }}'
+        requisitionId: '{{ response.requisitionId }}'
+        responsibilities: '{{ response.responsibilities }}'
+        title: '{{ response.title }}'
+        visibility: '{{ response.visibility }}'
+    # required_params: ['name']
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.jobs.projects.operations.get [dependent] ──
+  - discovery_id: gcp.jobs.projects.operations.get
+    # python: svc.projects().operations().get(**params).execute()
+    calls:
+      - action: projects.operations.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']

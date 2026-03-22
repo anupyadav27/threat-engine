@@ -1,0 +1,144 @@
+{
+  "csp": "gcp",
+  "generated_at": "2026-02-19T14:43:26.161321+00:00",
+  "anchors": {
+    "fixed": [
+      "project_id",
+      "org_id",
+      "folder_id",
+      "location",
+      "zone",
+      "region"
+    ]
+  },
+  "services": {
+    "discovery": {
+      "version": "v1",
+      "resources": {
+        "apis": {
+          "resource_type": "apis",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "tuple",
+            "full_identifier": {
+              "template": "{api}/{version}/rest",
+              "built_from_parts": [],
+              "notes": "Tuple identifier; anchor parts are user-provided."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.discovery.apis.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/apis"
+                },
+                "python_call": "svc.apis().list(**params).execute()",
+                "produces": {
+                  "discoveryVersion": "discoveryVersion"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.discovery.apis.getRest",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/apis/{api}/{version}/rest"
+                },
+                "python_call": "svc.apis().getRest(**params).execute()",
+                "required_params": {
+                  "version": {
+                    "from_identifier": "gcp.discovery.apis.list \u2192 items[].None"
+                  },
+                  "api": {
+                    "from_identifier": "gcp.discovery.apis.list \u2192 items[].None"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.discovery.apis.getRest",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.discovery.apis.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.apis().list(**params).execute()",
+                      "path": "/apis",
+                      "required_params": {},
+                      "output_list_field": "items",
+                      "output_id_field": null,
+                      "produces": {
+                        "apiId": {
+                          "via_list_field": "items",
+                          "from_id_field": null,
+                          "note": "Iterate response[\"items\"][], extract item[\"None\"] \u2192 pass as \"apiId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: apiId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.discovery.apis.getRest",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.apis().getRest(**params).execute()",
+                      "path": "/apis/{api}/{version}/rest",
+                      "required_params": {
+                        "version": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The version of the API."
+                        },
+                        "api": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The name of the API."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "version": "unresolved",
+                        "api": "unresolved"
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": [
+                    "version",
+                    "api"
+                  ]
+                }
+              }
+            ]
+          },
+          "confidence": 0.7,
+          "notes": ""
+        }
+      }
+    }
+  }
+}

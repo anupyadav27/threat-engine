@@ -1,0 +1,51 @@
+# ============================================================
+# Discovery YAML — chromewebstore (v2)
+# Generated: 2026-02-21T03:06:39Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 1 | independent: 0 | dependent: 1
+# ops with fields: 1/1 | dep ops with chain: 0/1
+# ============================================================
+version: '1.0'
+provider: gcp
+service: chromewebstore
+
+services:
+  client: chromewebstore
+  module: "googleapiclient.discovery.build('chromewebstore', 'v2')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Fetch the status of an item.
+  # ── gcp.chromewebstore.publishers.items.fetchStatus [dependent] ──
+  - discovery_id: gcp.chromewebstore.publishers.items.fetchStatus
+    # python: svc.publishers().items().fetchStatus(**params).execute()
+    calls:
+      - action: publishers.items.fetchStatus
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        itemId: '{{ response.itemId }}'
+        lastAsyncUploadState: '{{ response.lastAsyncUploadState }}'
+        name: '{{ response.name }}'
+        publicKey: '{{ response.publicKey }}'
+        publishedItemRevisionStatus: '{{ response.publishedItemRevisionStatus }}'
+        submittedItemRevisionStatus: '{{ response.submittedItemRevisionStatus }}'
+        takenDown: '{{ response.takenDown }}'
+        warned: '{{ response.warned }}'
+    # required_params: ['name']

@@ -1,0 +1,72 @@
+# ============================================================
+# Discovery YAML — dlm (AWS)
+# Generated: 2026-02-21T04:56:58Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: dlm
+services:
+  client: dlm
+  module: boto3.client
+discovery:
+  # ── GetLifecyclePolicies ──
+  - discovery_id: aws.dlm.get_lifecycle_policies
+    calls:
+      - action: get_lifecycle_policies
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Policies }}'
+      item:
+        ExecutionRoleArn: '{{ item.ExecutionRoleArn }}'
+        Policy: '{{ item.Policy }}'
+        State: '{{ item.State }}'
+        Tags: '{{ item.Tags }}'
+        DateCreated: '{{ item.DateCreated }}'
+        DateModified: '{{ item.DateModified }}'
+        DefaultPolicy: '{{ item.DefaultPolicy }}'
+        Description: '{{ item.Description }}'
+        Policies: '{{ item.Policies }}'
+        PolicyId: '{{ item.PolicyId }}'
+        PolicyType: '{{ item.PolicyType }}'
+        Statement: '{{ item.Statement }}'
+        StatusMessage: '{{ item.StatusMessage }}'
+        Version: '{{ item.Version }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── GetLifecyclePolicy ──
+  - discovery_id: aws.dlm.get_lifecycle_policy
+    for_each: aws.dlm.get_lifecycle_policies
+    calls:
+      - action: get_lifecycle_policy
+        params:
+          PolicyId: '{{ item.PolicyId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Policy }}'
+      item:
+        ExecutionRoleArn: '{{ item.ExecutionRoleArn }}'
+        Policy: '{{ item.Policy }}'
+        State: '{{ item.State }}'
+        Tags: '{{ item.Tags }}'
+        DateCreated: '{{ item.DateCreated }}'
+        DateModified: '{{ item.DateModified }}'
+        DefaultPolicy: '{{ item.DefaultPolicy }}'
+        Description: '{{ item.Description }}'
+        PolicyArn: '{{ item.PolicyArn }}'
+        PolicyDetails: '{{ item.PolicyDetails }}'
+        PolicyId: '{{ item.PolicyId }}'
+        StatusMessage: '{{ item.StatusMessage }}'
+  # ── ListTagsForResource ──
+  - discovery_id: aws.dlm.list_tags_for_resource
+    calls:
+      - action: list_tags_for_resource
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        Tags: '{{ response.Tags }}'

@@ -1,0 +1,69 @@
+# ============================================================
+# Discovery YAML — firebasedatabase (v1beta)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 2 | independent: 1 | dependent: 1
+# ops with fields: 2/2 | dep ops with chain: 1/1
+# ============================================================
+version: '1.0'
+provider: gcp
+service: firebasedatabase
+
+services:
+  client: firebasedatabase
+  module: "googleapiclient.discovery.build('firebasedatabase', 'v1beta')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists each DatabaseInstance associated with the specified parent project. The list items are returne
+  # ── gcp.firebasedatabase.projects.locations.instances.list ──
+  - discovery_id: gcp.firebasedatabase.projects.locations.instances.list
+    # python: svc.projects().locations().instances().list(**params).execute()
+    calls:
+      - action: projects.locations.instances.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.instances }}'
+      item:
+        databaseUrl: '{{ item.databaseUrl }}'
+        name: '{{ item.name }}'
+        project: '{{ item.project }}'
+        state: '{{ item.state }}'
+        type: '{{ item.type }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets the DatabaseInstance identified by the specified resource name.
+  # ── gcp.firebasedatabase.projects.locations.instances.get [dependent] ──
+  - discovery_id: gcp.firebasedatabase.projects.locations.instances.get
+    for_each: gcp.firebasedatabase.projects.locations.instances.list
+    # python: svc.projects().locations().instances().get(**params).execute()
+    calls:
+      - action: projects.locations.instances.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        databaseUrl: '{{ response.databaseUrl }}'
+        name: '{{ response.name }}'
+        project: '{{ response.project }}'
+        state: '{{ response.state }}'
+        type: '{{ response.type }}'
+    # required_params: ['name']

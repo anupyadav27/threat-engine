@@ -1,0 +1,46 @@
+version: '1.0'
+provider: aws
+service: rbin
+services:
+  client: rbin
+  module: boto3.client
+discovery:
+- discovery_id: aws.rbin.getRule
+  calls:
+  - action: getRule
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ResourceTags }}'
+    item:
+      ResourceTagKey: '{{ item.ResourceTagKey }}'
+      ResourceTagValue: '{{ item.ResourceTagValue }}'
+- discovery_id: aws.rbin.listRules
+  calls:
+  - action: listRules
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Rules }}'
+    item:
+      Identifier: '{{ item.Identifier }}'
+      Description: '{{ item.Description }}'
+      RetentionPeriod: '{{ item.RetentionPeriod }}'
+      LockState: '{{ item.LockState }}'
+      RuleArn: '{{ item.RuleArn }}'
+- discovery_id: aws.rbin.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+    item:
+      Key: '{{ item.Key }}'
+      Value: '{{ item.Value }}'
+checks: []

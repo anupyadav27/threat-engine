@@ -1,0 +1,202 @@
+# ============================================================
+# Discovery YAML — checks (v1alpha)
+# Generated: 2026-02-21T03:06:39Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 9 | independent: 3 | dependent: 6
+# ops with fields: 9/9 | dep ops with chain: 6/6
+# ============================================================
+version: '1.0'
+provider: gcp
+service: checks
+
+services:
+  client: checks
+  module: "googleapiclient.discovery.build('checks', 'v1alpha')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists the apps under the given account.
+  # ── gcp.checks.accounts.apps.list ──
+  - discovery_id: gcp.checks.accounts.apps.list
+    # python: svc.accounts().apps().list(**params).execute()
+    calls:
+      - action: accounts.apps.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.apps }}'
+      item:
+        name: '{{ item.name }}'
+        title: '{{ item.title }}'
+  # Lists reports for the specified app. By default, only the name and results_uri fields are returned. 
+  # ── gcp.checks.accounts.apps.reports.list ──
+  - discovery_id: gcp.checks.accounts.apps.reports.list
+    # python: svc.accounts().apps().reports().list(**params).execute()
+    calls:
+      - action: accounts.apps.reports.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.reports }}'
+      item:
+        appBundle: '{{ item.appBundle }}'
+        checks: '{{ item.checks }}'
+        dataMonitoring: '{{ item.dataMonitoring }}'
+        name: '{{ item.name }}'
+        resultsUri: '{{ item.resultsUri }}'
+  # Lists repo scans for the specified repo.
+  # ── gcp.checks.accounts.repos.scans.list ──
+  - discovery_id: gcp.checks.accounts.repos.scans.list
+    # python: svc.accounts().repos().scans().list(**params).execute()
+    calls:
+      - action: accounts.repos.scans.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.scans }}'
+      item:
+        cliVersion: '{{ item.cliVersion }}'
+        localScanPath: '{{ item.localScanPath }}'
+        name: '{{ item.name }}'
+        resultsUri: '{{ item.resultsUri }}'
+        scmMetadata: '{{ item.scmMetadata }}'
+        sources: '{{ item.sources }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets an app.
+  # ── gcp.checks.accounts.apps.get [dependent] ──
+  - discovery_id: gcp.checks.accounts.apps.get
+    for_each: gcp.checks.accounts.apps.list
+    # python: svc.accounts().apps().get(**params).execute()
+    calls:
+      - action: accounts.apps.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        name: '{{ response.name }}'
+        title: '{{ response.title }}'
+    # required_params: ['name']
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.checks.accounts.apps.operations.get [dependent] ──
+  - discovery_id: gcp.checks.accounts.apps.operations.get
+    for_each: gcp.checks.accounts.apps.operations.list
+    # python: svc.accounts().apps().operations().get(**params).execute()
+    calls:
+      - action: accounts.apps.operations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']
+  # Lists operations that match the specified filter in the request. If the server doesn't support this 
+  # ── gcp.checks.accounts.apps.operations.list [dependent] ──
+  - discovery_id: gcp.checks.accounts.apps.operations.list
+    for_each: gcp.checks.accounts.apps.list
+    # python: svc.accounts().apps().operations().list(**params).execute()
+    calls:
+      - action: accounts.apps.operations.list
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.operations }}'
+      item:
+        done: '{{ item.done }}'
+        error: '{{ item.error }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+        response: '{{ item.response }}'
+    # required_params: ['name']
+  # Gets a report. By default, only the name and results_uri fields are returned. You can include other 
+  # ── gcp.checks.accounts.apps.reports.get [dependent] ──
+  - discovery_id: gcp.checks.accounts.apps.reports.get
+    for_each: gcp.checks.accounts.apps.reports.list
+    # python: svc.accounts().apps().reports().get(**params).execute()
+    calls:
+      - action: accounts.apps.reports.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        appBundle: '{{ response.appBundle }}'
+        checks: '{{ response.checks }}'
+        dataMonitoring: '{{ response.dataMonitoring }}'
+        name: '{{ response.name }}'
+        resultsUri: '{{ response.resultsUri }}'
+    # required_params: ['name']
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.checks.accounts.repos.operations.get [dependent] ──
+  - discovery_id: gcp.checks.accounts.repos.operations.get
+    for_each: gcp.checks.accounts.apps.operations.list
+    # python: svc.accounts().repos().operations().get(**params).execute()
+    calls:
+      - action: accounts.repos.operations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']
+  # Gets a repo scan. By default, only the name and results_uri fields are returned. You can include oth
+  # ── gcp.checks.accounts.repos.scans.get [dependent] ──
+  - discovery_id: gcp.checks.accounts.repos.scans.get
+    for_each: gcp.checks.accounts.repos.scans.list
+    # python: svc.accounts().repos().scans().get(**params).execute()
+    calls:
+      - action: accounts.repos.scans.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        cliVersion: '{{ response.cliVersion }}'
+        localScanPath: '{{ response.localScanPath }}'
+        name: '{{ response.name }}'
+        resultsUri: '{{ response.resultsUri }}'
+        scmMetadata: '{{ response.scmMetadata }}'
+        sources: '{{ response.sources }}'
+    # required_params: ['name']

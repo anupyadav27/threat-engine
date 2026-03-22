@@ -1,0 +1,129 @@
+# ============================================================
+# Discovery YAML — mediastore (AWS)
+# Generated: 2026-02-21T04:56:59Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: mediastore
+services:
+  client: mediastore
+  module: boto3.client
+discovery:
+  # ── DescribeContainer ──
+  - discovery_id: aws.mediastore.describe_container
+    calls:
+      - action: describe_container
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.CorsPolicy }}'
+      item:
+        Policy: '{{ item.Policy }}'
+        AllowedHeaders: '{{ item.AllowedHeaders }}'
+        AllowedMethods: '{{ item.AllowedMethods }}'
+        AllowedOrigins: '{{ item.AllowedOrigins }}'
+        Container: '{{ item.Container }}'
+        ContainerLevelMetrics: '{{ item.ContainerLevelMetrics }}'
+        CorsPolicy: '{{ item.CorsPolicy }}'
+        ExposeHeaders: '{{ item.ExposeHeaders }}'
+        LifecyclePolicy: '{{ item.LifecyclePolicy }}'
+        MaxAgeSeconds: '{{ item.MaxAgeSeconds }}'
+        MetricPolicy: '{{ item.MetricPolicy }}'
+  # ── ListContainers ──
+  - discovery_id: aws.mediastore.list_containers
+    calls:
+      - action: list_containers
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Containers }}'
+      item:
+        CreationTime: '{{ item.CreationTime }}'
+        Name: '{{ item.Name }}'
+        Status: '{{ item.Status }}'
+        ARN: '{{ item.ARN }}'
+        AccessLoggingEnabled: '{{ item.AccessLoggingEnabled }}'
+        Container: '{{ item.Container }}'
+        Endpoint: '{{ item.Endpoint }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── GetContainerPolicy ──
+  - discovery_id: aws.mediastore.get_container_policy
+    for_each: aws.mediastore.describe_container
+    calls:
+      - action: get_container_policy
+        params:
+          ContainerName: '{{ item.ContainerName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Container }}'
+      item:
+        Policy: '{{ item.Policy }}'
+        Statement: '{{ item.Statement }}'
+        Version: '{{ item.Version }}'
+  # ── GetCorsPolicy ──
+  - discovery_id: aws.mediastore.get_cors_policy
+    for_each: aws.mediastore.describe_container
+    calls:
+      - action: get_cors_policy
+        params:
+          ContainerName: '{{ item.ContainerName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.CorsPolicy }}'
+      item:
+        AllowedHeaders: '{{ item.AllowedHeaders }}'
+        AllowedMethods: '{{ item.AllowedMethods }}'
+        AllowedOrigins: '{{ item.AllowedOrigins }}'
+        CorsPolicy: '{{ item.CorsPolicy }}'
+        ExposeHeaders: '{{ item.ExposeHeaders }}'
+        MaxAgeSeconds: '{{ item.MaxAgeSeconds }}'
+  # ── GetLifecyclePolicy ──
+  - discovery_id: aws.mediastore.get_lifecycle_policy
+    for_each: aws.mediastore.describe_container
+    calls:
+      - action: get_lifecycle_policy
+        params:
+          ContainerName: '{{ item.ContainerName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Container }}'
+      item:
+        Policy: '{{ item.Policy }}'
+        LifecyclePolicy: '{{ item.LifecyclePolicy }}'
+  # ── GetMetricPolicy ──
+  - discovery_id: aws.mediastore.get_metric_policy
+    for_each: aws.mediastore.describe_container
+    calls:
+      - action: get_metric_policy
+        params:
+          ContainerName: '{{ item.ContainerName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.MetricPolicy }}'
+      item:
+        ContainerLevelMetrics: '{{ item.ContainerLevelMetrics }}'
+        MetricPolicy: '{{ item.MetricPolicy }}'
+        MetricPolicyRules: '{{ item.MetricPolicyRules }}'
+  # ── ListTagsForResource ──
+  - discovery_id: aws.mediastore.list_tags_for_resource
+    calls:
+      - action: list_tags_for_resource
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Tags }}'
+      item:
+        Key: '{{ item.Key }}'
+        Value: '{{ item.Value }}'

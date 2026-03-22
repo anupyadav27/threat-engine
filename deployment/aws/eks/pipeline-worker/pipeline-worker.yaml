@@ -1,0 +1,124 @@
+# Pipeline Worker — HTTP server that orchestrates the full engine pipeline.
+#
+# Build:
+#   docker build -t yadavanup84/pipeline-worker:v7-http \
+#     -f shared/pipeline_worker/Dockerfile .
+#   docker push yadavanup84/pipeline-worker:v7-http
+#
+# Deploy:
+#   kubectl apply -f deployment/aws/eks/pipeline-worker/pipeline-worker.yaml
+#
+# Trigger:
+#   curl -X POST http://pipeline-worker:8050/api/v1/pipeline/run \
+#     -H 'Content-Type: application/json' \
+#     -d '{"scan_run_id":"...","tenant_id":"...","account_id":"...","provider":"aws"}'
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pipeline-worker
+  namespace: threat-engine-engines
+  labels:
+    app: pipeline-worker
+    component: pipeline
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pipeline-worker
+  template:
+    metadata:
+      labels:
+        app: pipeline-worker
+        component: pipeline
+    spec:
+      serviceAccountName: engine-sa
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: node-type
+                operator: NotIn
+                values: ["spot"]
+
+      containers:
+        - name: pipeline-worker
+          image: yadavanup84/threat-engine-pipeline-worker:v-std-cols
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8050
+
+          env:
+            - name: AWS_REGION
+              value: "ap-south-1"
+
+            # Engine service URLs (defaults match K8s DNS)
+            - name: DISCOVERIES_ENGINE_URL
+              value: "http://engine-discoveries.threat-engine-engines.svc.cluster.local"
+            - name: INVENTORY_ENGINE_URL
+              value: "http://engine-inventory.threat-engine-engines.svc.cluster.local"
+            - name: CHECK_ENGINE_URL
+              value: "http://engine-check.threat-engine-engines.svc.cluster.local"
+            - name: THREAT_ENGINE_URL
+              value: "http://engine-threat.threat-engine-engines.svc.cluster.local"
+            - name: COMPLIANCE_ENGINE_URL
+              value: "http://engine-compliance.threat-engine-engines.svc.cluster.local"
+            - name: IAM_ENGINE_URL
+              value: "http://engine-iam.threat-engine-engines.svc.cluster.local"
+            - name: DATASEC_ENGINE_URL
+              value: "http://engine-datasec.threat-engine-engines.svc.cluster.local"
+
+            # Onboarding DB (for scan_orchestration table)
+            - name: ONBOARDING_DB_HOST
+              value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+            - name: ONBOARDING_DB_PORT
+              value: "5432"
+            - name: ONBOARDING_DB_NAME
+              value: "threat_engine_onboarding"
+            - name: ONBOARDING_DB_USER
+              value: "postgres"
+            - name: ONBOARDING_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-db-passwords
+                  key: ONBOARDING_DB_PASSWORD
+
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health/live
+              port: 8050
+            initialDelaySeconds: 10
+            periodSeconds: 30
+
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health/ready
+              port: 8050
+            initialDelaySeconds: 5
+            periodSeconds: 10
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pipeline-worker
+  namespace: threat-engine-engines
+  labels:
+    app: pipeline-worker
+spec:
+  selector:
+    app: pipeline-worker
+  ports:
+    - port: 8050
+      targetPort: 8050
+      protocol: TCP
+  type: ClusterIP

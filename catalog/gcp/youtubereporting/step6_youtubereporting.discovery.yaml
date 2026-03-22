@@ -1,0 +1,179 @@
+# ============================================================
+# Discovery YAML — youtubereporting (v1)
+# Generated: 2026-02-21T03:06:41Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 6 | independent: 2 | dependent: 4
+# ops with fields: 6/6 | dep ops with chain: 4/4
+# ============================================================
+version: '1.0'
+provider: gcp
+service: youtubereporting
+
+services:
+  client: youtubereporting
+  module: "googleapiclient.discovery.build('youtubereporting', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists jobs.
+  # ── gcp.youtubereporting.jobs.list ──
+  - discovery_id: gcp.youtubereporting.jobs.list
+    # python: svc.jobs().list(**params).execute()
+    calls:
+      - action: jobs.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.jobs }}'
+      item:
+        createTime: '{{ item.createTime }}'
+        expireTime: '{{ item.expireTime }}'
+        id: '{{ item.id }}'
+        name: '{{ item.name }}'
+        reportTypeId: '{{ item.reportTypeId }}'
+        systemManaged: '{{ item.systemManaged }}'
+  # Lists report types.
+  # ── gcp.youtubereporting.reportTypes.list ──
+  - discovery_id: gcp.youtubereporting.reportTypes.list
+    # python: svc.reportTypes().list(**params).execute()
+    calls:
+      - action: reportTypes.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.reportTypes }}'
+      item:
+        deprecateTime: '{{ item.deprecateTime }}'
+        id: '{{ item.id }}'
+        name: '{{ item.name }}'
+        systemManaged: '{{ item.systemManaged }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets a job.
+  # ── gcp.youtubereporting.jobs.get [dependent] ──
+  - discovery_id: gcp.youtubereporting.jobs.get
+    for_each: gcp.youtubereporting.jobs.list
+    # python: svc.jobs().get(**params).execute()
+    calls:
+      - action: jobs.get
+        params:
+          jobId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        createTime: '{{ response.createTime }}'
+        expireTime: '{{ response.expireTime }}'
+        id: '{{ response.id }}'
+        name: '{{ response.name }}'
+        reportTypeId: '{{ response.reportTypeId }}'
+        systemManaged: '{{ response.systemManaged }}'
+    # required_params: ['jobId']
+  # Gets the metadata of a specific report.
+  # ── gcp.youtubereporting.jobs.reports.get [dependent] ──
+  - discovery_id: gcp.youtubereporting.jobs.reports.get
+    for_each: gcp.youtubereporting.jobs.reports.list
+    # python: svc.jobs().reports().get(**params).execute()
+    calls:
+      - action: jobs.reports.get
+        params:
+          jobId: '{{ item.name }}'
+          reportId: '{{ item.id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        createTime: '{{ response.createTime }}'
+        downloadUrl: '{{ response.downloadUrl }}'
+        endTime: '{{ response.endTime }}'
+        id: '{{ response.id }}'
+        jobExpireTime: '{{ response.jobExpireTime }}'
+        jobId: '{{ response.jobId }}'
+        startTime: '{{ response.startTime }}'
+    # required_params: ['jobId', 'reportId']
+  # Lists reports created by a specific job. Returns NOT_FOUND if the job does not exist.
+  # ── gcp.youtubereporting.jobs.reports.list [dependent] ──
+  - discovery_id: gcp.youtubereporting.jobs.reports.list
+    for_each: gcp.youtubereporting.jobs.list
+    # python: svc.jobs().reports().list(**params).execute()
+    calls:
+      - action: jobs.reports.list
+        params:
+          jobId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.reports }}'
+      item:
+        createTime: '{{ item.createTime }}'
+        downloadUrl: '{{ item.downloadUrl }}'
+        endTime: '{{ item.endTime }}'
+        id: '{{ item.id }}'
+        jobExpireTime: '{{ item.jobExpireTime }}'
+        jobId: '{{ item.jobId }}'
+        startTime: '{{ item.startTime }}'
+    # required_params: ['jobId']
+  # Method for media download. Download is supported on the URI `/v1/media/{+name}?alt=media`.
+  # ── gcp.youtubereporting.media.download [dependent] ──
+  - discovery_id: gcp.youtubereporting.media.download
+    for_each: gcp.youtubereporting.reportTypes.list
+    # python: svc.media().download(**params).execute()
+    calls:
+      - action: media.download
+        params:
+          resourceName: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        algorithm: '{{ response.algorithm }}'
+        bigstoreObjectRef: '{{ response.bigstoreObjectRef }}'
+        blobRef: '{{ response.blobRef }}'
+        blobstore2Info: '{{ response.blobstore2Info }}'
+        compositeMedia: '{{ response.compositeMedia }}'
+        contentType: '{{ response.contentType }}'
+        contentTypeInfo: '{{ response.contentTypeInfo }}'
+        cosmoBinaryReference: '{{ response.cosmoBinaryReference }}'
+        crc32cHash: '{{ response.crc32cHash }}'
+        diffChecksumsResponse: '{{ response.diffChecksumsResponse }}'
+        diffDownloadResponse: '{{ response.diffDownloadResponse }}'
+        diffUploadRequest: '{{ response.diffUploadRequest }}'
+        diffUploadResponse: '{{ response.diffUploadResponse }}'
+        diffVersionResponse: '{{ response.diffVersionResponse }}'
+        downloadParameters: '{{ response.downloadParameters }}'
+        filename: '{{ response.filename }}'
+        hash: '{{ response.hash }}'
+        hashVerified: '{{ response.hashVerified }}'
+        inline: '{{ response.inline }}'
+        isPotentialRetry: '{{ response.isPotentialRetry }}'
+        length: '{{ response.length }}'
+        md5Hash: '{{ response.md5Hash }}'
+        mediaId: '{{ response.mediaId }}'
+        objectId: '{{ response.objectId }}'
+        path: '{{ response.path }}'
+        referenceType: '{{ response.referenceType }}'
+        sha1Hash: '{{ response.sha1Hash }}'
+        sha256Hash: '{{ response.sha256Hash }}'
+        timestamp: '{{ response.timestamp }}'
+        token: '{{ response.token }}'
+    # required_params: ['resourceName']

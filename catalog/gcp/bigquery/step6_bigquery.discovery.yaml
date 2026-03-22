@@ -1,0 +1,438 @@
+# ============================================================
+# Discovery YAML — bigquery (v2)
+# Generated: 2026-02-21T03:06:38Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 17 | independent: 5 | dependent: 12
+# ops with fields: 13/17 | dep ops with chain: 0/12
+# ============================================================
+version: '1.0'
+provider: gcp
+service: bigquery
+
+services:
+  client: bigquery
+  module: "googleapiclient.discovery.build('bigquery', 'v2')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists all datasets in the specified project to which the user has been granted the READER dataset ro
+  # ── gcp.bigquery.datasets.list ──
+  - discovery_id: gcp.bigquery.datasets.list
+    # python: svc.datasets().list(**params).execute()
+    calls:
+      - action: datasets.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.datasets }}'
+  # Lists all jobs that you started in the specified project. Job information is available for a six mon
+  # ── gcp.bigquery.jobs.list ──
+  - discovery_id: gcp.bigquery.jobs.list
+    # python: svc.jobs().list(**params).execute()
+    calls:
+      - action: jobs.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.jobs }}'
+  # Runs a BigQuery SQL query synchronously and returns query results if the query completes within a sp
+  # ── gcp.bigquery.jobs.query ──
+  - discovery_id: gcp.bigquery.jobs.query
+    # python: svc.jobs().query(**params).execute()
+    calls:
+      - action: jobs.query
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.jobs }}'
+      item:
+        debugInfo: '{{ item.debugInfo }}'
+        message: '{{ item.message }}'
+        reason: '{{ item.reason }}'
+  # RPC to get the service account for a project used for interactions with Google Cloud KMS
+  # ── gcp.bigquery.projects.getServiceAccount ──
+  - discovery_id: gcp.bigquery.projects.getServiceAccount
+    # python: svc.projects().getServiceAccount(**params).execute()
+    calls:
+      - action: projects.getServiceAccount
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        email: '{{ response.email }}'
+  # RPC to list projects to which the user has been granted any project role. Users of this method are e
+  # ── gcp.bigquery.projects.list ──
+  - discovery_id: gcp.bigquery.projects.list
+    # python: svc.projects().list(**params).execute()
+    calls:
+      - action: projects.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.projects }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Returns the dataset specified by datasetID.
+  # ── gcp.bigquery.datasets.get [dependent] ──
+  - discovery_id: gcp.bigquery.datasets.get
+    # python: svc.datasets().get(**params).execute()
+    calls:
+      - action: datasets.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        access: '{{ response.access }}'
+        creationTime: '{{ response.creationTime }}'
+        datasetReference: '{{ response.datasetReference }}'
+        defaultCollation: '{{ response.defaultCollation }}'
+        defaultEncryptionConfiguration: '{{ response.defaultEncryptionConfiguration }}'
+        defaultPartitionExpirationMs: '{{ response.defaultPartitionExpirationMs }}'
+        defaultRoundingMode: '{{ response.defaultRoundingMode }}'
+        defaultTableExpirationMs: '{{ response.defaultTableExpirationMs }}'
+        description: '{{ response.description }}'
+        externalCatalogDatasetOptions: '{{ response.externalCatalogDatasetOptions }}'
+        externalDatasetReference: '{{ response.externalDatasetReference }}'
+        friendlyName: '{{ response.friendlyName }}'
+        id: '{{ response.id }}'
+        isCaseInsensitive: '{{ response.isCaseInsensitive }}'
+        labels: '{{ response.labels }}'
+        lastModifiedTime: '{{ response.lastModifiedTime }}'
+        linkedDatasetMetadata: '{{ response.linkedDatasetMetadata }}'
+        linkedDatasetSource: '{{ response.linkedDatasetSource }}'
+        location: '{{ response.location }}'
+        maxTimeTravelHours: '{{ response.maxTimeTravelHours }}'
+        resourceTags: '{{ response.resourceTags }}'
+        restrictions: '{{ response.restrictions }}'
+        satisfiesPzi: '{{ response.satisfiesPzi }}'
+        satisfiesPzs: '{{ response.satisfiesPzs }}'
+        storageBillingModel: '{{ response.storageBillingModel }}'
+        tags: '{{ response.tags }}'
+        type: '{{ response.type }}'
+    # required_params: ['datasetId', 'projectId']
+  # Returns information about a specific job. Job information is available for a six month period after 
+  # ── gcp.bigquery.jobs.get [dependent] ──
+  - discovery_id: gcp.bigquery.jobs.get
+    # python: svc.jobs().get(**params).execute()
+    calls:
+      - action: jobs.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        configuration: '{{ response.configuration }}'
+        id: '{{ response.id }}'
+        jobCreationReason: '{{ response.jobCreationReason }}'
+        jobReference: '{{ response.jobReference }}'
+        principal_subject: '{{ response.principal_subject }}'
+        statistics: '{{ response.statistics }}'
+        status: '{{ response.status }}'
+        user_email: '{{ response.user_email }}'
+    # required_params: ['projectId', 'jobId']
+  # RPC to get the results of a query job.
+  # ── gcp.bigquery.jobs.getQueryResults [dependent] ──
+  - discovery_id: gcp.bigquery.jobs.getQueryResults
+    # python: svc.jobs().getQueryResults(**params).execute()
+    calls:
+      - action: jobs.getQueryResults
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        cacheHit: '{{ response.cacheHit }}'
+        errors: '{{ response.errors }}'
+        jobComplete: '{{ response.jobComplete }}'
+        jobReference: '{{ response.jobReference }}'
+        numDmlAffectedRows: '{{ response.numDmlAffectedRows }}'
+        rows: '{{ response.rows }}'
+        schema: '{{ response.schema }}'
+        totalBytesProcessed: '{{ response.totalBytesProcessed }}'
+        totalRows: '{{ response.totalRows }}'
+    # required_params: ['projectId', 'jobId']
+  # Gets the specified model resource by model ID.
+  # ── gcp.bigquery.models.get [dependent] ──
+  - discovery_id: gcp.bigquery.models.get
+    # python: svc.models().get(**params).execute()
+    calls:
+      - action: models.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        bestTrialId: '{{ response.bestTrialId }}'
+        creationTime: '{{ response.creationTime }}'
+        defaultTrialId: '{{ response.defaultTrialId }}'
+        description: '{{ response.description }}'
+        encryptionConfiguration: '{{ response.encryptionConfiguration }}'
+        expirationTime: '{{ response.expirationTime }}'
+        featureColumns: '{{ response.featureColumns }}'
+        friendlyName: '{{ response.friendlyName }}'
+        hparamSearchSpaces: '{{ response.hparamSearchSpaces }}'
+        hparamTrials: '{{ response.hparamTrials }}'
+        labelColumns: '{{ response.labelColumns }}'
+        labels: '{{ response.labels }}'
+        lastModifiedTime: '{{ response.lastModifiedTime }}'
+        location: '{{ response.location }}'
+        modelReference: '{{ response.modelReference }}'
+        modelType: '{{ response.modelType }}'
+        optimalTrialIds: '{{ response.optimalTrialIds }}'
+        remoteModelInfo: '{{ response.remoteModelInfo }}'
+        trainingRuns: '{{ response.trainingRuns }}'
+        transformColumns: '{{ response.transformColumns }}'
+    # required_params: ['projectId', 'datasetId', 'modelId']
+  # Lists all models in the specified dataset. Requires the READER dataset role. After retrieving the li
+  # ── gcp.bigquery.models.list [dependent] ──
+  - discovery_id: gcp.bigquery.models.list
+    # python: svc.models().list(**params).execute()
+    calls:
+      - action: models.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.models }}'
+      item:
+        bestTrialId: '{{ item.bestTrialId }}'
+        creationTime: '{{ item.creationTime }}'
+        defaultTrialId: '{{ item.defaultTrialId }}'
+        description: '{{ item.description }}'
+        encryptionConfiguration: '{{ item.encryptionConfiguration }}'
+        expirationTime: '{{ item.expirationTime }}'
+        featureColumns: '{{ item.featureColumns }}'
+        friendlyName: '{{ item.friendlyName }}'
+        hparamSearchSpaces: '{{ item.hparamSearchSpaces }}'
+        hparamTrials: '{{ item.hparamTrials }}'
+        labelColumns: '{{ item.labelColumns }}'
+        labels: '{{ item.labels }}'
+        lastModifiedTime: '{{ item.lastModifiedTime }}'
+        location: '{{ item.location }}'
+        modelReference: '{{ item.modelReference }}'
+        modelType: '{{ item.modelType }}'
+        optimalTrialIds: '{{ item.optimalTrialIds }}'
+        remoteModelInfo: '{{ item.remoteModelInfo }}'
+        trainingRuns: '{{ item.trainingRuns }}'
+        transformColumns: '{{ item.transformColumns }}'
+    # required_params: ['datasetId', 'projectId']
+  # Gets the specified routine resource by routine ID.
+  # ── gcp.bigquery.routines.get [dependent] ──
+  - discovery_id: gcp.bigquery.routines.get
+    # python: svc.routines().get(**params).execute()
+    calls:
+      - action: routines.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        arguments: '{{ response.arguments }}'
+        creationTime: '{{ response.creationTime }}'
+        dataGovernanceType: '{{ response.dataGovernanceType }}'
+        definitionBody: '{{ response.definitionBody }}'
+        description: '{{ response.description }}'
+        determinismLevel: '{{ response.determinismLevel }}'
+        externalRuntimeOptions: '{{ response.externalRuntimeOptions }}'
+        importedLibraries: '{{ response.importedLibraries }}'
+        language: '{{ response.language }}'
+        lastModifiedTime: '{{ response.lastModifiedTime }}'
+        pythonOptions: '{{ response.pythonOptions }}'
+        remoteFunctionOptions: '{{ response.remoteFunctionOptions }}'
+        returnTableType: '{{ response.returnTableType }}'
+        returnType: '{{ response.returnType }}'
+        routineReference: '{{ response.routineReference }}'
+        routineType: '{{ response.routineType }}'
+        securityMode: '{{ response.securityMode }}'
+        sparkOptions: '{{ response.sparkOptions }}'
+        strictMode: '{{ response.strictMode }}'
+    # required_params: ['routineId', 'datasetId', 'projectId']
+  # Lists all routines in the specified dataset. Requires the READER dataset role.
+  # ── gcp.bigquery.routines.list [dependent] ──
+  - discovery_id: gcp.bigquery.routines.list
+    # python: svc.routines().list(**params).execute()
+    calls:
+      - action: routines.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.routines }}'
+      item:
+        arguments: '{{ item.arguments }}'
+        creationTime: '{{ item.creationTime }}'
+        dataGovernanceType: '{{ item.dataGovernanceType }}'
+        definitionBody: '{{ item.definitionBody }}'
+        description: '{{ item.description }}'
+        determinismLevel: '{{ item.determinismLevel }}'
+        externalRuntimeOptions: '{{ item.externalRuntimeOptions }}'
+        importedLibraries: '{{ item.importedLibraries }}'
+        language: '{{ item.language }}'
+        lastModifiedTime: '{{ item.lastModifiedTime }}'
+        pythonOptions: '{{ item.pythonOptions }}'
+        remoteFunctionOptions: '{{ item.remoteFunctionOptions }}'
+        returnTableType: '{{ item.returnTableType }}'
+        returnType: '{{ item.returnType }}'
+        routineReference: '{{ item.routineReference }}'
+        routineType: '{{ item.routineType }}'
+        securityMode: '{{ item.securityMode }}'
+        sparkOptions: '{{ item.sparkOptions }}'
+        strictMode: '{{ item.strictMode }}'
+    # required_params: ['datasetId', 'projectId']
+  # Gets the specified row access policy by policy ID.
+  # ── gcp.bigquery.rowAccessPolicies.get [dependent] ──
+  - discovery_id: gcp.bigquery.rowAccessPolicies.get
+    # python: svc.rowAccessPolicies().get(**params).execute()
+    calls:
+      - action: rowAccessPolicies.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        creationTime: '{{ response.creationTime }}'
+        filterPredicate: '{{ response.filterPredicate }}'
+        grantees: '{{ response.grantees }}'
+        lastModifiedTime: '{{ response.lastModifiedTime }}'
+        rowAccessPolicyReference: '{{ response.rowAccessPolicyReference }}'
+    # required_params: ['tableId', 'datasetId', 'projectId', 'policyId']
+  # Lists all row access policies on the specified table.
+  # ── gcp.bigquery.rowAccessPolicies.list [dependent] ──
+  - discovery_id: gcp.bigquery.rowAccessPolicies.list
+    # python: svc.rowAccessPolicies().list(**params).execute()
+    calls:
+      - action: rowAccessPolicies.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.rowAccessPolicies }}'
+      item:
+        creationTime: '{{ item.creationTime }}'
+        filterPredicate: '{{ item.filterPredicate }}'
+        grantees: '{{ item.grantees }}'
+        lastModifiedTime: '{{ item.lastModifiedTime }}'
+        rowAccessPolicyReference: '{{ item.rowAccessPolicyReference }}'
+    # required_params: ['tableId', 'datasetId', 'projectId']
+  # List the content of a table in rows.
+  # ── gcp.bigquery.tabledata.list [dependent] ──
+  - discovery_id: gcp.bigquery.tabledata.list
+    # python: svc.tabledata().list(**params).execute()
+    calls:
+      - action: tabledata.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.tabledata }}'
+      item:
+        f: '{{ item.f }}'
+    # required_params: ['tableId', 'datasetId', 'projectId']
+  # Gets the specified table resource by table ID. This method does not return the data in the table, it
+  # ── gcp.bigquery.tables.get [dependent] ──
+  - discovery_id: gcp.bigquery.tables.get
+    # python: svc.tables().get(**params).execute()
+    calls:
+      - action: tables.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        biglakeConfiguration: '{{ response.biglakeConfiguration }}'
+        cloneDefinition: '{{ response.cloneDefinition }}'
+        clustering: '{{ response.clustering }}'
+        creationTime: '{{ response.creationTime }}'
+        defaultCollation: '{{ response.defaultCollation }}'
+        defaultRoundingMode: '{{ response.defaultRoundingMode }}'
+        description: '{{ response.description }}'
+        encryptionConfiguration: '{{ response.encryptionConfiguration }}'
+        expirationTime: '{{ response.expirationTime }}'
+        externalCatalogTableOptions: '{{ response.externalCatalogTableOptions }}'
+        externalDataConfiguration: '{{ response.externalDataConfiguration }}'
+        friendlyName: '{{ response.friendlyName }}'
+        id: '{{ response.id }}'
+        labels: '{{ response.labels }}'
+        lastModifiedTime: '{{ response.lastModifiedTime }}'
+        location: '{{ response.location }}'
+        managedTableType: '{{ response.managedTableType }}'
+        materializedView: '{{ response.materializedView }}'
+        materializedViewStatus: '{{ response.materializedViewStatus }}'
+        maxStaleness: '{{ response.maxStaleness }}'
+        model: '{{ response.model }}'
+        numActiveLogicalBytes: '{{ response.numActiveLogicalBytes }}'
+        numActivePhysicalBytes: '{{ response.numActivePhysicalBytes }}'
+        numBytes: '{{ response.numBytes }}'
+        numCurrentPhysicalBytes: '{{ response.numCurrentPhysicalBytes }}'
+        numLongTermBytes: '{{ response.numLongTermBytes }}'
+        numLongTermLogicalBytes: '{{ response.numLongTermLogicalBytes }}'
+        numLongTermPhysicalBytes: '{{ response.numLongTermPhysicalBytes }}'
+        numPartitions: '{{ response.numPartitions }}'
+        numPhysicalBytes: '{{ response.numPhysicalBytes }}'
+        numRows: '{{ response.numRows }}'
+        numTimeTravelPhysicalBytes: '{{ response.numTimeTravelPhysicalBytes }}'
+        numTotalLogicalBytes: '{{ response.numTotalLogicalBytes }}'
+        numTotalPhysicalBytes: '{{ response.numTotalPhysicalBytes }}'
+        partitionDefinition: '{{ response.partitionDefinition }}'
+        rangePartitioning: '{{ response.rangePartitioning }}'
+        replicas: '{{ response.replicas }}'
+        requirePartitionFilter: '{{ response.requirePartitionFilter }}'
+        resourceTags: '{{ response.resourceTags }}'
+        restrictions: '{{ response.restrictions }}'
+        schema: '{{ response.schema }}'
+        snapshotDefinition: '{{ response.snapshotDefinition }}'
+        streamingBuffer: '{{ response.streamingBuffer }}'
+        tableConstraints: '{{ response.tableConstraints }}'
+        tableReference: '{{ response.tableReference }}'
+        tableReplicationInfo: '{{ response.tableReplicationInfo }}'
+        timePartitioning: '{{ response.timePartitioning }}'
+        type: '{{ response.type }}'
+        view: '{{ response.view }}'
+    # required_params: ['datasetId', 'tableId', 'projectId']
+  # Lists all tables in the specified dataset. Requires the READER dataset role.
+  # ── gcp.bigquery.tables.list [dependent] ──
+  - discovery_id: gcp.bigquery.tables.list
+    # python: svc.tables().list(**params).execute()
+    calls:
+      - action: tables.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.tables }}'
+    # required_params: ['projectId', 'datasetId']

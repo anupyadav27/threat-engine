@@ -1,0 +1,186 @@
+# =============================================================================
+# Risk Engine — FAIR Model Financial Risk Quantification
+# Port: 8009 | Layer 4 (depends on all other engines)
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: engine-risk
+  namespace: threat-engine-engines
+  labels:
+    app: engine-risk
+    engine: risk
+    layer: "4"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: engine-risk
+  template:
+    metadata:
+      labels:
+        app: engine-risk
+        engine: risk
+        layer: "4"
+    spec:
+      containers:
+        - name: engine-risk
+          image: yadavanup84/engine-risk:v-std-cols
+          ports:
+            - containerPort: 8009
+          env:
+            # Risk DB (primary)
+            - name: RISK_DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: DB_HOST
+            - name: RISK_DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: DB_PORT
+            - name: RISK_DB_NAME
+              value: "threat_engine_risk"
+            - name: RISK_DB_USER
+              value: "postgres"
+            - name: RISK_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-db-passwords
+                  key: DISCOVERIES_DB_PASSWORD
+            # Discovery DB (cross-engine findings)
+            - name: DISCOVERY_DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: DB_HOST
+            - name: DISCOVERY_DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: DB_PORT
+            - name: DISCOVERY_DB_NAME
+              value: "discoveries"
+            - name: DISCOVERY_DB_USER
+              value: "postgres"
+            - name: DISCOVERY_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-db-passwords
+                  key: DISCOVERIES_DB_PASSWORD
+            # Onboarding DB (tenant config)
+            - name: ONBOARDING_DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: DB_HOST
+            - name: ONBOARDING_DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: DB_PORT
+            - name: ONBOARDING_DB_NAME
+              value: "onboarding"
+            - name: ONBOARDING_DB_USER
+              value: "postgres"
+            - name: ONBOARDING_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-db-passwords
+                  key: ONBOARDING_DB_PASSWORD
+            # Threat DB (cross-engine: threat_findings, iam_findings)
+            - name: THREAT_DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: DB_HOST
+            - name: THREAT_DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: DB_PORT
+            - name: THREAT_DB_NAME
+              value: "threat"
+            - name: THREAT_DB_USER
+              value: "postgres"
+            - name: THREAT_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-db-passwords
+                  key: THREAT_DB_PASSWORD
+            # Compliance DB (cross-engine: compliance_report)
+            - name: COMPLIANCE_DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: DB_HOST
+            - name: COMPLIANCE_DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: DB_PORT
+            - name: COMPLIANCE_DB_NAME
+              value: "compliance"
+            - name: COMPLIANCE_DB_USER
+              value: "postgres"
+            - name: COMPLIANCE_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-db-passwords
+                  key: COMPLIANCE_DB_PASSWORD
+            # External DB (EPSS/CVE cache) — optional, failure is non-fatal
+            - name: EXTERNAL_DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: DB_HOST
+            - name: EXTERNAL_DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: DB_PORT
+            - name: EXTERNAL_DB_NAME
+              value: "vulnerability_db"
+            - name: EXTERNAL_DB_USER
+              value: "postgres"
+            - name: EXTERNAL_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-db-passwords
+                  key: DISCOVERIES_DB_PASSWORD
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health/live
+              port: 8009
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health/ready
+              port: 8009
+            initialDelaySeconds: 15
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: engine-risk
+  namespace: threat-engine-engines
+  labels:
+    app: engine-risk
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8009
+      targetPort: 8009
+      protocol: TCP
+  selector:
+    app: engine-risk

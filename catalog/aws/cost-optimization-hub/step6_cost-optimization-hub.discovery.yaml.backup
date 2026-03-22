@@ -1,0 +1,98 @@
+version: '1.0'
+provider: aws
+service: cost-optimization-hub
+services:
+  client: cost-optimization-hub
+  module: boto3.client
+discovery:
+- discovery_id: aws.cost-optimization-hub.getPreferences
+  calls:
+  - action: getPreferences
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.preferredCommitment }}'
+    item:
+      term: '{{ item.term }}'
+      paymentOption: '{{ item.paymentOption }}'
+- discovery_id: aws.cost-optimization-hub.listEnrollmentStatuses
+  calls:
+  - action: listEnrollmentStatuses
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      accountId: '{{ item.accountId }}'
+      status: '{{ item.status }}'
+      lastUpdatedTimestamp: '{{ item.lastUpdatedTimestamp }}'
+      createdTimestamp: '{{ item.createdTimestamp }}'
+- discovery_id: aws.cost-optimization-hub.listRecommendations
+  calls:
+  - action: listRecommendations
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      recommendationId: '{{ item.recommendationId }}'
+      accountId: '{{ item.accountId }}'
+      region: '{{ item.region }}'
+      resourceId: '{{ item.resourceId }}'
+      resourceArn: '{{ item.resourceArn }}'
+      currentResourceType: '{{ item.currentResourceType }}'
+      recommendedResourceType: '{{ item.recommendedResourceType }}'
+      estimatedMonthlySavings: '{{ item.estimatedMonthlySavings }}'
+      estimatedSavingsPercentage: '{{ item.estimatedSavingsPercentage }}'
+      estimatedMonthlyCost: '{{ item.estimatedMonthlyCost }}'
+      currencyCode: '{{ item.currencyCode }}'
+      implementationEffort: '{{ item.implementationEffort }}'
+      restartNeeded: '{{ item.restartNeeded }}'
+      actionType: '{{ item.actionType }}'
+      rollbackPossible: '{{ item.rollbackPossible }}'
+      currentResourceSummary: '{{ item.currentResourceSummary }}'
+      recommendedResourceSummary: '{{ item.recommendedResourceSummary }}'
+      lastRefreshTimestamp: '{{ item.lastRefreshTimestamp }}'
+      recommendationLookbackPeriodInDays: '{{ item.recommendationLookbackPeriodInDays
+        }}'
+      source: '{{ item.source }}'
+      tags: '{{ item.tags }}'
+- discovery_id: aws.cost-optimization-hub.getRecommendation
+  calls:
+  - action: getRecommendation
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.tags }}'
+    item:
+      key: '{{ item.key }}'
+      value: '{{ item.value }}'
+- discovery_id: aws.cost-optimization-hub.listEfficiencyMetrics
+  calls:
+  - action: listEfficiencyMetrics
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.efficiencyMetricsByGroup }}'
+    item:
+      metricsByTime: '{{ item.metricsByTime }}'
+      group: '{{ item.group }}'
+      message: '{{ item.message }}'
+- discovery_id: aws.cost-optimization-hub.listRecommendationSummaries
+  calls:
+  - action: listRecommendationSummaries
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      group: '{{ item.group }}'
+      estimatedMonthlySavings: '{{ item.estimatedMonthlySavings }}'
+      recommendationCount: '{{ item.recommendationCount }}'
+checks: []

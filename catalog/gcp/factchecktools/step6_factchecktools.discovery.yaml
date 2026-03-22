@@ -1,0 +1,101 @@
+# ============================================================
+# Discovery YAML — factchecktools (v1alpha1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 4 | independent: 3 | dependent: 1
+# ops with fields: 4/4 | dep ops with chain: 1/1
+# ============================================================
+version: '1.0'
+provider: gcp
+service: factchecktools
+
+services:
+  client: factchecktools
+  module: "googleapiclient.discovery.build('factchecktools', 'v1alpha1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Search through fact-checked claims using an image as the query.
+  # ── gcp.factchecktools.claims.imageSearch ──
+  - discovery_id: gcp.factchecktools.claims.imageSearch
+    # python: svc.claims().imageSearch(**params).execute()
+    calls:
+      - action: claims.imageSearch
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        results: '{{ response.results }}'
+  # Search through fact-checked claims.
+  # ── gcp.factchecktools.claims.search ──
+  - discovery_id: gcp.factchecktools.claims.search
+    # python: svc.claims().search(**params).execute()
+    calls:
+      - action: claims.search
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.claims }}'
+      item:
+        claimDate: '{{ item.claimDate }}'
+        claimReview: '{{ item.claimReview }}'
+        claimant: '{{ item.claimant }}'
+        text: '{{ item.text }}'
+  # List the `ClaimReview` markup pages for a specific URL or for an organization.
+  # ── gcp.factchecktools.pages.list ──
+  - discovery_id: gcp.factchecktools.pages.list
+    # python: svc.pages().list(**params).execute()
+    calls:
+      - action: pages.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.pages }}'
+      item:
+        claimReviewAuthor: '{{ item.claimReviewAuthor }}'
+        claimReviewMarkups: '{{ item.claimReviewMarkups }}'
+        name: '{{ item.name }}'
+        pageUrl: '{{ item.pageUrl }}'
+        publishDate: '{{ item.publishDate }}'
+        versionId: '{{ item.versionId }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Get all `ClaimReview` markup on a page.
+  # ── gcp.factchecktools.pages.get [dependent] ──
+  - discovery_id: gcp.factchecktools.pages.get
+    for_each: gcp.factchecktools.pages.list
+    # python: svc.pages().get(**params).execute()
+    calls:
+      - action: pages.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        claimReviewAuthor: '{{ response.claimReviewAuthor }}'
+        claimReviewMarkups: '{{ response.claimReviewMarkups }}'
+        name: '{{ response.name }}'
+        pageUrl: '{{ response.pageUrl }}'
+        publishDate: '{{ response.publishDate }}'
+        versionId: '{{ response.versionId }}'
+    # required_params: ['name']

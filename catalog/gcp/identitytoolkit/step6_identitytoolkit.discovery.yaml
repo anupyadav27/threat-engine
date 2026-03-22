@@ -1,0 +1,246 @@
+# ============================================================
+# Discovery YAML — identitytoolkit (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 11 | independent: 5 | dependent: 6
+# ops with fields: 10/11 | dep ops with chain: 0/6
+# ============================================================
+version: '1.0'
+provider: gcp
+service: identitytoolkit
+
+services:
+  client: identitytoolkit
+  module: "googleapiclient.discovery.build('identitytoolkit', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Gets account information for all matched accounts. For an end user request, retrieves the account of
+  # ── gcp.identitytoolkit.accounts.lookup ──
+  - discovery_id: gcp.identitytoolkit.accounts.lookup
+    # python: svc.accounts().lookup(**params).execute()
+    calls:
+      - action: accounts.lookup
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        users: '{{ response.users }}'
+  # Gets a project's public Identity Toolkit configuration. (Legacy) This method also supports authentic
+  # ── gcp.identitytoolkit.v1.getProjects ──
+  - discovery_id: gcp.identitytoolkit.v1.getProjects
+    # python: svc.v1().getProjects(**params).execute()
+    calls:
+      - action: v1.getProjects
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        allowPasswordUser: '{{ response.allowPasswordUser }}'
+        apiKey: '{{ response.apiKey }}'
+        authorizedDomains: '{{ response.authorizedDomains }}'
+        changeEmailTemplate: '{{ response.changeEmailTemplate }}'
+        dynamicLinksDomain: '{{ response.dynamicLinksDomain }}'
+        enableAnonymousUser: '{{ response.enableAnonymousUser }}'
+        idpConfig: '{{ response.idpConfig }}'
+        legacyResetPasswordTemplate: '{{ response.legacyResetPasswordTemplate }}'
+        projectId: '{{ response.projectId }}'
+        resetPasswordTemplate: '{{ response.resetPasswordTemplate }}'
+        revertSecondFactorAdditionTemplate: '{{ response.revertSecondFactorAdditionTemplate }}'
+        useEmailSending: '{{ response.useEmailSending }}'
+        verifyEmailTemplate: '{{ response.verifyEmailTemplate }}'
+  # Retrieves public keys of the legacy Identity Toolkit token signer to enable third parties to verify 
+  # ── gcp.identitytoolkit.v1.getPublicKeys ──
+  - discovery_id: gcp.identitytoolkit.v1.getPublicKeys
+    # python: svc.v1().getPublicKeys(**params).execute()
+    calls:
+      - action: v1.getPublicKeys
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+  # Gets parameters needed for generating a reCAPTCHA challenge.
+  # ── gcp.identitytoolkit.v1.getRecaptchaParams ──
+  - discovery_id: gcp.identitytoolkit.v1.getRecaptchaParams
+    # python: svc.v1().getRecaptchaParams(**params).execute()
+    calls:
+      - action: v1.getRecaptchaParams
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        producerProjectNumber: '{{ response.producerProjectNumber }}'
+        recaptchaSiteKey: '{{ response.recaptchaSiteKey }}'
+        recaptchaStoken: '{{ response.recaptchaStoken }}'
+  # Retrieves the set of public keys of the session cookie JSON Web Token (JWT) signer that can be used 
+  # ── gcp.identitytoolkit.v1.getSessionCookiePublicKeys ──
+  - discovery_id: gcp.identitytoolkit.v1.getSessionCookiePublicKeys
+    # python: svc.v1().getSessionCookiePublicKeys(**params).execute()
+    calls:
+      - action: v1.getSessionCookiePublicKeys
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        keys: '{{ response.keys }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Download account information for all accounts on the project in a paginated manner. To use this meth
+  # ── gcp.identitytoolkit.projects.accounts.batchGet [dependent] ──
+  - discovery_id: gcp.identitytoolkit.projects.accounts.batchGet
+    # python: svc.projects().accounts().batchGet(**params).execute()
+    calls:
+      - action: projects.accounts.batchGet
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        users: '{{ response.users }}'
+    # required_params: ['targetProjectId']
+  # Gets account information for all matched accounts. For an end user request, retrieves the account of
+  # ── gcp.identitytoolkit.projects.accounts.lookup [dependent] ──
+  - discovery_id: gcp.identitytoolkit.projects.accounts.lookup
+    # python: svc.projects().accounts().lookup(**params).execute()
+    calls:
+      - action: projects.accounts.lookup
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        users: '{{ response.users }}'
+    # required_params: ['targetProjectId']
+  # Looks up user accounts within a project or a tenant based on conditions in the request.
+  # ── gcp.identitytoolkit.projects.accounts.query [dependent] ──
+  - discovery_id: gcp.identitytoolkit.projects.accounts.query
+    # python: svc.projects().accounts().query(**params).execute()
+    calls:
+      - action: projects.accounts.query
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.accounts }}'
+      item:
+        createdAt: '{{ item.createdAt }}'
+        customAttributes: '{{ item.customAttributes }}'
+        customAuth: '{{ item.customAuth }}'
+        dateOfBirth: '{{ item.dateOfBirth }}'
+        disabled: '{{ item.disabled }}'
+        displayName: '{{ item.displayName }}'
+        email: '{{ item.email }}'
+        emailLinkSignin: '{{ item.emailLinkSignin }}'
+        emailVerified: '{{ item.emailVerified }}'
+        initialEmail: '{{ item.initialEmail }}'
+        language: '{{ item.language }}'
+        lastLoginAt: '{{ item.lastLoginAt }}'
+        lastRefreshAt: '{{ item.lastRefreshAt }}'
+        localId: '{{ item.localId }}'
+        mfaInfo: '{{ item.mfaInfo }}'
+        passwordHash: '{{ item.passwordHash }}'
+        passwordUpdatedAt: '{{ item.passwordUpdatedAt }}'
+        phoneNumber: '{{ item.phoneNumber }}'
+        photoUrl: '{{ item.photoUrl }}'
+        providerUserInfo: '{{ item.providerUserInfo }}'
+        rawPassword: '{{ item.rawPassword }}'
+        salt: '{{ item.salt }}'
+        screenName: '{{ item.screenName }}'
+        tenantId: '{{ item.tenantId }}'
+        timeZone: '{{ item.timeZone }}'
+        validSince: '{{ item.validSince }}'
+        version: '{{ item.version }}'
+    # required_params: ['targetProjectId']
+  # Download account information for all accounts on the project in a paginated manner. To use this meth
+  # ── gcp.identitytoolkit.projects.tenants.accounts.batchGet [dependent] ──
+  - discovery_id: gcp.identitytoolkit.projects.tenants.accounts.batchGet
+    # python: svc.projects().tenants().accounts().batchGet(**params).execute()
+    calls:
+      - action: projects.tenants.accounts.batchGet
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        users: '{{ response.users }}'
+    # required_params: ['targetProjectId', 'tenantId']
+  # Gets account information for all matched accounts. For an end user request, retrieves the account of
+  # ── gcp.identitytoolkit.projects.tenants.accounts.lookup [dependent] ──
+  - discovery_id: gcp.identitytoolkit.projects.tenants.accounts.lookup
+    # python: svc.projects().tenants().accounts().lookup(**params).execute()
+    calls:
+      - action: projects.tenants.accounts.lookup
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        users: '{{ response.users }}'
+    # required_params: ['targetProjectId', 'tenantId']
+  # Looks up user accounts within a project or a tenant based on conditions in the request.
+  # ── gcp.identitytoolkit.projects.tenants.accounts.query [dependent] ──
+  - discovery_id: gcp.identitytoolkit.projects.tenants.accounts.query
+    # python: svc.projects().tenants().accounts().query(**params).execute()
+    calls:
+      - action: projects.tenants.accounts.query
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.accounts }}'
+      item:
+        createdAt: '{{ item.createdAt }}'
+        customAttributes: '{{ item.customAttributes }}'
+        customAuth: '{{ item.customAuth }}'
+        dateOfBirth: '{{ item.dateOfBirth }}'
+        disabled: '{{ item.disabled }}'
+        displayName: '{{ item.displayName }}'
+        email: '{{ item.email }}'
+        emailLinkSignin: '{{ item.emailLinkSignin }}'
+        emailVerified: '{{ item.emailVerified }}'
+        initialEmail: '{{ item.initialEmail }}'
+        language: '{{ item.language }}'
+        lastLoginAt: '{{ item.lastLoginAt }}'
+        lastRefreshAt: '{{ item.lastRefreshAt }}'
+        localId: '{{ item.localId }}'
+        mfaInfo: '{{ item.mfaInfo }}'
+        passwordHash: '{{ item.passwordHash }}'
+        passwordUpdatedAt: '{{ item.passwordUpdatedAt }}'
+        phoneNumber: '{{ item.phoneNumber }}'
+        photoUrl: '{{ item.photoUrl }}'
+        providerUserInfo: '{{ item.providerUserInfo }}'
+        rawPassword: '{{ item.rawPassword }}'
+        salt: '{{ item.salt }}'
+        screenName: '{{ item.screenName }}'
+        tenantId: '{{ item.tenantId }}'
+        timeZone: '{{ item.timeZone }}'
+        validSince: '{{ item.validSince }}'
+        version: '{{ item.version }}'
+    # required_params: ['targetProjectId', 'tenantId']

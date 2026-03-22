@@ -1,0 +1,65 @@
+# ============================================================
+# Discovery YAML — siteVerification (v1)
+# Generated: 2026-02-21T03:06:41Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 2 | independent: 1 | dependent: 1
+# ops with fields: 2/2 | dep ops with chain: 1/1
+# ============================================================
+version: '1.0'
+provider: gcp
+service: siteVerification
+
+services:
+  client: siteVerification
+  module: "googleapiclient.discovery.build('siteVerification', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Get the list of your verified websites and domains.
+  # ── gcp.siteVerification.webResource.list ──
+  - discovery_id: gcp.siteVerification.webResource.list
+    # python: svc.webResource().list(**params).execute()
+    calls:
+      - action: webResource.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.webResource }}'
+      item:
+        id: '{{ item.id }}'
+        owners: '{{ item.owners }}'
+        site: '{{ item.site }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Get the most current data for a website or domain.
+  # ── gcp.siteVerification.webResource.get [dependent] ──
+  - discovery_id: gcp.siteVerification.webResource.get
+    for_each: gcp.siteVerification.webResource.list
+    # python: svc.webResource().get(**params).execute()
+    calls:
+      - action: webResource.get
+        params:
+          id: '{{ item.id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        id: '{{ response.id }}'
+        owners: '{{ response.owners }}'
+        site: '{{ response.site }}'
+    # required_params: ['id']

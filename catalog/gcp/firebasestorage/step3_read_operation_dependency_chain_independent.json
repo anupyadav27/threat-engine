@@ -1,0 +1,301 @@
+{
+  "service": "firebasestorage",
+  "version": "v1beta",
+  "total_ops": 5,
+  "total_chains": 5,
+  "independent_ops": 2,
+  "dependent_ops": 3,
+  "chains": {
+    "gcp.firebasestorage.projects.getDefaultBucket": {
+      "target_op": "gcp.firebasestorage.projects.getDefaultBucket",
+      "kind": "read_get",
+      "independent": true,
+      "hop_distance": 0,
+      "chain_length": 1,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.firebasestorage.projects.getDefaultBucket",
+          "kind": "read_get",
+          "independent": true,
+          "python_call": "svc.projects().getDefaultBucket(**params).execute()",
+          "path": "/v1beta/{+name}",
+          "required_params": {
+            "name": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^projects/[^/]+/defaultBucket$",
+              "description": "Required. The name of the default bucket to retrieve, `projects/{project_id_or_number}/defaultBucket`."
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "name": "always_available"
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.firebasestorage.projects.buckets.addFirebase": {
+      "target_op": "gcp.firebasestorage.projects.buckets.addFirebase",
+      "kind": "other",
+      "independent": false,
+      "hop_distance": 1,
+      "chain_length": 2,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.firebasestorage.projects.buckets.list",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.projects().buckets().list(**params).execute()",
+          "path": "/v1beta/{+parent}/buckets",
+          "required_params": {
+            "parent": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^projects/[^/]+$",
+              "description": "Required. Resource name of the parent Firebase project, `projects/{project_id_or_number}`."
+            }
+          },
+          "output_list_field": "buckets",
+          "output_id_field": "name",
+          "produces": {
+            "bucketId": {
+              "via_list_field": "buckets",
+              "from_id_field": "name",
+              "note": "Iterate response[\"buckets\"][], extract item[\"name\"] \u2192 pass as \"bucketId\""
+            }
+          },
+          "param_sources": {
+            "parent": "always_available"
+          },
+          "purpose": "Provides: bucketId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.firebasestorage.projects.buckets.addFirebase",
+          "kind": "other",
+          "independent": false,
+          "python_call": "svc.projects().buckets().addFirebase(**params).execute()",
+          "path": "/v1beta/{+bucket}:addFirebase",
+          "required_params": {
+            "bucket": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^projects/[^/]+/buckets/[^/]+$",
+              "description": "Required. Resource name of the bucket, mirrors the ID of the underlying Google Cloud Storage bucket, `projects/{project_"
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "bucket": {
+              "bucketId": {
+                "from_step": 1,
+                "from_op": "gcp.firebasestorage.projects.buckets.list",
+                "field": "name"
+              }
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.firebasestorage.projects.buckets.list": {
+      "target_op": "gcp.firebasestorage.projects.buckets.list",
+      "kind": "read_list",
+      "independent": true,
+      "hop_distance": 0,
+      "chain_length": 1,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.firebasestorage.projects.buckets.list",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.projects().buckets().list(**params).execute()",
+          "path": "/v1beta/{+parent}/buckets",
+          "required_params": {
+            "parent": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^projects/[^/]+$",
+              "description": "Required. Resource name of the parent Firebase project, `projects/{project_id_or_number}`."
+            }
+          },
+          "output_list_field": "buckets",
+          "output_id_field": "name",
+          "produces": {
+            "bucketId": {
+              "via_list_field": "buckets",
+              "from_id_field": "name",
+              "note": "Iterate response[\"buckets\"][], extract item[\"name\"] \u2192 pass as \"bucketId\""
+            }
+          },
+          "param_sources": {
+            "parent": "always_available"
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [
+        "parent"
+      ],
+      "unresolved_params": []
+    },
+    "gcp.firebasestorage.projects.buckets.removeFirebase": {
+      "target_op": "gcp.firebasestorage.projects.buckets.removeFirebase",
+      "kind": "other",
+      "independent": false,
+      "hop_distance": 1,
+      "chain_length": 2,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.firebasestorage.projects.buckets.list",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.projects().buckets().list(**params).execute()",
+          "path": "/v1beta/{+parent}/buckets",
+          "required_params": {
+            "parent": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^projects/[^/]+$",
+              "description": "Required. Resource name of the parent Firebase project, `projects/{project_id_or_number}`."
+            }
+          },
+          "output_list_field": "buckets",
+          "output_id_field": "name",
+          "produces": {
+            "bucketId": {
+              "via_list_field": "buckets",
+              "from_id_field": "name",
+              "note": "Iterate response[\"buckets\"][], extract item[\"name\"] \u2192 pass as \"bucketId\""
+            }
+          },
+          "param_sources": {
+            "parent": "always_available"
+          },
+          "purpose": "Provides: bucketId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.firebasestorage.projects.buckets.removeFirebase",
+          "kind": "other",
+          "independent": false,
+          "python_call": "svc.projects().buckets().removeFirebase(**params).execute()",
+          "path": "/v1beta/{+bucket}:removeFirebase",
+          "required_params": {
+            "bucket": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^projects/[^/]+/buckets/[^/]+$",
+              "description": "Required. Resource name of the bucket, mirrors the ID of the underlying Google Cloud Storage bucket, `projects/{project_"
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "bucket": {
+              "bucketId": {
+                "from_step": 1,
+                "from_op": "gcp.firebasestorage.projects.buckets.list",
+                "field": "name"
+              }
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.firebasestorage.projects.buckets.get": {
+      "target_op": "gcp.firebasestorage.projects.buckets.get",
+      "kind": "read_get",
+      "independent": false,
+      "hop_distance": 1,
+      "chain_length": 2,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.firebasestorage.projects.buckets.list",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.projects().buckets().list(**params).execute()",
+          "path": "/v1beta/{+parent}/buckets",
+          "required_params": {
+            "parent": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^projects/[^/]+$",
+              "description": "Required. Resource name of the parent Firebase project, `projects/{project_id_or_number}`."
+            }
+          },
+          "output_list_field": "buckets",
+          "output_id_field": "name",
+          "produces": {
+            "bucketId": {
+              "via_list_field": "buckets",
+              "from_id_field": "name",
+              "note": "Iterate response[\"buckets\"][], extract item[\"name\"] \u2192 pass as \"bucketId\""
+            }
+          },
+          "param_sources": {
+            "parent": "always_available"
+          },
+          "purpose": "Provides: bucketId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.firebasestorage.projects.buckets.get",
+          "kind": "read_get",
+          "independent": false,
+          "python_call": "svc.projects().buckets().get(**params).execute()",
+          "path": "/v1beta/{+name}",
+          "required_params": {
+            "name": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^projects/[^/]+/buckets/[^/]+$",
+              "description": "Required. Resource name of the bucket, mirrors the ID of the underlying Google Cloud Storage bucket, `projects/{project_"
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "name": {
+              "bucketId": {
+                "from_step": 1,
+                "from_op": "gcp.firebasestorage.projects.buckets.list",
+                "field": "name"
+              }
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    }
+  }
+}

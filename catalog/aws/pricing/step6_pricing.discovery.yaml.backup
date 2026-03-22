@@ -1,0 +1,60 @@
+version: '1.0'
+provider: aws
+service: pricing
+services:
+  client: pricing
+  module: boto3.client
+discovery:
+- discovery_id: aws.pricing.describeServices
+  calls:
+  - action: describeServices
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Services }}'
+    item:
+      ServiceCode: '{{ item.ServiceCode }}'
+      AttributeNames: '{{ item.AttributeNames }}'
+- discovery_id: aws.pricing.getAttributeValues
+  calls:
+  - action: getAttributeValues
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.AttributeValues }}'
+    item:
+      Value: '{{ item.Value }}'
+- discovery_id: aws.pricing.getPriceListFileUrl
+  calls:
+  - action: getPriceListFileUrl
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Url }}'
+- discovery_id: aws.pricing.getProducts
+  calls:
+  - action: getProducts
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.PriceList }}'
+- discovery_id: aws.pricing.listPriceLists
+  calls:
+  - action: listPriceLists
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.PriceLists }}'
+    item:
+      PriceListArn: '{{ item.PriceListArn }}'
+      RegionCode: '{{ item.RegionCode }}'
+      CurrencyCode: '{{ item.CurrencyCode }}'
+      FileFormats: '{{ item.FileFormats }}'
+checks: []

@@ -11,7 +11,7 @@ spec:
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxSurge: 2
+      maxSurge: 0
       maxUnavailable: 1
   selector:
     matchLabels:
@@ -23,32 +23,9 @@ spec:
         tier: engine
     spec:
       serviceAccountName: engine-sa
-      # Spot affinity + toleration — UNCOMMENT when running scans to use spot instances
-      # affinity:
-      #   nodeAffinity:
-      #     preferredDuringSchedulingIgnoredDuringExecution:
-      #     - weight: 100
-      #       preference:
-      #         matchExpressions:
-      #         - key: workload-type
-      #           operator: In
-      #           values:
-      #           - scan
-      # tolerations:
-      # - key: "spot-scanner"
-      #   operator: "Equal"
-      #   value: "true"
-      #   effect: "NoSchedule"
-      # topologySpreadConstraints:
-      # - maxSkew: 1
-      #   topologyKey: kubernetes.io/hostname
-      #   whenUnsatisfiable: DoNotSchedule
-      #   labelSelector:
-      #     matchLabels:
-      #       app: engine-discoveries
       containers:
       - name: engine-discoveries
-        image: yadavanup84/engine-discoveries:v10-multicloud
+        image: yadavanup84/engine-discoveries:v-std-cols
         imagePullPolicy: Always
         ports:
         - containerPort: 8001
@@ -83,40 +60,10 @@ spec:
           value: "database"
         - name: DISCOVERY_CONFIG_SOURCE
           value: "database"
-        # Level 1: services run concurrently via asyncio semaphore (no extra threads)
         - name: MAX_SERVICE_WORKERS
-          value: "10"
-        # Level 2: regions per service run concurrently via asyncio semaphore (no extra threads)
+          value: "5"
         - name: MAX_REGION_WORKERS
-          value: "5"
-        # Level 3: sub-discoveries within a region use a thread pool (boto3 is blocking)
-        # Peak threads = MAX_SERVICE_WORKERS * MAX_DISCOVERY_WORKERS = 10 * 20 = 200
-        - name: MAX_DISCOVERY_WORKERS
-          value: "20"
-        # for_each expansions: nested inside MAX_DISCOVERY_WORKERS threads
-        # 200 outer * 5 inner = 1000 max concurrent API calls — kept low to avoid throttling
-        - name: FOR_EACH_MAX_WORKERS
-          value: "5"
-        # Boto3 timeout tuning — short timeouts so unsupported-region calls fail fast
-        # Default was 120s read + 10s connect → kills parallelism with 17 regions
-        - name: BOTO_READ_TIMEOUT
-          value: "10"          # 10s is plenty for healthy APIs; fail fast on unavailable endpoints
-        - name: BOTO_CONNECT_TIMEOUT
-          value: "5"
-        - name: BOTO_MAX_ATTEMPTS
-          value: "2"           # botocore retries; 2 = 1 attempt + 1 retry only
-        - name: OPERATION_TIMEOUT
-          value: "60"          # per-API-call hard cap (was 600s)
-        # Thread pool for concurrent service-region scans
-        # 10 services × 5 regions = 50 concurrent scans; 100 threads for headroom
-        - name: SCAN_EXECUTOR_THREADS
-          value: "100"
-        # DB connection pool — must exceed concurrent DB-writing threads
-        # 50 scan threads + DB executor threads + status updates → 60 connections
-        - name: DB_POOL_MIN
-          value: "5"
-        - name: DB_POOL_MAX
-          value: "60"
+          value: "3"
         # Onboarding database environment variables for orchestration integration
         # MOVED: scan_orchestration table moved from shared to onboarding DB
         - name: ONBOARDING_DB_HOST
@@ -134,18 +81,13 @@ spec:
               key: ONBOARDING_DB_PASSWORD
         - name: ORCHESTRATION_ENABLED
           value: "true"
-        volumeMounts:
-        - name: output
-          mountPath: /output
-        - name: input
-          mountPath: /input
         resources:
           requests:
-            memory: "512Mi"
-            cpu: "250m"
+            memory: "256Mi"
+            cpu: "100m"
           limits:
-            memory: "2Gi"
-            cpu: "2000m"
+            memory: "512Mi"
+            cpu: "500m"
         livenessProbe:
           httpGet:
             path: /api/v1/health/live
@@ -163,76 +105,7 @@ spec:
           timeoutSeconds: 5
           failureThreshold: 6
 
-      # S3 sync sidecar - syncs output to S3 and downloads input from S3 (rules, etc.)
-      - name: s3-sync
-        image: amazon/aws-cli:latest
-        command: ["/bin/sh", "-c"]
-        args:
-          - |
-            echo "S3 Sync Sidecar starting..."
-            echo "Bucket: s3://${S3_BUCKET}"
-            echo "Input: s3://${S3_BUCKET}/engine_input/${ENGINE_NAME}/ -> /input"
-            echo "Output: /output -> s3://${S3_BUCKET}/engine_output/${ENGINE_NAME}/"
-            
-            # Initial sync of input from S3 (optional)
-            if aws s3 ls "s3://${S3_BUCKET}/engine_input/${ENGINE_NAME}/" 2>/dev/null; then
-              echo "Syncing input from S3..."
-              aws s3 sync "s3://${S3_BUCKET}/engine_input/${ENGINE_NAME}/" /input --region ${AWS_REGION} || true
-            else
-              echo "No input data in S3 yet"
-            fi
-            
-            # Continuous sync loop
-            while true; do
-              # Sync output TO S3 (every 30s)
-              if [ -d "/output" ] && [ "$(ls -A /output 2>/dev/null)" ]; then
-                echo "$(date): Syncing output to S3..."
-                aws s3 sync /output "s3://${S3_BUCKET}/engine_output/${ENGINE_NAME}/" \
-                  --region ${AWS_REGION} \
-                  --exclude "*.tmp" \
-                  --exclude "*.lock" \
-                  --delete || echo "Sync failed, retrying..."
-              fi
-              
-              # Sync input FROM S3 (every 5 minutes for rule updates)
-              if [ $((SECONDS % 300)) -eq 0 ]; then
-                aws s3 sync "s3://${S3_BUCKET}/engine_input/${ENGINE_NAME}/" /input \
-                  --region ${AWS_REGION} 2>/dev/null || true
-              fi
-              
-              sleep 30
-            done
-        env:
-        - name: S3_BUCKET
-          valueFrom:
-            configMapKeyRef:
-              name: s3-mount-config
-              key: s3-bucket
-        - name: AWS_REGION
-          valueFrom:
-            configMapKeyRef:
-              name: s3-mount-config
-              key: s3-region
-        - name: ENGINE_NAME
-          value: "discoveries"
-        volumeMounts:
-        - name: output
-          mountPath: /output
-        - name: input
-          mountPath: /input
-        resources:
-          requests:
-            memory: "64Mi"
-            cpu: "25m"
-          limits:
-            memory: "256Mi"
-            cpu: "200m"
-
-      volumes:
-      - name: output
-        emptyDir: {}
-      - name: input
-        emptyDir: {}
+      # No sidecar needed — discoveries writes directly to DB
 ---
 apiVersion: v1
 kind: Service

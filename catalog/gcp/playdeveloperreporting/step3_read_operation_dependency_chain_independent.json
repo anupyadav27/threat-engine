@@ -1,0 +1,1273 @@
+{
+  "service": "playdeveloperreporting",
+  "version": "v1beta1",
+  "total_ops": 21,
+  "total_chains": 21,
+  "independent_ops": 4,
+  "dependent_ops": 17,
+  "chains": {
+    "gcp.playdeveloperreporting.anomalies.list": {
+      "target_op": "gcp.playdeveloperreporting.anomalies.list",
+      "kind": "read_list",
+      "independent": true,
+      "hop_distance": 0,
+      "chain_length": 1,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.playdeveloperreporting.anomalies.list",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.anomalies().list(**params).execute()",
+          "path": "/v1beta1/{+parent}/anomalies",
+          "required_params": {
+            "parent": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^apps/[^/]+$",
+              "description": "Required. Parent app for which anomalies were detected. Format: apps/{app}"
+            }
+          },
+          "output_list_field": "anomalies",
+          "output_id_field": "name",
+          "produces": {
+            "anomalyId": {
+              "via_list_field": "anomalies",
+              "from_id_field": "name",
+              "note": "Iterate response[\"anomalies\"][], extract item[\"name\"] \u2192 pass as \"anomalyId\""
+            }
+          },
+          "param_sources": {
+            "parent": "always_available"
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [
+        "parent"
+      ],
+      "unresolved_params": []
+    },
+    "gcp.playdeveloperreporting.vitals.crashrate.get": {
+      "target_op": "gcp.playdeveloperreporting.vitals.crashrate.get",
+      "kind": "read_get",
+      "independent": false,
+      "hop_distance": 1,
+      "chain_length": 2,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.playdeveloperreporting.apps.search",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.apps().search(**params).execute()",
+          "path": "/v1beta1/apps:search",
+          "required_params": {},
+          "output_list_field": "apps",
+          "output_id_field": "name",
+          "produces": {
+            "appId": {
+              "via_list_field": "apps",
+              "from_id_field": "name",
+              "note": "Iterate response[\"apps\"][], extract item[\"name\"] \u2192 pass as \"appId\""
+            }
+          },
+          "param_sources": {},
+          "purpose": "Provides: appId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.playdeveloperreporting.vitals.crashrate.get",
+          "kind": "read_get",
+          "independent": false,
+          "python_call": "svc.vitals().crashrate().get(**params).execute()",
+          "path": "/v1beta1/{+name}",
+          "required_params": {
+            "name": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^apps/[^/]+/crashRateMetricSet$",
+              "description": "Required. The resource name. Format: apps/{app}/crashRateMetricSet"
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "name": {
+              "appId": {
+                "from_step": 1,
+                "from_op": "gcp.playdeveloperreporting.apps.search",
+                "field": "name"
+              }
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.playdeveloperreporting.vitals.crashrate.query": {
+      "target_op": "gcp.playdeveloperreporting.vitals.crashrate.query",
+      "kind": "read_list",
+      "independent": false,
+      "hop_distance": 999,
+      "chain_length": 2,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.playdeveloperreporting.apps.search",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.apps().search(**params).execute()",
+          "path": "/v1beta1/apps:search",
+          "required_params": {},
+          "output_list_field": "apps",
+          "output_id_field": "name",
+          "produces": {
+            "appId": {
+              "via_list_field": "apps",
+              "from_id_field": "name",
+              "note": "Iterate response[\"apps\"][], extract item[\"name\"] \u2192 pass as \"appId\""
+            }
+          },
+          "param_sources": {},
+          "purpose": "Provides: appId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.playdeveloperreporting.vitals.crashrate.query",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.vitals().crashrate().query(**params).execute()",
+          "path": "/v1beta1/{+name}:query",
+          "required_params": {
+            "name": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^apps/[^/]+/crashRateMetricSet$",
+              "description": "Required. The resource name. Format: apps/{app}/crashRateMetricSet"
+            }
+          },
+          "output_list_field": "rows",
+          "output_id_field": "aggregationPeriod",
+          "produces": {
+            "crashrateId": {
+              "via_list_field": "rows",
+              "from_id_field": "aggregationPeriod",
+              "note": "Iterate response[\"rows\"][], extract item[\"aggregationPeriod\"] \u2192 pass as \"crashrateId\""
+            }
+          },
+          "param_sources": {
+            "name": {
+              "appId": {
+                "from_step": 1,
+                "from_op": "gcp.playdeveloperreporting.apps.search",
+                "field": "name"
+              }
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.playdeveloperreporting.vitals.anrrate.get": {
+      "target_op": "gcp.playdeveloperreporting.vitals.anrrate.get",
+      "kind": "read_get",
+      "independent": false,
+      "hop_distance": 1,
+      "chain_length": 2,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.playdeveloperreporting.apps.search",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.apps().search(**params).execute()",
+          "path": "/v1beta1/apps:search",
+          "required_params": {},
+          "output_list_field": "apps",
+          "output_id_field": "name",
+          "produces": {
+            "appId": {
+              "via_list_field": "apps",
+              "from_id_field": "name",
+              "note": "Iterate response[\"apps\"][], extract item[\"name\"] \u2192 pass as \"appId\""
+            }
+          },
+          "param_sources": {},
+          "purpose": "Provides: appId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.playdeveloperreporting.vitals.anrrate.get",
+          "kind": "read_get",
+          "independent": false,
+          "python_call": "svc.vitals().anrrate().get(**params).execute()",
+          "path": "/v1beta1/{+name}",
+          "required_params": {
+            "name": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^apps/[^/]+/anrRateMetricSet$",
+              "description": "Required. The resource name. Format: apps/{app}/anrRateMetricSet"
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "name": {
+              "appId": {
+                "from_step": 1,
+                "from_op": "gcp.playdeveloperreporting.apps.search",
+                "field": "name"
+              }
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.playdeveloperreporting.vitals.anrrate.query": {
+      "target_op": "gcp.playdeveloperreporting.vitals.anrrate.query",
+      "kind": "read_list",
+      "independent": false,
+      "hop_distance": 999,
+      "chain_length": 2,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.playdeveloperreporting.apps.search",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.apps().search(**params).execute()",
+          "path": "/v1beta1/apps:search",
+          "required_params": {},
+          "output_list_field": "apps",
+          "output_id_field": "name",
+          "produces": {
+            "appId": {
+              "via_list_field": "apps",
+              "from_id_field": "name",
+              "note": "Iterate response[\"apps\"][], extract item[\"name\"] \u2192 pass as \"appId\""
+            }
+          },
+          "param_sources": {},
+          "purpose": "Provides: appId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.playdeveloperreporting.vitals.anrrate.query",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.vitals().anrrate().query(**params).execute()",
+          "path": "/v1beta1/{+name}:query",
+          "required_params": {
+            "name": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^apps/[^/]+/anrRateMetricSet$",
+              "description": "Required. The resource name. Format: apps/{app}/anrRateMetricSet"
+            }
+          },
+          "output_list_field": "rows",
+          "output_id_field": "aggregationPeriod",
+          "produces": {
+            "anrrateId": {
+              "via_list_field": "rows",
+              "from_id_field": "aggregationPeriod",
+              "note": "Iterate response[\"rows\"][], extract item[\"aggregationPeriod\"] \u2192 pass as \"anrrateId\""
+            }
+          },
+          "param_sources": {
+            "name": {
+              "appId": {
+                "from_step": 1,
+                "from_op": "gcp.playdeveloperreporting.apps.search",
+                "field": "name"
+              }
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.playdeveloperreporting.vitals.lmkrate.get": {
+      "target_op": "gcp.playdeveloperreporting.vitals.lmkrate.get",
+      "kind": "read_get",
+      "independent": false,
+      "hop_distance": 1,
+      "chain_length": 2,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.playdeveloperreporting.apps.search",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.apps().search(**params).execute()",
+          "path": "/v1beta1/apps:search",
+          "required_params": {},
+          "output_list_field": "apps",
+          "output_id_field": "name",
+          "produces": {
+            "appId": {
+              "via_list_field": "apps",
+              "from_id_field": "name",
+              "note": "Iterate response[\"apps\"][], extract item[\"name\"] \u2192 pass as \"appId\""
+            }
+          },
+          "param_sources": {},
+          "purpose": "Provides: appId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.playdeveloperreporting.vitals.lmkrate.get",
+          "kind": "read_get",
+          "independent": false,
+          "python_call": "svc.vitals().lmkrate().get(**params).execute()",
+          "path": "/v1beta1/{+name}",
+          "required_params": {
+            "name": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^apps/[^/]+/lmkRateMetricSet$",
+              "description": "Required. The resource name. Format: apps/{app}/lmkRateMetricSet"
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "name": {
+              "appId": {
+                "from_step": 1,
+                "from_op": "gcp.playdeveloperreporting.apps.search",
+                "field": "name"
+              }
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.playdeveloperreporting.vitals.lmkrate.query": {
+      "target_op": "gcp.playdeveloperreporting.vitals.lmkrate.query",
+      "kind": "read_list",
+      "independent": false,
+      "hop_distance": 999,
+      "chain_length": 2,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.playdeveloperreporting.apps.search",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.apps().search(**params).execute()",
+          "path": "/v1beta1/apps:search",
+          "required_params": {},
+          "output_list_field": "apps",
+          "output_id_field": "name",
+          "produces": {
+            "appId": {
+              "via_list_field": "apps",
+              "from_id_field": "name",
+              "note": "Iterate response[\"apps\"][], extract item[\"name\"] \u2192 pass as \"appId\""
+            }
+          },
+          "param_sources": {},
+          "purpose": "Provides: appId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.playdeveloperreporting.vitals.lmkrate.query",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.vitals().lmkrate().query(**params).execute()",
+          "path": "/v1beta1/{+name}:query",
+          "required_params": {
+            "name": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^apps/[^/]+/lmkRateMetricSet$",
+              "description": "Required. The resource name. Format: apps/{app}/lmkRateMetricSet"
+            }
+          },
+          "output_list_field": "rows",
+          "output_id_field": "aggregationPeriod",
+          "produces": {
+            "lmkrateId": {
+              "via_list_field": "rows",
+              "from_id_field": "aggregationPeriod",
+              "note": "Iterate response[\"rows\"][], extract item[\"aggregationPeriod\"] \u2192 pass as \"lmkrateId\""
+            }
+          },
+          "param_sources": {
+            "name": {
+              "appId": {
+                "from_step": 1,
+                "from_op": "gcp.playdeveloperreporting.apps.search",
+                "field": "name"
+              }
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.playdeveloperreporting.vitals.excessivewakeuprate.get": {
+      "target_op": "gcp.playdeveloperreporting.vitals.excessivewakeuprate.get",
+      "kind": "read_get",
+      "independent": false,
+      "hop_distance": 1,
+      "chain_length": 2,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.playdeveloperreporting.apps.search",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.apps().search(**params).execute()",
+          "path": "/v1beta1/apps:search",
+          "required_params": {},
+          "output_list_field": "apps",
+          "output_id_field": "name",
+          "produces": {
+            "appId": {
+              "via_list_field": "apps",
+              "from_id_field": "name",
+              "note": "Iterate response[\"apps\"][], extract item[\"name\"] \u2192 pass as \"appId\""
+            }
+          },
+          "param_sources": {},
+          "purpose": "Provides: appId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.playdeveloperreporting.vitals.excessivewakeuprate.get",
+          "kind": "read_get",
+          "independent": false,
+          "python_call": "svc.vitals().excessivewakeuprate().get(**params).execute()",
+          "path": "/v1beta1/{+name}",
+          "required_params": {
+            "name": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^apps/[^/]+/excessiveWakeupRateMetricSet$",
+              "description": "Required. The resource name. Format: apps/{app}/excessiveWakeupRateMetricSet"
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "name": {
+              "appId": {
+                "from_step": 1,
+                "from_op": "gcp.playdeveloperreporting.apps.search",
+                "field": "name"
+              }
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.playdeveloperreporting.vitals.excessivewakeuprate.query": {
+      "target_op": "gcp.playdeveloperreporting.vitals.excessivewakeuprate.query",
+      "kind": "read_list",
+      "independent": false,
+      "hop_distance": 999,
+      "chain_length": 2,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.playdeveloperreporting.apps.search",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.apps().search(**params).execute()",
+          "path": "/v1beta1/apps:search",
+          "required_params": {},
+          "output_list_field": "apps",
+          "output_id_field": "name",
+          "produces": {
+            "appId": {
+              "via_list_field": "apps",
+              "from_id_field": "name",
+              "note": "Iterate response[\"apps\"][], extract item[\"name\"] \u2192 pass as \"appId\""
+            }
+          },
+          "param_sources": {},
+          "purpose": "Provides: appId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.playdeveloperreporting.vitals.excessivewakeuprate.query",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.vitals().excessivewakeuprate().query(**params).execute()",
+          "path": "/v1beta1/{+name}:query",
+          "required_params": {
+            "name": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^apps/[^/]+/excessiveWakeupRateMetricSet$",
+              "description": "Required. The resource name. Format: apps/{app}/excessiveWakeupRateMetricSet"
+            }
+          },
+          "output_list_field": "rows",
+          "output_id_field": "aggregationPeriod",
+          "produces": {
+            "excessivewakeuprateId": {
+              "via_list_field": "rows",
+              "from_id_field": "aggregationPeriod",
+              "note": "Iterate response[\"rows\"][], extract item[\"aggregationPeriod\"] \u2192 pass as \"excessivewakeuprateId\""
+            }
+          },
+          "param_sources": {
+            "name": {
+              "appId": {
+                "from_step": 1,
+                "from_op": "gcp.playdeveloperreporting.apps.search",
+                "field": "name"
+              }
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.playdeveloperreporting.vitals.stuckbackgroundwakelockrate.get": {
+      "target_op": "gcp.playdeveloperreporting.vitals.stuckbackgroundwakelockrate.get",
+      "kind": "read_get",
+      "independent": false,
+      "hop_distance": 1,
+      "chain_length": 2,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.playdeveloperreporting.apps.search",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.apps().search(**params).execute()",
+          "path": "/v1beta1/apps:search",
+          "required_params": {},
+          "output_list_field": "apps",
+          "output_id_field": "name",
+          "produces": {
+            "appId": {
+              "via_list_field": "apps",
+              "from_id_field": "name",
+              "note": "Iterate response[\"apps\"][], extract item[\"name\"] \u2192 pass as \"appId\""
+            }
+          },
+          "param_sources": {},
+          "purpose": "Provides: appId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.playdeveloperreporting.vitals.stuckbackgroundwakelockrate.get",
+          "kind": "read_get",
+          "independent": false,
+          "python_call": "svc.vitals().stuckbackgroundwakelockrate().get(**params).execute()",
+          "path": "/v1beta1/{+name}",
+          "required_params": {
+            "name": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^apps/[^/]+/stuckBackgroundWakelockRateMetricSet$",
+              "description": "Required. The resource name. Format: apps/{app}/stuckBackgroundWakelockRateMetricSet"
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "name": {
+              "appId": {
+                "from_step": 1,
+                "from_op": "gcp.playdeveloperreporting.apps.search",
+                "field": "name"
+              }
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.playdeveloperreporting.vitals.stuckbackgroundwakelockrate.query": {
+      "target_op": "gcp.playdeveloperreporting.vitals.stuckbackgroundwakelockrate.query",
+      "kind": "read_list",
+      "independent": false,
+      "hop_distance": 999,
+      "chain_length": 2,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.playdeveloperreporting.apps.search",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.apps().search(**params).execute()",
+          "path": "/v1beta1/apps:search",
+          "required_params": {},
+          "output_list_field": "apps",
+          "output_id_field": "name",
+          "produces": {
+            "appId": {
+              "via_list_field": "apps",
+              "from_id_field": "name",
+              "note": "Iterate response[\"apps\"][], extract item[\"name\"] \u2192 pass as \"appId\""
+            }
+          },
+          "param_sources": {},
+          "purpose": "Provides: appId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.playdeveloperreporting.vitals.stuckbackgroundwakelockrate.query",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.vitals().stuckbackgroundwakelockrate().query(**params).execute()",
+          "path": "/v1beta1/{+name}:query",
+          "required_params": {
+            "name": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^apps/[^/]+/stuckBackgroundWakelockRateMetricSet$",
+              "description": "Required. The resource name. Format: apps/{app}/stuckBackgroundWakelockRateMetricSet"
+            }
+          },
+          "output_list_field": "rows",
+          "output_id_field": "aggregationPeriod",
+          "produces": {
+            "stuckbackgroundwakelockrateId": {
+              "via_list_field": "rows",
+              "from_id_field": "aggregationPeriod",
+              "note": "Iterate response[\"rows\"][], extract item[\"aggregationPeriod\"] \u2192 pass as \"stuckbackgroundwakelockrateId\""
+            }
+          },
+          "param_sources": {
+            "name": {
+              "appId": {
+                "from_step": 1,
+                "from_op": "gcp.playdeveloperreporting.apps.search",
+                "field": "name"
+              }
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.playdeveloperreporting.vitals.slowstartrate.get": {
+      "target_op": "gcp.playdeveloperreporting.vitals.slowstartrate.get",
+      "kind": "read_get",
+      "independent": false,
+      "hop_distance": 1,
+      "chain_length": 2,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.playdeveloperreporting.apps.search",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.apps().search(**params).execute()",
+          "path": "/v1beta1/apps:search",
+          "required_params": {},
+          "output_list_field": "apps",
+          "output_id_field": "name",
+          "produces": {
+            "appId": {
+              "via_list_field": "apps",
+              "from_id_field": "name",
+              "note": "Iterate response[\"apps\"][], extract item[\"name\"] \u2192 pass as \"appId\""
+            }
+          },
+          "param_sources": {},
+          "purpose": "Provides: appId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.playdeveloperreporting.vitals.slowstartrate.get",
+          "kind": "read_get",
+          "independent": false,
+          "python_call": "svc.vitals().slowstartrate().get(**params).execute()",
+          "path": "/v1beta1/{+name}",
+          "required_params": {
+            "name": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^apps/[^/]+/slowStartRateMetricSet$",
+              "description": "Required. The resource name. Format: apps/{app}/slowStartRateMetricSet"
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "name": {
+              "appId": {
+                "from_step": 1,
+                "from_op": "gcp.playdeveloperreporting.apps.search",
+                "field": "name"
+              }
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.playdeveloperreporting.vitals.slowstartrate.query": {
+      "target_op": "gcp.playdeveloperreporting.vitals.slowstartrate.query",
+      "kind": "read_list",
+      "independent": false,
+      "hop_distance": 999,
+      "chain_length": 2,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.playdeveloperreporting.apps.search",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.apps().search(**params).execute()",
+          "path": "/v1beta1/apps:search",
+          "required_params": {},
+          "output_list_field": "apps",
+          "output_id_field": "name",
+          "produces": {
+            "appId": {
+              "via_list_field": "apps",
+              "from_id_field": "name",
+              "note": "Iterate response[\"apps\"][], extract item[\"name\"] \u2192 pass as \"appId\""
+            }
+          },
+          "param_sources": {},
+          "purpose": "Provides: appId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.playdeveloperreporting.vitals.slowstartrate.query",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.vitals().slowstartrate().query(**params).execute()",
+          "path": "/v1beta1/{+name}:query",
+          "required_params": {
+            "name": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^apps/[^/]+/slowStartRateMetricSet$",
+              "description": "Required. The resource name. Format: apps/{app}/slowStartRateMetricSet"
+            }
+          },
+          "output_list_field": "rows",
+          "output_id_field": "aggregationPeriod",
+          "produces": {
+            "slowstartrateId": {
+              "via_list_field": "rows",
+              "from_id_field": "aggregationPeriod",
+              "note": "Iterate response[\"rows\"][], extract item[\"aggregationPeriod\"] \u2192 pass as \"slowstartrateId\""
+            }
+          },
+          "param_sources": {
+            "name": {
+              "appId": {
+                "from_step": 1,
+                "from_op": "gcp.playdeveloperreporting.apps.search",
+                "field": "name"
+              }
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.playdeveloperreporting.vitals.slowrenderingrate.get": {
+      "target_op": "gcp.playdeveloperreporting.vitals.slowrenderingrate.get",
+      "kind": "read_get",
+      "independent": false,
+      "hop_distance": 1,
+      "chain_length": 2,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.playdeveloperreporting.apps.search",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.apps().search(**params).execute()",
+          "path": "/v1beta1/apps:search",
+          "required_params": {},
+          "output_list_field": "apps",
+          "output_id_field": "name",
+          "produces": {
+            "appId": {
+              "via_list_field": "apps",
+              "from_id_field": "name",
+              "note": "Iterate response[\"apps\"][], extract item[\"name\"] \u2192 pass as \"appId\""
+            }
+          },
+          "param_sources": {},
+          "purpose": "Provides: appId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.playdeveloperreporting.vitals.slowrenderingrate.get",
+          "kind": "read_get",
+          "independent": false,
+          "python_call": "svc.vitals().slowrenderingrate().get(**params).execute()",
+          "path": "/v1beta1/{+name}",
+          "required_params": {
+            "name": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^apps/[^/]+/slowRenderingRateMetricSet$",
+              "description": "Required. The resource name. Format: apps/{app}/slowRenderingRateMetricSet"
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "name": {
+              "appId": {
+                "from_step": 1,
+                "from_op": "gcp.playdeveloperreporting.apps.search",
+                "field": "name"
+              }
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.playdeveloperreporting.vitals.slowrenderingrate.query": {
+      "target_op": "gcp.playdeveloperreporting.vitals.slowrenderingrate.query",
+      "kind": "read_list",
+      "independent": false,
+      "hop_distance": 999,
+      "chain_length": 2,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.playdeveloperreporting.apps.search",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.apps().search(**params).execute()",
+          "path": "/v1beta1/apps:search",
+          "required_params": {},
+          "output_list_field": "apps",
+          "output_id_field": "name",
+          "produces": {
+            "appId": {
+              "via_list_field": "apps",
+              "from_id_field": "name",
+              "note": "Iterate response[\"apps\"][], extract item[\"name\"] \u2192 pass as \"appId\""
+            }
+          },
+          "param_sources": {},
+          "purpose": "Provides: appId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.playdeveloperreporting.vitals.slowrenderingrate.query",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.vitals().slowrenderingrate().query(**params).execute()",
+          "path": "/v1beta1/{+name}:query",
+          "required_params": {
+            "name": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^apps/[^/]+/slowRenderingRateMetricSet$",
+              "description": "Required. The resource name. Format: apps/{app}/slowRenderingRateMetricSet"
+            }
+          },
+          "output_list_field": "rows",
+          "output_id_field": "aggregationPeriod",
+          "produces": {
+            "slowrenderingrateId": {
+              "via_list_field": "rows",
+              "from_id_field": "aggregationPeriod",
+              "note": "Iterate response[\"rows\"][], extract item[\"aggregationPeriod\"] \u2192 pass as \"slowrenderingrateId\""
+            }
+          },
+          "param_sources": {
+            "name": {
+              "appId": {
+                "from_step": 1,
+                "from_op": "gcp.playdeveloperreporting.apps.search",
+                "field": "name"
+              }
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.playdeveloperreporting.vitals.errors.reports.search": {
+      "target_op": "gcp.playdeveloperreporting.vitals.errors.reports.search",
+      "kind": "read_list",
+      "independent": true,
+      "hop_distance": 0,
+      "chain_length": 1,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.playdeveloperreporting.vitals.errors.reports.search",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.vitals().errors().reports().search(**params).execute()",
+          "path": "/v1beta1/{+parent}/errorReports:search",
+          "required_params": {
+            "parent": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^apps/[^/]+$",
+              "description": "Required. Parent resource of the reports, indicating the application for which they were received. Format: apps/{app}"
+            }
+          },
+          "output_list_field": "errorReports",
+          "output_id_field": "name",
+          "produces": {
+            "reportId": {
+              "via_list_field": "errorReports",
+              "from_id_field": "name",
+              "note": "Iterate response[\"errorReports\"][], extract item[\"name\"] \u2192 pass as \"reportId\""
+            }
+          },
+          "param_sources": {
+            "parent": "always_available"
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [
+        "parent"
+      ],
+      "unresolved_params": []
+    },
+    "gcp.playdeveloperreporting.vitals.errors.issues.search": {
+      "target_op": "gcp.playdeveloperreporting.vitals.errors.issues.search",
+      "kind": "read_list",
+      "independent": true,
+      "hop_distance": 0,
+      "chain_length": 1,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.playdeveloperreporting.vitals.errors.issues.search",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.vitals().errors().issues().search(**params).execute()",
+          "path": "/v1beta1/{+parent}/errorIssues:search",
+          "required_params": {
+            "parent": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^apps/[^/]+$",
+              "description": "Required. Parent resource of the error issues, indicating the application for which they were received. Format: apps/{ap"
+            }
+          },
+          "output_list_field": "errorIssues",
+          "output_id_field": "name",
+          "produces": {
+            "issueId": {
+              "via_list_field": "errorIssues",
+              "from_id_field": "name",
+              "note": "Iterate response[\"errorIssues\"][], extract item[\"name\"] \u2192 pass as \"issueId\""
+            }
+          },
+          "param_sources": {
+            "parent": "always_available"
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [
+        "parent"
+      ],
+      "unresolved_params": []
+    },
+    "gcp.playdeveloperreporting.vitals.errors.counts.get": {
+      "target_op": "gcp.playdeveloperreporting.vitals.errors.counts.get",
+      "kind": "read_get",
+      "independent": false,
+      "hop_distance": 1,
+      "chain_length": 2,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.playdeveloperreporting.apps.search",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.apps().search(**params).execute()",
+          "path": "/v1beta1/apps:search",
+          "required_params": {},
+          "output_list_field": "apps",
+          "output_id_field": "name",
+          "produces": {
+            "appId": {
+              "via_list_field": "apps",
+              "from_id_field": "name",
+              "note": "Iterate response[\"apps\"][], extract item[\"name\"] \u2192 pass as \"appId\""
+            }
+          },
+          "param_sources": {},
+          "purpose": "Provides: appId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.playdeveloperreporting.vitals.errors.counts.get",
+          "kind": "read_get",
+          "independent": false,
+          "python_call": "svc.vitals().errors().counts().get(**params).execute()",
+          "path": "/v1beta1/{+name}",
+          "required_params": {
+            "name": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^apps/[^/]+/errorCountMetricSet$",
+              "description": "Required. Name of the errors metric set. Format: apps/{app}/errorCountMetricSet"
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "name": {
+              "appId": {
+                "from_step": 1,
+                "from_op": "gcp.playdeveloperreporting.apps.search",
+                "field": "name"
+              }
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.playdeveloperreporting.vitals.errors.counts.query": {
+      "target_op": "gcp.playdeveloperreporting.vitals.errors.counts.query",
+      "kind": "read_list",
+      "independent": false,
+      "hop_distance": 999,
+      "chain_length": 2,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.playdeveloperreporting.apps.search",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.apps().search(**params).execute()",
+          "path": "/v1beta1/apps:search",
+          "required_params": {},
+          "output_list_field": "apps",
+          "output_id_field": "name",
+          "produces": {
+            "appId": {
+              "via_list_field": "apps",
+              "from_id_field": "name",
+              "note": "Iterate response[\"apps\"][], extract item[\"name\"] \u2192 pass as \"appId\""
+            }
+          },
+          "param_sources": {},
+          "purpose": "Provides: appId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.playdeveloperreporting.vitals.errors.counts.query",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.vitals().errors().counts().query(**params).execute()",
+          "path": "/v1beta1/{+name}:query",
+          "required_params": {
+            "name": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^apps/[^/]+/errorCountMetricSet$",
+              "description": "Required. The resource name. Format: apps/{app}/errorCountMetricSet"
+            }
+          },
+          "output_list_field": "rows",
+          "output_id_field": "aggregationPeriod",
+          "produces": {
+            "countId": {
+              "via_list_field": "rows",
+              "from_id_field": "aggregationPeriod",
+              "note": "Iterate response[\"rows\"][], extract item[\"aggregationPeriod\"] \u2192 pass as \"countId\""
+            }
+          },
+          "param_sources": {
+            "name": {
+              "appId": {
+                "from_step": 1,
+                "from_op": "gcp.playdeveloperreporting.apps.search",
+                "field": "name"
+              }
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.playdeveloperreporting.apps.fetchReleaseFilterOptions": {
+      "target_op": "gcp.playdeveloperreporting.apps.fetchReleaseFilterOptions",
+      "kind": "read_get",
+      "independent": false,
+      "hop_distance": 1,
+      "chain_length": 2,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.playdeveloperreporting.apps.search",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.apps().search(**params).execute()",
+          "path": "/v1beta1/apps:search",
+          "required_params": {},
+          "output_list_field": "apps",
+          "output_id_field": "name",
+          "produces": {
+            "appId": {
+              "via_list_field": "apps",
+              "from_id_field": "name",
+              "note": "Iterate response[\"apps\"][], extract item[\"name\"] \u2192 pass as \"appId\""
+            }
+          },
+          "param_sources": {},
+          "purpose": "Provides: appId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.playdeveloperreporting.apps.fetchReleaseFilterOptions",
+          "kind": "read_get",
+          "independent": false,
+          "python_call": "svc.apps().fetchReleaseFilterOptions(**params).execute()",
+          "path": "/v1beta1/{+name}:fetchReleaseFilterOptions",
+          "required_params": {
+            "name": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^apps/[^/]+$",
+              "description": "Required. Name of the resource, i.e. app the filtering options are for. Format: apps/{app}"
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "name": {
+              "appId": {
+                "from_step": 1,
+                "from_op": "gcp.playdeveloperreporting.apps.search",
+                "field": "name"
+              }
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.playdeveloperreporting.apps.search": {
+      "target_op": "gcp.playdeveloperreporting.apps.search",
+      "kind": "read_list",
+      "independent": true,
+      "hop_distance": 0,
+      "chain_length": 1,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.playdeveloperreporting.apps.search",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.apps().search(**params).execute()",
+          "path": "/v1beta1/apps:search",
+          "required_params": {},
+          "output_list_field": "apps",
+          "output_id_field": "name",
+          "produces": {
+            "appId": {
+              "via_list_field": "apps",
+              "from_id_field": "name",
+              "note": "Iterate response[\"apps\"][], extract item[\"name\"] \u2192 pass as \"appId\""
+            }
+          },
+          "param_sources": {},
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    }
+  }
+}

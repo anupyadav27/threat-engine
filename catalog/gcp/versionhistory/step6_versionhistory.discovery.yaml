@@ -1,0 +1,94 @@
+# ============================================================
+# Discovery YAML — versionhistory (v1)
+# Generated: 2026-02-21T03:06:41Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 4 | independent: 4 | dependent: 0
+# ops with fields: 4/4 | dep ops with chain: 0/0
+# ============================================================
+version: '1.0'
+provider: gcp
+service: versionhistory
+
+services:
+  client: versionhistory
+  module: "googleapiclient.discovery.build('versionhistory', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Returns list of channels that are available for a given platform.
+  # ── gcp.versionhistory.platforms.channels.list ──
+  - discovery_id: gcp.versionhistory.platforms.channels.list
+    # python: svc.platforms().channels().list(**params).execute()
+    calls:
+      - action: platforms.channels.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.channels }}'
+      item:
+        channelType: '{{ item.channelType }}'
+        name: '{{ item.name }}'
+  # Returns list of version for the given platform/channel.
+  # ── gcp.versionhistory.platforms.channels.versions.list ──
+  - discovery_id: gcp.versionhistory.platforms.channels.versions.list
+    # python: svc.platforms().channels().versions().list(**params).execute()
+    calls:
+      - action: platforms.channels.versions.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.versions }}'
+      item:
+        name: '{{ item.name }}'
+        version: '{{ item.version }}'
+  # Returns list of releases of the given version.
+  # ── gcp.versionhistory.platforms.channels.versions.releases.list ──
+  - discovery_id: gcp.versionhistory.platforms.channels.versions.releases.list
+    # python: svc.platforms().channels().versions().releases().list(**params).execute()
+    calls:
+      - action: platforms.channels.versions.releases.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.releases }}'
+      item:
+        fraction: '{{ item.fraction }}'
+        fractionGroup: '{{ item.fractionGroup }}'
+        name: '{{ item.name }}'
+        pinnable: '{{ item.pinnable }}'
+        rolloutData: '{{ item.rolloutData }}'
+        serving: '{{ item.serving }}'
+        version: '{{ item.version }}'
+  # Returns list of platforms that are available for a given product. The resource "product" has no reso
+  # ── gcp.versionhistory.platforms.list ──
+  - discovery_id: gcp.versionhistory.platforms.list
+    # python: svc.platforms().list(**params).execute()
+    calls:
+      - action: platforms.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.platforms }}'
+      item:
+        name: '{{ item.name }}'
+        platformType: '{{ item.platformType }}'

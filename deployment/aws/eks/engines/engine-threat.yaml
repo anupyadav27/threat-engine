@@ -25,7 +25,7 @@ spec:
       serviceAccountName: engine-sa
       containers:
       - name: engine-threat
-        image: yadavanup84/threat-engine:latest
+        image: yadavanup84/engine-threat:v-std-cols
         imagePullPolicy: Always
         ports:
         - containerPort: 8020
@@ -40,20 +40,66 @@ spec:
           value: /app
         - name: LOG_LEVEL
           value: "INFO"
+        # ── Scanner Job config ─────────────────────────────────────────────
+        - name: THREAT_SCANNER_IMAGE
+          value: "yadavanup84/engine-threat:v-check-v2"
+        - name: SCANNER_CPU_REQUEST
+          value: "250m"
+        - name: SCANNER_MEM_REQUEST
+          value: "1Gi"
+        - name: SCANNER_CPU_LIMIT
+          value: "1"
+        - name: SCANNER_MEM_LIMIT
+          value: "2Gi"
+        # ── Onboarding DB (for orchestration metadata) ─────────────────────
+        - name: ONBOARDING_DB_HOST
+          value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+        - name: ONBOARDING_DB_PORT
+          value: "5432"
+        - name: ONBOARDING_DB_NAME
+          value: "threat_engine_onboarding"
+        - name: ONBOARDING_DB_USER
+          value: "postgres"
+        - name: ONBOARDING_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: ONBOARDING_DB_PASSWORD
+        # ── OpenTelemetry ─────────────────────────────────────────────────
+        - name: OTEL_SERVICE_NAME
+          value: "engine-threat"
+        - name: OTEL_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_ENABLED
+              optional: true
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_EXPORTER_OTLP_ENDPOINT
+              optional: true
+        - name: OTEL_EXPORTER_OTLP_INSECURE
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_EXPORTER_OTLP_INSECURE
+              optional: true
+        - name: OTEL_TRACES_SAMPLER
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_TRACES_SAMPLER
+              optional: true
+        - name: OTEL_PROPAGATORS
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_PROPAGATORS
+              optional: true
         - name: PORT
           value: "8020"
-        - name: S3_BUCKET
-          valueFrom:
-            configMapKeyRef:
-              name: s3-mount-config
-              key: s3-bucket
-        - name: AWS_REGION
-          valueFrom:
-            configMapKeyRef:
-              name: s3-mount-config
-              key: s3-region
-        - name: OUTPUT_DIR
-          value: "/output"
         - name: ENGINE_NAME
           value: "threat"
         - name: NEO4J_URI
@@ -74,74 +120,27 @@ spec:
               name: threat-engine-db-passwords
               key: NEO4J_PASSWORD
               optional: true
-        volumeMounts:
-        - name: output
-          mountPath: /output
-        - name: input
-          mountPath: /input
         resources:
           requests:
-            memory: "256Mi"
-            cpu: "100m"
+            memory: "512Mi"
+            cpu: "200m"
           limits:
-            memory: "1Gi"
-            cpu: "500m"
+            memory: "2Gi"
+            cpu: "1"
         livenessProbe:
           httpGet:
-            path: /health
+            path: /api/v1/health/live
             port: 8020
           initialDelaySeconds: 30
           periodSeconds: 15
-          failureThreshold: 5
+          failureThreshold: 20
         readinessProbe:
           httpGet:
-            path: /health
+            path: /api/v1/health/ready
             port: 8020
           initialDelaySeconds: 10
           periodSeconds: 10
           failureThreshold: 3
-
-      - name: s3-sync
-        image: amazon/aws-cli:latest
-        command: ["/bin/sh", "-c"]
-        args:
-          - |
-            while true; do
-              if [ -d "/output" ] && [ "$(ls -A /output 2>/dev/null)" ]; then
-                aws s3 sync /output "s3://${S3_BUCKET}/engine_output/${ENGINE_NAME}/" \
-                  --region ${AWS_REGION} --exclude "*.tmp" --exclude "*.lock" --delete 2>/dev/null
-              fi
-              sleep 30
-            done
-        env:
-        - name: S3_BUCKET
-          valueFrom:
-            configMapKeyRef:
-              name: s3-mount-config
-              key: s3-bucket
-        - name: AWS_REGION
-          valueFrom:
-            configMapKeyRef:
-              name: s3-mount-config
-              key: s3-region
-        - name: ENGINE_NAME
-          value: "threat"
-        volumeMounts:
-        - name: output
-          mountPath: /output
-        resources:
-          requests:
-            memory: "64Mi"
-            cpu: "25m"
-          limits:
-            memory: "128Mi"
-            cpu: "100m"
-
-      volumes:
-      - name: output
-        emptyDir: {}
-      - name: input
-        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

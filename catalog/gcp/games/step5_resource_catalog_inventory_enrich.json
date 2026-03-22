@@ -1,0 +1,2061 @@
+{
+  "csp": "gcp",
+  "generated_at": "2026-02-19T14:43:26.914860+00:00",
+  "anchors": {
+    "fixed": [
+      "project_id",
+      "org_id",
+      "folder_id",
+      "location",
+      "zone",
+      "region"
+    ]
+  },
+  "services": {
+    "games": {
+      "version": "v1",
+      "resources": {
+        "achievementDefinitions": {
+          "resource_type": "achievementDefinitions",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "",
+              "built_from_parts": [],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.games.achievementDefinitions.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/games/v1/achievements"
+                },
+                "python_call": "svc.achievementDefinitions().list(**params).execute()",
+                "produces": {
+                  "name": "items[].name",
+                  "achievementType": "items[].achievementType",
+                  "experiencePoints": "items[].experiencePoints",
+                  "unlockedIconUrl": "items[].unlockedIconUrl",
+                  "isRevealedIconUrlDefault": "items[].isRevealedIconUrlDefault",
+                  "formattedTotalSteps": "items[].formattedTotalSteps",
+                  "initialState": "items[].initialState",
+                  "revealedIconUrl": "items[].revealedIconUrl",
+                  "totalSteps": "items[].totalSteps",
+                  "description": "items[].description",
+                  "id": "items[].id",
+                  "isUnlockedIconUrlDefault": "items[].isUnlockedIconUrlDefault"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": []
+          },
+          "confidence": 0.5,
+          "notes": "No enrich (get) ops found; inventory only."
+        },
+        "achievements": {
+          "resource_type": "achievements",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "tuple",
+            "full_identifier": {
+              "template": "",
+              "built_from_parts": [],
+              "notes": "Tuple identifier; anchor parts are user-provided."
+            },
+            "parts": [
+              "id"
+            ],
+            "part_sources": {
+              "id": {
+                "op": "gcp.games.achievements.list",
+                "field_path": "items[].id",
+                "transform": null
+              }
+            },
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.games.achievements.list",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/games/v1/players/{playerId}/achievements"
+                },
+                "python_call": "svc.achievements().list(**params).execute()",
+                "produces": {
+                  "id": "items[].id",
+                  "currentSteps": "items[].currentSteps",
+                  "formattedCurrentStepsString": "items[].formattedCurrentStepsString",
+                  "lastUpdatedTimestamp": "items[].lastUpdatedTimestamp",
+                  "achievementState": "items[].achievementState",
+                  "experiencePoints": "items[].experiencePoints"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.games.achievements.list",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.games.players.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.players().list(**params).execute()",
+                      "path": "/games/v1/players/me/players/{collection}",
+                      "required_params": {
+                        "collection": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Collection of players being retrieved"
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "name",
+                      "produces": {
+                        "playerId": {
+                          "via_list_field": "items",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"playerId\""
+                        }
+                      },
+                      "param_sources": {
+                        "collection": "unresolved"
+                      },
+                      "purpose": "Provides: playerId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.games.achievements.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.achievements().list(**params).execute()",
+                      "path": "/games/v1/players/{playerId}/achievements",
+                      "required_params": {
+                        "playerId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "A player ID. A value of `me` may be used in place of the authenticated player's ID."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "id",
+                      "produces": {
+                        "achievementId": {
+                          "via_list_field": "items",
+                          "from_id_field": "id",
+                          "note": "Iterate response[\"items\"][], extract item[\"id\"] \u2192 pass as \"achievementId\""
+                        }
+                      },
+                      "param_sources": {
+                        "playerId": {
+                          "from_step": 1,
+                          "from_op": "gcp.games.players.list",
+                          "field": "name"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": []
+          },
+          "confidence": 0.4,
+          "notes": "No enrich (get) ops found; inventory only."
+        },
+        "applications": {
+          "resource_type": "applications",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "tuple",
+            "full_identifier": {
+              "template": "v1/applications/{applicationId}",
+              "built_from_parts": [],
+              "notes": "Tuple identifier; anchor parts are user-provided."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": []
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.games.applications.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/games/v1/applications/{applicationId}"
+                },
+                "python_call": "svc.applications().get(**params).execute()",
+                "required_params": {
+                  "applicationId": {
+                    "from_identifier": "applicationId"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.games.applications.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 1,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.games.applications.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.applications().get(**params).execute()",
+                      "path": "/games/v1/applications/{applicationId}",
+                      "required_params": {
+                        "applicationId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The application ID from the Google Play developer console."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "applicationId": "unresolved"
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": [
+                    "applicationId"
+                  ]
+                }
+              },
+              {
+                "op": "gcp.games.applications.verify",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/games/v1/applications/{applicationId}/verify"
+                },
+                "python_call": "svc.applications().verify(**params).execute()",
+                "required_params": {
+                  "applicationId": {
+                    "from_identifier": "applicationId"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.games.applications.verify",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 1,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.games.applications.verify",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.applications().verify(**params).execute()",
+                      "path": "/games/v1/applications/{applicationId}/verify",
+                      "required_params": {
+                        "applicationId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The application ID from the Google Play developer console."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "applicationId": "unresolved"
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": [
+                    "applicationId"
+                  ]
+                }
+              }
+            ]
+          },
+          "confidence": 0.4,
+          "notes": "No inventory (list) ops found; enrich only."
+        },
+        "events": {
+          "resource_type": "events",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "tuple",
+            "full_identifier": {
+              "template": "",
+              "built_from_parts": [],
+              "notes": "Tuple identifier; anchor parts are user-provided."
+            },
+            "parts": [
+              "numEvents"
+            ],
+            "part_sources": {
+              "numEvents": {
+                "op": "gcp.games.events.listByPlayer",
+                "field_path": "items[].numEvents",
+                "transform": null
+              }
+            },
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.games.events.listByPlayer",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/games/v1/events"
+                },
+                "python_call": "svc.events().listByPlayer(**params).execute()",
+                "produces": {
+                  "numEvents": "items[].numEvents",
+                  "formattedNumEvents": "items[].formattedNumEvents",
+                  "definitionId": "items[].definitionId",
+                  "playerId": "items[].playerId"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.games.events.listDefinitions",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/games/v1/eventDefinitions"
+                },
+                "python_call": "svc.events().listDefinitions(**params).execute()",
+                "produces": {
+                  "id": "items[].id",
+                  "description": "items[].description",
+                  "imageUrl": "items[].imageUrl",
+                  "isDefaultImageUrl": "items[].isDefaultImageUrl",
+                  "childEvents": "items[].childEvents",
+                  "displayName": "items[].displayName",
+                  "visibility": "items[].visibility"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": []
+          },
+          "confidence": 0.4,
+          "notes": "No enrich (get) ops found; inventory only."
+        },
+        "leaderboards": {
+          "resource_type": "leaderboards",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "v1/leaderboards/{leaderboardId}",
+              "built_from_parts": [
+                "leaderboardId"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [
+              "leaderboardId"
+            ],
+            "part_sources": {
+              "leaderboardId": {
+                "op": "gcp.games.leaderboards.list",
+                "field_path": "items[].name",
+                "transform": null
+              }
+            },
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.games.leaderboards.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/games/v1/leaderboards"
+                },
+                "python_call": "svc.leaderboards().list(**params).execute()",
+                "produces": {
+                  "name": "items[].name",
+                  "id": "items[].id",
+                  "iconUrl": "items[].iconUrl",
+                  "order": "items[].order",
+                  "isIconUrlDefault": "items[].isIconUrlDefault"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.games.leaderboards.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/games/v1/leaderboards/{leaderboardId}"
+                },
+                "python_call": "svc.leaderboards().get(**params).execute()",
+                "required_params": {
+                  "leaderboardId": {
+                    "from_identifier": "leaderboardId"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.games.leaderboards.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.games.leaderboards.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.leaderboards().list(**params).execute()",
+                      "path": "/games/v1/leaderboards",
+                      "required_params": {},
+                      "output_list_field": "items",
+                      "output_id_field": "name",
+                      "produces": {
+                        "leaderboardId": {
+                          "via_list_field": "items",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"leaderboardId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: leaderboardId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.games.leaderboards.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.leaderboards().get(**params).execute()",
+                      "path": "/games/v1/leaderboards/{leaderboardId}",
+                      "required_params": {
+                        "leaderboardId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the leaderboard."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "leaderboardId": {
+                          "from_step": 1,
+                          "from_op": "gcp.games.leaderboards.list",
+                          "field": "name"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        },
+        "metagame": {
+          "resource_type": "metagame",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "tuple",
+            "full_identifier": {
+              "template": "v1/metagameConfig",
+              "built_from_parts": [],
+              "notes": "Tuple identifier; anchor parts are user-provided."
+            },
+            "parts": [
+              "kind"
+            ],
+            "part_sources": {
+              "kind": {
+                "op": "gcp.games.metagame.listCategoriesByPlayer",
+                "field_path": "items[].kind",
+                "transform": null
+              }
+            },
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.games.metagame.listCategoriesByPlayer",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/games/v1/players/{playerId}/categories/{collection}"
+                },
+                "python_call": "svc.metagame().listCategoriesByPlayer(**params).execute()",
+                "produces": {
+                  "kind": "items[].kind",
+                  "experiencePoints": "items[].experiencePoints",
+                  "category": "items[].category"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.games.metagame.listCategoriesByPlayer",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.games.players.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.players().list(**params).execute()",
+                      "path": "/games/v1/players/me/players/{collection}",
+                      "required_params": {
+                        "collection": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Collection of players being retrieved"
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "name",
+                      "produces": {
+                        "playerId": {
+                          "via_list_field": "items",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"playerId\""
+                        }
+                      },
+                      "param_sources": {
+                        "collection": "unresolved"
+                      },
+                      "purpose": "Provides: playerId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.games.metagame.listCategoriesByPlayer",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.metagame().listCategoriesByPlayer(**params).execute()",
+                      "path": "/games/v1/players/{playerId}/categories/{collection}",
+                      "required_params": {
+                        "playerId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "A player ID. A value of `me` may be used in place of the authenticated player's ID."
+                        },
+                        "collection": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The collection of categories for which data will be returned."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "kind",
+                      "produces": {
+                        "metagameId": {
+                          "via_list_field": "items",
+                          "from_id_field": "kind",
+                          "note": "Iterate response[\"items\"][], extract item[\"kind\"] \u2192 pass as \"metagameId\""
+                        }
+                      },
+                      "param_sources": {
+                        "playerId": {
+                          "from_step": 1,
+                          "from_op": "gcp.games.players.list",
+                          "field": "name"
+                        },
+                        "collection": "unresolved"
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": [
+                    "collection"
+                  ]
+                }
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.games.metagame.getMetagameConfig",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/games/v1/metagameConfig"
+                },
+                "python_call": "svc.metagame().getMetagameConfig(**params).execute()",
+                "required_params": {},
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "confidence": 0.8,
+          "notes": ""
+        },
+        "players": {
+          "resource_type": "players",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "v1/players/{playerId}",
+              "built_from_parts": [
+                "playerId"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [
+              "playerId"
+            ],
+            "part_sources": {
+              "playerId": {
+                "op": "gcp.games.players.list",
+                "field_path": "items[].name",
+                "transform": null
+              }
+            },
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.games.players.list",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/games/v1/players/me/players/{collection}"
+                },
+                "python_call": "svc.players().list(**params).execute()",
+                "produces": {
+                  "name": "items[].name",
+                  "title": "items[].title",
+                  "profileSettings": "items[].profileSettings",
+                  "playerId": "items[].playerId",
+                  "originalPlayerId": "items[].originalPlayerId",
+                  "bannerUrlLandscape": "items[].bannerUrlLandscape",
+                  "avatarImageUrl": "items[].avatarImageUrl",
+                  "bannerUrlPortrait": "items[].bannerUrlPortrait",
+                  "displayName": "items[].displayName",
+                  "experienceInfo": "items[].experienceInfo",
+                  "friendStatus": "items[].friendStatus",
+                  "gamePlayerId": "items[].gamePlayerId"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.games.players.list",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 1,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.games.players.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.players().list(**params).execute()",
+                      "path": "/games/v1/players/me/players/{collection}",
+                      "required_params": {
+                        "collection": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Collection of players being retrieved"
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "name",
+                      "produces": {
+                        "playerId": {
+                          "via_list_field": "items",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"playerId\""
+                        }
+                      },
+                      "param_sources": {
+                        "collection": "unresolved"
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": [
+                    "collection"
+                  ]
+                }
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.games.players.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/games/v1/players/{playerId}"
+                },
+                "python_call": "svc.players().get(**params).execute()",
+                "required_params": {
+                  "playerId": {
+                    "from_identifier": "playerId"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.games.players.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.games.players.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.players().list(**params).execute()",
+                      "path": "/games/v1/players/me/players/{collection}",
+                      "required_params": {
+                        "collection": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Collection of players being retrieved"
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "name",
+                      "produces": {
+                        "playerId": {
+                          "via_list_field": "items",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"playerId\""
+                        }
+                      },
+                      "param_sources": {
+                        "collection": "unresolved"
+                      },
+                      "purpose": "Provides: playerId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.games.players.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.players().get(**params).execute()",
+                      "path": "/games/v1/players/{playerId}",
+                      "required_params": {
+                        "playerId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "A player ID. A value of `me` may be used in place of the authenticated player's ID."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "playerId": {
+                          "from_step": 1,
+                          "from_op": "gcp.games.players.list",
+                          "field": "name"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.games.players.getMultipleApplicationPlayerIds",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/games/v1/players/me/multipleApplicationPlayerIds"
+                },
+                "python_call": "svc.players().getMultipleApplicationPlayerIds(**params).execute()",
+                "required_params": {},
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.games.players.getScopedPlayerIds",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/games/v1/players/me/scopedIds"
+                },
+                "python_call": "svc.players().getScopedPlayerIds(**params).execute()",
+                "required_params": {},
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        },
+        "recall": {
+          "resource_type": "recall",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "tuple",
+            "full_identifier": {
+              "template": "v1/recall/gamesPlayerTokens/{sessionId}",
+              "built_from_parts": [],
+              "notes": "Tuple identifier; anchor parts are user-provided."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": []
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.games.recall.gamesPlayerTokens",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/games/v1/recall/gamesPlayerTokens/{sessionId}"
+                },
+                "python_call": "svc.recall().gamesPlayerTokens(**params).execute()",
+                "required_params": {
+                  "sessionId": {
+                    "from_identifier": "sessionId"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.games.recall.gamesPlayerTokens",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 1,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.games.recall.gamesPlayerTokens",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.recall().gamesPlayerTokens(**params).execute()",
+                      "path": "/games/v1/recall/gamesPlayerTokens/{sessionId}",
+                      "required_params": {
+                        "sessionId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Required. Opaque server-generated string that encodes all the necessary information to identify the PGS player / Google "
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "sessionId": "unresolved"
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": [
+                    "sessionId"
+                  ]
+                }
+              },
+              {
+                "op": "gcp.games.recall.lastTokenFromAllDeveloperGames",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/games/v1/recall/developerGamesLastPlayerToken/{sessionId}"
+                },
+                "python_call": "svc.recall().lastTokenFromAllDeveloperGames(**params).execute()",
+                "required_params": {
+                  "sessionId": {
+                    "from_identifier": "sessionId"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.games.recall.lastTokenFromAllDeveloperGames",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 1,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.games.recall.lastTokenFromAllDeveloperGames",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.recall().lastTokenFromAllDeveloperGames(**params).execute()",
+                      "path": "/games/v1/recall/developerGamesLastPlayerToken/{sessionId}",
+                      "required_params": {
+                        "sessionId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Required. Opaque server-generated string that encodes all the necessary information to identify the PGS player / Google "
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "sessionId": "unresolved"
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": [
+                    "sessionId"
+                  ]
+                }
+              },
+              {
+                "op": "gcp.games.recall.retrieveTokens",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/games/v1/recall/tokens/{sessionId}"
+                },
+                "python_call": "svc.recall().retrieveTokens(**params).execute()",
+                "required_params": {
+                  "sessionId": {
+                    "from_identifier": "sessionId"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.games.recall.retrieveTokens",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 1,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.games.recall.retrieveTokens",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.recall().retrieveTokens(**params).execute()",
+                      "path": "/games/v1/recall/tokens/{sessionId}",
+                      "required_params": {
+                        "sessionId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Required. Opaque server-generated string that encodes all the necessary information to identify the PGS player / Google "
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "sessionId": "unresolved"
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": [
+                    "sessionId"
+                  ]
+                }
+              }
+            ]
+          },
+          "confidence": 0.4,
+          "notes": "No inventory (list) ops found; enrich only."
+        },
+        "revisions": {
+          "resource_type": "revisions",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "tuple",
+            "full_identifier": {
+              "template": "v1/revisions/check",
+              "built_from_parts": [],
+              "notes": "Tuple identifier; anchor parts are user-provided."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": []
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.games.revisions.check",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/games/v1/revisions/check"
+                },
+                "python_call": "svc.revisions().check(**params).execute()",
+                "required_params": {
+                  "clientRevision": {
+                    "from_identifier": "clientRevision"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.games.revisions.check",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 1,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.games.revisions.check",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.revisions().check(**params).execute()",
+                      "path": "/games/v1/revisions/check",
+                      "required_params": {
+                        "clientRevision": {
+                          "type": "string",
+                          "location": "query",
+                          "pattern": "",
+                          "description": "Required. The revision of the client SDK used by your application. Format: `[PLATFORM_TYPE]:[VERSION_NUMBER]`. Possible "
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "clientRevision": "unresolved"
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": [
+                    "clientRevision"
+                  ]
+                }
+              }
+            ]
+          },
+          "confidence": 0.4,
+          "notes": "No inventory (list) ops found; enrich only."
+        },
+        "scores": {
+          "resource_type": "scores",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "v1/players/{playerId}/leaderboards/{leaderboardId}/scores/{timeSpan}",
+              "built_from_parts": [
+                "playerId",
+                "leaderboardId",
+                "timeSpan"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [
+              "playerId",
+              "leaderboardId",
+              "timeSpan"
+            ],
+            "part_sources": {
+              "playerId": {
+                "op": "gcp.games.leaderboards.list",
+                "field_path": "items[].name",
+                "transform": null
+              },
+              "leaderboardId": {
+                "op": "gcp.games.leaderboards.list",
+                "field_path": "items[].name",
+                "transform": null
+              },
+              "timeSpan": {
+                "op": "gcp.games.leaderboards.list",
+                "field_path": "items[].name",
+                "transform": null
+              }
+            },
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.games.leaderboards.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/games/v1/leaderboards"
+                },
+                "python_call": "svc.leaderboards().list(**params).execute()",
+                "produces": {
+                  "name": "items[].name",
+                  "id": "items[].id",
+                  "iconUrl": "items[].iconUrl",
+                  "order": "items[].order",
+                  "isIconUrlDefault": "items[].isIconUrlDefault"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.games.scores.listWindow",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/games/v1/leaderboards/{leaderboardId}/window/{collection}"
+                },
+                "python_call": "svc.scores().listWindow(**params).execute()",
+                "produces": {
+                  "formattedScoreRank": "items[].formattedScoreRank",
+                  "writeTimestampMillis": "items[].writeTimestampMillis",
+                  "formattedScore": "items[].formattedScore",
+                  "scoreValue": "items[].scoreValue",
+                  "timeSpan": "items[].timeSpan",
+                  "player": "items[].player",
+                  "scoreRank": "items[].scoreRank",
+                  "scoreTag": "items[].scoreTag",
+                  "numScores": "numScores",
+                  "prevPageToken": "prevPageToken",
+                  "playerScore": "playerScore"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.games.scores.listWindow",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.games.leaderboards.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.leaderboards().list(**params).execute()",
+                      "path": "/games/v1/leaderboards",
+                      "required_params": {},
+                      "output_list_field": "items",
+                      "output_id_field": "name",
+                      "produces": {
+                        "leaderboardId": {
+                          "via_list_field": "items",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"leaderboardId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: leaderboardId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.games.scores.listWindow",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.scores().listWindow(**params).execute()",
+                      "path": "/games/v1/leaderboards/{leaderboardId}/window/{collection}",
+                      "required_params": {
+                        "leaderboardId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the leaderboard."
+                        },
+                        "collection": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The collection of scores you're requesting."
+                        },
+                        "timeSpan": {
+                          "type": "string",
+                          "location": "query",
+                          "pattern": "",
+                          "description": "Required. The time span for the scores and ranks you're requesting."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "formattedScoreRank",
+                      "produces": {
+                        "scoreId": {
+                          "via_list_field": "items",
+                          "from_id_field": "formattedScoreRank",
+                          "note": "Iterate response[\"items\"][], extract item[\"formattedScoreRank\"] \u2192 pass as \"scoreId\""
+                        }
+                      },
+                      "param_sources": {
+                        "leaderboardId": {
+                          "from_step": 1,
+                          "from_op": "gcp.games.leaderboards.list",
+                          "field": "name"
+                        },
+                        "collection": "unresolved",
+                        "timeSpan": "unresolved"
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": [
+                    "collection",
+                    "timeSpan"
+                  ]
+                }
+              },
+              {
+                "op": "gcp.games.players.list",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/games/v1/players/me/players/{collection}"
+                },
+                "python_call": "svc.players().list(**params).execute()",
+                "produces": {
+                  "name": "items[].name",
+                  "title": "items[].title",
+                  "profileSettings": "items[].profileSettings",
+                  "playerId": "items[].playerId",
+                  "originalPlayerId": "items[].originalPlayerId",
+                  "bannerUrlLandscape": "items[].bannerUrlLandscape",
+                  "avatarImageUrl": "items[].avatarImageUrl",
+                  "bannerUrlPortrait": "items[].bannerUrlPortrait",
+                  "displayName": "items[].displayName",
+                  "experienceInfo": "items[].experienceInfo",
+                  "friendStatus": "items[].friendStatus",
+                  "gamePlayerId": "items[].gamePlayerId"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.games.players.list",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 1,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.games.players.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.players().list(**params).execute()",
+                      "path": "/games/v1/players/me/players/{collection}",
+                      "required_params": {
+                        "collection": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Collection of players being retrieved"
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "name",
+                      "produces": {
+                        "playerId": {
+                          "via_list_field": "items",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"playerId\""
+                        }
+                      },
+                      "param_sources": {
+                        "collection": "unresolved"
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": [
+                    "collection"
+                  ]
+                }
+              },
+              {
+                "op": "gcp.games.scores.list",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/games/v1/leaderboards/{leaderboardId}/scores/{collection}"
+                },
+                "python_call": "svc.scores().list(**params).execute()",
+                "produces": {
+                  "formattedScoreRank": "items[].formattedScoreRank",
+                  "writeTimestampMillis": "items[].writeTimestampMillis",
+                  "formattedScore": "items[].formattedScore",
+                  "scoreValue": "items[].scoreValue",
+                  "timeSpan": "items[].timeSpan",
+                  "player": "items[].player",
+                  "scoreRank": "items[].scoreRank",
+                  "scoreTag": "items[].scoreTag",
+                  "numScores": "numScores",
+                  "prevPageToken": "prevPageToken",
+                  "playerScore": "playerScore"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.games.scores.list",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 3,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.games.leaderboards.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.leaderboards().list(**params).execute()",
+                      "path": "/games/v1/leaderboards",
+                      "required_params": {},
+                      "output_list_field": "items",
+                      "output_id_field": "name",
+                      "produces": {
+                        "leaderboardId": {
+                          "via_list_field": "items",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"leaderboardId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: leaderboardId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.games.scores.listWindow",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.scores().listWindow(**params).execute()",
+                      "path": "/games/v1/leaderboards/{leaderboardId}/window/{collection}",
+                      "required_params": {
+                        "leaderboardId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the leaderboard."
+                        },
+                        "collection": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The collection of scores you're requesting."
+                        },
+                        "timeSpan": {
+                          "type": "string",
+                          "location": "query",
+                          "pattern": "",
+                          "description": "Required. The time span for the scores and ranks you're requesting."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "formattedScoreRank",
+                      "produces": {
+                        "scoreId": {
+                          "via_list_field": "items",
+                          "from_id_field": "formattedScoreRank",
+                          "note": "Iterate response[\"items\"][], extract item[\"formattedScoreRank\"] \u2192 pass as \"scoreId\""
+                        }
+                      },
+                      "param_sources": {
+                        "leaderboardId": {
+                          "from_step": 1,
+                          "from_op": "gcp.games.leaderboards.list",
+                          "field": "name"
+                        },
+                        "collection": "unresolved",
+                        "timeSpan": "unresolved"
+                      },
+                      "purpose": "Provides: scoreId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.games.scores.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.scores().list(**params).execute()",
+                      "path": "/games/v1/leaderboards/{leaderboardId}/scores/{collection}",
+                      "required_params": {
+                        "collection": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The collection of scores you're requesting."
+                        },
+                        "timeSpan": {
+                          "type": "string",
+                          "location": "query",
+                          "pattern": "",
+                          "description": "Required. The time span for the scores and ranks you're requesting."
+                        },
+                        "leaderboardId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the leaderboard."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "formattedScoreRank",
+                      "produces": {
+                        "scoreId": {
+                          "via_list_field": "items",
+                          "from_id_field": "formattedScoreRank",
+                          "note": "Iterate response[\"items\"][], extract item[\"formattedScoreRank\"] \u2192 pass as \"scoreId\""
+                        }
+                      },
+                      "param_sources": {
+                        "collection": "unresolved",
+                        "timeSpan": {
+                          "from_step": 2,
+                          "from_op": "gcp.games.scores.listWindow",
+                          "field": "formattedScoreRank"
+                        },
+                        "leaderboardId": {
+                          "from_step": 1,
+                          "from_op": "gcp.games.leaderboards.list",
+                          "field": "name"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": [
+                    "collection"
+                  ]
+                }
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.games.scores.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/games/v1/players/{playerId}/leaderboards/{leaderboardId}/scores/{timeSpan}"
+                },
+                "python_call": "svc.scores().get(**params).execute()",
+                "required_params": {
+                  "timeSpan": {
+                    "from_identifier": "timeSpan"
+                  },
+                  "leaderboardId": {
+                    "from_identifier": "leaderboardId"
+                  },
+                  "playerId": {
+                    "from_identifier": "playerId"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.games.scores.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 4,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.games.leaderboards.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.leaderboards().list(**params).execute()",
+                      "path": "/games/v1/leaderboards",
+                      "required_params": {},
+                      "output_list_field": "items",
+                      "output_id_field": "name",
+                      "produces": {
+                        "leaderboardId": {
+                          "via_list_field": "items",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"leaderboardId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: leaderboardId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.games.scores.listWindow",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.scores().listWindow(**params).execute()",
+                      "path": "/games/v1/leaderboards/{leaderboardId}/window/{collection}",
+                      "required_params": {
+                        "leaderboardId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the leaderboard."
+                        },
+                        "collection": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The collection of scores you're requesting."
+                        },
+                        "timeSpan": {
+                          "type": "string",
+                          "location": "query",
+                          "pattern": "",
+                          "description": "Required. The time span for the scores and ranks you're requesting."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "formattedScoreRank",
+                      "produces": {
+                        "scoreId": {
+                          "via_list_field": "items",
+                          "from_id_field": "formattedScoreRank",
+                          "note": "Iterate response[\"items\"][], extract item[\"formattedScoreRank\"] \u2192 pass as \"scoreId\""
+                        }
+                      },
+                      "param_sources": {
+                        "leaderboardId": {
+                          "from_step": 1,
+                          "from_op": "gcp.games.leaderboards.list",
+                          "field": "name"
+                        },
+                        "collection": "unresolved",
+                        "timeSpan": "unresolved"
+                      },
+                      "purpose": "Provides: scoreId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.games.players.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.players().list(**params).execute()",
+                      "path": "/games/v1/players/me/players/{collection}",
+                      "required_params": {
+                        "collection": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Collection of players being retrieved"
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "name",
+                      "produces": {
+                        "playerId": {
+                          "via_list_field": "items",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"playerId\""
+                        }
+                      },
+                      "param_sources": {
+                        "collection": "unresolved"
+                      },
+                      "purpose": "Provides: playerId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 4,
+                      "op": "gcp.games.scores.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.scores().get(**params).execute()",
+                      "path": "/games/v1/players/{playerId}/leaderboards/{leaderboardId}/scores/{timeSpan}",
+                      "required_params": {
+                        "timeSpan": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The time span for the scores and ranks you're requesting."
+                        },
+                        "leaderboardId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the leaderboard. Can be set to 'ALL' to retrieve data for all leaderboards for this application."
+                        },
+                        "playerId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "A player ID. A value of `me` may be used in place of the authenticated player's ID."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "timeSpan": {
+                          "from_step": 2,
+                          "from_op": "gcp.games.scores.listWindow",
+                          "field": "formattedScoreRank"
+                        },
+                        "leaderboardId": {
+                          "from_step": 1,
+                          "from_op": "gcp.games.leaderboards.list",
+                          "field": "name"
+                        },
+                        "playerId": {
+                          "from_step": 3,
+                          "from_op": "gcp.games.players.list",
+                          "field": "name"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        },
+        "snapshots": {
+          "resource_type": "snapshots",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "v1/snapshots/{snapshotId}",
+              "built_from_parts": [
+                "snapshotId"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [
+              "snapshotId"
+            ],
+            "part_sources": {
+              "snapshotId": {
+                "op": "gcp.games.players.list",
+                "field_path": "items[].name",
+                "transform": null
+              }
+            },
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.games.players.list",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/games/v1/players/me/players/{collection}"
+                },
+                "python_call": "svc.players().list(**params).execute()",
+                "produces": {
+                  "name": "items[].name",
+                  "title": "items[].title",
+                  "profileSettings": "items[].profileSettings",
+                  "playerId": "items[].playerId",
+                  "originalPlayerId": "items[].originalPlayerId",
+                  "bannerUrlLandscape": "items[].bannerUrlLandscape",
+                  "avatarImageUrl": "items[].avatarImageUrl",
+                  "bannerUrlPortrait": "items[].bannerUrlPortrait",
+                  "displayName": "items[].displayName",
+                  "experienceInfo": "items[].experienceInfo",
+                  "friendStatus": "items[].friendStatus",
+                  "gamePlayerId": "items[].gamePlayerId"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.games.players.list",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 1,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.games.players.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.players().list(**params).execute()",
+                      "path": "/games/v1/players/me/players/{collection}",
+                      "required_params": {
+                        "collection": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Collection of players being retrieved"
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "name",
+                      "produces": {
+                        "playerId": {
+                          "via_list_field": "items",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"playerId\""
+                        }
+                      },
+                      "param_sources": {
+                        "collection": "unresolved"
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": [
+                    "collection"
+                  ]
+                }
+              },
+              {
+                "op": "gcp.games.snapshots.list",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/games/v1/players/{playerId}/snapshots"
+                },
+                "python_call": "svc.snapshots().list(**params).execute()",
+                "produces": {
+                  "id": "items[].id",
+                  "driveId": "items[].driveId",
+                  "progressValue": "items[].progressValue",
+                  "durationMillis": "items[].durationMillis",
+                  "lastModifiedMillis": "items[].lastModifiedMillis",
+                  "coverImage": "items[].coverImage",
+                  "description": "items[].description",
+                  "uniqueName": "items[].uniqueName",
+                  "title": "items[].title",
+                  "type": "items[].type"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.games.snapshots.list",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.games.players.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.players().list(**params).execute()",
+                      "path": "/games/v1/players/me/players/{collection}",
+                      "required_params": {
+                        "collection": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Collection of players being retrieved"
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "name",
+                      "produces": {
+                        "playerId": {
+                          "via_list_field": "items",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"playerId\""
+                        }
+                      },
+                      "param_sources": {
+                        "collection": "unresolved"
+                      },
+                      "purpose": "Provides: playerId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.games.snapshots.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.snapshots().list(**params).execute()",
+                      "path": "/games/v1/players/{playerId}/snapshots",
+                      "required_params": {
+                        "playerId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "A player ID. A value of `me` may be used in place of the authenticated player's ID."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "id",
+                      "produces": {
+                        "snapshotId": {
+                          "via_list_field": "items",
+                          "from_id_field": "id",
+                          "note": "Iterate response[\"items\"][], extract item[\"id\"] \u2192 pass as \"snapshotId\""
+                        }
+                      },
+                      "param_sources": {
+                        "playerId": {
+                          "from_step": 1,
+                          "from_op": "gcp.games.players.list",
+                          "field": "name"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.games.snapshots.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/games/v1/snapshots/{snapshotId}"
+                },
+                "python_call": "svc.snapshots().get(**params).execute()",
+                "required_params": {
+                  "snapshotId": {
+                    "from_identifier": "snapshotId"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.games.snapshots.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 3,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.games.players.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.players().list(**params).execute()",
+                      "path": "/games/v1/players/me/players/{collection}",
+                      "required_params": {
+                        "collection": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Collection of players being retrieved"
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "name",
+                      "produces": {
+                        "playerId": {
+                          "via_list_field": "items",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"playerId\""
+                        }
+                      },
+                      "param_sources": {
+                        "collection": "unresolved"
+                      },
+                      "purpose": "Provides: playerId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.games.snapshots.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.snapshots().list(**params).execute()",
+                      "path": "/games/v1/players/{playerId}/snapshots",
+                      "required_params": {
+                        "playerId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "A player ID. A value of `me` may be used in place of the authenticated player's ID."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "id",
+                      "produces": {
+                        "snapshotId": {
+                          "via_list_field": "items",
+                          "from_id_field": "id",
+                          "note": "Iterate response[\"items\"][], extract item[\"id\"] \u2192 pass as \"snapshotId\""
+                        }
+                      },
+                      "param_sources": {
+                        "playerId": {
+                          "from_step": 1,
+                          "from_op": "gcp.games.players.list",
+                          "field": "name"
+                        }
+                      },
+                      "purpose": "Provides: snapshotId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.games.snapshots.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.snapshots().get(**params).execute()",
+                      "path": "/games/v1/snapshots/{snapshotId}",
+                      "required_params": {
+                        "snapshotId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the snapshot."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "snapshotId": {
+                          "from_step": 2,
+                          "from_op": "gcp.games.snapshots.list",
+                          "field": "id"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        },
+        "stats": {
+          "resource_type": "stats",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "tuple",
+            "full_identifier": {
+              "template": "v1/stats",
+              "built_from_parts": [],
+              "notes": "Tuple identifier; anchor parts are user-provided."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": []
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.games.stats.get",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/games/v1/stats"
+                },
+                "python_call": "svc.stats().get(**params).execute()",
+                "required_params": {},
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "confidence": 0.4,
+          "notes": "No inventory (list) ops found; enrich only."
+        }
+      }
+    }
+  }
+}

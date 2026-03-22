@@ -1,0 +1,259 @@
+# ============================================================
+# Discovery YAML — vision (v1)
+# Generated: 2026-02-21T03:06:41Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 12 | independent: 3 | dependent: 9
+# ops with fields: 12/12 | dep ops with chain: 8/9
+# ============================================================
+version: '1.0'
+provider: gcp
+service: vision
+
+services:
+  client: vision
+  module: "googleapiclient.discovery.build('vision', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists ProductSets in an unspecified order. Possible errors: * Returns INVALID_ARGUMENT if page_size 
+  # ── gcp.vision.projects.locations.productSets.list ──
+  - discovery_id: gcp.vision.projects.locations.productSets.list
+    # python: svc.projects().locations().productSets().list(**params).execute()
+    calls:
+      - action: projects.locations.productSets.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.productSets }}'
+      item:
+        displayName: '{{ item.displayName }}'
+        indexError: '{{ item.indexError }}'
+        indexTime: '{{ item.indexTime }}'
+        name: '{{ item.name }}'
+  # Lists products in an unspecified order. Possible errors: * Returns INVALID_ARGUMENT if page_size is 
+  # ── gcp.vision.projects.locations.products.list ──
+  - discovery_id: gcp.vision.projects.locations.products.list
+    # python: svc.projects().locations().products().list(**params).execute()
+    calls:
+      - action: projects.locations.products.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.products }}'
+      item:
+        description: '{{ item.description }}'
+        displayName: '{{ item.displayName }}'
+        name: '{{ item.name }}'
+        productCategory: '{{ item.productCategory }}'
+        productLabels: '{{ item.productLabels }}'
+  # Lists reference images. Possible errors: * Returns NOT_FOUND if the parent product does not exist. *
+  # ── gcp.vision.projects.locations.products.referenceImages.list ──
+  - discovery_id: gcp.vision.projects.locations.products.referenceImages.list
+    # python: svc.projects().locations().products().referenceImages().list(**params).execute()
+    calls:
+      - action: projects.locations.products.referenceImages.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.referenceImages }}'
+      item:
+        boundingPolys: '{{ item.boundingPolys }}'
+        name: '{{ item.name }}'
+        uri: '{{ item.uri }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.vision.locations.operations.get [dependent] ──
+  - discovery_id: gcp.vision.locations.operations.get
+    for_each: gcp.vision.operations.list
+    # python: svc.locations().operations().get(**params).execute()
+    calls:
+      - action: locations.operations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.vision.operations.get [dependent] ──
+  - discovery_id: gcp.vision.operations.get
+    for_each: gcp.vision.operations.list
+    # python: svc.operations().get(**params).execute()
+    calls:
+      - action: operations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']
+  # Lists operations that match the specified filter in the request. If the server doesn't support this 
+  # ── gcp.vision.operations.list [dependent] ──
+  - discovery_id: gcp.vision.operations.list
+    # python: svc.operations().list(**params).execute()
+    calls:
+      - action: operations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.operations }}'
+      item:
+        done: '{{ item.done }}'
+        error: '{{ item.error }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+        response: '{{ item.response }}'
+    # required_params: ['name']
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.vision.projects.locations.operations.get [dependent] ──
+  - discovery_id: gcp.vision.projects.locations.operations.get
+    for_each: gcp.vision.operations.list
+    # python: svc.projects().locations().operations().get(**params).execute()
+    calls:
+      - action: projects.locations.operations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']
+  # Gets information associated with a ProductSet. Possible errors: * Returns NOT_FOUND if the ProductSe
+  # ── gcp.vision.projects.locations.productSets.get [dependent] ──
+  - discovery_id: gcp.vision.projects.locations.productSets.get
+    for_each: gcp.vision.projects.locations.productSets.list
+    # python: svc.projects().locations().productSets().get(**params).execute()
+    calls:
+      - action: projects.locations.productSets.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        displayName: '{{ response.displayName }}'
+        indexError: '{{ response.indexError }}'
+        indexTime: '{{ response.indexTime }}'
+        name: '{{ response.name }}'
+    # required_params: ['name']
+  # Lists the Products in a ProductSet, in an unspecified order. If the ProductSet does not exist, the p
+  # ── gcp.vision.projects.locations.productSets.products.list [dependent] ──
+  - discovery_id: gcp.vision.projects.locations.productSets.products.list
+    for_each: gcp.vision.projects.locations.productSets.list
+    # python: svc.projects().locations().productSets().products().list(**params).execute()
+    calls:
+      - action: projects.locations.productSets.products.list
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.products }}'
+      item:
+        description: '{{ item.description }}'
+        displayName: '{{ item.displayName }}'
+        name: '{{ item.name }}'
+        productCategory: '{{ item.productCategory }}'
+        productLabels: '{{ item.productLabels }}'
+    # required_params: ['name']
+  # Gets information associated with a Product. Possible errors: * Returns NOT_FOUND if the Product does
+  # ── gcp.vision.projects.locations.products.get [dependent] ──
+  - discovery_id: gcp.vision.projects.locations.products.get
+    for_each: gcp.vision.projects.locations.productSets.products.list
+    # python: svc.projects().locations().products().get(**params).execute()
+    calls:
+      - action: projects.locations.products.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        description: '{{ response.description }}'
+        displayName: '{{ response.displayName }}'
+        name: '{{ response.name }}'
+        productCategory: '{{ response.productCategory }}'
+        productLabels: '{{ response.productLabels }}'
+    # required_params: ['name']
+  # Gets information associated with a ReferenceImage. Possible errors: * Returns NOT_FOUND if the speci
+  # ── gcp.vision.projects.locations.products.referenceImages.get [dependent] ──
+  - discovery_id: gcp.vision.projects.locations.products.referenceImages.get
+    for_each: gcp.vision.projects.locations.products.referenceImages.list
+    # python: svc.projects().locations().products().referenceImages().get(**params).execute()
+    calls:
+      - action: projects.locations.products.referenceImages.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        boundingPolys: '{{ response.boundingPolys }}'
+        name: '{{ response.name }}'
+        uri: '{{ response.uri }}'
+    # required_params: ['name']
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.vision.projects.operations.get [dependent] ──
+  - discovery_id: gcp.vision.projects.operations.get
+    for_each: gcp.vision.operations.list
+    # python: svc.projects().operations().get(**params).execute()
+    calls:
+      - action: projects.operations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']

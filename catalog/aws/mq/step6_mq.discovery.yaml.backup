@@ -1,0 +1,145 @@
+version: '1.0'
+provider: aws
+service: mq
+services:
+  client: mq
+  module: boto3.client
+discovery:
+- discovery_id: aws.mq.describeBrokerEngineTypes
+  calls:
+  - action: describeBrokerEngineTypes
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.BrokerEngineTypes }}'
+    item:
+      EngineType: '{{ item.EngineType }}'
+      EngineVersions: '{{ item.EngineVersions }}'
+- discovery_id: aws.mq.describeBrokerInstanceOptions
+  calls:
+  - action: describeBrokerInstanceOptions
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.BrokerInstanceOptions }}'
+    item:
+      AvailabilityZones: '{{ item.AvailabilityZones }}'
+      EngineType: '{{ item.EngineType }}'
+      HostInstanceType: '{{ item.HostInstanceType }}'
+      StorageType: '{{ item.StorageType }}'
+      SupportedDeploymentModes: '{{ item.SupportedDeploymentModes }}'
+      SupportedEngineVersions: '{{ item.SupportedEngineVersions }}'
+- discovery_id: aws.mq.listBrokers
+  calls:
+  - action: listBrokers
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.BrokerSummaries }}'
+    item:
+      BrokerArn: '{{ item.BrokerArn }}'
+      BrokerId: '{{ item.BrokerId }}'
+      BrokerName: '{{ item.BrokerName }}'
+      BrokerState: '{{ item.BrokerState }}'
+      Created: '{{ item.Created }}'
+      DeploymentMode: '{{ item.DeploymentMode }}'
+      EngineType: '{{ item.EngineType }}'
+      HostInstanceType: '{{ item.HostInstanceType }}'
+- discovery_id: aws.mq.listConfigurations
+  calls:
+  - action: listConfigurations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Configurations }}'
+    item:
+      Arn: '{{ item.Arn }}'
+      AuthenticationStrategy: '{{ item.AuthenticationStrategy }}'
+      Created: '{{ item.Created }}'
+      Description: '{{ item.Description }}'
+      EngineType: '{{ item.EngineType }}'
+      EngineVersion: '{{ item.EngineVersion }}'
+      Id: '{{ item.Id }}'
+      LatestRevision: '{{ item.LatestRevision }}'
+      Name: '{{ item.Name }}'
+      Tags: '{{ item.Tags }}'
+- discovery_id: aws.mq.describeBroker
+  calls:
+  - action: describeBroker
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.PendingSecurityGroups }}'
+- discovery_id: aws.mq.describeConfiguration
+  calls:
+  - action: describeConfiguration
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.LatestRevision }}'
+    item:
+      Created: '{{ item.Created }}'
+      Description: '{{ item.Description }}'
+      Revision: '{{ item.Revision }}'
+- discovery_id: aws.mq.describeConfigurationRevision
+  calls:
+  - action: describeConfigurationRevision
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ConfigurationId }}'
+- discovery_id: aws.mq.describeUser
+  calls:
+  - action: describeUser
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Groups }}'
+- discovery_id: aws.mq.listConfigurationRevisions
+  calls:
+  - action: listConfigurationRevisions
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Revisions }}'
+    item:
+      Created: '{{ item.Created }}'
+      Description: '{{ item.Description }}'
+      Revision: '{{ item.Revision }}'
+- discovery_id: aws.mq.listTags
+  calls:
+  - action: listTags
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+- discovery_id: aws.mq.listUsers
+  calls:
+  - action: listUsers
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Users }}'
+    item:
+      PendingChange: '{{ item.PendingChange }}'
+      Username: '{{ item.Username }}'
+checks: []

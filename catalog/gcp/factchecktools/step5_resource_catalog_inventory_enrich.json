@@ -1,0 +1,206 @@
+{
+  "csp": "gcp",
+  "generated_at": "2026-02-19T14:43:26.615229+00:00",
+  "anchors": {
+    "fixed": [
+      "project_id",
+      "org_id",
+      "folder_id",
+      "location",
+      "zone",
+      "region"
+    ]
+  },
+  "services": {
+    "factchecktools": {
+      "version": "v1alpha1",
+      "resources": {
+        "claims": {
+          "resource_type": "claims",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "tuple",
+            "full_identifier": {
+              "template": "claims:imageSearch",
+              "built_from_parts": [],
+              "notes": "Tuple identifier; anchor parts are user-provided."
+            },
+            "parts": [
+              "claimant"
+            ],
+            "part_sources": {
+              "claimant": {
+                "op": "gcp.factchecktools.claims.search",
+                "field_path": "claims[].claimant",
+                "transform": null
+              }
+            },
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.factchecktools.claims.search",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1alpha1/claims:search"
+                },
+                "python_call": "svc.claims().search(**params).execute()",
+                "produces": {
+                  "claimant": "claims[].claimant",
+                  "text": "claims[].text",
+                  "claimReview": "claims[].claimReview",
+                  "claimDate": "claims[].claimDate"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.factchecktools.claims.imageSearch",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1alpha1/claims:imageSearch"
+                },
+                "python_call": "svc.claims().imageSearch(**params).execute()",
+                "required_params": {},
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "confidence": 0.8,
+          "notes": ""
+        },
+        "pages": {
+          "resource_type": "pages",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.factchecktools.pages.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1alpha1/pages"
+                },
+                "python_call": "svc.pages().list(**params).execute()",
+                "produces": {
+                  "name": "claimReviewMarkupPages[].name",
+                  "versionId": "claimReviewMarkupPages[].versionId",
+                  "publishDate": "claimReviewMarkupPages[].publishDate",
+                  "pageUrl": "claimReviewMarkupPages[].pageUrl",
+                  "claimReviewMarkups": "claimReviewMarkupPages[].claimReviewMarkups",
+                  "claimReviewAuthor": "claimReviewMarkupPages[].claimReviewAuthor"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.factchecktools.pages.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1alpha1/{+name}"
+                },
+                "python_call": "svc.pages().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.factchecktools.pages.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.factchecktools.pages.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.pages().list(**params).execute()",
+                      "path": "/v1alpha1/pages",
+                      "required_params": {},
+                      "output_list_field": "claimReviewMarkupPages",
+                      "output_id_field": "name",
+                      "produces": {
+                        "pageId": {
+                          "via_list_field": "claimReviewMarkupPages",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"claimReviewMarkupPages\"][], extract item[\"name\"] \u2192 pass as \"pageId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: pageId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.factchecktools.pages.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.pages().get(**params).execute()",
+                      "path": "/v1alpha1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^pages/[^/]+$",
+                          "description": "The name of the resource to get, in the form of `pages/{page_id}`."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "pageId": {
+                            "from_step": 1,
+                            "from_op": "gcp.factchecktools.pages.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        }
+      }
+    }
+  }
+}

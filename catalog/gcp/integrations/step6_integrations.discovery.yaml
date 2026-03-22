@@ -1,0 +1,1242 @@
+# ============================================================
+# Discovery YAML — integrations (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 49 | independent: 27 | dependent: 22
+# ops with fields: 49/49 | dep ops with chain: 22/22
+# ============================================================
+version: '1.0'
+provider: gcp
+service: integrations
+
+services:
+  client: integrations
+  module: "googleapiclient.discovery.build('integrations', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Receives the auth code and auth config id to combine that with the client id and secret to retrieve 
+  # ── gcp.integrations.callback.generateToken ──
+  - discovery_id: gcp.integrations.callback.generateToken
+    # python: svc.callback().generateToken(**params).execute()
+    calls:
+      - action: callback.generateToken
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        message: '{{ response.message }}'
+  # Enumerates the regions for which Connector Platform is provisioned.
+  # ── gcp.integrations.connectorPlatformRegions.enumerate ──
+  - discovery_id: gcp.integrations.connectorPlatformRegions.enumerate
+    # python: svc.connectorPlatformRegions().enumerate(**params).execute()
+    calls:
+      - action: connectorPlatformRegions.enumerate
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        regions: '{{ response.regions }}'
+  # Gets the metadata info for the requested client
+  # ── gcp.integrations.projects.getClientmetadata ──
+  - discovery_id: gcp.integrations.projects.getClientmetadata
+    # python: svc.projects().getClientmetadata(**params).execute()
+    calls:
+      - action: projects.getClientmetadata
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        properties: '{{ response.properties }}'
+  # Lists all auth configs that match the filter. Restrict to auth configs belong to the current client 
+  # ── gcp.integrations.projects.locations.authConfigs.list ──
+  - discovery_id: gcp.integrations.projects.locations.authConfigs.list
+    # python: svc.projects().locations().authConfigs().list(**params).execute()
+    calls:
+      - action: projects.locations.authConfigs.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.authConfigs }}'
+      item:
+        certificateId: '{{ item.certificateId }}'
+        createTime: '{{ item.createTime }}'
+        creatorEmail: '{{ item.creatorEmail }}'
+        credentialType: '{{ item.credentialType }}'
+        decryptedCredential: '{{ item.decryptedCredential }}'
+        description: '{{ item.description }}'
+        displayName: '{{ item.displayName }}'
+        encryptedCredential: '{{ item.encryptedCredential }}'
+        expiryNotificationDuration: '{{ item.expiryNotificationDuration }}'
+        lastModifierEmail: '{{ item.lastModifierEmail }}'
+        name: '{{ item.name }}'
+        overrideValidTime: '{{ item.overrideValidTime }}'
+        reason: '{{ item.reason }}'
+        state: '{{ item.state }}'
+        updateTime: '{{ item.updateTime }}'
+        validTime: '{{ item.validTime }}'
+        visibility: '{{ item.visibility }}'
+  # List all the certificates that match the filter. Restrict to certificate of current client only.
+  # ── gcp.integrations.projects.locations.certificates.list ──
+  - discovery_id: gcp.integrations.projects.locations.certificates.list
+    # python: svc.projects().locations().certificates().list(**params).execute()
+    calls:
+      - action: projects.locations.certificates.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.certificates }}'
+      item:
+        certificateStatus: '{{ item.certificateStatus }}'
+        credentialId: '{{ item.credentialId }}'
+        description: '{{ item.description }}'
+        displayName: '{{ item.displayName }}'
+        name: '{{ item.name }}'
+        rawCertificate: '{{ item.rawCertificate }}'
+        requestorId: '{{ item.requestorId }}'
+        validEndTime: '{{ item.validEndTime }}'
+        validStartTime: '{{ item.validStartTime }}'
+  # Lists Connections in a given project and location.
+  # ── gcp.integrations.projects.locations.connections.list ──
+  - discovery_id: gcp.integrations.projects.locations.connections.list
+    # python: svc.projects().locations().connections().list(**params).execute()
+    calls:
+      - action: projects.locations.connections.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.connections }}'
+      item:
+        asyncOperationsEnabled: '{{ item.asyncOperationsEnabled }}'
+        authConfig: '{{ item.authConfig }}'
+        authOverrideEnabled: '{{ item.authOverrideEnabled }}'
+        billingConfig: '{{ item.billingConfig }}'
+        configVariables: '{{ item.configVariables }}'
+        connectionRevision: '{{ item.connectionRevision }}'
+        connectorVersion: '{{ item.connectorVersion }}'
+        connectorVersionInfraConfig: '{{ item.connectorVersionInfraConfig }}'
+        connectorVersionLaunchStage: '{{ item.connectorVersionLaunchStage }}'
+        createTime: '{{ item.createTime }}'
+        description: '{{ item.description }}'
+        destinationConfigs: '{{ item.destinationConfigs }}'
+        envoyImageLocation: '{{ item.envoyImageLocation }}'
+        euaOauthAuthConfig: '{{ item.euaOauthAuthConfig }}'
+        eventingConfig: '{{ item.eventingConfig }}'
+        eventingEnablementType: '{{ item.eventingEnablementType }}'
+        eventingRuntimeData: '{{ item.eventingRuntimeData }}'
+        fallbackOnAdminCredentials: '{{ item.fallbackOnAdminCredentials }}'
+        host: '{{ item.host }}'
+        imageLocation: '{{ item.imageLocation }}'
+        isTrustedTester: '{{ item.isTrustedTester }}'
+        labels: '{{ item.labels }}'
+        lockConfig: '{{ item.lockConfig }}'
+        logConfig: '{{ item.logConfig }}'
+        name: '{{ item.name }}'
+        nodeConfig: '{{ item.nodeConfig }}'
+        serviceAccount: '{{ item.serviceAccount }}'
+        serviceDirectory: '{{ item.serviceDirectory }}'
+        sslConfig: '{{ item.sslConfig }}'
+        status: '{{ item.status }}'
+        subscriptionType: '{{ item.subscriptionType }}'
+        suspended: '{{ item.suspended }}'
+        tlsServiceDirectory: '{{ item.tlsServiceDirectory }}'
+        trafficShapingConfigs: '{{ item.trafficShapingConfigs }}'
+        updateTime: '{{ item.updateTime }}'
+  # Lists the JSON schemas for the inputs and outputs of actions, filtered by action name.
+  # ── gcp.integrations.projects.locations.connections.runtimeActionSchemas.list ──
+  - discovery_id: gcp.integrations.projects.locations.connections.runtimeActionSchemas.list
+    # python: svc.projects().locations().connections().runtimeActionSchemas().list(**params).execute()
+    calls:
+      - action: projects.locations.connections.runtimeActionSchemas.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.runtimeActionSchemas }}'
+      item:
+        action: '{{ item.action }}'
+        inputSchema: '{{ item.inputSchema }}'
+        outputSchema: '{{ item.outputSchema }}'
+  # Lists the JSON schemas for the properties of runtime entities, filtered by entity name.
+  # ── gcp.integrations.projects.locations.connections.runtimeEntitySchemas.list ──
+  - discovery_id: gcp.integrations.projects.locations.connections.runtimeEntitySchemas.list
+    # python: svc.projects().locations().connections().runtimeEntitySchemas().list(**params).execute()
+    calls:
+      - action: projects.locations.connections.runtimeEntitySchemas.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.runtimeEntitySchemas }}'
+      item:
+        arrayFieldSchema: '{{ item.arrayFieldSchema }}'
+        entity: '{{ item.entity }}'
+        fieldSchema: '{{ item.fieldSchema }}'
+  # Gets the client configuration for the given project and location resource name
+  # ── gcp.integrations.projects.locations.getClients ──
+  - discovery_id: gcp.integrations.projects.locations.getClients
+    # python: svc.projects().locations().getClients(**params).execute()
+    calls:
+      - action: projects.locations.getClients
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        client: '{{ response.client }}'
+  # Lists the results of all the integration executions. The response includes the same information as t
+  # ── gcp.integrations.projects.locations.integrations.executions.list ──
+  - discovery_id: gcp.integrations.projects.locations.integrations.executions.list
+    # python: svc.projects().locations().integrations().executions().list(**params).execute()
+    calls:
+      - action: projects.locations.integrations.executions.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.executions }}'
+      item:
+        clientId: '{{ item.clientId }}'
+        cloudLoggingDetails: '{{ item.cloudLoggingDetails }}'
+        createTime: '{{ item.createTime }}'
+        errorCode: '{{ item.errorCode }}'
+        errors: '{{ item.errors }}'
+        eventExecutionDetails: '{{ item.eventExecutionDetails }}'
+        eventExecutionInfoId: '{{ item.eventExecutionInfoId }}'
+        executionTraceInfo: '{{ item.executionTraceInfo }}'
+        integrationVersionUserLabel: '{{ item.integrationVersionUserLabel }}'
+        lastModifiedTime: '{{ item.lastModifiedTime }}'
+        postMethod: '{{ item.postMethod }}'
+        product: '{{ item.product }}'
+        replayInfo: '{{ item.replayInfo }}'
+        requestId: '{{ item.requestId }}'
+        requestParams: '{{ item.requestParams }}'
+        responseParams: '{{ item.responseParams }}'
+        snapshotNumber: '{{ item.snapshotNumber }}'
+        tenant: '{{ item.tenant }}'
+        triggerId: '{{ item.triggerId }}'
+        workflowId: '{{ item.workflowId }}'
+        workflowName: '{{ item.workflowName }}'
+        workflowRetryBackoffIntervalSeconds: '{{ item.workflowRetryBackoffIntervalSeconds }}'
+  # * Lists suspensions associated with a specific execution. Only those with permissions to resolve the
+  # ── gcp.integrations.projects.locations.integrations.executions.suspensions.list ──
+  - discovery_id: gcp.integrations.projects.locations.integrations.executions.suspensions.list
+    # python: svc.projects().locations().integrations().executions().suspensions().list(**params).execute()
+    calls:
+      - action: projects.locations.integrations.executions.suspensions.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.suspensions }}'
+      item:
+        approvalConfig: '{{ item.approvalConfig }}'
+        audit: '{{ item.audit }}'
+        createTime: '{{ item.createTime }}'
+        eventExecutionInfoId: '{{ item.eventExecutionInfoId }}'
+        integration: '{{ item.integration }}'
+        lastModifyTime: '{{ item.lastModifyTime }}'
+        name: '{{ item.name }}'
+        state: '{{ item.state }}'
+        suspensionConfig: '{{ item.suspensionConfig }}'
+        taskId: '{{ item.taskId }}'
+  # Returns the list of all integrations in the specified project.
+  # ── gcp.integrations.projects.locations.integrations.list ──
+  - discovery_id: gcp.integrations.projects.locations.integrations.list
+    # python: svc.projects().locations().integrations().list(**params).execute()
+    calls:
+      - action: projects.locations.integrations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.integrations }}'
+      item:
+        active: '{{ item.active }}'
+        createTime: '{{ item.createTime }}'
+        creatorEmail: '{{ item.creatorEmail }}'
+        description: '{{ item.description }}'
+        lastModifierEmail: '{{ item.lastModifierEmail }}'
+        name: '{{ item.name }}'
+        updateTime: '{{ item.updateTime }}'
+  # Searches and returns the list of integrations in the specified project.
+  # ── gcp.integrations.projects.locations.integrations.search ──
+  - discovery_id: gcp.integrations.projects.locations.integrations.search
+    # python: svc.projects().locations().integrations().search(**params).execute()
+    calls:
+      - action: projects.locations.integrations.search
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.integrations }}'
+      item:
+        createTime: '{{ item.createTime }}'
+        creator: '{{ item.creator }}'
+        description: '{{ item.description }}'
+        id: '{{ item.id }}'
+        name: '{{ item.name }}'
+        region: '{{ item.region }}'
+        status: '{{ item.status }}'
+        version: '{{ item.version }}'
+  # Returns the list of all integration versions in the specified project.
+  # ── gcp.integrations.projects.locations.integrations.versions.list ──
+  - discovery_id: gcp.integrations.projects.locations.integrations.versions.list
+    # python: svc.projects().locations().integrations().versions().list(**params).execute()
+    calls:
+      - action: projects.locations.integrations.versions.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.versions }}'
+      item:
+        cloudKmsKey: '{{ item.cloudKmsKey }}'
+        cloudLoggingDetails: '{{ item.cloudLoggingDetails }}'
+        createTime: '{{ item.createTime }}'
+        createdFromTemplate: '{{ item.createdFromTemplate }}'
+        databasePersistencePolicy: '{{ item.databasePersistencePolicy }}'
+        description: '{{ item.description }}'
+        enableVariableMasking: '{{ item.enableVariableMasking }}'
+        errorCatcherConfigs: '{{ item.errorCatcherConfigs }}'
+        integrationConfigParameters: '{{ item.integrationConfigParameters }}'
+        integrationParameters: '{{ item.integrationParameters }}'
+        integrationParametersInternal: '{{ item.integrationParametersInternal }}'
+        lastModifierEmail: '{{ item.lastModifierEmail }}'
+        lockHolder: '{{ item.lockHolder }}'
+        name: '{{ item.name }}'
+        origin: '{{ item.origin }}'
+        parentTemplateId: '{{ item.parentTemplateId }}'
+        runAsServiceAccount: '{{ item.runAsServiceAccount }}'
+        snapshotNumber: '{{ item.snapshotNumber }}'
+        state: '{{ item.state }}'
+        status: '{{ item.status }}'
+        taskConfigs: '{{ item.taskConfigs }}'
+        taskConfigsInternal: '{{ item.taskConfigsInternal }}'
+        teardown: '{{ item.teardown }}'
+        triggerConfigs: '{{ item.triggerConfigs }}'
+        triggerConfigsInternal: '{{ item.triggerConfigsInternal }}'
+        updateTime: '{{ item.updateTime }}'
+        userLabel: '{{ item.userLabel }}'
+  # Lists all the test cases that satisfy the filters.
+  # ── gcp.integrations.projects.locations.integrations.versions.testCases.list ──
+  - discovery_id: gcp.integrations.projects.locations.integrations.versions.testCases.list
+    # python: svc.projects().locations().integrations().versions().testCases().list(**params).execute()
+    calls:
+      - action: projects.locations.integrations.versions.testCases.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.testCases }}'
+      item:
+        createTime: '{{ item.createTime }}'
+        creatorEmail: '{{ item.creatorEmail }}'
+        databasePersistencePolicy: '{{ item.databasePersistencePolicy }}'
+        description: '{{ item.description }}'
+        displayName: '{{ item.displayName }}'
+        lastModifierEmail: '{{ item.lastModifierEmail }}'
+        lockHolderEmail: '{{ item.lockHolderEmail }}'
+        name: '{{ item.name }}'
+        testInputParameters: '{{ item.testInputParameters }}'
+        testTaskConfigs: '{{ item.testTaskConfigs }}'
+        triggerConfig: '{{ item.triggerConfig }}'
+        triggerId: '{{ item.triggerId }}'
+        updateTime: '{{ item.updateTime }}'
+  # Lists all auth configs that match the filter. Restrict to auth configs belong to the current client 
+  # ── gcp.integrations.projects.locations.products.authConfigs.list ──
+  - discovery_id: gcp.integrations.projects.locations.products.authConfigs.list
+    # python: svc.projects().locations().products().authConfigs().list(**params).execute()
+    calls:
+      - action: projects.locations.products.authConfigs.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.authConfigs }}'
+      item:
+        certificateId: '{{ item.certificateId }}'
+        createTime: '{{ item.createTime }}'
+        creatorEmail: '{{ item.creatorEmail }}'
+        credentialType: '{{ item.credentialType }}'
+        decryptedCredential: '{{ item.decryptedCredential }}'
+        description: '{{ item.description }}'
+        displayName: '{{ item.displayName }}'
+        encryptedCredential: '{{ item.encryptedCredential }}'
+        expiryNotificationDuration: '{{ item.expiryNotificationDuration }}'
+        lastModifierEmail: '{{ item.lastModifierEmail }}'
+        name: '{{ item.name }}'
+        overrideValidTime: '{{ item.overrideValidTime }}'
+        reason: '{{ item.reason }}'
+        state: '{{ item.state }}'
+        updateTime: '{{ item.updateTime }}'
+        validTime: '{{ item.validTime }}'
+        visibility: '{{ item.visibility }}'
+  # List all the certificates that match the filter. Restrict to certificate of current client only.
+  # ── gcp.integrations.projects.locations.products.certificates.list ──
+  - discovery_id: gcp.integrations.projects.locations.products.certificates.list
+    # python: svc.projects().locations().products().certificates().list(**params).execute()
+    calls:
+      - action: projects.locations.products.certificates.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.certificates }}'
+      item:
+        certificateStatus: '{{ item.certificateStatus }}'
+        credentialId: '{{ item.credentialId }}'
+        description: '{{ item.description }}'
+        displayName: '{{ item.displayName }}'
+        name: '{{ item.name }}'
+        rawCertificate: '{{ item.rawCertificate }}'
+        requestorId: '{{ item.requestorId }}'
+        validEndTime: '{{ item.validEndTime }}'
+        validStartTime: '{{ item.validStartTime }}'
+  # Lists the results of all the integration executions. The response includes the same information as t
+  # ── gcp.integrations.projects.locations.products.integrations.executions.list ──
+  - discovery_id: gcp.integrations.projects.locations.products.integrations.executions.list
+    # python: svc.projects().locations().products().integrations().executions().list(**params).execute()
+    calls:
+      - action: projects.locations.products.integrations.executions.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.executions }}'
+      item:
+        clientId: '{{ item.clientId }}'
+        cloudLoggingDetails: '{{ item.cloudLoggingDetails }}'
+        createTime: '{{ item.createTime }}'
+        errorCode: '{{ item.errorCode }}'
+        errors: '{{ item.errors }}'
+        eventExecutionDetails: '{{ item.eventExecutionDetails }}'
+        eventExecutionInfoId: '{{ item.eventExecutionInfoId }}'
+        executionTraceInfo: '{{ item.executionTraceInfo }}'
+        integrationVersionUserLabel: '{{ item.integrationVersionUserLabel }}'
+        lastModifiedTime: '{{ item.lastModifiedTime }}'
+        postMethod: '{{ item.postMethod }}'
+        product: '{{ item.product }}'
+        replayInfo: '{{ item.replayInfo }}'
+        requestId: '{{ item.requestId }}'
+        requestParams: '{{ item.requestParams }}'
+        responseParams: '{{ item.responseParams }}'
+        snapshotNumber: '{{ item.snapshotNumber }}'
+        tenant: '{{ item.tenant }}'
+        triggerId: '{{ item.triggerId }}'
+        workflowId: '{{ item.workflowId }}'
+        workflowName: '{{ item.workflowName }}'
+        workflowRetryBackoffIntervalSeconds: '{{ item.workflowRetryBackoffIntervalSeconds }}'
+  # * Lists suspensions associated with a specific execution. Only those with permissions to resolve the
+  # ── gcp.integrations.projects.locations.products.integrations.executions.suspensions.list ──
+  - discovery_id: gcp.integrations.projects.locations.products.integrations.executions.suspensions.list
+    # python: svc.projects().locations().products().integrations().executions().suspensions().list(**params).execute()
+    calls:
+      - action: projects.locations.products.integrations.executions.suspensions.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.suspensions }}'
+      item:
+        approvalConfig: '{{ item.approvalConfig }}'
+        audit: '{{ item.audit }}'
+        createTime: '{{ item.createTime }}'
+        eventExecutionInfoId: '{{ item.eventExecutionInfoId }}'
+        integration: '{{ item.integration }}'
+        lastModifyTime: '{{ item.lastModifyTime }}'
+        name: '{{ item.name }}'
+        state: '{{ item.state }}'
+        suspensionConfig: '{{ item.suspensionConfig }}'
+        taskId: '{{ item.taskId }}'
+  # Returns the list of all integrations in the specified project.
+  # ── gcp.integrations.projects.locations.products.integrations.list ──
+  - discovery_id: gcp.integrations.projects.locations.products.integrations.list
+    # python: svc.projects().locations().products().integrations().list(**params).execute()
+    calls:
+      - action: projects.locations.products.integrations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.integrations }}'
+      item:
+        active: '{{ item.active }}'
+        createTime: '{{ item.createTime }}'
+        creatorEmail: '{{ item.creatorEmail }}'
+        description: '{{ item.description }}'
+        lastModifierEmail: '{{ item.lastModifierEmail }}'
+        name: '{{ item.name }}'
+        updateTime: '{{ item.updateTime }}'
+  # Returns the list of all integration versions in the specified project.
+  # ── gcp.integrations.projects.locations.products.integrations.versions.list ──
+  - discovery_id: gcp.integrations.projects.locations.products.integrations.versions.list
+    # python: svc.projects().locations().products().integrations().versions().list(**params).execute()
+    calls:
+      - action: projects.locations.products.integrations.versions.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.versions }}'
+      item:
+        cloudKmsKey: '{{ item.cloudKmsKey }}'
+        cloudLoggingDetails: '{{ item.cloudLoggingDetails }}'
+        createTime: '{{ item.createTime }}'
+        createdFromTemplate: '{{ item.createdFromTemplate }}'
+        databasePersistencePolicy: '{{ item.databasePersistencePolicy }}'
+        description: '{{ item.description }}'
+        enableVariableMasking: '{{ item.enableVariableMasking }}'
+        errorCatcherConfigs: '{{ item.errorCatcherConfigs }}'
+        integrationConfigParameters: '{{ item.integrationConfigParameters }}'
+        integrationParameters: '{{ item.integrationParameters }}'
+        integrationParametersInternal: '{{ item.integrationParametersInternal }}'
+        lastModifierEmail: '{{ item.lastModifierEmail }}'
+        lockHolder: '{{ item.lockHolder }}'
+        name: '{{ item.name }}'
+        origin: '{{ item.origin }}'
+        parentTemplateId: '{{ item.parentTemplateId }}'
+        runAsServiceAccount: '{{ item.runAsServiceAccount }}'
+        snapshotNumber: '{{ item.snapshotNumber }}'
+        state: '{{ item.state }}'
+        status: '{{ item.status }}'
+        taskConfigs: '{{ item.taskConfigs }}'
+        taskConfigsInternal: '{{ item.taskConfigsInternal }}'
+        teardown: '{{ item.teardown }}'
+        triggerConfigs: '{{ item.triggerConfigs }}'
+        triggerConfigsInternal: '{{ item.triggerConfigsInternal }}'
+        updateTime: '{{ item.updateTime }}'
+        userLabel: '{{ item.userLabel }}'
+  # Lists all sfdc instances that match the filter. Restrict to sfdc instances belonging to the current 
+  # ── gcp.integrations.projects.locations.products.sfdcInstances.list ──
+  - discovery_id: gcp.integrations.projects.locations.products.sfdcInstances.list
+    # python: svc.projects().locations().products().sfdcInstances().list(**params).execute()
+    calls:
+      - action: projects.locations.products.sfdcInstances.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.sfdcInstances }}'
+      item:
+        authConfigId: '{{ item.authConfigId }}'
+        createTime: '{{ item.createTime }}'
+        deleteTime: '{{ item.deleteTime }}'
+        description: '{{ item.description }}'
+        displayName: '{{ item.displayName }}'
+        name: '{{ item.name }}'
+        serviceAuthority: '{{ item.serviceAuthority }}'
+        sfdcOrgId: '{{ item.sfdcOrgId }}'
+        updateTime: '{{ item.updateTime }}'
+  # Lists all sfdc channels that match the filter. Restrict to sfdc channels belonging to the current cl
+  # ── gcp.integrations.projects.locations.products.sfdcInstances.sfdcChannels.list ──
+  - discovery_id: gcp.integrations.projects.locations.products.sfdcInstances.sfdcChannels.list
+    # python: svc.projects().locations().products().sfdcInstances().sfdcChannels().list(**params).execute()
+    calls:
+      - action: projects.locations.products.sfdcInstances.sfdcChannels.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.sfdcChannels }}'
+      item:
+        channelTopic: '{{ item.channelTopic }}'
+        createTime: '{{ item.createTime }}'
+        deleteTime: '{{ item.deleteTime }}'
+        description: '{{ item.description }}'
+        displayName: '{{ item.displayName }}'
+        isActive: '{{ item.isActive }}'
+        lastReplayId: '{{ item.lastReplayId }}'
+        name: '{{ item.name }}'
+        updateTime: '{{ item.updateTime }}'
+  # Lists all sfdc instances that match the filter. Restrict to sfdc instances belonging to the current 
+  # ── gcp.integrations.projects.locations.sfdcInstances.list ──
+  - discovery_id: gcp.integrations.projects.locations.sfdcInstances.list
+    # python: svc.projects().locations().sfdcInstances().list(**params).execute()
+    calls:
+      - action: projects.locations.sfdcInstances.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.sfdcInstances }}'
+      item:
+        authConfigId: '{{ item.authConfigId }}'
+        createTime: '{{ item.createTime }}'
+        deleteTime: '{{ item.deleteTime }}'
+        description: '{{ item.description }}'
+        displayName: '{{ item.displayName }}'
+        name: '{{ item.name }}'
+        serviceAuthority: '{{ item.serviceAuthority }}'
+        sfdcOrgId: '{{ item.sfdcOrgId }}'
+        updateTime: '{{ item.updateTime }}'
+  # Lists all sfdc channels that match the filter. Restrict to sfdc channels belonging to the current cl
+  # ── gcp.integrations.projects.locations.sfdcInstances.sfdcChannels.list ──
+  - discovery_id: gcp.integrations.projects.locations.sfdcInstances.sfdcChannels.list
+    # python: svc.projects().locations().sfdcInstances().sfdcChannels().list(**params).execute()
+    calls:
+      - action: projects.locations.sfdcInstances.sfdcChannels.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.sfdcChannels }}'
+      item:
+        channelTopic: '{{ item.channelTopic }}'
+        createTime: '{{ item.createTime }}'
+        deleteTime: '{{ item.deleteTime }}'
+        description: '{{ item.description }}'
+        displayName: '{{ item.displayName }}'
+        isActive: '{{ item.isActive }}'
+        lastReplayId: '{{ item.lastReplayId }}'
+        name: '{{ item.name }}'
+        updateTime: '{{ item.updateTime }}'
+  # Lists all templates matching the filter.
+  # ── gcp.integrations.projects.locations.templates.list ──
+  - discovery_id: gcp.integrations.projects.locations.templates.list
+    # python: svc.projects().locations().templates().list(**params).execute()
+    calls:
+      - action: projects.locations.templates.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.templates }}'
+      item:
+        author: '{{ item.author }}'
+        categories: '{{ item.categories }}'
+        components: '{{ item.components }}'
+        createTime: '{{ item.createTime }}'
+        description: '{{ item.description }}'
+        displayName: '{{ item.displayName }}'
+        docLink: '{{ item.docLink }}'
+        lastUsedTime: '{{ item.lastUsedTime }}'
+        name: '{{ item.name }}'
+        sharedWith: '{{ item.sharedWith }}'
+        tags: '{{ item.tags }}'
+        templateBundle: '{{ item.templateBundle }}'
+        updateTime: '{{ item.updateTime }}'
+        usageCount: '{{ item.usageCount }}'
+        usageInfo: '{{ item.usageInfo }}'
+        visibility: '{{ item.visibility }}'
+  # Search templates based on user query and filters. This api would query the templates and return a li
+  # ── gcp.integrations.projects.locations.templates.search ──
+  - discovery_id: gcp.integrations.projects.locations.templates.search
+    # python: svc.projects().locations().templates().search(**params).execute()
+    calls:
+      - action: projects.locations.templates.search
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.templates }}'
+      item:
+        author: '{{ item.author }}'
+        categories: '{{ item.categories }}'
+        components: '{{ item.components }}'
+        createTime: '{{ item.createTime }}'
+        description: '{{ item.description }}'
+        displayName: '{{ item.displayName }}'
+        docLink: '{{ item.docLink }}'
+        lastUsedTime: '{{ item.lastUsedTime }}'
+        name: '{{ item.name }}'
+        sharedWith: '{{ item.sharedWith }}'
+        tags: '{{ item.tags }}'
+        templateBundle: '{{ item.templateBundle }}'
+        updateTime: '{{ item.updateTime }}'
+        usageCount: '{{ item.usageCount }}'
+        usageInfo: '{{ item.usageInfo }}'
+        visibility: '{{ item.visibility }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets a complete auth config. If the auth config doesn't exist, Code.NOT_FOUND exception will be thro
+  # ── gcp.integrations.projects.locations.authConfigs.get [dependent] ──
+  - discovery_id: gcp.integrations.projects.locations.authConfigs.get
+    for_each: gcp.integrations.projects.locations.products.authConfigs.list
+    # python: svc.projects().locations().authConfigs().get(**params).execute()
+    calls:
+      - action: projects.locations.authConfigs.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        certificateId: '{{ response.certificateId }}'
+        createTime: '{{ response.createTime }}'
+        creatorEmail: '{{ response.creatorEmail }}'
+        credentialType: '{{ response.credentialType }}'
+        decryptedCredential: '{{ response.decryptedCredential }}'
+        description: '{{ response.description }}'
+        displayName: '{{ response.displayName }}'
+        encryptedCredential: '{{ response.encryptedCredential }}'
+        expiryNotificationDuration: '{{ response.expiryNotificationDuration }}'
+        lastModifierEmail: '{{ response.lastModifierEmail }}'
+        name: '{{ response.name }}'
+        overrideValidTime: '{{ response.overrideValidTime }}'
+        reason: '{{ response.reason }}'
+        state: '{{ response.state }}'
+        updateTime: '{{ response.updateTime }}'
+        validTime: '{{ response.validTime }}'
+        visibility: '{{ response.visibility }}'
+    # required_params: ['name']
+  # Get a certificates in the specified project.
+  # ── gcp.integrations.projects.locations.certificates.get [dependent] ──
+  - discovery_id: gcp.integrations.projects.locations.certificates.get
+    for_each: gcp.integrations.projects.locations.products.certificates.list
+    # python: svc.projects().locations().certificates().get(**params).execute()
+    calls:
+      - action: projects.locations.certificates.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        certificateStatus: '{{ response.certificateStatus }}'
+        credentialId: '{{ response.credentialId }}'
+        description: '{{ response.description }}'
+        displayName: '{{ response.displayName }}'
+        name: '{{ response.name }}'
+        rawCertificate: '{{ response.rawCertificate }}'
+        requestorId: '{{ response.requestorId }}'
+        validEndTime: '{{ response.validEndTime }}'
+        validStartTime: '{{ response.validStartTime }}'
+    # required_params: ['name']
+  # Lists the available entities and actions associated with a Connection.
+  # ── gcp.integrations.projects.locations.connections.getConnectionSchemaMetadata [dependent] ──
+  - discovery_id: gcp.integrations.projects.locations.connections.getConnectionSchemaMetadata
+    for_each: gcp.integrations.projects.locations.connections.list
+    # python: svc.projects().locations().connections().getConnectionSchemaMetadata(**params).execute()
+    calls:
+      - action: projects.locations.connections.getConnectionSchemaMetadata
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        actions: '{{ response.actions }}'
+        entities: '{{ response.entities }}'
+    # required_params: ['name']
+  # Download the execution.
+  # ── gcp.integrations.projects.locations.integrations.executions.download [dependent] ──
+  - discovery_id: gcp.integrations.projects.locations.integrations.executions.download
+    for_each: gcp.integrations.projects.locations.products.integrations.executions.list
+    # python: svc.projects().locations().integrations().executions().download(**params).execute()
+    calls:
+      - action: projects.locations.integrations.executions.download
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        content: '{{ response.content }}'
+    # required_params: ['name']
+  # Get an execution in the specified project.
+  # ── gcp.integrations.projects.locations.integrations.executions.get [dependent] ──
+  - discovery_id: gcp.integrations.projects.locations.integrations.executions.get
+    for_each: gcp.integrations.projects.locations.products.integrations.executions.list
+    # python: svc.projects().locations().integrations().executions().get(**params).execute()
+    calls:
+      - action: projects.locations.integrations.executions.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        cloudKmsKey: '{{ response.cloudKmsKey }}'
+        cloudLoggingDetails: '{{ response.cloudLoggingDetails }}'
+        createTime: '{{ response.createTime }}'
+        directSubExecutions: '{{ response.directSubExecutions }}'
+        eventExecutionDetails: '{{ response.eventExecutionDetails }}'
+        executionDetails: '{{ response.executionDetails }}'
+        executionMethod: '{{ response.executionMethod }}'
+        integrationVersionState: '{{ response.integrationVersionState }}'
+        name: '{{ response.name }}'
+        replayInfo: '{{ response.replayInfo }}'
+        requestParameters: '{{ response.requestParameters }}'
+        requestParams: '{{ response.requestParams }}'
+        responseParameters: '{{ response.responseParameters }}'
+        responseParams: '{{ response.responseParams }}'
+        snapshotNumber: '{{ response.snapshotNumber }}'
+        triggerId: '{{ response.triggerId }}'
+        updateTime: '{{ response.updateTime }}'
+    # required_params: ['name']
+  # Downloads an integration. Retrieves the `IntegrationVersion` for a given `integration_id` and return
+  # ── gcp.integrations.projects.locations.integrations.versions.download [dependent] ──
+  - discovery_id: gcp.integrations.projects.locations.integrations.versions.download
+    for_each: gcp.integrations.projects.locations.products.integrations.versions.list
+    # python: svc.projects().locations().integrations().versions().download(**params).execute()
+    calls:
+      - action: projects.locations.integrations.versions.download
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        content: '{{ response.content }}'
+        files: '{{ response.files }}'
+    # required_params: ['name']
+  # Downloads an Integration version package like IntegrationVersion,Integration Config etc. Retrieves t
+  # ── gcp.integrations.projects.locations.integrations.versions.downloadJsonPackage [dependent] ──
+  - discovery_id: gcp.integrations.projects.locations.integrations.versions.downloadJsonPackage
+    for_each: gcp.integrations.projects.locations.products.integrations.versions.list
+    # python: svc.projects().locations().integrations().versions().downloadJsonPackage(**params).execute()
+    calls:
+      - action: projects.locations.integrations.versions.downloadJsonPackage
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        files: '{{ response.files }}'
+    # required_params: ['name']
+  # Get a integration in the specified project.
+  # ── gcp.integrations.projects.locations.integrations.versions.get [dependent] ──
+  - discovery_id: gcp.integrations.projects.locations.integrations.versions.get
+    for_each: gcp.integrations.projects.locations.products.integrations.versions.list
+    # python: svc.projects().locations().integrations().versions().get(**params).execute()
+    calls:
+      - action: projects.locations.integrations.versions.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        cloudKmsKey: '{{ response.cloudKmsKey }}'
+        cloudLoggingDetails: '{{ response.cloudLoggingDetails }}'
+        createTime: '{{ response.createTime }}'
+        createdFromTemplate: '{{ response.createdFromTemplate }}'
+        databasePersistencePolicy: '{{ response.databasePersistencePolicy }}'
+        description: '{{ response.description }}'
+        enableVariableMasking: '{{ response.enableVariableMasking }}'
+        errorCatcherConfigs: '{{ response.errorCatcherConfigs }}'
+        integrationConfigParameters: '{{ response.integrationConfigParameters }}'
+        integrationParameters: '{{ response.integrationParameters }}'
+        integrationParametersInternal: '{{ response.integrationParametersInternal }}'
+        lastModifierEmail: '{{ response.lastModifierEmail }}'
+        lockHolder: '{{ response.lockHolder }}'
+        name: '{{ response.name }}'
+        origin: '{{ response.origin }}'
+        parentTemplateId: '{{ response.parentTemplateId }}'
+        runAsServiceAccount: '{{ response.runAsServiceAccount }}'
+        snapshotNumber: '{{ response.snapshotNumber }}'
+        state: '{{ response.state }}'
+        status: '{{ response.status }}'
+        taskConfigs: '{{ response.taskConfigs }}'
+        taskConfigsInternal: '{{ response.taskConfigsInternal }}'
+        teardown: '{{ response.teardown }}'
+        triggerConfigs: '{{ response.triggerConfigs }}'
+        triggerConfigsInternal: '{{ response.triggerConfigsInternal }}'
+        updateTime: '{{ response.updateTime }}'
+        userLabel: '{{ response.userLabel }}'
+    # required_params: ['name']
+  # Downloads a test case. Retrieves the `TestCase` for a given `test_case_id` and returns the response 
+  # ── gcp.integrations.projects.locations.integrations.versions.testCases.download [dependent] ──
+  - discovery_id: gcp.integrations.projects.locations.integrations.versions.testCases.download
+    for_each: gcp.integrations.projects.locations.integrations.versions.testCases.list
+    # python: svc.projects().locations().integrations().versions().testCases().download(**params).execute()
+    calls:
+      - action: projects.locations.integrations.versions.testCases.download
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        content: '{{ response.content }}'
+    # required_params: ['name']
+  # Get a test case
+  # ── gcp.integrations.projects.locations.integrations.versions.testCases.get [dependent] ──
+  - discovery_id: gcp.integrations.projects.locations.integrations.versions.testCases.get
+    for_each: gcp.integrations.projects.locations.integrations.versions.testCases.list
+    # python: svc.projects().locations().integrations().versions().testCases().get(**params).execute()
+    calls:
+      - action: projects.locations.integrations.versions.testCases.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        createTime: '{{ response.createTime }}'
+        creatorEmail: '{{ response.creatorEmail }}'
+        databasePersistencePolicy: '{{ response.databasePersistencePolicy }}'
+        description: '{{ response.description }}'
+        displayName: '{{ response.displayName }}'
+        lastModifierEmail: '{{ response.lastModifierEmail }}'
+        lockHolderEmail: '{{ response.lockHolderEmail }}'
+        name: '{{ response.name }}'
+        testInputParameters: '{{ response.testInputParameters }}'
+        testTaskConfigs: '{{ response.testTaskConfigs }}'
+        triggerConfig: '{{ response.triggerConfig }}'
+        triggerId: '{{ response.triggerId }}'
+        updateTime: '{{ response.updateTime }}'
+    # required_params: ['name']
+  # Gets a complete auth config. If the auth config doesn't exist, Code.NOT_FOUND exception will be thro
+  # ── gcp.integrations.projects.locations.products.authConfigs.get [dependent] ──
+  - discovery_id: gcp.integrations.projects.locations.products.authConfigs.get
+    for_each: gcp.integrations.projects.locations.products.authConfigs.list
+    # python: svc.projects().locations().products().authConfigs().get(**params).execute()
+    calls:
+      - action: projects.locations.products.authConfigs.get
+        params:
+          name: '{{ item.integrationVersionUserLabel }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        certificateId: '{{ response.certificateId }}'
+        createTime: '{{ response.createTime }}'
+        creatorEmail: '{{ response.creatorEmail }}'
+        credentialType: '{{ response.credentialType }}'
+        decryptedCredential: '{{ response.decryptedCredential }}'
+        description: '{{ response.description }}'
+        displayName: '{{ response.displayName }}'
+        encryptedCredential: '{{ response.encryptedCredential }}'
+        expiryNotificationDuration: '{{ response.expiryNotificationDuration }}'
+        lastModifierEmail: '{{ response.lastModifierEmail }}'
+        name: '{{ response.name }}'
+        overrideValidTime: '{{ response.overrideValidTime }}'
+        reason: '{{ response.reason }}'
+        state: '{{ response.state }}'
+        updateTime: '{{ response.updateTime }}'
+        validTime: '{{ response.validTime }}'
+        visibility: '{{ response.visibility }}'
+    # required_params: ['name']
+  # Get a certificates in the specified project.
+  # ── gcp.integrations.projects.locations.products.certificates.get [dependent] ──
+  - discovery_id: gcp.integrations.projects.locations.products.certificates.get
+    for_each: gcp.integrations.projects.locations.products.certificates.list
+    # python: svc.projects().locations().products().certificates().get(**params).execute()
+    calls:
+      - action: projects.locations.products.certificates.get
+        params:
+          name: '{{ item.integrationVersionUserLabel }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        certificateStatus: '{{ response.certificateStatus }}'
+        credentialId: '{{ response.credentialId }}'
+        description: '{{ response.description }}'
+        displayName: '{{ response.displayName }}'
+        name: '{{ response.name }}'
+        rawCertificate: '{{ response.rawCertificate }}'
+        requestorId: '{{ response.requestorId }}'
+        validEndTime: '{{ response.validEndTime }}'
+        validStartTime: '{{ response.validStartTime }}'
+    # required_params: ['name']
+  # Download the execution.
+  # ── gcp.integrations.projects.locations.products.integrations.executions.download [dependent] ──
+  - discovery_id: gcp.integrations.projects.locations.products.integrations.executions.download
+    for_each: gcp.integrations.projects.locations.products.integrations.list
+    # python: svc.projects().locations().products().integrations().executions().download(**params).execute()
+    calls:
+      - action: projects.locations.products.integrations.executions.download
+        params:
+          name: '{{ item.integrationVersionUserLabel }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        content: '{{ response.content }}'
+    # required_params: ['name']
+  # Get an execution in the specified project.
+  # ── gcp.integrations.projects.locations.products.integrations.executions.get [dependent] ──
+  - discovery_id: gcp.integrations.projects.locations.products.integrations.executions.get
+    for_each: gcp.integrations.projects.locations.products.integrations.list
+    # python: svc.projects().locations().products().integrations().executions().get(**params).execute()
+    calls:
+      - action: projects.locations.products.integrations.executions.get
+        params:
+          name: '{{ item.integrationVersionUserLabel }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        cloudKmsKey: '{{ response.cloudKmsKey }}'
+        cloudLoggingDetails: '{{ response.cloudLoggingDetails }}'
+        createTime: '{{ response.createTime }}'
+        directSubExecutions: '{{ response.directSubExecutions }}'
+        eventExecutionDetails: '{{ response.eventExecutionDetails }}'
+        executionDetails: '{{ response.executionDetails }}'
+        executionMethod: '{{ response.executionMethod }}'
+        integrationVersionState: '{{ response.integrationVersionState }}'
+        name: '{{ response.name }}'
+        replayInfo: '{{ response.replayInfo }}'
+        requestParameters: '{{ response.requestParameters }}'
+        requestParams: '{{ response.requestParams }}'
+        responseParameters: '{{ response.responseParameters }}'
+        responseParams: '{{ response.responseParams }}'
+        snapshotNumber: '{{ response.snapshotNumber }}'
+        triggerId: '{{ response.triggerId }}'
+        updateTime: '{{ response.updateTime }}'
+    # required_params: ['name']
+  # Downloads an integration. Retrieves the `IntegrationVersion` for a given `integration_id` and return
+  # ── gcp.integrations.projects.locations.products.integrations.versions.download [dependent] ──
+  - discovery_id: gcp.integrations.projects.locations.products.integrations.versions.download
+    for_each: gcp.integrations.projects.locations.products.integrations.versions.list
+    # python: svc.projects().locations().products().integrations().versions().download(**params).execute()
+    calls:
+      - action: projects.locations.products.integrations.versions.download
+        params:
+          name: '{{ item.integrationVersionUserLabel }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        content: '{{ response.content }}'
+        files: '{{ response.files }}'
+    # required_params: ['name']
+  # Get a integration in the specified project.
+  # ── gcp.integrations.projects.locations.products.integrations.versions.get [dependent] ──
+  - discovery_id: gcp.integrations.projects.locations.products.integrations.versions.get
+    for_each: gcp.integrations.projects.locations.products.integrations.versions.list
+    # python: svc.projects().locations().products().integrations().versions().get(**params).execute()
+    calls:
+      - action: projects.locations.products.integrations.versions.get
+        params:
+          name: '{{ item.integrationVersionUserLabel }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        cloudKmsKey: '{{ response.cloudKmsKey }}'
+        cloudLoggingDetails: '{{ response.cloudLoggingDetails }}'
+        createTime: '{{ response.createTime }}'
+        createdFromTemplate: '{{ response.createdFromTemplate }}'
+        databasePersistencePolicy: '{{ response.databasePersistencePolicy }}'
+        description: '{{ response.description }}'
+        enableVariableMasking: '{{ response.enableVariableMasking }}'
+        errorCatcherConfigs: '{{ response.errorCatcherConfigs }}'
+        integrationConfigParameters: '{{ response.integrationConfigParameters }}'
+        integrationParameters: '{{ response.integrationParameters }}'
+        integrationParametersInternal: '{{ response.integrationParametersInternal }}'
+        lastModifierEmail: '{{ response.lastModifierEmail }}'
+        lockHolder: '{{ response.lockHolder }}'
+        name: '{{ response.name }}'
+        origin: '{{ response.origin }}'
+        parentTemplateId: '{{ response.parentTemplateId }}'
+        runAsServiceAccount: '{{ response.runAsServiceAccount }}'
+        snapshotNumber: '{{ response.snapshotNumber }}'
+        state: '{{ response.state }}'
+        status: '{{ response.status }}'
+        taskConfigs: '{{ response.taskConfigs }}'
+        taskConfigsInternal: '{{ response.taskConfigsInternal }}'
+        teardown: '{{ response.teardown }}'
+        triggerConfigs: '{{ response.triggerConfigs }}'
+        triggerConfigsInternal: '{{ response.triggerConfigsInternal }}'
+        updateTime: '{{ response.updateTime }}'
+        userLabel: '{{ response.userLabel }}'
+    # required_params: ['name']
+  # Gets an sfdc instance. If the instance doesn't exist, Code.NOT_FOUND exception will be thrown.
+  # ── gcp.integrations.projects.locations.products.sfdcInstances.get [dependent] ──
+  - discovery_id: gcp.integrations.projects.locations.products.sfdcInstances.get
+    for_each: gcp.integrations.projects.locations.products.sfdcInstances.list
+    # python: svc.projects().locations().products().sfdcInstances().get(**params).execute()
+    calls:
+      - action: projects.locations.products.sfdcInstances.get
+        params:
+          name: '{{ item.integrationVersionUserLabel }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        authConfigId: '{{ response.authConfigId }}'
+        createTime: '{{ response.createTime }}'
+        deleteTime: '{{ response.deleteTime }}'
+        description: '{{ response.description }}'
+        displayName: '{{ response.displayName }}'
+        name: '{{ response.name }}'
+        serviceAuthority: '{{ response.serviceAuthority }}'
+        sfdcOrgId: '{{ response.sfdcOrgId }}'
+        updateTime: '{{ response.updateTime }}'
+    # required_params: ['name']
+  # Gets an sfdc channel. If the channel doesn't exist, Code.NOT_FOUND exception will be thrown.
+  # ── gcp.integrations.projects.locations.products.sfdcInstances.sfdcChannels.get [dependent] ──
+  - discovery_id: gcp.integrations.projects.locations.products.sfdcInstances.sfdcChannels.get
+    for_each: gcp.integrations.projects.locations.products.sfdcInstances.sfdcChannels.list
+    # python: svc.projects().locations().products().sfdcInstances().sfdcChannels().get(**params).execute()
+    calls:
+      - action: projects.locations.products.sfdcInstances.sfdcChannels.get
+        params:
+          name: '{{ item.integrationVersionUserLabel }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        channelTopic: '{{ response.channelTopic }}'
+        createTime: '{{ response.createTime }}'
+        deleteTime: '{{ response.deleteTime }}'
+        description: '{{ response.description }}'
+        displayName: '{{ response.displayName }}'
+        isActive: '{{ response.isActive }}'
+        lastReplayId: '{{ response.lastReplayId }}'
+        name: '{{ response.name }}'
+        updateTime: '{{ response.updateTime }}'
+    # required_params: ['name']
+  # Gets an sfdc instance. If the instance doesn't exist, Code.NOT_FOUND exception will be thrown.
+  # ── gcp.integrations.projects.locations.sfdcInstances.get [dependent] ──
+  - discovery_id: gcp.integrations.projects.locations.sfdcInstances.get
+    for_each: gcp.integrations.projects.locations.products.sfdcInstances.list
+    # python: svc.projects().locations().sfdcInstances().get(**params).execute()
+    calls:
+      - action: projects.locations.sfdcInstances.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        authConfigId: '{{ response.authConfigId }}'
+        createTime: '{{ response.createTime }}'
+        deleteTime: '{{ response.deleteTime }}'
+        description: '{{ response.description }}'
+        displayName: '{{ response.displayName }}'
+        name: '{{ response.name }}'
+        serviceAuthority: '{{ response.serviceAuthority }}'
+        sfdcOrgId: '{{ response.sfdcOrgId }}'
+        updateTime: '{{ response.updateTime }}'
+    # required_params: ['name']
+  # Gets an sfdc channel. If the channel doesn't exist, Code.NOT_FOUND exception will be thrown.
+  # ── gcp.integrations.projects.locations.sfdcInstances.sfdcChannels.get [dependent] ──
+  - discovery_id: gcp.integrations.projects.locations.sfdcInstances.sfdcChannels.get
+    for_each: gcp.integrations.projects.locations.products.sfdcInstances.sfdcChannels.list
+    # python: svc.projects().locations().sfdcInstances().sfdcChannels().get(**params).execute()
+    calls:
+      - action: projects.locations.sfdcInstances.sfdcChannels.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        channelTopic: '{{ response.channelTopic }}'
+        createTime: '{{ response.createTime }}'
+        deleteTime: '{{ response.deleteTime }}'
+        description: '{{ response.description }}'
+        displayName: '{{ response.displayName }}'
+        isActive: '{{ response.isActive }}'
+        lastReplayId: '{{ response.lastReplayId }}'
+        name: '{{ response.name }}'
+        updateTime: '{{ response.updateTime }}'
+    # required_params: ['name']
+  # Downloads a template. Retrieves the `Template` and returns the response as a string.
+  # ── gcp.integrations.projects.locations.templates.download [dependent] ──
+  - discovery_id: gcp.integrations.projects.locations.templates.download
+    for_each: gcp.integrations.projects.locations.templates.search
+    # python: svc.projects().locations().templates().download(**params).execute()
+    calls:
+      - action: projects.locations.templates.download
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        content: '{{ response.content }}'
+    # required_params: ['name']
+  # Get a template in the specified project.
+  # ── gcp.integrations.projects.locations.templates.get [dependent] ──
+  - discovery_id: gcp.integrations.projects.locations.templates.get
+    for_each: gcp.integrations.projects.locations.templates.search
+    # python: svc.projects().locations().templates().get(**params).execute()
+    calls:
+      - action: projects.locations.templates.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        author: '{{ response.author }}'
+        categories: '{{ response.categories }}'
+        components: '{{ response.components }}'
+        createTime: '{{ response.createTime }}'
+        description: '{{ response.description }}'
+        displayName: '{{ response.displayName }}'
+        docLink: '{{ response.docLink }}'
+        lastUsedTime: '{{ response.lastUsedTime }}'
+        name: '{{ response.name }}'
+        sharedWith: '{{ response.sharedWith }}'
+        tags: '{{ response.tags }}'
+        templateBundle: '{{ response.templateBundle }}'
+        updateTime: '{{ response.updateTime }}'
+        usageCount: '{{ response.usageCount }}'
+        usageInfo: '{{ response.usageInfo }}'
+        visibility: '{{ response.visibility }}'
+    # required_params: ['name']

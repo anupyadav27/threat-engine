@@ -1,0 +1,991 @@
+# ============================================================
+# Discovery YAML — analytics (v3)
+# Generated: 2026-02-21T03:06:38Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 35 | independent: 6 | dependent: 29
+# ops with fields: 35/35 | dep ops with chain: 28/29
+# ============================================================
+version: '1.0'
+provider: gcp
+service: analytics
+
+services:
+  client: analytics
+  module: "googleapiclient.discovery.build('analytics', 'v3')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists account summaries (lightweight tree comprised of accounts/properties/profiles) to which the us
+  # ── gcp.analytics.management.accountSummaries.list ──
+  - discovery_id: gcp.analytics.management.accountSummaries.list
+    # python: svc.management().accountSummaries().list(**params).execute()
+    calls:
+      - action: management.accountSummaries.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.accountSummaries }}'
+      item:
+        id: '{{ item.id }}'
+        name: '{{ item.name }}'
+        starred: '{{ item.starred }}'
+        webProperties: '{{ item.webProperties }}'
+  # Lists account-user links for a given account.
+  # ── gcp.analytics.management.accountUserLinks.list ──
+  - discovery_id: gcp.analytics.management.accountUserLinks.list
+    # python: svc.management().accountUserLinks().list(**params).execute()
+    calls:
+      - action: management.accountUserLinks.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.accountUserLinks }}'
+      item:
+        entity: '{{ item.entity }}'
+        id: '{{ item.id }}'
+        permissions: '{{ item.permissions }}'
+        userRef: '{{ item.userRef }}'
+  # Lists all accounts to which the user has access.
+  # ── gcp.analytics.management.accounts.list ──
+  - discovery_id: gcp.analytics.management.accounts.list
+    # python: svc.management().accounts().list(**params).execute()
+    calls:
+      - action: management.accounts.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.accounts }}'
+      item:
+        childLink: '{{ item.childLink }}'
+        created: '{{ item.created }}'
+        id: '{{ item.id }}'
+        name: '{{ item.name }}'
+        permissions: '{{ item.permissions }}'
+        starred: '{{ item.starred }}'
+        updated: '{{ item.updated }}'
+  # Lists all filters for an account
+  # ── gcp.analytics.management.filters.list ──
+  - discovery_id: gcp.analytics.management.filters.list
+    # python: svc.management().filters().list(**params).execute()
+    calls:
+      - action: management.filters.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.filters }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        advancedDetails: '{{ item.advancedDetails }}'
+        created: '{{ item.created }}'
+        excludeDetails: '{{ item.excludeDetails }}'
+        id: '{{ item.id }}'
+        includeDetails: '{{ item.includeDetails }}'
+        lowercaseDetails: '{{ item.lowercaseDetails }}'
+        name: '{{ item.name }}'
+        parentLink: '{{ item.parentLink }}'
+        searchAndReplaceDetails: '{{ item.searchAndReplaceDetails }}'
+        type: '{{ item.type }}'
+        updated: '{{ item.updated }}'
+        uppercaseDetails: '{{ item.uppercaseDetails }}'
+  # Lists segments to which the user has access.
+  # ── gcp.analytics.management.segments.list ──
+  - discovery_id: gcp.analytics.management.segments.list
+    # python: svc.management().segments().list(**params).execute()
+    calls:
+      - action: management.segments.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.segments }}'
+      item:
+        created: '{{ item.created }}'
+        definition: '{{ item.definition }}'
+        id: '{{ item.id }}'
+        name: '{{ item.name }}'
+        segmentId: '{{ item.segmentId }}'
+        type: '{{ item.type }}'
+        updated: '{{ item.updated }}'
+  # Lists web properties to which the user has access.
+  # ── gcp.analytics.management.webproperties.list ──
+  - discovery_id: gcp.analytics.management.webproperties.list
+    # python: svc.management().webproperties().list(**params).execute()
+    calls:
+      - action: management.webproperties.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.webproperties }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        childLink: '{{ item.childLink }}'
+        created: '{{ item.created }}'
+        dataRetentionResetOnNewActivity: '{{ item.dataRetentionResetOnNewActivity }}'
+        dataRetentionTtl: '{{ item.dataRetentionTtl }}'
+        defaultProfileId: '{{ item.defaultProfileId }}'
+        id: '{{ item.id }}'
+        industryVertical: '{{ item.industryVertical }}'
+        internalWebPropertyId: '{{ item.internalWebPropertyId }}'
+        level: '{{ item.level }}'
+        name: '{{ item.name }}'
+        parentLink: '{{ item.parentLink }}'
+        permissions: '{{ item.permissions }}'
+        profileCount: '{{ item.profileCount }}'
+        starred: '{{ item.starred }}'
+        updated: '{{ item.updated }}'
+        websiteUrl: '{{ item.websiteUrl }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Returns Analytics data for a view (profile).
+  # ── gcp.analytics.data.ga.get [dependent] ──
+  - discovery_id: gcp.analytics.data.ga.get
+    for_each: gcp.analytics.management.customMetrics.list
+    # python: svc.data().ga().get(**params).execute()
+    calls:
+      - action: data.ga.get
+        params:
+          end-date: '{{ item.selfLink }}'
+          ids: '{{ item.name }}'
+          metrics: '{{ item.name }}'
+          start-date: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        columnHeaders: '{{ response.columnHeaders }}'
+        containsSampledData: '{{ response.containsSampledData }}'
+        dataLastRefreshed: '{{ response.dataLastRefreshed }}'
+        dataTable: '{{ response.dataTable }}'
+        id: '{{ response.id }}'
+        itemsPerPage: '{{ response.itemsPerPage }}'
+        previousLink: '{{ response.previousLink }}'
+        profileInfo: '{{ response.profileInfo }}'
+        query: '{{ response.query }}'
+        rows: '{{ response.rows }}'
+        sampleSize: '{{ response.sampleSize }}'
+        sampleSpace: '{{ response.sampleSpace }}'
+        totalResults: '{{ response.totalResults }}'
+        totalsForAllResults: '{{ response.totalsForAllResults }}'
+    # required_params: ['end-date', 'ids', 'start-date', 'metrics']
+  # Returns Analytics Multi-Channel Funnels data for a view (profile).
+  # ── gcp.analytics.data.mcf.get [dependent] ──
+  - discovery_id: gcp.analytics.data.mcf.get
+    for_each: gcp.analytics.management.customMetrics.list
+    # python: svc.data().mcf().get(**params).execute()
+    calls:
+      - action: data.mcf.get
+        params:
+          end-date: '{{ item.selfLink }}'
+          ids: '{{ item.name }}'
+          metrics: '{{ item.name }}'
+          start-date: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        columnHeaders: '{{ response.columnHeaders }}'
+        containsSampledData: '{{ response.containsSampledData }}'
+        id: '{{ response.id }}'
+        itemsPerPage: '{{ response.itemsPerPage }}'
+        previousLink: '{{ response.previousLink }}'
+        profileInfo: '{{ response.profileInfo }}'
+        query: '{{ response.query }}'
+        rows: '{{ response.rows }}'
+        sampleSize: '{{ response.sampleSize }}'
+        sampleSpace: '{{ response.sampleSpace }}'
+        totalResults: '{{ response.totalResults }}'
+        totalsForAllResults: '{{ response.totalsForAllResults }}'
+    # required_params: ['start-date', 'ids', 'metrics', 'end-date']
+  # Returns real time data for a view (profile).
+  # ── gcp.analytics.data.realtime.get [dependent] ──
+  - discovery_id: gcp.analytics.data.realtime.get
+    for_each: gcp.analytics.management.customMetrics.list
+    # python: svc.data().realtime().get(**params).execute()
+    calls:
+      - action: data.realtime.get
+        params:
+          ids: '{{ item.name }}'
+          metrics: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        columnHeaders: '{{ response.columnHeaders }}'
+        id: '{{ response.id }}'
+        profileInfo: '{{ response.profileInfo }}'
+        query: '{{ response.query }}'
+        rows: '{{ response.rows }}'
+        totalResults: '{{ response.totalResults }}'
+        totalsForAllResults: '{{ response.totalsForAllResults }}'
+    # required_params: ['ids', 'metrics']
+  # List custom data sources to which the user has access.
+  # ── gcp.analytics.management.customDataSources.list [dependent] ──
+  - discovery_id: gcp.analytics.management.customDataSources.list
+    for_each: gcp.analytics.management.webproperties.list
+    # python: svc.management().customDataSources().list(**params).execute()
+    calls:
+      - action: management.customDataSources.list
+        params:
+          webPropertyId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.customDataSources }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        childLink: '{{ item.childLink }}'
+        created: '{{ item.created }}'
+        description: '{{ item.description }}'
+        id: '{{ item.id }}'
+        importBehavior: '{{ item.importBehavior }}'
+        name: '{{ item.name }}'
+        parentLink: '{{ item.parentLink }}'
+        profilesLinked: '{{ item.profilesLinked }}'
+        schema: '{{ item.schema }}'
+        type: '{{ item.type }}'
+        updated: '{{ item.updated }}'
+        uploadType: '{{ item.uploadType }}'
+        webPropertyId: '{{ item.webPropertyId }}'
+    # required_params: ['accountId', 'webPropertyId']
+  # Get a custom dimension to which the user has access.
+  # ── gcp.analytics.management.customDimensions.get [dependent] ──
+  - discovery_id: gcp.analytics.management.customDimensions.get
+    for_each: gcp.analytics.management.customDimensions.list
+    # python: svc.management().customDimensions().get(**params).execute()
+    calls:
+      - action: management.customDimensions.get
+        params:
+          customDimensionId: '{{ item.name }}'
+          webPropertyId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accountId: '{{ response.accountId }}'
+        active: '{{ response.active }}'
+        created: '{{ response.created }}'
+        id: '{{ response.id }}'
+        index: '{{ response.index }}'
+        name: '{{ response.name }}'
+        parentLink: '{{ response.parentLink }}'
+        scope: '{{ response.scope }}'
+        updated: '{{ response.updated }}'
+        webPropertyId: '{{ response.webPropertyId }}'
+    # required_params: ['customDimensionId', 'accountId', 'webPropertyId']
+  # Lists custom dimensions to which the user has access.
+  # ── gcp.analytics.management.customDimensions.list [dependent] ──
+  - discovery_id: gcp.analytics.management.customDimensions.list
+    for_each: gcp.analytics.management.webproperties.list
+    # python: svc.management().customDimensions().list(**params).execute()
+    calls:
+      - action: management.customDimensions.list
+        params:
+          webPropertyId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.customDimensions }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        active: '{{ item.active }}'
+        created: '{{ item.created }}'
+        id: '{{ item.id }}'
+        index: '{{ item.index }}'
+        name: '{{ item.name }}'
+        parentLink: '{{ item.parentLink }}'
+        scope: '{{ item.scope }}'
+        updated: '{{ item.updated }}'
+        webPropertyId: '{{ item.webPropertyId }}'
+    # required_params: ['accountId', 'webPropertyId']
+  # Get a custom metric to which the user has access.
+  # ── gcp.analytics.management.customMetrics.get [dependent] ──
+  - discovery_id: gcp.analytics.management.customMetrics.get
+    for_each: gcp.analytics.management.customMetrics.list
+    # python: svc.management().customMetrics().get(**params).execute()
+    calls:
+      - action: management.customMetrics.get
+        params:
+          customMetricId: '{{ item.name }}'
+          webPropertyId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accountId: '{{ response.accountId }}'
+        active: '{{ response.active }}'
+        created: '{{ response.created }}'
+        id: '{{ response.id }}'
+        index: '{{ response.index }}'
+        max_value: '{{ response.max_value }}'
+        min_value: '{{ response.min_value }}'
+        name: '{{ response.name }}'
+        parentLink: '{{ response.parentLink }}'
+        scope: '{{ response.scope }}'
+        type: '{{ response.type }}'
+        updated: '{{ response.updated }}'
+        webPropertyId: '{{ response.webPropertyId }}'
+    # required_params: ['webPropertyId', 'accountId', 'customMetricId']
+  # Lists custom metrics to which the user has access.
+  # ── gcp.analytics.management.customMetrics.list [dependent] ──
+  - discovery_id: gcp.analytics.management.customMetrics.list
+    for_each: gcp.analytics.management.webproperties.list
+    # python: svc.management().customMetrics().list(**params).execute()
+    calls:
+      - action: management.customMetrics.list
+        params:
+          webPropertyId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.customMetrics }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        active: '{{ item.active }}'
+        created: '{{ item.created }}'
+        id: '{{ item.id }}'
+        index: '{{ item.index }}'
+        max_value: '{{ item.max_value }}'
+        min_value: '{{ item.min_value }}'
+        name: '{{ item.name }}'
+        parentLink: '{{ item.parentLink }}'
+        scope: '{{ item.scope }}'
+        type: '{{ item.type }}'
+        updated: '{{ item.updated }}'
+        webPropertyId: '{{ item.webPropertyId }}'
+    # required_params: ['webPropertyId', 'accountId']
+  # Returns an experiment to which the user has access.
+  # ── gcp.analytics.management.experiments.get [dependent] ──
+  - discovery_id: gcp.analytics.management.experiments.get
+    for_each: gcp.analytics.management.experiments.list
+    # python: svc.management().experiments().get(**params).execute()
+    calls:
+      - action: management.experiments.get
+        params:
+          experimentId: '{{ item.name }}'
+          profileId: '{{ item.name }}'
+          webPropertyId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accountId: '{{ response.accountId }}'
+        created: '{{ response.created }}'
+        description: '{{ response.description }}'
+        editableInGaUi: '{{ response.editableInGaUi }}'
+        endTime: '{{ response.endTime }}'
+        equalWeighting: '{{ response.equalWeighting }}'
+        id: '{{ response.id }}'
+        internalWebPropertyId: '{{ response.internalWebPropertyId }}'
+        minimumExperimentLengthInDays: '{{ response.minimumExperimentLengthInDays }}'
+        name: '{{ response.name }}'
+        objectiveMetric: '{{ response.objectiveMetric }}'
+        optimizationType: '{{ response.optimizationType }}'
+        parentLink: '{{ response.parentLink }}'
+        profileId: '{{ response.profileId }}'
+        reasonExperimentEnded: '{{ response.reasonExperimentEnded }}'
+        rewriteVariationUrlsAsOriginal: '{{ response.rewriteVariationUrlsAsOriginal }}'
+        servingFramework: '{{ response.servingFramework }}'
+        snippet: '{{ response.snippet }}'
+        startTime: '{{ response.startTime }}'
+        status: '{{ response.status }}'
+        trafficCoverage: '{{ response.trafficCoverage }}'
+        updated: '{{ response.updated }}'
+        variations: '{{ response.variations }}'
+        webPropertyId: '{{ response.webPropertyId }}'
+        winnerConfidenceLevel: '{{ response.winnerConfidenceLevel }}'
+        winnerFound: '{{ response.winnerFound }}'
+    # required_params: ['profileId', 'accountId', 'experimentId', 'webPropertyId']
+  # Lists experiments to which the user has access.
+  # ── gcp.analytics.management.experiments.list [dependent] ──
+  - discovery_id: gcp.analytics.management.experiments.list
+    for_each: gcp.analytics.management.profiles.list
+    # python: svc.management().experiments().list(**params).execute()
+    calls:
+      - action: management.experiments.list
+        params:
+          profileId: '{{ item.name }}'
+          webPropertyId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.experiments }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        created: '{{ item.created }}'
+        description: '{{ item.description }}'
+        editableInGaUi: '{{ item.editableInGaUi }}'
+        endTime: '{{ item.endTime }}'
+        equalWeighting: '{{ item.equalWeighting }}'
+        id: '{{ item.id }}'
+        internalWebPropertyId: '{{ item.internalWebPropertyId }}'
+        minimumExperimentLengthInDays: '{{ item.minimumExperimentLengthInDays }}'
+        name: '{{ item.name }}'
+        objectiveMetric: '{{ item.objectiveMetric }}'
+        optimizationType: '{{ item.optimizationType }}'
+        parentLink: '{{ item.parentLink }}'
+        profileId: '{{ item.profileId }}'
+        reasonExperimentEnded: '{{ item.reasonExperimentEnded }}'
+        rewriteVariationUrlsAsOriginal: '{{ item.rewriteVariationUrlsAsOriginal }}'
+        servingFramework: '{{ item.servingFramework }}'
+        snippet: '{{ item.snippet }}'
+        startTime: '{{ item.startTime }}'
+        status: '{{ item.status }}'
+        trafficCoverage: '{{ item.trafficCoverage }}'
+        updated: '{{ item.updated }}'
+        variations: '{{ item.variations }}'
+        webPropertyId: '{{ item.webPropertyId }}'
+        winnerConfidenceLevel: '{{ item.winnerConfidenceLevel }}'
+        winnerFound: '{{ item.winnerFound }}'
+    # required_params: ['profileId', 'accountId', 'webPropertyId']
+  # Returns filters to which the user has access.
+  # ── gcp.analytics.management.filters.get [dependent] ──
+  - discovery_id: gcp.analytics.management.filters.get
+    for_each: gcp.analytics.management.filters.list
+    # python: svc.management().filters().get(**params).execute()
+    calls:
+      - action: management.filters.get
+        params:
+          filterId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accountId: '{{ response.accountId }}'
+        advancedDetails: '{{ response.advancedDetails }}'
+        created: '{{ response.created }}'
+        excludeDetails: '{{ response.excludeDetails }}'
+        id: '{{ response.id }}'
+        includeDetails: '{{ response.includeDetails }}'
+        lowercaseDetails: '{{ response.lowercaseDetails }}'
+        name: '{{ response.name }}'
+        parentLink: '{{ response.parentLink }}'
+        searchAndReplaceDetails: '{{ response.searchAndReplaceDetails }}'
+        type: '{{ response.type }}'
+        updated: '{{ response.updated }}'
+        uppercaseDetails: '{{ response.uppercaseDetails }}'
+    # required_params: ['accountId', 'filterId']
+  # Gets a goal to which the user has access.
+  # ── gcp.analytics.management.goals.get [dependent] ──
+  - discovery_id: gcp.analytics.management.goals.get
+    for_each: gcp.analytics.management.goals.list
+    # python: svc.management().goals().get(**params).execute()
+    calls:
+      - action: management.goals.get
+        params:
+          goalId: '{{ item.name }}'
+          profileId: '{{ item.name }}'
+          webPropertyId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accountId: '{{ response.accountId }}'
+        active: '{{ response.active }}'
+        created: '{{ response.created }}'
+        eventDetails: '{{ response.eventDetails }}'
+        id: '{{ response.id }}'
+        internalWebPropertyId: '{{ response.internalWebPropertyId }}'
+        name: '{{ response.name }}'
+        parentLink: '{{ response.parentLink }}'
+        profileId: '{{ response.profileId }}'
+        type: '{{ response.type }}'
+        updated: '{{ response.updated }}'
+        urlDestinationDetails: '{{ response.urlDestinationDetails }}'
+        value: '{{ response.value }}'
+        visitNumPagesDetails: '{{ response.visitNumPagesDetails }}'
+        visitTimeOnSiteDetails: '{{ response.visitTimeOnSiteDetails }}'
+        webPropertyId: '{{ response.webPropertyId }}'
+    # required_params: ['accountId', 'webPropertyId', 'profileId', 'goalId']
+  # Lists goals to which the user has access.
+  # ── gcp.analytics.management.goals.list [dependent] ──
+  - discovery_id: gcp.analytics.management.goals.list
+    for_each: gcp.analytics.management.profiles.list
+    # python: svc.management().goals().list(**params).execute()
+    calls:
+      - action: management.goals.list
+        params:
+          profileId: '{{ item.name }}'
+          webPropertyId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.goals }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        active: '{{ item.active }}'
+        created: '{{ item.created }}'
+        eventDetails: '{{ item.eventDetails }}'
+        id: '{{ item.id }}'
+        internalWebPropertyId: '{{ item.internalWebPropertyId }}'
+        name: '{{ item.name }}'
+        parentLink: '{{ item.parentLink }}'
+        profileId: '{{ item.profileId }}'
+        type: '{{ item.type }}'
+        updated: '{{ item.updated }}'
+        urlDestinationDetails: '{{ item.urlDestinationDetails }}'
+        value: '{{ item.value }}'
+        visitNumPagesDetails: '{{ item.visitNumPagesDetails }}'
+        visitTimeOnSiteDetails: '{{ item.visitTimeOnSiteDetails }}'
+        webPropertyId: '{{ item.webPropertyId }}'
+    # required_params: ['profileId', 'webPropertyId', 'accountId']
+  # Returns a single profile filter link.
+  # ── gcp.analytics.management.profileFilterLinks.get [dependent] ──
+  - discovery_id: gcp.analytics.management.profileFilterLinks.get
+    for_each: gcp.analytics.management.profileUserLinks.list
+    # python: svc.management().profileFilterLinks().get(**params).execute()
+    calls:
+      - action: management.profileFilterLinks.get
+        params:
+          linkId: '{{ item.selfLink }}'
+          profileId: '{{ item.name }}'
+          webPropertyId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        filterRef: '{{ response.filterRef }}'
+        id: '{{ response.id }}'
+        profileRef: '{{ response.profileRef }}'
+        rank: '{{ response.rank }}'
+    # required_params: ['webPropertyId', 'linkId', 'accountId', 'profileId']
+  # Lists all profile filter links for a profile.
+  # ── gcp.analytics.management.profileFilterLinks.list [dependent] ──
+  - discovery_id: gcp.analytics.management.profileFilterLinks.list
+    for_each: gcp.analytics.management.profiles.list
+    # python: svc.management().profileFilterLinks().list(**params).execute()
+    calls:
+      - action: management.profileFilterLinks.list
+        params:
+          profileId: '{{ item.name }}'
+          webPropertyId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.profileFilterLinks }}'
+      item:
+        filterRef: '{{ item.filterRef }}'
+        id: '{{ item.id }}'
+        profileRef: '{{ item.profileRef }}'
+        rank: '{{ item.rank }}'
+    # required_params: ['profileId', 'accountId', 'webPropertyId']
+  # Lists profile-user links for a given view (profile).
+  # ── gcp.analytics.management.profileUserLinks.list [dependent] ──
+  - discovery_id: gcp.analytics.management.profileUserLinks.list
+    for_each: gcp.analytics.management.profiles.list
+    # python: svc.management().profileUserLinks().list(**params).execute()
+    calls:
+      - action: management.profileUserLinks.list
+        params:
+          profileId: '{{ item.name }}'
+          webPropertyId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.profileUserLinks }}'
+      item:
+        entity: '{{ item.entity }}'
+        id: '{{ item.id }}'
+        permissions: '{{ item.permissions }}'
+        userRef: '{{ item.userRef }}'
+    # required_params: ['webPropertyId', 'accountId', 'profileId']
+  # Gets a view (profile) to which the user has access.
+  # ── gcp.analytics.management.profiles.get [dependent] ──
+  - discovery_id: gcp.analytics.management.profiles.get
+    for_each: gcp.analytics.management.profiles.list
+    # python: svc.management().profiles().get(**params).execute()
+    calls:
+      - action: management.profiles.get
+        params:
+          profileId: '{{ item.name }}'
+          webPropertyId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accountId: '{{ response.accountId }}'
+        botFilteringEnabled: '{{ response.botFilteringEnabled }}'
+        childLink: '{{ response.childLink }}'
+        created: '{{ response.created }}'
+        currency: '{{ response.currency }}'
+        defaultPage: '{{ response.defaultPage }}'
+        eCommerceTracking: '{{ response.eCommerceTracking }}'
+        enhancedECommerceTracking: '{{ response.enhancedECommerceTracking }}'
+        excludeQueryParameters: '{{ response.excludeQueryParameters }}'
+        id: '{{ response.id }}'
+        internalWebPropertyId: '{{ response.internalWebPropertyId }}'
+        name: '{{ response.name }}'
+        parentLink: '{{ response.parentLink }}'
+        permissions: '{{ response.permissions }}'
+        siteSearchCategoryParameters: '{{ response.siteSearchCategoryParameters }}'
+        siteSearchQueryParameters: '{{ response.siteSearchQueryParameters }}'
+        starred: '{{ response.starred }}'
+        stripSiteSearchCategoryParameters: '{{ response.stripSiteSearchCategoryParameters }}'
+        stripSiteSearchQueryParameters: '{{ response.stripSiteSearchQueryParameters }}'
+        timezone: '{{ response.timezone }}'
+        type: '{{ response.type }}'
+        updated: '{{ response.updated }}'
+        webPropertyId: '{{ response.webPropertyId }}'
+        websiteUrl: '{{ response.websiteUrl }}'
+    # required_params: ['webPropertyId', 'profileId', 'accountId']
+  # Lists views (profiles) to which the user has access.
+  # ── gcp.analytics.management.profiles.list [dependent] ──
+  - discovery_id: gcp.analytics.management.profiles.list
+    for_each: gcp.analytics.management.webproperties.list
+    # python: svc.management().profiles().list(**params).execute()
+    calls:
+      - action: management.profiles.list
+        params:
+          webPropertyId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.profiles }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        botFilteringEnabled: '{{ item.botFilteringEnabled }}'
+        childLink: '{{ item.childLink }}'
+        created: '{{ item.created }}'
+        currency: '{{ item.currency }}'
+        defaultPage: '{{ item.defaultPage }}'
+        eCommerceTracking: '{{ item.eCommerceTracking }}'
+        enhancedECommerceTracking: '{{ item.enhancedECommerceTracking }}'
+        excludeQueryParameters: '{{ item.excludeQueryParameters }}'
+        id: '{{ item.id }}'
+        internalWebPropertyId: '{{ item.internalWebPropertyId }}'
+        name: '{{ item.name }}'
+        parentLink: '{{ item.parentLink }}'
+        permissions: '{{ item.permissions }}'
+        siteSearchCategoryParameters: '{{ item.siteSearchCategoryParameters }}'
+        siteSearchQueryParameters: '{{ item.siteSearchQueryParameters }}'
+        starred: '{{ item.starred }}'
+        stripSiteSearchCategoryParameters: '{{ item.stripSiteSearchCategoryParameters }}'
+        stripSiteSearchQueryParameters: '{{ item.stripSiteSearchQueryParameters }}'
+        timezone: '{{ item.timezone }}'
+        type: '{{ item.type }}'
+        updated: '{{ item.updated }}'
+        webPropertyId: '{{ item.webPropertyId }}'
+        websiteUrl: '{{ item.websiteUrl }}'
+    # required_params: ['webPropertyId', 'accountId']
+  # Gets a remarketing audience to which the user has access.
+  # ── gcp.analytics.management.remarketingAudience.get [dependent] ──
+  - discovery_id: gcp.analytics.management.remarketingAudience.get
+    for_each: gcp.analytics.management.remarketingAudience.list
+    # python: svc.management().remarketingAudience().get(**params).execute()
+    calls:
+      - action: management.remarketingAudience.get
+        params:
+          remarketingAudienceId: '{{ item.name }}'
+          webPropertyId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accountId: '{{ response.accountId }}'
+        audienceDefinition: '{{ response.audienceDefinition }}'
+        audienceType: '{{ response.audienceType }}'
+        created: '{{ response.created }}'
+        description: '{{ response.description }}'
+        id: '{{ response.id }}'
+        internalWebPropertyId: '{{ response.internalWebPropertyId }}'
+        linkedAdAccounts: '{{ response.linkedAdAccounts }}'
+        linkedViews: '{{ response.linkedViews }}'
+        name: '{{ response.name }}'
+        stateBasedAudienceDefinition: '{{ response.stateBasedAudienceDefinition }}'
+        updated: '{{ response.updated }}'
+        webPropertyId: '{{ response.webPropertyId }}'
+    # required_params: ['webPropertyId', 'remarketingAudienceId', 'accountId']
+  # Lists remarketing audiences to which the user has access.
+  # ── gcp.analytics.management.remarketingAudience.list [dependent] ──
+  - discovery_id: gcp.analytics.management.remarketingAudience.list
+    for_each: gcp.analytics.management.webproperties.list
+    # python: svc.management().remarketingAudience().list(**params).execute()
+    calls:
+      - action: management.remarketingAudience.list
+        params:
+          webPropertyId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.remarketingAudience }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        audienceDefinition: '{{ item.audienceDefinition }}'
+        audienceType: '{{ item.audienceType }}'
+        created: '{{ item.created }}'
+        description: '{{ item.description }}'
+        id: '{{ item.id }}'
+        internalWebPropertyId: '{{ item.internalWebPropertyId }}'
+        linkedAdAccounts: '{{ item.linkedAdAccounts }}'
+        linkedViews: '{{ item.linkedViews }}'
+        name: '{{ item.name }}'
+        stateBasedAudienceDefinition: '{{ item.stateBasedAudienceDefinition }}'
+        updated: '{{ item.updated }}'
+        webPropertyId: '{{ item.webPropertyId }}'
+    # required_params: ['accountId', 'webPropertyId']
+  # Returns a single unsampled report.
+  # ── gcp.analytics.management.unsampledReports.get [dependent] ──
+  - discovery_id: gcp.analytics.management.unsampledReports.get
+    for_each: gcp.analytics.management.unsampledReports.list
+    # python: svc.management().unsampledReports().get(**params).execute()
+    calls:
+      - action: management.unsampledReports.get
+        params:
+          profileId: '{{ item.name }}'
+          unsampledReportId: '{{ item.selfLink }}'
+          webPropertyId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accountId: '{{ response.accountId }}'
+        cloudStorageDownloadDetails: '{{ response.cloudStorageDownloadDetails }}'
+        created: '{{ response.created }}'
+        dimensions: '{{ response.dimensions }}'
+        downloadType: '{{ response.downloadType }}'
+        driveDownloadDetails: '{{ response.driveDownloadDetails }}'
+        end-date: '{{ response.end-date }}'
+        filters: '{{ response.filters }}'
+        id: '{{ response.id }}'
+        metrics: '{{ response.metrics }}'
+        profileId: '{{ response.profileId }}'
+        segment: '{{ response.segment }}'
+        start-date: '{{ response.start-date }}'
+        status: '{{ response.status }}'
+        title: '{{ response.title }}'
+        updated: '{{ response.updated }}'
+        webPropertyId: '{{ response.webPropertyId }}'
+    # required_params: ['unsampledReportId', 'webPropertyId', 'accountId', 'profileId']
+  # Lists unsampled reports to which the user has access.
+  # ── gcp.analytics.management.unsampledReports.list [dependent] ──
+  - discovery_id: gcp.analytics.management.unsampledReports.list
+    for_each: gcp.analytics.management.profiles.list
+    # python: svc.management().unsampledReports().list(**params).execute()
+    calls:
+      - action: management.unsampledReports.list
+        params:
+          profileId: '{{ item.name }}'
+          webPropertyId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.unsampledReports }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        cloudStorageDownloadDetails: '{{ item.cloudStorageDownloadDetails }}'
+        created: '{{ item.created }}'
+        dimensions: '{{ item.dimensions }}'
+        downloadType: '{{ item.downloadType }}'
+        driveDownloadDetails: '{{ item.driveDownloadDetails }}'
+        end-date: '{{ item.end-date }}'
+        filters: '{{ item.filters }}'
+        id: '{{ item.id }}'
+        metrics: '{{ item.metrics }}'
+        profileId: '{{ item.profileId }}'
+        segment: '{{ item.segment }}'
+        start-date: '{{ item.start-date }}'
+        status: '{{ item.status }}'
+        title: '{{ item.title }}'
+        updated: '{{ item.updated }}'
+        webPropertyId: '{{ item.webPropertyId }}'
+    # required_params: ['webPropertyId', 'profileId', 'accountId']
+  # List uploads to which the user has access.
+  # ── gcp.analytics.management.uploads.get [dependent] ──
+  - discovery_id: gcp.analytics.management.uploads.get
+    for_each: gcp.analytics.management.uploads.list
+    # python: svc.management().uploads().get(**params).execute()
+    calls:
+      - action: management.uploads.get
+        params:
+          customDataSourceId: '{{ item.name }}'
+          uploadId: '{{ item.id }}'
+          webPropertyId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accountId: '{{ response.accountId }}'
+        customDataSourceId: '{{ response.customDataSourceId }}'
+        errors: '{{ response.errors }}'
+        id: '{{ response.id }}'
+        status: '{{ response.status }}'
+        uploadTime: '{{ response.uploadTime }}'
+    # required_params: ['uploadId', 'customDataSourceId', 'webPropertyId', 'accountId']
+  # List uploads to which the user has access.
+  # ── gcp.analytics.management.uploads.list [dependent] ──
+  - discovery_id: gcp.analytics.management.uploads.list
+    for_each: gcp.analytics.management.customDataSources.list
+    # python: svc.management().uploads().list(**params).execute()
+    calls:
+      - action: management.uploads.list
+        params:
+          customDataSourceId: '{{ item.name }}'
+          webPropertyId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.uploads }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        customDataSourceId: '{{ item.customDataSourceId }}'
+        errors: '{{ item.errors }}'
+        id: '{{ item.id }}'
+        status: '{{ item.status }}'
+        uploadTime: '{{ item.uploadTime }}'
+    # required_params: ['webPropertyId', 'customDataSourceId', 'accountId']
+  # Returns a web property-Google Ads link to which the user has access.
+  # ── gcp.analytics.management.webPropertyAdWordsLinks.get [dependent] ──
+  - discovery_id: gcp.analytics.management.webPropertyAdWordsLinks.get
+    for_each: gcp.analytics.management.webPropertyAdWordsLinks.list
+    # python: svc.management().webPropertyAdWordsLinks().get(**params).execute()
+    calls:
+      - action: management.webPropertyAdWordsLinks.get
+        params:
+          webPropertyAdWordsLinkId: '{{ item.name }}'
+          webPropertyId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        adWordsAccounts: '{{ response.adWordsAccounts }}'
+        entity: '{{ response.entity }}'
+        id: '{{ response.id }}'
+        name: '{{ response.name }}'
+        profileIds: '{{ response.profileIds }}'
+    # required_params: ['webPropertyAdWordsLinkId', 'webPropertyId', 'accountId']
+  # Lists webProperty-Google Ads links for a given web property.
+  # ── gcp.analytics.management.webPropertyAdWordsLinks.list [dependent] ──
+  - discovery_id: gcp.analytics.management.webPropertyAdWordsLinks.list
+    for_each: gcp.analytics.management.webproperties.list
+    # python: svc.management().webPropertyAdWordsLinks().list(**params).execute()
+    calls:
+      - action: management.webPropertyAdWordsLinks.list
+        params:
+          webPropertyId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.webPropertyAdWordsLinks }}'
+      item:
+        adWordsAccounts: '{{ item.adWordsAccounts }}'
+        entity: '{{ item.entity }}'
+        id: '{{ item.id }}'
+        name: '{{ item.name }}'
+        profileIds: '{{ item.profileIds }}'
+    # required_params: ['webPropertyId', 'accountId']
+  # Gets a web property to which the user has access.
+  # ── gcp.analytics.management.webproperties.get [dependent] ──
+  - discovery_id: gcp.analytics.management.webproperties.get
+    for_each: gcp.analytics.management.webproperties.list
+    # python: svc.management().webproperties().get(**params).execute()
+    calls:
+      - action: management.webproperties.get
+        params:
+          webPropertyId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accountId: '{{ response.accountId }}'
+        childLink: '{{ response.childLink }}'
+        created: '{{ response.created }}'
+        dataRetentionResetOnNewActivity: '{{ response.dataRetentionResetOnNewActivity }}'
+        dataRetentionTtl: '{{ response.dataRetentionTtl }}'
+        defaultProfileId: '{{ response.defaultProfileId }}'
+        id: '{{ response.id }}'
+        industryVertical: '{{ response.industryVertical }}'
+        internalWebPropertyId: '{{ response.internalWebPropertyId }}'
+        level: '{{ response.level }}'
+        name: '{{ response.name }}'
+        parentLink: '{{ response.parentLink }}'
+        permissions: '{{ response.permissions }}'
+        profileCount: '{{ response.profileCount }}'
+        starred: '{{ response.starred }}'
+        updated: '{{ response.updated }}'
+        websiteUrl: '{{ response.websiteUrl }}'
+    # required_params: ['accountId', 'webPropertyId']
+  # Lists webProperty-user links for a given web property.
+  # ── gcp.analytics.management.webpropertyUserLinks.list [dependent] ──
+  - discovery_id: gcp.analytics.management.webpropertyUserLinks.list
+    for_each: gcp.analytics.management.webproperties.list
+    # python: svc.management().webpropertyUserLinks().list(**params).execute()
+    calls:
+      - action: management.webpropertyUserLinks.list
+        params:
+          webPropertyId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.webpropertyUserLinks }}'
+      item:
+        entity: '{{ item.entity }}'
+        id: '{{ item.id }}'
+        permissions: '{{ item.permissions }}'
+        userRef: '{{ item.userRef }}'
+    # required_params: ['accountId', 'webPropertyId']
+  # Lists all columns for a report type
+  # ── gcp.analytics.metadata.columns.list [dependent] ──
+  - discovery_id: gcp.analytics.metadata.columns.list
+    # python: svc.metadata().columns().list(**params).execute()
+    calls:
+      - action: metadata.columns.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.columns }}'
+      item:
+        attributes: '{{ item.attributes }}'
+        id: '{{ item.id }}'
+    # required_params: ['reportType']

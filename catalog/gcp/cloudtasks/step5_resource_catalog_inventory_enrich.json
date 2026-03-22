@@ -1,0 +1,428 @@
+{
+  "csp": "gcp",
+  "generated_at": "2026-02-19T14:43:25.081032+00:00",
+  "anchors": {
+    "fixed": [
+      "project_id",
+      "org_id",
+      "folder_id",
+      "location",
+      "zone",
+      "region"
+    ]
+  },
+  "services": {
+    "cloudtasks": {
+      "version": "v2beta2",
+      "resources": {
+        "locations": {
+          "resource_type": "locations",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.cloudtasks.projects.locations.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v2beta2/{+name}/locations"
+                },
+                "python_call": "svc.projects().locations().list(**params).execute()",
+                "produces": {
+                  "name": "locations[].name",
+                  "locationId": "locations[].locationId",
+                  "displayName": "locations[].displayName",
+                  "labels": "locations[].labels",
+                  "metadata": "locations[].metadata"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.cloudtasks.projects.locations.get",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v2beta2/{+name}"
+                },
+                "python_call": "svc.projects().locations().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.cloudtasks.projects.locations.getCmekConfig",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v2beta2/{+name}"
+                },
+                "python_call": "svc.projects().locations().getCmekConfig(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "queues": {
+          "resource_type": "queues",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.cloudtasks.projects.locations.queues.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v2beta2/{+parent}/queues"
+                },
+                "python_call": "svc.projects().locations().queues().list(**params).execute()",
+                "produces": {
+                  "name": "queues[].name",
+                  "appEngineHttpTarget": "queues[].appEngineHttpTarget",
+                  "pullTarget": "queues[].pullTarget",
+                  "httpTarget": "queues[].httpTarget",
+                  "rateLimits": "queues[].rateLimits",
+                  "retryConfig": "queues[].retryConfig",
+                  "state": "queues[].state",
+                  "purgeTime": "queues[].purgeTime",
+                  "taskTtl": "queues[].taskTtl",
+                  "tombstoneTtl": "queues[].tombstoneTtl",
+                  "stats": "queues[].stats"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.cloudtasks.projects.locations.queues.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v2beta2/{+name}"
+                },
+                "python_call": "svc.projects().locations().queues().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.cloudtasks.projects.locations.queues.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.cloudtasks.projects.locations.queues.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().queues().list(**params).execute()",
+                      "path": "/v2beta2/{+parent}/queues",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. The location name. For example: `projects/PROJECT_ID/locations/LOCATION_ID`"
+                        }
+                      },
+                      "output_list_field": "queues",
+                      "output_id_field": "name",
+                      "produces": {
+                        "queueId": {
+                          "via_list_field": "queues",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"queues\"][], extract item[\"name\"] \u2192 pass as \"queueId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: queueId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.cloudtasks.projects.locations.queues.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().queues().get(**params).execute()",
+                      "path": "/v2beta2/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/queues/[^/]+$",
+                          "description": "Required. The resource name of the queue. For example: `projects/PROJECT_ID/locations/LOCATION_ID/queues/QUEUE_ID`"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "queueId": {
+                            "from_step": 1,
+                            "from_op": "gcp.cloudtasks.projects.locations.queues.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "tasks": {
+          "resource_type": "tasks",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.cloudtasks.projects.locations.queues.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v2beta2/{+parent}/queues"
+                },
+                "python_call": "svc.projects().locations().queues().list(**params).execute()",
+                "produces": {
+                  "name": "queues[].name",
+                  "appEngineHttpTarget": "queues[].appEngineHttpTarget",
+                  "pullTarget": "queues[].pullTarget",
+                  "httpTarget": "queues[].httpTarget",
+                  "rateLimits": "queues[].rateLimits",
+                  "retryConfig": "queues[].retryConfig",
+                  "state": "queues[].state",
+                  "purgeTime": "queues[].purgeTime",
+                  "taskTtl": "queues[].taskTtl",
+                  "tombstoneTtl": "queues[].tombstoneTtl",
+                  "stats": "queues[].stats"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.cloudtasks.projects.locations.queues.tasks.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v2beta2/{+parent}/tasks"
+                },
+                "python_call": "svc.projects().locations().queues().tasks().list(**params).execute()",
+                "produces": {
+                  "name": "tasks[].name",
+                  "appEngineHttpRequest": "tasks[].appEngineHttpRequest",
+                  "pullMessage": "tasks[].pullMessage",
+                  "httpRequest": "tasks[].httpRequest",
+                  "scheduleTime": "tasks[].scheduleTime",
+                  "createTime": "tasks[].createTime",
+                  "status": "tasks[].status",
+                  "view": "tasks[].view"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.cloudtasks.projects.locations.queues.tasks.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v2beta2/{+name}"
+                },
+                "python_call": "svc.projects().locations().queues().tasks().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.cloudtasks.projects.locations.queues.tasks.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 3,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.cloudtasks.projects.locations.queues.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().queues().list(**params).execute()",
+                      "path": "/v2beta2/{+parent}/queues",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. The location name. For example: `projects/PROJECT_ID/locations/LOCATION_ID`"
+                        }
+                      },
+                      "output_list_field": "queues",
+                      "output_id_field": "name",
+                      "produces": {
+                        "queueId": {
+                          "via_list_field": "queues",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"queues\"][], extract item[\"name\"] \u2192 pass as \"queueId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: queueId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.cloudtasks.projects.locations.queues.tasks.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().queues().tasks().list(**params).execute()",
+                      "path": "/v2beta2/{+parent}/tasks",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/queues/[^/]+$",
+                          "description": "Required. The queue name. For example: `projects/PROJECT_ID/locations/LOCATION_ID/queues/QUEUE_ID`"
+                        }
+                      },
+                      "output_list_field": "tasks",
+                      "output_id_field": "name",
+                      "produces": {
+                        "taskId": {
+                          "via_list_field": "tasks",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"tasks\"][], extract item[\"name\"] \u2192 pass as \"taskId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: taskId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.cloudtasks.projects.locations.queues.tasks.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().queues().tasks().get(**params).execute()",
+                      "path": "/v2beta2/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/queues/[^/]+/tasks/[^/]+$",
+                          "description": "Required. The task name. For example: `projects/PROJECT_ID/locations/LOCATION_ID/queues/QUEUE_ID/tasks/TASK_ID`"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "queueId": {
+                            "from_step": 1,
+                            "from_op": "gcp.cloudtasks.projects.locations.queues.list",
+                            "field": "name"
+                          },
+                          "taskId": {
+                            "from_step": 2,
+                            "from_op": "gcp.cloudtasks.projects.locations.queues.tasks.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        }
+      }
+    }
+  }
+}

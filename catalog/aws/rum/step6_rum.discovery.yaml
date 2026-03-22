@@ -1,0 +1,114 @@
+# ============================================================
+# Discovery YAML — rum (AWS)
+# Generated: 2026-02-21T04:56:59Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: rum
+services:
+  client: rum
+  module: boto3.client
+discovery:
+  # ── ListAppMonitors ──
+  - discovery_id: aws.rum.list_app_monitors
+    calls:
+      - action: list_app_monitors
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.AppMonitorSummaries }}'
+      item:
+        Id: '{{ item.Id }}'
+        Name: '{{ item.Name }}'
+        State: '{{ item.State }}'
+        Tags: '{{ item.Tags }}'
+        AppMonitor: '{{ item.AppMonitor }}'
+        Created: '{{ item.Created }}'
+        CustomEvents: '{{ item.CustomEvents }}'
+        DataStorage: '{{ item.DataStorage }}'
+        DeobfuscationConfiguration: '{{ item.DeobfuscationConfiguration }}'
+        Domain: '{{ item.Domain }}'
+        LastModified: '{{ item.LastModified }}'
+        Platform: '{{ item.Platform }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── GetAppMonitor ──
+  - discovery_id: aws.rum.get_app_monitor
+    for_each: aws.rum.list_app_monitors
+    calls:
+      - action: get_app_monitor
+        params:
+          Name: '{{ item.Name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.NextToken }}'
+      item:
+        Id: '{{ item.Id }}'
+        Name: '{{ item.Name }}'
+        State: '{{ item.State }}'
+        Status: '{{ item.Status }}'
+        Tags: '{{ item.Tags }}'
+        AppMonitor: '{{ item.AppMonitor }}'
+        AppMonitorConfiguration: '{{ item.AppMonitorConfiguration }}'
+        Created: '{{ item.Created }}'
+        CustomEvents: '{{ item.CustomEvents }}'
+        DataStorage: '{{ item.DataStorage }}'
+        DeobfuscationConfiguration: '{{ item.DeobfuscationConfiguration }}'
+        Domain: '{{ item.Domain }}'
+        DomainList: '{{ item.DomainList }}'
+        Enabled: '{{ item.Enabled }}'
+        LastModified: '{{ item.LastModified }}'
+        Platform: '{{ item.Platform }}'
+  # ── GetAppMonitorData ──
+  - discovery_id: aws.rum.get_app_monitor_data
+    for_each: aws.rum.list_app_monitors
+    calls:
+      - action: get_app_monitor_data
+        params:
+          Name: '{{ item.Name }}'
+          TimeRange: '{{ item.TimeRange }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Events }}'
+      item:
+        Events: '{{ item.Events }}'
+  # ── GetResourcePolicy ──
+  - discovery_id: aws.rum.get_resource_policy
+    calls:
+      - action: get_resource_policy
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        PolicyDocument: '{{ response.PolicyDocument }}'
+        PolicyRevisionId: '{{ response.PolicyRevisionId }}'
+  # ── ListRumMetricsDestinations ──
+  - discovery_id: aws.rum.list_rum_metrics_destinations
+    calls:
+      - action: list_rum_metrics_destinations
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Destinations }}'
+      item:
+        Destination: '{{ item.Destination }}'
+        DestinationArn: '{{ item.DestinationArn }}'
+        IamRoleArn: '{{ item.IamRoleArn }}'
+  # ── ListTagsForResource ──
+  - discovery_id: aws.rum.list_tags_for_resource
+    calls:
+      - action: list_tags_for_resource
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        ResourceArn: '{{ response.ResourceArn }}'
+        Tags: '{{ response.Tags }}'

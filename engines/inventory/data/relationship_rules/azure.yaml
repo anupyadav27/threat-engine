@@ -1,0 +1,1372 @@
+# Azure relationship rules — single source of truth (no hardcoding in Python)
+# Run load_relationship_rules_to_db.py to sync to resource_relationship_rules table
+# Fields use ARM API response structure (snake_case nested paths)
+# resource_type format: microsoft.{namespace}/{resource} (lowercase ARM format)
+
+csp: azure
+
+rules:
+  # ── Virtual Machine ──────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.compute/virtualmachines
+    relation_type: attached_to
+    to_resource_type: microsoft.network/networkinterfaces
+    source_field: "properties.networkProfile.networkInterfaces"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.compute/virtualmachines
+    relation_type: attached_to
+    to_resource_type: microsoft.compute/disks
+    source_field: "properties.storageProfile.osDisk.managedDisk.id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.compute/virtualmachines
+    relation_type: attached_to
+    to_resource_type: microsoft.compute/disks
+    source_field: "properties.storageProfile.dataDisks"
+    source_field_item: "managedDisk.id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.compute/virtualmachines
+    relation_type: uses
+    to_resource_type: microsoft.managedidentity/userassignedidentities
+    source_field: "identity.userAssignedIdentities"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.compute/virtualmachines
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  - from_resource_type: microsoft.compute/virtualmachines
+    relation_type: member_of
+    to_resource_type: microsoft.compute/availabilitysets
+    source_field: "properties.availabilitySet.id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.compute/virtualmachines
+    relation_type: uses
+    to_resource_type: microsoft.compute/proximityplacementgroups
+    source_field: "properties.proximityPlacementGroup.id"
+    target_uid_pattern: "{id}"
+
+  # ── Network Interface ─────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.network/networkinterfaces
+    relation_type: contained_by
+    to_resource_type: microsoft.network/virtualnetworks/subnets
+    source_field: "properties.ipConfigurations"
+    source_field_item: "properties.subnet.id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.network/networkinterfaces
+    relation_type: attached_to
+    to_resource_type: microsoft.network/networksecuritygroups
+    source_field: "properties.networkSecurityGroup.id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.network/networkinterfaces
+    relation_type: attached_to
+    to_resource_type: microsoft.network/publicipaddresses
+    source_field: "properties.ipConfigurations"
+    source_field_item: "properties.publicIPAddress.id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.network/networkinterfaces
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Virtual Network ───────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.network/virtualnetworks
+    relation_type: contains
+    to_resource_type: microsoft.network/virtualnetworks/subnets
+    source_field: "properties.subnets"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.network/virtualnetworks
+    relation_type: peers_with
+    to_resource_type: microsoft.network/virtualnetworks
+    source_field: "properties.virtualNetworkPeerings"
+    source_field_item: "properties.remoteVirtualNetwork.id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.network/virtualnetworks
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Subnet ────────────────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.network/virtualnetworks/subnets
+    relation_type: attached_to
+    to_resource_type: microsoft.network/networksecuritygroups
+    source_field: "properties.networkSecurityGroup.id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.network/virtualnetworks/subnets
+    relation_type: routes_to
+    to_resource_type: microsoft.network/routetables
+    source_field: "properties.routeTable.id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.network/virtualnetworks/subnets
+    relation_type: uses
+    to_resource_type: microsoft.network/natgateways
+    source_field: "properties.natGateway.id"
+    target_uid_pattern: "{id}"
+
+  # ── Network Security Group ────────────────────────────────────────────────────
+  - from_resource_type: microsoft.network/networksecuritygroups
+    relation_type: associated_with
+    to_resource_type: microsoft.network/virtualnetworks/subnets
+    source_field: "properties.subnets"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.network/networksecuritygroups
+    relation_type: associated_with
+    to_resource_type: microsoft.network/networkinterfaces
+    source_field: "properties.networkInterfaces"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.network/networksecuritygroups
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Managed Disk ─────────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.compute/disks
+    relation_type: encrypted_by
+    to_resource_type: microsoft.compute/diskencryptionsets
+    source_field: "properties.encryption.diskEncryptionSetId"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.compute/disks
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Storage Account ───────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.storage/storageaccounts
+    relation_type: encrypted_by
+    to_resource_type: microsoft.keyvault/vaults
+    source_field: "properties.encryption.keyVaultProperties.keyVaultUri"
+    target_uid_pattern: "{keyVaultUri}"
+
+  - from_resource_type: microsoft.storage/storageaccounts
+    relation_type: restricted_to
+    to_resource_type: microsoft.network/virtualnetworks
+    source_field: "properties.networkAcls.virtualNetworkRules"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.storage/storageaccounts
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Blob Container ────────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.storage/storageaccounts/blobservices/containers
+    relation_type: contained_by
+    to_resource_type: microsoft.storage/storageaccounts
+    source_field: "id"
+    target_uid_pattern: "{storageAccountId}"
+
+  # ── SQL Server ────────────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.sql/servers
+    relation_type: restricted_to
+    to_resource_type: microsoft.network/virtualnetworks
+    source_field: "properties.virtualNetworkRules"
+    source_field_item: "properties.virtualNetworkSubnetId"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.sql/servers
+    relation_type: uses
+    to_resource_type: microsoft.managedidentity/userassignedidentities
+    source_field: "identity.userAssignedIdentities"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.sql/servers
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── SQL Database ──────────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.sql/servers/databases
+    relation_type: encrypted_by
+    to_resource_type: microsoft.keyvault/vaults
+    source_field: "properties.transparentDataEncryption.keyUri"
+    target_uid_pattern: "{keyUri}"
+
+  - from_resource_type: microsoft.sql/servers/databases
+    relation_type: contained_by
+    to_resource_type: microsoft.sql/servers
+    source_field: "id"
+    target_uid_pattern: "{serverId}"
+
+  # ── Key Vault ─────────────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.keyvault/vaults
+    relation_type: restricted_to
+    to_resource_type: microsoft.network/virtualnetworks
+    source_field: "properties.networkAcls.virtualNetworkRules"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.keyvault/vaults
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── App Service / Web App ─────────────────────────────────────────────────────
+  - from_resource_type: microsoft.web/webapps
+    relation_type: contained_by
+    to_resource_type: microsoft.network/virtualnetworks
+    source_field: "properties.virtualNetworkSubnetId"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.web/webapps
+    relation_type: uses
+    to_resource_type: microsoft.managedidentity/userassignedidentities
+    source_field: "identity.userAssignedIdentities"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.web/webapps
+    relation_type: runs_on
+    to_resource_type: microsoft.web/appserviceplans
+    source_field: "properties.serverFarmId"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.web/webapps
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── AKS Cluster ───────────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.containerservice/managedclusters
+    relation_type: contained_by
+    to_resource_type: microsoft.network/virtualnetworks
+    source_field: "properties.agentPoolProfiles"
+    source_field_item: "vnetSubnetID"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.containerservice/managedclusters
+    relation_type: uses
+    to_resource_type: microsoft.managedidentity/userassignedidentities
+    source_field: "identity.userAssignedIdentities"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.containerservice/managedclusters
+    relation_type: uses
+    to_resource_type: microsoft.keyvault/vaults
+    source_field: "properties.addonProfiles.azureKeyvaultSecretsProvider.config.clientId"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.containerservice/managedclusters
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Container Registry ────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.containerregistry/registries
+    relation_type: encrypted_by
+    to_resource_type: microsoft.keyvault/vaults
+    source_field: "properties.encryption.keyVaultProperties.keyIdentifier"
+    target_uid_pattern: "{keyIdentifier}"
+
+  - from_resource_type: microsoft.containerregistry/registries
+    relation_type: restricted_to
+    to_resource_type: microsoft.network/virtualnetworks
+    source_field: "properties.networkRuleSet.virtualNetworkRules"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.containerregistry/registries
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Load Balancer ─────────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.network/loadbalancers
+    relation_type: attached_to
+    to_resource_type: microsoft.network/publicipaddresses
+    source_field: "properties.frontendIPConfigurations"
+    source_field_item: "properties.publicIPAddress.id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.network/loadbalancers
+    relation_type: contained_by
+    to_resource_type: microsoft.network/virtualnetworks/subnets
+    source_field: "properties.frontendIPConfigurations"
+    source_field_item: "properties.subnet.id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.network/loadbalancers
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Application Gateway ───────────────────────────────────────────────────────
+  - from_resource_type: microsoft.network/applicationgateways
+    relation_type: contained_by
+    to_resource_type: microsoft.network/virtualnetworks/subnets
+    source_field: "properties.gatewayIPConfigurations"
+    source_field_item: "properties.subnet.id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.network/applicationgateways
+    relation_type: uses
+    to_resource_type: microsoft.managedidentity/userassignedidentities
+    source_field: "identity.userAssignedIdentities"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.network/applicationgateways
+    relation_type: uses
+    to_resource_type: microsoft.keyvault/vaults
+    source_field: "properties.sslCertificates"
+    source_field_item: "properties.keyVaultSecretId"
+    target_uid_pattern: "{id}"
+
+  # ── CosmosDB ──────────────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.documentdb/databaseaccounts
+    relation_type: encrypted_by
+    to_resource_type: microsoft.keyvault/vaults
+    source_field: "properties.keyVaultKeyUri"
+    target_uid_pattern: "{keyUri}"
+
+  - from_resource_type: microsoft.documentdb/databaseaccounts
+    relation_type: restricted_to
+    to_resource_type: microsoft.network/virtualnetworks
+    source_field: "properties.virtualNetworkRules"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.documentdb/databaseaccounts
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Service Bus ───────────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.servicebus/namespaces
+    relation_type: encrypted_by
+    to_resource_type: microsoft.keyvault/vaults
+    source_field: "properties.encryption.keyVaultProperties"
+    source_field_item: "keyVaultUri"
+    target_uid_pattern: "{keyVaultUri}"
+
+  - from_resource_type: microsoft.servicebus/namespaces
+    relation_type: restricted_to
+    to_resource_type: microsoft.network/virtualnetworks
+    source_field: "properties.networkRuleSets.virtualNetworkRules"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  # ── Event Hub ─────────────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.eventhub/namespaces
+    relation_type: encrypted_by
+    to_resource_type: microsoft.keyvault/vaults
+    source_field: "properties.encryption.keyVaultProperties"
+    source_field_item: "keyVaultUri"
+    target_uid_pattern: "{keyVaultUri}"
+
+  # ── Managed Identity ──────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.managedidentity/userassignedidentities
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Resource Group ────────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.resources/resourcegroups
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/subscriptions
+    source_field: "subscriptionId"
+    target_uid_pattern: "/subscriptions/{subscriptionId}"
+
+  # ── Monitor / Log Analytics ───────────────────────────────────────────────────
+  - from_resource_type: microsoft.operationalinsights/workspaces
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Public IP Address ─────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.network/publicipaddresses
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── App Service Plan ──────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.web/appserviceplans
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Disk Encryption Set ───────────────────────────────────────────────────────
+  - from_resource_type: microsoft.compute/diskencryptionsets
+    relation_type: uses
+    to_resource_type: microsoft.keyvault/vaults
+    source_field: "properties.activeKey.keyUrl"
+    target_uid_pattern: "{keyUrl}"
+
+  - from_resource_type: microsoft.compute/diskencryptionsets
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Route Table ───────────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.network/routetables
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  - from_resource_type: microsoft.network/routetables
+    relation_type: associated_with
+    to_resource_type: microsoft.network/virtualnetworks/subnets
+    source_field: "properties.subnets"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  # ── NAT Gateway ───────────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.network/natgateways
+    relation_type: attached_to
+    to_resource_type: microsoft.network/publicipaddresses
+    source_field: "properties.publicIpAddresses"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.network/natgateways
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Availability Set ──────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.compute/availabilitysets
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Virtual Machine Scale Set ─────────────────────────────────────────────────
+  - from_resource_type: microsoft.compute/virtualmachinescalesets
+    relation_type: contained_by
+    to_resource_type: microsoft.network/virtualnetworks/subnets
+    source_field: "properties.virtualMachineProfile.networkProfile.networkInterfaceConfigurations"
+    source_field_item: "properties.ipConfigurations[].properties.subnet.id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.compute/virtualmachinescalesets
+    relation_type: uses
+    to_resource_type: microsoft.managedidentity/userassignedidentities
+    source_field: "identity.userAssignedIdentities"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.compute/virtualmachinescalesets
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Azure Firewall ────────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.network/azurefirewalls
+    relation_type: contained_by
+    to_resource_type: microsoft.network/virtualnetworks
+    source_field: "properties.ipConfigurations"
+    source_field_item: "properties.subnet.id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.network/azurefirewalls
+    relation_type: uses
+    to_resource_type: microsoft.network/firewallpolicies
+    source_field: "properties.firewallPolicy.id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.network/azurefirewalls
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Firewall Policy ───────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.network/firewallpolicies
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Azure Bastion ─────────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.network/bastionhosts
+    relation_type: contained_by
+    to_resource_type: microsoft.network/virtualnetworks/subnets
+    source_field: "properties.ipConfigurations"
+    source_field_item: "properties.subnet.id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.network/bastionhosts
+    relation_type: attached_to
+    to_resource_type: microsoft.network/publicipaddresses
+    source_field: "properties.ipConfigurations"
+    source_field_item: "properties.publicIPAddress.id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.network/bastionhosts
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── ExpressRoute Circuit ──────────────────────────────────────────────────────
+  - from_resource_type: microsoft.network/expressroutecircuits
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Virtual Network Gateway ───────────────────────────────────────────────────
+  - from_resource_type: microsoft.network/virtualnetworkgateways
+    relation_type: contained_by
+    to_resource_type: microsoft.network/virtualnetworks/subnets
+    source_field: "properties.ipConfigurations"
+    source_field_item: "properties.subnet.id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.network/virtualnetworkgateways
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Redis Cache ───────────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.cache/redis
+    relation_type: contained_by
+    to_resource_type: microsoft.network/virtualnetworks/subnets
+    source_field: "properties.subnetId"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.cache/redis
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Event Grid Topic ──────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.eventgrid/topics
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Event Grid Subscription ───────────────────────────────────────────────────
+  - from_resource_type: microsoft.eventgrid/eventsubscriptions
+    relation_type: routes_to
+    to_resource_type: microsoft.eventhub/namespaces
+    source_field: "properties.destination.properties.resourceId"
+    target_uid_pattern: "{id}"
+
+  # ── Cognitive Services / AI Services ──────────────────────────────────────────
+  - from_resource_type: microsoft.cognitiveservices/accounts
+    relation_type: restricted_to
+    to_resource_type: microsoft.network/virtualnetworks
+    source_field: "properties.networkAcls.virtualNetworkRules"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.cognitiveservices/accounts
+    relation_type: uses
+    to_resource_type: microsoft.managedidentity/userassignedidentities
+    source_field: "identity.userAssignedIdentities"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.cognitiveservices/accounts
+    relation_type: encrypted_by
+    to_resource_type: microsoft.keyvault/vaults
+    source_field: "properties.encryption.keyVaultProperties.keyVaultUri"
+    target_uid_pattern: "{keyUri}"
+
+  - from_resource_type: microsoft.cognitiveservices/accounts
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── PostgreSQL Flexible Server ────────────────────────────────────────────────
+  - from_resource_type: microsoft.dbforpostgresql/flexibleservers
+    relation_type: contained_by
+    to_resource_type: microsoft.network/virtualnetworks/subnets
+    source_field: "properties.network.delegatedSubnetResourceId"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.dbforpostgresql/flexibleservers
+    relation_type: encrypted_by
+    to_resource_type: microsoft.keyvault/vaults
+    source_field: "properties.dataEncryption.primaryKeyURI"
+    target_uid_pattern: "{keyUri}"
+
+  - from_resource_type: microsoft.dbforpostgresql/flexibleservers
+    relation_type: uses
+    to_resource_type: microsoft.managedidentity/userassignedidentities
+    source_field: "identity.userAssignedIdentities"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.dbforpostgresql/flexibleservers
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── MySQL Flexible Server ─────────────────────────────────────────────────────
+  - from_resource_type: microsoft.dbformysql/flexibleservers
+    relation_type: contained_by
+    to_resource_type: microsoft.network/virtualnetworks/subnets
+    source_field: "properties.network.delegatedSubnetResourceId"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.dbformysql/flexibleservers
+    relation_type: encrypted_by
+    to_resource_type: microsoft.keyvault/vaults
+    source_field: "properties.dataEncryption.primaryKeyURI"
+    target_uid_pattern: "{keyUri}"
+
+  - from_resource_type: microsoft.dbformysql/flexibleservers
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── API Management ────────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.apimanagement/service
+    relation_type: contained_by
+    to_resource_type: microsoft.network/virtualnetworks/subnets
+    source_field: "properties.virtualNetworkConfiguration.subnetResourceId"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.apimanagement/service
+    relation_type: uses
+    to_resource_type: microsoft.managedidentity/userassignedidentities
+    source_field: "identity.userAssignedIdentities"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.apimanagement/service
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Logic App ─────────────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.logic/workflows
+    relation_type: uses
+    to_resource_type: microsoft.managedidentity/userassignedidentities
+    source_field: "identity.userAssignedIdentities"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.logic/workflows
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Private Endpoint ──────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.network/privateendpoints
+    relation_type: contained_by
+    to_resource_type: microsoft.network/virtualnetworks/subnets
+    source_field: "properties.subnet.id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.network/privateendpoints
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Private DNS Zone ──────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.network/privatednszones
+    relation_type: associated_with
+    to_resource_type: microsoft.network/virtualnetworks
+    source_field: "properties.virtualNetworkLinks"
+    source_field_item: "properties.virtualNetwork.id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.network/privatednszones
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Synapse Workspace ─────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.synapse/workspaces
+    relation_type: encrypted_by
+    to_resource_type: microsoft.keyvault/vaults
+    source_field: "properties.encryption.cmk.key.keyVaultUrl"
+    target_uid_pattern: "{keyVaultUrl}"
+
+  - from_resource_type: microsoft.synapse/workspaces
+    relation_type: uses
+    to_resource_type: microsoft.managedidentity/userassignedidentities
+    source_field: "identity.userAssignedIdentities"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.synapse/workspaces
+    relation_type: runs_on
+    to_resource_type: microsoft.storage/storageaccounts
+    source_field: "properties.defaultDataLakeStorage.accountUrl"
+    target_uid_pattern: "{accountUrl}"
+
+  - from_resource_type: microsoft.synapse/workspaces
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Application Insights ──────────────────────────────────────────────────────
+  - from_resource_type: microsoft.insights/components
+    relation_type: routes_to
+    to_resource_type: microsoft.operationalinsights/workspaces
+    source_field: "properties.WorkspaceResourceId"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.insights/components
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Azure Monitor Diagnostic Setting ──────────────────────────────────────────
+  - from_resource_type: microsoft.insights/diagnosticsettings
+    relation_type: routes_to
+    to_resource_type: microsoft.operationalinsights/workspaces
+    source_field: "properties.workspaceId"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.insights/diagnosticsettings
+    relation_type: routes_to
+    to_resource_type: microsoft.storage/storageaccounts
+    source_field: "properties.storageAccountId"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.insights/diagnosticsettings
+    relation_type: routes_to
+    to_resource_type: microsoft.eventhub/namespaces
+    source_field: "properties.eventHubAuthorizationRuleId"
+    target_uid_pattern: "{id}"
+
+  # ── Key Vault Key / Secret ────────────────────────────────────────────────────
+  - from_resource_type: microsoft.keyvault/vaults/keys
+    relation_type: contained_by
+    to_resource_type: microsoft.keyvault/vaults
+    source_field: "id"
+    target_uid_pattern: "{vaultId}"
+
+  - from_resource_type: microsoft.keyvault/vaults/secrets
+    relation_type: contained_by
+    to_resource_type: microsoft.keyvault/vaults
+    source_field: "id"
+    target_uid_pattern: "{vaultId}"
+
+  # ── Key Vault Certificate ─────────────────────────────────────────────────
+  - from_resource_type: microsoft.keyvault/vaults/certificates
+    relation_type: contained_by
+    to_resource_type: microsoft.keyvault/vaults
+    source_field: "id"
+    target_uid_pattern: "{vaultId}"
+
+  # ── Missing RG containment for Event Hub / Service Bus ────────────────────
+  - from_resource_type: microsoft.eventhub/namespaces
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  - from_resource_type: microsoft.eventhub/namespaces
+    relation_type: restricted_to
+    to_resource_type: microsoft.network/virtualnetworks
+    source_field: "properties.networkRuleSets.virtualNetworkRules"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.servicebus/namespaces
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Event Hub sub-resources ───────────────────────────────────────────────
+  - from_resource_type: microsoft.eventhub/namespaces/eventhubs
+    relation_type: contained_by
+    to_resource_type: microsoft.eventhub/namespaces
+    source_field: "id"
+    target_uid_pattern: "{namespaceId}"
+
+  - from_resource_type: microsoft.eventhub/namespaces/consumergroups
+    relation_type: contained_by
+    to_resource_type: microsoft.eventhub/namespaces/eventhubs
+    source_field: "id"
+    target_uid_pattern: "{eventhubId}"
+
+  - from_resource_type: microsoft.eventhub/namespaces/authorizationrules
+    relation_type: contained_by
+    to_resource_type: microsoft.eventhub/namespaces
+    source_field: "id"
+    target_uid_pattern: "{namespaceId}"
+
+  # ── Service Bus sub-resources ─────────────────────────────────────────────
+  - from_resource_type: microsoft.servicebus/namespaces/queues
+    relation_type: contained_by
+    to_resource_type: microsoft.servicebus/namespaces
+    source_field: "id"
+    target_uid_pattern: "{namespaceId}"
+
+  - from_resource_type: microsoft.servicebus/namespaces/topics
+    relation_type: contained_by
+    to_resource_type: microsoft.servicebus/namespaces
+    source_field: "id"
+    target_uid_pattern: "{namespaceId}"
+
+  - from_resource_type: microsoft.servicebus/namespaces/topics/subscriptions
+    relation_type: contained_by
+    to_resource_type: microsoft.servicebus/namespaces/topics
+    source_field: "id"
+    target_uid_pattern: "{topicId}"
+
+  # ── SQL sub-resources ─────────────────────────────────────────────────────
+  - from_resource_type: microsoft.sql/servers/firewallrules
+    relation_type: contained_by
+    to_resource_type: microsoft.sql/servers
+    source_field: "id"
+    target_uid_pattern: "{serverId}"
+
+  - from_resource_type: microsoft.sql/servers/elasticpools
+    relation_type: contained_by
+    to_resource_type: microsoft.sql/servers
+    source_field: "id"
+    target_uid_pattern: "{serverId}"
+
+  # ── App Service sub-resources ─────────────────────────────────────────────
+  - from_resource_type: microsoft.web/webapps/slots
+    relation_type: contained_by
+    to_resource_type: microsoft.web/webapps
+    source_field: "id"
+    target_uid_pattern: "{webAppId}"
+
+  # ── Container Registry sub-resources ─────────────────────────────────────
+  - from_resource_type: microsoft.containerregistry/registries/webhooks
+    relation_type: contained_by
+    to_resource_type: microsoft.containerregistry/registries
+    source_field: "id"
+    target_uid_pattern: "{registryId}"
+
+  - from_resource_type: microsoft.containerregistry/registries/replications
+    relation_type: contained_by
+    to_resource_type: microsoft.containerregistry/registries
+    source_field: "id"
+    target_uid_pattern: "{registryId}"
+
+  # ── AKS sub-resources ─────────────────────────────────────────────────────
+  - from_resource_type: microsoft.containerservice/managedclusters/agentpools
+    relation_type: contained_by
+    to_resource_type: microsoft.containerservice/managedclusters
+    source_field: "id"
+    target_uid_pattern: "{clusterId}"
+
+  # ── CosmosDB sub-resources ────────────────────────────────────────────────
+  - from_resource_type: microsoft.documentdb/databaseaccounts/sqldatabases
+    relation_type: contained_by
+    to_resource_type: microsoft.documentdb/databaseaccounts
+    source_field: "id"
+    target_uid_pattern: "{accountId}"
+
+  - from_resource_type: microsoft.documentdb/databaseaccounts/mongodbdatabases
+    relation_type: contained_by
+    to_resource_type: microsoft.documentdb/databaseaccounts
+    source_field: "id"
+    target_uid_pattern: "{accountId}"
+
+  # ── Storage sub-resources ─────────────────────────────────────────────────
+  - from_resource_type: microsoft.storage/storageaccounts/queueservices/queues
+    relation_type: contained_by
+    to_resource_type: microsoft.storage/storageaccounts
+    source_field: "id"
+    target_uid_pattern: "{storageAccountId}"
+
+  - from_resource_type: microsoft.storage/storageaccounts/tableservices/tables
+    relation_type: contained_by
+    to_resource_type: microsoft.storage/storageaccounts
+    source_field: "id"
+    target_uid_pattern: "{storageAccountId}"
+
+  - from_resource_type: microsoft.storage/storageaccounts/fileservices/shares
+    relation_type: contained_by
+    to_resource_type: microsoft.storage/storageaccounts
+    source_field: "id"
+    target_uid_pattern: "{storageAccountId}"
+
+  # ── VNet sub-resources ────────────────────────────────────────────────────
+  - from_resource_type: microsoft.network/virtualnetworks/virtualnetworkpeerings
+    relation_type: contained_by
+    to_resource_type: microsoft.network/virtualnetworks
+    source_field: "id"
+    target_uid_pattern: "{vnetId}"
+
+  # ── NSG sub-resources ─────────────────────────────────────────────────────
+  - from_resource_type: microsoft.network/networksecuritygroups/securityrules
+    relation_type: contained_by
+    to_resource_type: microsoft.network/networksecuritygroups
+    source_field: "id"
+    target_uid_pattern: "{nsgId}"
+
+  # ── Route Table sub-resources ─────────────────────────────────────────────
+  - from_resource_type: microsoft.network/routetables/routes
+    relation_type: contained_by
+    to_resource_type: microsoft.network/routetables
+    source_field: "id"
+    target_uid_pattern: "{routeTableId}"
+
+  # ── Compute Snapshot ──────────────────────────────────────────────────────
+  - from_resource_type: microsoft.compute/snapshots
+    relation_type: depends_on
+    to_resource_type: microsoft.compute/disks
+    source_field: "properties.creationData.sourceResourceId"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.compute/snapshots
+    relation_type: encrypted_by
+    to_resource_type: microsoft.compute/diskencryptionsets
+    source_field: "properties.encryption.diskEncryptionSetId"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.compute/snapshots
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Data Factory ──────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.datafactory/factories
+    relation_type: uses
+    to_resource_type: microsoft.keyvault/vaults
+    source_field: "properties.encryption.vaultBaseUrl"
+    target_uid_pattern: "{vaultBaseUrl}"
+
+  - from_resource_type: microsoft.datafactory/factories
+    relation_type: uses
+    to_resource_type: microsoft.managedidentity/userassignedidentities
+    source_field: "identity.userAssignedIdentities"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.datafactory/factories
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Databricks Workspace ──────────────────────────────────────────────────
+  - from_resource_type: microsoft.databricks/workspaces
+    relation_type: contained_by
+    to_resource_type: microsoft.network/virtualnetworks/subnets
+    source_field: "properties.parameters.customPrivateSubnetName.value"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.databricks/workspaces
+    relation_type: encrypted_by
+    to_resource_type: microsoft.keyvault/vaults
+    source_field: "properties.parameters.encryption.value.keyVaultUri"
+    target_uid_pattern: "{keyVaultUri}"
+
+  - from_resource_type: microsoft.databricks/workspaces
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Machine Learning Workspace ────────────────────────────────────────────
+  - from_resource_type: microsoft.machinelearningservices/workspaces
+    relation_type: uses
+    to_resource_type: microsoft.keyvault/vaults
+    source_field: "properties.keyVault"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.machinelearningservices/workspaces
+    relation_type: uses
+    to_resource_type: microsoft.storage/storageaccounts
+    source_field: "properties.storageAccount"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.machinelearningservices/workspaces
+    relation_type: uses
+    to_resource_type: microsoft.managedidentity/userassignedidentities
+    source_field: "identity.userAssignedIdentities"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.machinelearningservices/workspaces
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Azure Batch ───────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.batch/batchaccounts
+    relation_type: uses
+    to_resource_type: microsoft.keyvault/vaults
+    source_field: "properties.keyVaultReference.id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.batch/batchaccounts
+    relation_type: uses
+    to_resource_type: microsoft.storage/storageaccounts
+    source_field: "properties.autoStorage.storageAccountId"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.batch/batchaccounts
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Azure AI Search ───────────────────────────────────────────────────────
+  - from_resource_type: microsoft.search/searchservices
+    relation_type: restricted_to
+    to_resource_type: microsoft.network/virtualnetworks
+    source_field: "properties.networkRuleSet.ipRules"
+    source_field_item: "value"
+    target_uid_pattern: "{value}"
+
+  - from_resource_type: microsoft.search/searchservices
+    relation_type: uses
+    to_resource_type: microsoft.managedidentity/userassignedidentities
+    source_field: "identity.userAssignedIdentities"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.search/searchservices
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Container Instance ────────────────────────────────────────────────────
+  - from_resource_type: microsoft.containerinstance/containergroups
+    relation_type: contained_by
+    to_resource_type: microsoft.network/virtualnetworks/subnets
+    source_field: "properties.subnetIds"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.containerinstance/containergroups
+    relation_type: uses
+    to_resource_type: microsoft.managedidentity/userassignedidentities
+    source_field: "identity.userAssignedIdentities"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.containerinstance/containergroups
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Traffic Manager ───────────────────────────────────────────────────────
+  - from_resource_type: microsoft.network/trafficmanagerprofiles
+    relation_type: routes_to
+    to_resource_type: microsoft.web/webapps
+    source_field: "properties.endpoints"
+    source_field_item: "properties.targetResourceId"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.network/trafficmanagerprofiles
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Recovery Services Vault ───────────────────────────────────────────────
+  - from_resource_type: microsoft.recoveryservices/vaults
+    relation_type: encrypted_by
+    to_resource_type: microsoft.keyvault/vaults
+    source_field: "properties.encryption.keyVaultProperties.keyUri"
+    target_uid_pattern: "{keyUri}"
+
+  - from_resource_type: microsoft.recoveryservices/vaults
+    relation_type: uses
+    to_resource_type: microsoft.managedidentity/userassignedidentities
+    source_field: "identity.userAssignedIdentities"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.recoveryservices/vaults
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── HDInsight Cluster ─────────────────────────────────────────────────────
+  - from_resource_type: microsoft.hdinsight/clusters
+    relation_type: contained_by
+    to_resource_type: microsoft.network/virtualnetworks/subnets
+    source_field: "properties.computeProfile.roles"
+    source_field_item: "virtualNetworkProfile.subnetId"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.hdinsight/clusters
+    relation_type: uses
+    to_resource_type: microsoft.storage/storageaccounts
+    source_field: "properties.storageProfile.storageaccounts"
+    source_field_item: "name"
+    target_uid_pattern: "{name}"
+
+  - from_resource_type: microsoft.hdinsight/clusters
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── SignalR Service ───────────────────────────────────────────────────────
+  - from_resource_type: microsoft.signalrservice/signalr
+    relation_type: uses
+    to_resource_type: microsoft.managedidentity/userassignedidentities
+    source_field: "identity.userAssignedIdentities"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.signalrservice/signalr
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── App Configuration ─────────────────────────────────────────────────────
+  - from_resource_type: microsoft.appconfiguration/configurationstores
+    relation_type: encrypted_by
+    to_resource_type: microsoft.keyvault/vaults
+    source_field: "properties.encryption.keyVaultProperties.keyIdentifier"
+    target_uid_pattern: "{keyIdentifier}"
+
+  - from_resource_type: microsoft.appconfiguration/configurationstores
+    relation_type: uses
+    to_resource_type: microsoft.managedidentity/userassignedidentities
+    source_field: "identity.userAssignedIdentities"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.appconfiguration/configurationstores
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Missing RG containment for existing types ─────────────────────────────
+  - from_resource_type: microsoft.network/privatednszones
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── DDoS Protection Plan ──────────────────────────────────────────────────
+  - from_resource_type: microsoft.network/ddosprotectionplans
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  - from_resource_type: microsoft.network/virtualnetworks
+    relation_type: protected_by
+    to_resource_type: microsoft.network/ddosprotectionplans
+    source_field: "properties.ddosProtectionPlan.id"
+    target_uid_pattern: "{id}"
+
+  # ── Front Door ────────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.network/frontdoors
+    relation_type: routes_to
+    to_resource_type: microsoft.web/webapps
+    source_field: "properties.backendPools"
+    source_field_item: "properties.backends[].address"
+    target_uid_pattern: "{address}"
+
+  - from_resource_type: microsoft.network/frontdoors
+    relation_type: protected_by
+    to_resource_type: microsoft.network/frontdoorwebapplicationfirewallpolicies
+    source_field: "properties.frontendEndpoints"
+    source_field_item: "properties.webApplicationFirewallPolicyLink.id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.network/frontdoors
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  - from_resource_type: microsoft.network/frontdoorwebapplicationfirewallpolicies
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── CDN ───────────────────────────────────────────────────────────────────
+  - from_resource_type: microsoft.cdn/profiles
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  - from_resource_type: microsoft.cdn/profiles/endpoints
+    relation_type: contained_by
+    to_resource_type: microsoft.cdn/profiles
+    source_field: "id"
+    target_uid_pattern: "{profileId}"
+
+  # ── Application Gateway WAF Policy ────────────────────────────────────────
+  - from_resource_type: microsoft.network/applicationgateways
+    relation_type: protected_by
+    to_resource_type: microsoft.network/applicationgatewaywebapplicationfirewallpolicies
+    source_field: "properties.firewallPolicy.id"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.network/applicationgatewaywebapplicationfirewallpolicies
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"
+
+  # ── Private Endpoint → target service links ───────────────────────────────
+  - from_resource_type: microsoft.network/privateendpoints
+    relation_type: routes_to
+    to_resource_type: microsoft.keyvault/vaults
+    source_field: "properties.privateLinkServiceConnections"
+    source_field_item: "properties.privateLinkServiceId"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.network/privateendpoints
+    relation_type: routes_to
+    to_resource_type: microsoft.storage/storageaccounts
+    source_field: "properties.privateLinkServiceConnections"
+    source_field_item: "properties.privateLinkServiceId"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.network/privateendpoints
+    relation_type: routes_to
+    to_resource_type: microsoft.sql/servers
+    source_field: "properties.privateLinkServiceConnections"
+    source_field_item: "properties.privateLinkServiceId"
+    target_uid_pattern: "{id}"
+
+  # ── VNet Gateway → Public IP ───────────────────────────────────────────────
+  - from_resource_type: microsoft.network/virtualnetworkgateways
+    relation_type: attached_to
+    to_resource_type: microsoft.network/publicipaddresses
+    source_field: "properties.ipConfigurations"
+    source_field_item: "properties.publicIPAddress.id"
+    target_uid_pattern: "{id}"
+
+  # ── Container Registry → Managed Identity ─────────────────────────────────
+  - from_resource_type: microsoft.containerregistry/registries
+    relation_type: uses
+    to_resource_type: microsoft.managedidentity/userassignedidentities
+    source_field: "identity.userAssignedIdentities"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  # ── Web App → App Insights diagnostic link ────────────────────────────────
+  - from_resource_type: microsoft.web/webapps
+    relation_type: monitored_by
+    to_resource_type: microsoft.insights/components
+    source_field: "properties.siteConfig.appSettings"
+    source_field_item: "APPINSIGHTS_INSTRUMENTATIONKEY"
+    target_uid_pattern: "ikey:{APPINSIGHTS_INSTRUMENTATIONKEY}"
+
+  # ── SQL Server → Key Vault (TDE protector) ────────────────────────────────
+  - from_resource_type: microsoft.sql/servers
+    relation_type: encrypted_by
+    to_resource_type: microsoft.keyvault/vaults
+    source_field: "properties.transparentDataEncryption.keyUri"
+    target_uid_pattern: "{keyUri}"
+
+  # ── VMSS → Disk Encryption Set ────────────────────────────────────────────
+  - from_resource_type: microsoft.compute/virtualmachinescalesets
+    relation_type: encrypted_by
+    to_resource_type: microsoft.compute/diskencryptionsets
+    source_field: "properties.virtualMachineProfile.storageProfile.osDisk.managedDisk.diskEncryptionSet.id"
+    target_uid_pattern: "{id}"
+
+  # ── Redis Cache → Key Vault + Managed Identity ────────────────────────────
+  - from_resource_type: microsoft.cache/redis
+    relation_type: encrypted_by
+    to_resource_type: microsoft.keyvault/vaults
+    source_field: "properties.redisConfiguration.aof-storage-connection-string-0"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.cache/redis
+    relation_type: uses
+    to_resource_type: microsoft.managedidentity/userassignedidentities
+    source_field: "identity.userAssignedIdentities"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  # ── Event Grid → Key Vault + Managed Identity ────────────────────────────
+  - from_resource_type: microsoft.eventgrid/topics
+    relation_type: encrypted_by
+    to_resource_type: microsoft.keyvault/vaults
+    source_field: "properties.inputSchema"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.eventgrid/topics
+    relation_type: uses
+    to_resource_type: microsoft.managedidentity/userassignedidentities
+    source_field: "identity.userAssignedIdentities"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  # ── Log Analytics Workspace → Managed Identity ────────────────────────────
+  - from_resource_type: microsoft.operationalinsights/workspaces
+    relation_type: uses
+    to_resource_type: microsoft.managedidentity/userassignedidentities
+    source_field: "identity.userAssignedIdentities"
+    source_field_item: "id"
+    target_uid_pattern: "{id}"
+
+  # ── Azure Spring Apps ─────────────────────────────────────────────────────
+  - from_resource_type: microsoft.appplatform/spring
+    relation_type: contained_by
+    to_resource_type: microsoft.network/virtualnetworks/subnets
+    source_field: "properties.networkProfile.serviceRuntimeSubnetId"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.appplatform/spring
+    relation_type: uses
+    to_resource_type: microsoft.keyvault/vaults
+    source_field: "properties.configServerProperties.configServer.gitProperty.uri"
+    target_uid_pattern: "{id}"
+
+  - from_resource_type: microsoft.appplatform/spring
+    relation_type: contained_by
+    to_resource_type: microsoft.resources/resourcegroups
+    source_field: "resourceGroup"
+    target_uid_pattern: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"

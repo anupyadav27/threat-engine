@@ -1,0 +1,84 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: parallel-discovery-scan
+  namespace: threat-engine-engines
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        app: parallel-discovery-scan
+    spec:
+      tolerations:
+      - key: spot-scanner
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+      nodeSelector:
+        node-type: spot
+      restartPolicy: Never
+      containers:
+      - name: scan-launcher
+        image: python:3.11-slim
+        command: ["python3", "-c"]
+        args:
+        - |
+          import urllib.request, json, concurrent.futures, time
+
+          DISCOVERY_SVC = "http://engine-discoveries.threat-engine-engines.svc.cluster.local/api/v1/discovery"
+          TENANT = "5a8b072b-8867-4476-a52f-f331b1cbacb3"
+          ORCH = "337a7425-5a53-4664-8569-04c1f0d6abf0"
+          ACCOUNT = "588989875114"
+
+          regions = [
+              "us-east-1", "us-east-2", "us-west-1", "us-west-2",
+              "eu-west-1", "eu-west-2", "eu-west-3", "eu-central-1", "eu-north-1",
+              "ap-south-1", "ap-southeast-1", "ap-southeast-2",
+              "ap-northeast-1", "ap-northeast-2", "ap-northeast-3",
+              "ca-central-1", "sa-east-1"
+          ]
+
+          def launch_scan(region):
+              payload = json.dumps({
+                  "tenant_id": TENANT,
+                  "scan_run_id": ORCH,
+                  "account_id": ACCOUNT,
+                  "hierarchy_type": "account",
+                  "provider": "aws",
+                  "regions": [region]
+              }).encode()
+              req = urllib.request.Request(
+                  DISCOVERY_SVC, data=payload,
+                  headers={"Content-Type": "application/json"}, method="POST"
+              )
+              try:
+                  resp = urllib.request.urlopen(req, timeout=15)
+                  result = json.loads(resp.read().decode())
+                  sid = result.get("scan_run_id", "?")
+                  print(f"[LAUNCHED] {region:20s} => {sid}", flush=True)
+                  return (region, sid)
+              except Exception as e:
+                  print(f"[FAILED]  {region:20s} => {e}", flush=True)
+                  return (region, None)
+
+          print(f"Launching {len(regions)} parallel discovery scans...", flush=True)
+          scan_map = {}
+
+          with concurrent.futures.ThreadPoolExecutor(max_workers=17) as pool:
+              futures = {pool.submit(launch_scan, r): r for r in regions}
+              for f in concurrent.futures.as_completed(futures):
+                  region, sid = f.result()
+                  if sid:
+                      scan_map[region] = sid
+
+          print(f"\nLaunched {len(scan_map)}/17 scans", flush=True)
+          print(json.dumps(scan_map, indent=2), flush=True)
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi

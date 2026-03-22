@@ -1,0 +1,137 @@
+# ============================================================
+# Discovery YAML — vpcaccess (v1)
+# Generated: 2026-02-21T03:06:41Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 5 | independent: 3 | dependent: 2
+# ops with fields: 5/5 | dep ops with chain: 2/2
+# ============================================================
+version: '1.0'
+provider: gcp
+service: vpcaccess
+
+services:
+  client: vpcaccess
+  module: "googleapiclient.discovery.build('vpcaccess', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists Serverless VPC Access connectors.
+  # ── gcp.vpcaccess.projects.locations.connectors.list ──
+  - discovery_id: gcp.vpcaccess.projects.locations.connectors.list
+    # python: svc.projects().locations().connectors().list(**params).execute()
+    calls:
+      - action: projects.locations.connectors.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.connectors }}'
+      item:
+        connectedProjects: '{{ item.connectedProjects }}'
+        ipCidrRange: '{{ item.ipCidrRange }}'
+        machineType: '{{ item.machineType }}'
+        maxInstances: '{{ item.maxInstances }}'
+        maxThroughput: '{{ item.maxThroughput }}'
+        minInstances: '{{ item.minInstances }}'
+        minThroughput: '{{ item.minThroughput }}'
+        name: '{{ item.name }}'
+        network: '{{ item.network }}'
+        state: '{{ item.state }}'
+        subnet: '{{ item.subnet }}'
+  # Lists information about the supported locations for this service.
+  # ── gcp.vpcaccess.projects.locations.list ──
+  - discovery_id: gcp.vpcaccess.projects.locations.list
+    # python: svc.projects().locations().list(**params).execute()
+    calls:
+      - action: projects.locations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.locations }}'
+      item:
+        displayName: '{{ item.displayName }}'
+        labels: '{{ item.labels }}'
+        locationId: '{{ item.locationId }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+  # Lists operations that match the specified filter in the request. If the server doesn't support this 
+  # ── gcp.vpcaccess.projects.locations.operations.list ──
+  - discovery_id: gcp.vpcaccess.projects.locations.operations.list
+    # python: svc.projects().locations().operations().list(**params).execute()
+    calls:
+      - action: projects.locations.operations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.operations }}'
+      item:
+        done: '{{ item.done }}'
+        error: '{{ item.error }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+        response: '{{ item.response }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets a Serverless VPC Access connector. Returns NOT_FOUND if the resource does not exist.
+  # ── gcp.vpcaccess.projects.locations.connectors.get [dependent] ──
+  - discovery_id: gcp.vpcaccess.projects.locations.connectors.get
+    for_each: gcp.vpcaccess.projects.locations.connectors.list
+    # python: svc.projects().locations().connectors().get(**params).execute()
+    calls:
+      - action: projects.locations.connectors.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        connectedProjects: '{{ response.connectedProjects }}'
+        ipCidrRange: '{{ response.ipCidrRange }}'
+        machineType: '{{ response.machineType }}'
+        maxInstances: '{{ response.maxInstances }}'
+        maxThroughput: '{{ response.maxThroughput }}'
+        minInstances: '{{ response.minInstances }}'
+        minThroughput: '{{ response.minThroughput }}'
+        name: '{{ response.name }}'
+        network: '{{ response.network }}'
+        state: '{{ response.state }}'
+        subnet: '{{ response.subnet }}'
+    # required_params: ['name']
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.vpcaccess.projects.locations.operations.get [dependent] ──
+  - discovery_id: gcp.vpcaccess.projects.locations.operations.get
+    for_each: gcp.vpcaccess.projects.locations.operations.list
+    # python: svc.projects().locations().operations().get(**params).execute()
+    calls:
+      - action: projects.locations.operations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']

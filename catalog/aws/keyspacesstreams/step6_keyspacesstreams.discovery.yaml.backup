@@ -1,0 +1,58 @@
+version: '1.0'
+provider: aws
+service: keyspacesstreams
+services:
+  client: keyspacesstreams
+  module: boto3.client
+discovery:
+- discovery_id: aws.keyspacesstreams.listStreams
+  calls:
+  - action: listStreams
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.streams }}'
+    item:
+      streamArn: '{{ item.streamArn }}'
+      keyspaceName: '{{ item.keyspaceName }}'
+      tableName: '{{ item.tableName }}'
+      streamLabel: '{{ item.streamLabel }}'
+- discovery_id: aws.keyspacesstreams.getRecords
+  calls:
+  - action: getRecords
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.changeRecords }}'
+    item:
+      eventVersion: '{{ item.eventVersion }}'
+      createdAt: '{{ item.createdAt }}'
+      origin: '{{ item.origin }}'
+      partitionKeys: '{{ item.partitionKeys }}'
+      clusteringKeys: '{{ item.clusteringKeys }}'
+      newImage: '{{ item.newImage }}'
+      oldImage: '{{ item.oldImage }}'
+      sequenceNumber: '{{ item.sequenceNumber }}'
+- discovery_id: aws.keyspacesstreams.getShardIterator
+  calls:
+  - action: getShardIterator
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.shardIterator }}'
+- discovery_id: aws.keyspacesstreams.getStream
+  calls:
+  - action: getStream
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.shards }}'
+    item:
+      shardId: '{{ item.shardId }}'
+      sequenceNumberRange: '{{ item.sequenceNumberRange }}'
+      parentShardIds: '{{ item.parentShardIds }}'
+checks: []

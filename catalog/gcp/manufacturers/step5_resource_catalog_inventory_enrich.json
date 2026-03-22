@@ -1,0 +1,300 @@
+{
+  "csp": "gcp",
+  "generated_at": "2026-02-19T14:43:27.422520+00:00",
+  "anchors": {
+    "fixed": [
+      "project_id",
+      "org_id",
+      "folder_id",
+      "location",
+      "zone",
+      "region"
+    ]
+  },
+  "services": {
+    "manufacturers": {
+      "version": "v1",
+      "resources": {
+        "productCertifications": {
+          "resource_type": "productCertifications",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.manufacturers.accounts.products.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/products"
+                },
+                "python_call": "svc.accounts().products().list(**params).execute()",
+                "produces": {
+                  "name": "products[].name",
+                  "feedLabel": "products[].feedLabel",
+                  "destinationStatuses": "products[].destinationStatuses",
+                  "attributes": "products[].attributes",
+                  "parent": "products[].parent",
+                  "contentLanguage": "products[].contentLanguage",
+                  "productId": "products[].productId",
+                  "issues": "products[].issues",
+                  "targetCountry": "products[].targetCountry"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.manufacturers.accounts.languages.productCertifications.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/productCertifications"
+                },
+                "python_call": "svc.accounts().languages().productCertifications().list(**params).execute()",
+                "produces": {
+                  "name": "productCertifications[].name",
+                  "countryCode": "productCertifications[].countryCode",
+                  "productCode": "productCertifications[].productCode",
+                  "title": "productCertifications[].title",
+                  "issues": "productCertifications[].issues",
+                  "destinationStatuses": "productCertifications[].destinationStatuses",
+                  "certification": "productCertifications[].certification",
+                  "brand": "productCertifications[].brand",
+                  "productType": "productCertifications[].productType",
+                  "mpn": "productCertifications[].mpn"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.manufacturers.accounts.languages.productCertifications.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.accounts().languages().productCertifications().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.manufacturers.accounts.languages.productCertifications.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 3,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.manufacturers.accounts.products.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.accounts().products().list(**params).execute()",
+                      "path": "/v1/{+parent}/products",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^accounts/[^/]+$",
+                          "description": "Parent ID in the format `accounts/{account_id}`. `account_id` - The ID of the Manufacturer Center account."
+                        }
+                      },
+                      "output_list_field": "products",
+                      "output_id_field": "name",
+                      "produces": {
+                        "productId": {
+                          "via_list_field": "products",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"products\"][], extract item[\"name\"] \u2192 pass as \"productId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: productId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.manufacturers.accounts.languages.productCertifications.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.accounts().languages().productCertifications().list(**params).execute()",
+                      "path": "/v1/{+parent}/productCertifications",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^accounts/[^/]+/languages/[^/]+$",
+                          "description": "Required. The parent, which owns this collection of product certifications. Format: accounts/{account}/languages/{langua"
+                        }
+                      },
+                      "output_list_field": "productCertifications",
+                      "output_id_field": "name",
+                      "produces": {
+                        "productCertificationId": {
+                          "via_list_field": "productCertifications",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"productCertifications\"][], extract item[\"name\"] \u2192 pass as \"productCertificationId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: productCertificationId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.manufacturers.accounts.languages.productCertifications.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.accounts().languages().productCertifications().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^accounts/[^/]+/languages/[^/]+/productCertifications/[^/]+$",
+                          "description": "Required. The name of the product certification to get. Format: accounts/{account}/languages/{language_code}/productCert"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "languageId": {
+                            "from_step": 1,
+                            "from_op": "gcp.manufacturers.accounts.products.list",
+                            "field": "name"
+                          },
+                          "productCertificationId": {
+                            "from_step": 2,
+                            "from_op": "gcp.manufacturers.accounts.languages.productCertifications.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "products": {
+          "resource_type": "products",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "tuple",
+            "full_identifier": {
+              "template": "{parent}/products/{name}",
+              "built_from_parts": [],
+              "notes": "Tuple identifier; anchor parts are user-provided."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": []
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.manufacturers.accounts.products.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/products/{+name}"
+                },
+                "python_call": "svc.accounts().products().get(**params).execute()",
+                "required_params": {
+                  "parent": {
+                    "from_identifier": "parent"
+                  },
+                  "name": {
+                    "from_identifier": "name"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.manufacturers.accounts.products.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 1,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.manufacturers.accounts.products.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.accounts().products().get(**params).execute()",
+                      "path": "/v1/{+parent}/products/{+name}",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^accounts/[^/]+$",
+                          "description": "Parent ID in the format `accounts/{account_id}`. `account_id` - The ID of the Manufacturer Center account."
+                        },
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^[^/]+$",
+                          "description": "Name in the format `{target_country}:{content_language}:{product_id}`. `target_country` - The target country of the prod"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "parent": "always_available",
+                        "name": "always_available"
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [
+                    "parent"
+                  ],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.4,
+          "notes": "No inventory (list) ops found; enrich only."
+        }
+      }
+    }
+  }
+}

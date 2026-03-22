@@ -1,0 +1,147 @@
+# ============================================================
+# Discovery YAML — clouderrorreporting (v1beta1)
+# Generated: 2026-02-21T03:06:39Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 6 | independent: 4 | dependent: 2
+# ops with fields: 6/6 | dep ops with chain: 2/2
+# ============================================================
+version: '1.0'
+provider: gcp
+service: clouderrorreporting
+
+services:
+  client: clouderrorreporting
+  module: "googleapiclient.discovery.build('clouderrorreporting', 'v1beta1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists the specified events.
+  # ── gcp.clouderrorreporting.projects.events.list ──
+  - discovery_id: gcp.clouderrorreporting.projects.events.list
+    # python: svc.projects().events().list(**params).execute()
+    calls:
+      - action: projects.events.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.events }}'
+      item:
+        context: '{{ item.context }}'
+        eventTime: '{{ item.eventTime }}'
+        message: '{{ item.message }}'
+        serviceContext: '{{ item.serviceContext }}'
+  # Lists the specified groups.
+  # ── gcp.clouderrorreporting.projects.groupStats.list ──
+  - discovery_id: gcp.clouderrorreporting.projects.groupStats.list
+    # python: svc.projects().groupStats().list(**params).execute()
+    calls:
+      - action: projects.groupStats.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.groupStats }}'
+      item:
+        affectedServices: '{{ item.affectedServices }}'
+        affectedUsersCount: '{{ item.affectedUsersCount }}'
+        count: '{{ item.count }}'
+        firstSeenTime: '{{ item.firstSeenTime }}'
+        group: '{{ item.group }}'
+        lastSeenTime: '{{ item.lastSeenTime }}'
+        numAffectedServices: '{{ item.numAffectedServices }}'
+        representative: '{{ item.representative }}'
+        timedCounts: '{{ item.timedCounts }}'
+  # Lists the specified events.
+  # ── gcp.clouderrorreporting.projects.locations.events.list ──
+  - discovery_id: gcp.clouderrorreporting.projects.locations.events.list
+    # python: svc.projects().locations().events().list(**params).execute()
+    calls:
+      - action: projects.locations.events.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.events }}'
+      item:
+        context: '{{ item.context }}'
+        eventTime: '{{ item.eventTime }}'
+        message: '{{ item.message }}'
+        serviceContext: '{{ item.serviceContext }}'
+  # Lists the specified groups.
+  # ── gcp.clouderrorreporting.projects.locations.groupStats.list ──
+  - discovery_id: gcp.clouderrorreporting.projects.locations.groupStats.list
+    # python: svc.projects().locations().groupStats().list(**params).execute()
+    calls:
+      - action: projects.locations.groupStats.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.groupStats }}'
+      item:
+        affectedServices: '{{ item.affectedServices }}'
+        affectedUsersCount: '{{ item.affectedUsersCount }}'
+        count: '{{ item.count }}'
+        firstSeenTime: '{{ item.firstSeenTime }}'
+        group: '{{ item.group }}'
+        lastSeenTime: '{{ item.lastSeenTime }}'
+        numAffectedServices: '{{ item.numAffectedServices }}'
+        representative: '{{ item.representative }}'
+        timedCounts: '{{ item.timedCounts }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Get the specified group.
+  # ── gcp.clouderrorreporting.projects.groups.get [dependent] ──
+  - discovery_id: gcp.clouderrorreporting.projects.groups.get
+    for_each: gcp.clouderrorreporting.projects.groupStats.list
+    # python: svc.projects().groups().get(**params).execute()
+    calls:
+      - action: projects.groups.get
+        params:
+          groupName: '{{ item.representative }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        groupId: '{{ response.groupId }}'
+        name: '{{ response.name }}'
+        resolutionStatus: '{{ response.resolutionStatus }}'
+        trackingIssues: '{{ response.trackingIssues }}'
+    # required_params: ['groupName']
+  # Get the specified group.
+  # ── gcp.clouderrorreporting.projects.locations.groups.get [dependent] ──
+  - discovery_id: gcp.clouderrorreporting.projects.locations.groups.get
+    for_each: gcp.clouderrorreporting.projects.groupStats.list
+    # python: svc.projects().locations().groups().get(**params).execute()
+    calls:
+      - action: projects.locations.groups.get
+        params:
+          groupName: '{{ item.representative }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        groupId: '{{ response.groupId }}'
+        name: '{{ response.name }}'
+        resolutionStatus: '{{ response.resolutionStatus }}'
+        trackingIssues: '{{ response.trackingIssues }}'
+    # required_params: ['groupName']

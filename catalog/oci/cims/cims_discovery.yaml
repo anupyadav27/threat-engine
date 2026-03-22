@@ -1,0 +1,27 @@
+version: '1.0'
+provider: oci
+service: cims
+services:
+  client: cims
+  module: oci.cims
+discovery:
+- discovery_id: oci.cims.get_incident
+  calls:
+  - action: get_incident
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.cims.list_incident_resource_types
+  for_each: oci.cims.get_incident
+  calls:
+  - action: list_incident_resource_types
+    save_as: response
+    on_error: continue
+    params:
+      compartment_id: '{{ item.compartment_id }}'
+  emit:
+    as: item
+    items_for: '{{ response }}'
+checks: []

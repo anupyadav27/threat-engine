@@ -1,0 +1,69 @@
+# ============================================================
+# Discovery YAML — mybusinessqanda (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 2 | independent: 2 | dependent: 0
+# ops with fields: 2/2 | dep ops with chain: 0/0
+# ============================================================
+version: '1.0'
+provider: gcp
+service: mybusinessqanda
+
+services:
+  client: mybusinessqanda
+  module: "googleapiclient.discovery.build('mybusinessqanda', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Returns the paginated list of answers for a specified question.
+  # ── gcp.mybusinessqanda.locations.questions.answers.list ──
+  - discovery_id: gcp.mybusinessqanda.locations.questions.answers.list
+    # python: svc.locations().questions().answers().list(**params).execute()
+    calls:
+      - action: locations.questions.answers.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.answers }}'
+      item:
+        author: '{{ item.author }}'
+        createTime: '{{ item.createTime }}'
+        name: '{{ item.name }}'
+        text: '{{ item.text }}'
+        updateTime: '{{ item.updateTime }}'
+        upvoteCount: '{{ item.upvoteCount }}'
+  # Returns the paginated list of questions and some of its answers for a specified location. This opera
+  # ── gcp.mybusinessqanda.locations.questions.list ──
+  - discovery_id: gcp.mybusinessqanda.locations.questions.list
+    # python: svc.locations().questions().list(**params).execute()
+    calls:
+      - action: locations.questions.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.questions }}'
+      item:
+        author: '{{ item.author }}'
+        createTime: '{{ item.createTime }}'
+        name: '{{ item.name }}'
+        text: '{{ item.text }}'
+        topAnswers: '{{ item.topAnswers }}'
+        totalAnswerCount: '{{ item.totalAnswerCount }}'
+        updateTime: '{{ item.updateTime }}'
+        upvoteCount: '{{ item.upvoteCount }}'

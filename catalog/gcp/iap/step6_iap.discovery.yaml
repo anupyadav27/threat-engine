@@ -1,0 +1,153 @@
+# ============================================================
+# Discovery YAML — iap (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 7 | independent: 3 | dependent: 4
+# ops with fields: 7/7 | dep ops with chain: 4/4
+# ============================================================
+version: '1.0'
+provider: gcp
+service: iap
+
+services:
+  client: iap
+  module: "googleapiclient.discovery.build('iap', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists the existing clients for the brand.
+  # ── gcp.iap.projects.brands.identityAwareProxyClients.list ──
+  - discovery_id: gcp.iap.projects.brands.identityAwareProxyClients.list
+    # python: svc.projects().brands().identityAwareProxyClients().list(**params).execute()
+    calls:
+      - action: projects.brands.identityAwareProxyClients.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.identityAwareProxyClients }}'
+      item:
+        displayName: '{{ item.displayName }}'
+        name: '{{ item.name }}'
+        secret: '{{ item.secret }}'
+  # Lists the existing brands for the project.
+  # ── gcp.iap.projects.brands.list ──
+  - discovery_id: gcp.iap.projects.brands.list
+    # python: svc.projects().brands().list(**params).execute()
+    calls:
+      - action: projects.brands.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.brands }}'
+      item:
+        applicationTitle: '{{ item.applicationTitle }}'
+        name: '{{ item.name }}'
+        orgInternalOnly: '{{ item.orgInternalOnly }}'
+        supportEmail: '{{ item.supportEmail }}'
+  # Lists the existing TunnelDestGroups. To group across all locations, use a `-` as the location ID. Fo
+  # ── gcp.iap.projects.iap_tunnel.locations.destGroups.list ──
+  - discovery_id: gcp.iap.projects.iap_tunnel.locations.destGroups.list
+    # python: svc.projects().iap_tunnel().locations().destGroups().list(**params).execute()
+    calls:
+      - action: projects.iap_tunnel.locations.destGroups.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.destGroups }}'
+      item:
+        cidrs: '{{ item.cidrs }}'
+        fqdns: '{{ item.fqdns }}'
+        name: '{{ item.name }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Retrieves the OAuth brand of the project.
+  # ── gcp.iap.projects.brands.get [dependent] ──
+  - discovery_id: gcp.iap.projects.brands.get
+    for_each: gcp.iap.projects.brands.list
+    # python: svc.projects().brands().get(**params).execute()
+    calls:
+      - action: projects.brands.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        applicationTitle: '{{ response.applicationTitle }}'
+        name: '{{ response.name }}'
+        orgInternalOnly: '{{ response.orgInternalOnly }}'
+        supportEmail: '{{ response.supportEmail }}'
+    # required_params: ['name']
+  # Retrieves an Identity Aware Proxy (IAP) OAuth client. Requires that the client is owned by IAP.
+  # ── gcp.iap.projects.brands.identityAwareProxyClients.get [dependent] ──
+  - discovery_id: gcp.iap.projects.brands.identityAwareProxyClients.get
+    for_each: gcp.iap.projects.brands.identityAwareProxyClients.list
+    # python: svc.projects().brands().identityAwareProxyClients().get(**params).execute()
+    calls:
+      - action: projects.brands.identityAwareProxyClients.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        displayName: '{{ response.displayName }}'
+        name: '{{ response.name }}'
+        secret: '{{ response.secret }}'
+    # required_params: ['name']
+  # Retrieves an existing TunnelDestGroup.
+  # ── gcp.iap.projects.iap_tunnel.locations.destGroups.get [dependent] ──
+  - discovery_id: gcp.iap.projects.iap_tunnel.locations.destGroups.get
+    for_each: gcp.iap.projects.iap_tunnel.locations.destGroups.list
+    # python: svc.projects().iap_tunnel().locations().destGroups().get(**params).execute()
+    calls:
+      - action: projects.iap_tunnel.locations.destGroups.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        cidrs: '{{ response.cidrs }}'
+        fqdns: '{{ response.fqdns }}'
+        name: '{{ response.name }}'
+    # required_params: ['name']
+  # Gets the IAP settings on a particular IAP protected resource.
+  # ── gcp.iap.v1.getIapSettings [dependent] ──
+  - discovery_id: gcp.iap.v1.getIapSettings
+    for_each: gcp.iap.projects.brands.list
+    # python: svc.v1().getIapSettings(**params).execute()
+    calls:
+      - action: v1.getIapSettings
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accessSettings: '{{ response.accessSettings }}'
+        applicationSettings: '{{ response.applicationSettings }}'
+        name: '{{ response.name }}'
+    # required_params: ['name']

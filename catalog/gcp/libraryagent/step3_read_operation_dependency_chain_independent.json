@@ -1,0 +1,438 @@
+{
+  "service": "libraryagent",
+  "version": "v1",
+  "total_ops": 6,
+  "total_chains": 6,
+  "independent_ops": 2,
+  "dependent_ops": 4,
+  "chains": {
+    "gcp.libraryagent.shelves.get": {
+      "target_op": "gcp.libraryagent.shelves.get",
+      "kind": "read_get",
+      "independent": false,
+      "hop_distance": 1,
+      "chain_length": 2,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.libraryagent.shelves.list",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.shelves().list(**params).execute()",
+          "path": "/v1/shelves",
+          "required_params": {},
+          "output_list_field": "shelves",
+          "output_id_field": "name",
+          "produces": {
+            "shelveId": {
+              "via_list_field": "shelves",
+              "from_id_field": "name",
+              "note": "Iterate response[\"shelves\"][], extract item[\"name\"] \u2192 pass as \"shelveId\""
+            }
+          },
+          "param_sources": {},
+          "purpose": "Provides: shelveId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.libraryagent.shelves.get",
+          "kind": "read_get",
+          "independent": false,
+          "python_call": "svc.shelves().get(**params).execute()",
+          "path": "/v1/{+name}",
+          "required_params": {
+            "name": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^shelves/[^/]+$",
+              "description": "Required. The name of the shelf to retrieve."
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "name": {
+              "shelveId": {
+                "from_step": 1,
+                "from_op": "gcp.libraryagent.shelves.list",
+                "field": "name"
+              }
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.libraryagent.shelves.list": {
+      "target_op": "gcp.libraryagent.shelves.list",
+      "kind": "read_list",
+      "independent": true,
+      "hop_distance": 0,
+      "chain_length": 1,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.libraryagent.shelves.list",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.shelves().list(**params).execute()",
+          "path": "/v1/shelves",
+          "required_params": {},
+          "output_list_field": "shelves",
+          "output_id_field": "name",
+          "produces": {
+            "shelveId": {
+              "via_list_field": "shelves",
+              "from_id_field": "name",
+              "note": "Iterate response[\"shelves\"][], extract item[\"name\"] \u2192 pass as \"shelveId\""
+            }
+          },
+          "param_sources": {},
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.libraryagent.shelves.books.return": {
+      "target_op": "gcp.libraryagent.shelves.books.return",
+      "kind": "other",
+      "independent": false,
+      "hop_distance": 1,
+      "chain_length": 3,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.libraryagent.shelves.list",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.shelves().list(**params).execute()",
+          "path": "/v1/shelves",
+          "required_params": {},
+          "output_list_field": "shelves",
+          "output_id_field": "name",
+          "produces": {
+            "shelveId": {
+              "via_list_field": "shelves",
+              "from_id_field": "name",
+              "note": "Iterate response[\"shelves\"][], extract item[\"name\"] \u2192 pass as \"shelveId\""
+            }
+          },
+          "param_sources": {},
+          "purpose": "Provides: shelveId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.libraryagent.shelves.books.list",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.shelves().books().list(**params).execute()",
+          "path": "/v1/{+parent}/books",
+          "required_params": {
+            "parent": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^shelves/[^/]+$",
+              "description": "Required. The name of the shelf whose books we'd like to list."
+            }
+          },
+          "output_list_field": "books",
+          "output_id_field": "name",
+          "produces": {
+            "bookId": {
+              "via_list_field": "books",
+              "from_id_field": "name",
+              "note": "Iterate response[\"books\"][], extract item[\"name\"] \u2192 pass as \"bookId\""
+            }
+          },
+          "param_sources": {
+            "parent": "always_available"
+          },
+          "purpose": "Provides: bookId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 3,
+          "op": "gcp.libraryagent.shelves.books.return",
+          "kind": "other",
+          "independent": false,
+          "python_call": "svc.shelves().books().return(**params).execute()",
+          "path": "/v1/{+name}:return",
+          "required_params": {
+            "name": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^shelves/[^/]+/books/[^/]+$",
+              "description": "Required. The name of the book to return."
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "name": {
+              "shelveId": {
+                "from_step": 1,
+                "from_op": "gcp.libraryagent.shelves.list",
+                "field": "name"
+              },
+              "bookId": {
+                "from_step": 2,
+                "from_op": "gcp.libraryagent.shelves.books.list",
+                "field": "name"
+              }
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.libraryagent.shelves.books.get": {
+      "target_op": "gcp.libraryagent.shelves.books.get",
+      "kind": "read_get",
+      "independent": false,
+      "hop_distance": 1,
+      "chain_length": 3,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.libraryagent.shelves.list",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.shelves().list(**params).execute()",
+          "path": "/v1/shelves",
+          "required_params": {},
+          "output_list_field": "shelves",
+          "output_id_field": "name",
+          "produces": {
+            "shelveId": {
+              "via_list_field": "shelves",
+              "from_id_field": "name",
+              "note": "Iterate response[\"shelves\"][], extract item[\"name\"] \u2192 pass as \"shelveId\""
+            }
+          },
+          "param_sources": {},
+          "purpose": "Provides: shelveId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.libraryagent.shelves.books.list",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.shelves().books().list(**params).execute()",
+          "path": "/v1/{+parent}/books",
+          "required_params": {
+            "parent": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^shelves/[^/]+$",
+              "description": "Required. The name of the shelf whose books we'd like to list."
+            }
+          },
+          "output_list_field": "books",
+          "output_id_field": "name",
+          "produces": {
+            "bookId": {
+              "via_list_field": "books",
+              "from_id_field": "name",
+              "note": "Iterate response[\"books\"][], extract item[\"name\"] \u2192 pass as \"bookId\""
+            }
+          },
+          "param_sources": {
+            "parent": "always_available"
+          },
+          "purpose": "Provides: bookId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 3,
+          "op": "gcp.libraryagent.shelves.books.get",
+          "kind": "read_get",
+          "independent": false,
+          "python_call": "svc.shelves().books().get(**params).execute()",
+          "path": "/v1/{+name}",
+          "required_params": {
+            "name": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^shelves/[^/]+/books/[^/]+$",
+              "description": "Required. The name of the book to retrieve."
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "name": {
+              "shelveId": {
+                "from_step": 1,
+                "from_op": "gcp.libraryagent.shelves.list",
+                "field": "name"
+              },
+              "bookId": {
+                "from_step": 2,
+                "from_op": "gcp.libraryagent.shelves.books.list",
+                "field": "name"
+              }
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.libraryagent.shelves.books.list": {
+      "target_op": "gcp.libraryagent.shelves.books.list",
+      "kind": "read_list",
+      "independent": true,
+      "hop_distance": 0,
+      "chain_length": 1,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.libraryagent.shelves.books.list",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.shelves().books().list(**params).execute()",
+          "path": "/v1/{+parent}/books",
+          "required_params": {
+            "parent": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^shelves/[^/]+$",
+              "description": "Required. The name of the shelf whose books we'd like to list."
+            }
+          },
+          "output_list_field": "books",
+          "output_id_field": "name",
+          "produces": {
+            "bookId": {
+              "via_list_field": "books",
+              "from_id_field": "name",
+              "note": "Iterate response[\"books\"][], extract item[\"name\"] \u2192 pass as \"bookId\""
+            }
+          },
+          "param_sources": {
+            "parent": "always_available"
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [
+        "parent"
+      ],
+      "unresolved_params": []
+    },
+    "gcp.libraryagent.shelves.books.borrow": {
+      "target_op": "gcp.libraryagent.shelves.books.borrow",
+      "kind": "other",
+      "independent": false,
+      "hop_distance": 1,
+      "chain_length": 3,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.libraryagent.shelves.list",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.shelves().list(**params).execute()",
+          "path": "/v1/shelves",
+          "required_params": {},
+          "output_list_field": "shelves",
+          "output_id_field": "name",
+          "produces": {
+            "shelveId": {
+              "via_list_field": "shelves",
+              "from_id_field": "name",
+              "note": "Iterate response[\"shelves\"][], extract item[\"name\"] \u2192 pass as \"shelveId\""
+            }
+          },
+          "param_sources": {},
+          "purpose": "Provides: shelveId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.libraryagent.shelves.books.list",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.shelves().books().list(**params).execute()",
+          "path": "/v1/{+parent}/books",
+          "required_params": {
+            "parent": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^shelves/[^/]+$",
+              "description": "Required. The name of the shelf whose books we'd like to list."
+            }
+          },
+          "output_list_field": "books",
+          "output_id_field": "name",
+          "produces": {
+            "bookId": {
+              "via_list_field": "books",
+              "from_id_field": "name",
+              "note": "Iterate response[\"books\"][], extract item[\"name\"] \u2192 pass as \"bookId\""
+            }
+          },
+          "param_sources": {
+            "parent": "always_available"
+          },
+          "purpose": "Provides: bookId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 3,
+          "op": "gcp.libraryagent.shelves.books.borrow",
+          "kind": "other",
+          "independent": false,
+          "python_call": "svc.shelves().books().borrow(**params).execute()",
+          "path": "/v1/{+name}:borrow",
+          "required_params": {
+            "name": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^shelves/[^/]+/books/[^/]+$",
+              "description": "Required. The name of the book to borrow."
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "name": {
+              "shelveId": {
+                "from_step": 1,
+                "from_op": "gcp.libraryagent.shelves.list",
+                "field": "name"
+              },
+              "bookId": {
+                "from_step": 2,
+                "from_op": "gcp.libraryagent.shelves.books.list",
+                "field": "name"
+              }
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    }
+  }
+}

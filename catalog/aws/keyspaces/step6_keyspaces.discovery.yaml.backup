@@ -1,0 +1,98 @@
+version: '1.0'
+provider: aws
+service: keyspaces
+services:
+  client: keyspaces
+  module: boto3.client
+discovery:
+- discovery_id: aws.keyspaces.listKeyspaces
+  calls:
+  - action: listKeyspaces
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.keyspaces }}'
+    item:
+      keyspaceName: '{{ item.keyspaceName }}'
+      resourceArn: '{{ item.resourceArn }}'
+      replicationStrategy: '{{ item.replicationStrategy }}'
+      replicationRegions: '{{ item.replicationRegions }}'
+- discovery_id: aws.keyspaces.getKeyspace
+  calls:
+  - action: getKeyspace
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.replicationGroupStatuses }}'
+    item:
+      region: '{{ item.region }}'
+      keyspaceStatus: '{{ item.keyspaceStatus }}'
+      tablesReplicationProgress: '{{ item.tablesReplicationProgress }}'
+- discovery_id: aws.keyspaces.getTable
+  calls:
+  - action: getTable
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.replicaSpecifications }}'
+    item:
+      region: '{{ item.region }}'
+      status: '{{ item.status }}'
+      capacitySpecification: '{{ item.capacitySpecification }}'
+- discovery_id: aws.keyspaces.getTableAutoScalingSettings
+  calls:
+  - action: getTableAutoScalingSettings
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.replicaSpecifications }}'
+    item:
+      region: '{{ item.region }}'
+      autoScalingSpecification: '{{ item.autoScalingSpecification }}'
+- discovery_id: aws.keyspaces.getType
+  calls:
+  - action: getType
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.fieldDefinitions }}'
+    item:
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+- discovery_id: aws.keyspaces.listTables
+  calls:
+  - action: listTables
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.tables }}'
+    item:
+      keyspaceName: '{{ item.keyspaceName }}'
+      tableName: '{{ item.tableName }}'
+      resourceArn: '{{ item.resourceArn }}'
+- discovery_id: aws.keyspaces.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.tags }}'
+    item:
+      key: '{{ item.key }}'
+      value: '{{ item.value }}'
+- discovery_id: aws.keyspaces.listTypes
+  calls:
+  - action: listTypes
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.types }}'
+checks: []

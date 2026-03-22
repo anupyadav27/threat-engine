@@ -1,0 +1,389 @@
+{
+  "csp": "gcp",
+  "generated_at": "2026-02-19T14:43:25.004852+00:00",
+  "anchors": {
+    "fixed": [
+      "project_id",
+      "org_id",
+      "folder_id",
+      "location",
+      "zone",
+      "region"
+    ]
+  },
+  "services": {
+    "clouderrorreporting": {
+      "version": "v1beta1",
+      "resources": {
+        "events": {
+          "resource_type": "events",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "tuple",
+            "full_identifier": {
+              "template": "",
+              "built_from_parts": [],
+              "notes": "Tuple identifier; anchor parts are user-provided."
+            },
+            "parts": [
+              "context"
+            ],
+            "part_sources": {
+              "context": {
+                "op": "gcp.clouderrorreporting.projects.events.list",
+                "field_path": "errorEvents[].context",
+                "transform": null
+              }
+            },
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.clouderrorreporting.projects.events.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1beta1/{+projectName}/events"
+                },
+                "python_call": "svc.projects().events().list(**params).execute()",
+                "produces": {
+                  "context": "errorEvents[].context",
+                  "serviceContext": "errorEvents[].serviceContext",
+                  "message": "errorEvents[].message",
+                  "eventTime": "errorEvents[].eventTime",
+                  "timeRangeBegin": "timeRangeBegin"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.clouderrorreporting.projects.locations.events.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1beta1/{+projectName}/events"
+                },
+                "python_call": "svc.projects().locations().events().list(**params).execute()",
+                "produces": {
+                  "context": "errorEvents[].context",
+                  "serviceContext": "errorEvents[].serviceContext",
+                  "message": "errorEvents[].message",
+                  "eventTime": "errorEvents[].eventTime",
+                  "timeRangeBegin": "timeRangeBegin"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": []
+          },
+          "confidence": 0.4,
+          "notes": "No enrich (get) ops found; inventory only."
+        },
+        "groupStats": {
+          "resource_type": "groupStats",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "tuple",
+            "full_identifier": {
+              "template": "",
+              "built_from_parts": [],
+              "notes": "Tuple identifier; anchor parts are user-provided."
+            },
+            "parts": [
+              "representative"
+            ],
+            "part_sources": {
+              "representative": {
+                "op": "gcp.clouderrorreporting.projects.locations.groupStats.list",
+                "field_path": "errorGroupStats[].representative",
+                "transform": null
+              }
+            },
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.clouderrorreporting.projects.locations.groupStats.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1beta1/{+projectName}/groupStats"
+                },
+                "python_call": "svc.projects().locations().groupStats().list(**params).execute()",
+                "produces": {
+                  "representative": "errorGroupStats[].representative",
+                  "numAffectedServices": "errorGroupStats[].numAffectedServices",
+                  "count": "errorGroupStats[].count",
+                  "affectedServices": "errorGroupStats[].affectedServices",
+                  "affectedUsersCount": "errorGroupStats[].affectedUsersCount",
+                  "lastSeenTime": "errorGroupStats[].lastSeenTime",
+                  "timedCounts": "errorGroupStats[].timedCounts",
+                  "firstSeenTime": "errorGroupStats[].firstSeenTime",
+                  "group": "errorGroupStats[].group",
+                  "timeRangeBegin": "timeRangeBegin"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": []
+          },
+          "confidence": 0.4,
+          "notes": "No enrich (get) ops found; inventory only."
+        },
+        "groups": {
+          "resource_type": "groups",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "constructed",
+            "full_identifier": {
+              "template": "projects/{url_encoded_representative}",
+              "built_from_parts": [
+                "errorGroupStats[].representative"
+              ],
+              "notes": ""
+            },
+            "parts": [
+              "representative"
+            ],
+            "part_sources": {
+              "representative": {
+                "op": "gcp.clouderrorreporting.projects.groupStats.list",
+                "field_path": "errorGroupStats[].representative",
+                "transform": null
+              }
+            },
+            "transforms": [
+              {
+                "from": "errorGroupStats[].representative",
+                "fn": "url_encode",
+                "to": "url_encoded_representative"
+              },
+              {
+                "from": "url_encoded_representative",
+                "fn": "prefix:projects/",
+                "to": "groupName"
+              },
+              {
+                "build": "full_id",
+                "template": "projects/{url_encoded_representative}"
+              }
+            ]
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.clouderrorreporting.projects.groupStats.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1beta1/{+projectName}/groupStats"
+                },
+                "python_call": "svc.projects().groupStats().list(**params).execute()",
+                "produces": {
+                  "representative": "errorGroupStats[].representative",
+                  "numAffectedServices": "errorGroupStats[].numAffectedServices",
+                  "count": "errorGroupStats[].count",
+                  "affectedServices": "errorGroupStats[].affectedServices",
+                  "affectedUsersCount": "errorGroupStats[].affectedUsersCount",
+                  "lastSeenTime": "errorGroupStats[].lastSeenTime",
+                  "timedCounts": "errorGroupStats[].timedCounts",
+                  "firstSeenTime": "errorGroupStats[].firstSeenTime",
+                  "group": "errorGroupStats[].group",
+                  "timeRangeBegin": "timeRangeBegin"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.clouderrorreporting.projects.groups.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1beta1/{+groupName}"
+                },
+                "python_call": "svc.projects().groups().get(**params).execute()",
+                "required_params": {
+                  "groupName": {
+                    "from_identifier": "transforms \u2192 groupName"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.clouderrorreporting.projects.groups.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.clouderrorreporting.projects.groupStats.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().groupStats().list(**params).execute()",
+                      "path": "/v1beta1/{+projectName}/groupStats",
+                      "required_params": {
+                        "projectName": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+$",
+                          "description": "Required. The resource name of the Google Cloud Platform project. Written as `projects/{projectID}` or `projects/{projec"
+                        }
+                      },
+                      "output_list_field": "errorGroupStats",
+                      "output_id_field": "representative",
+                      "produces": {
+                        "groupStatId": {
+                          "via_list_field": "errorGroupStats",
+                          "from_id_field": "representative",
+                          "note": "Iterate response[\"errorGroupStats\"][], extract item[\"representative\"] \u2192 pass as \"groupStatId\""
+                        }
+                      },
+                      "param_sources": {
+                        "projectName": "always_available"
+                      },
+                      "purpose": "Provides: groupStatId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.clouderrorreporting.projects.groups.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().groups().get(**params).execute()",
+                      "path": "/v1beta1/{+groupName}",
+                      "required_params": {
+                        "groupName": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/groups/[^/]+$",
+                          "description": "Required. The group resource name. Written as either `projects/{projectID}/groups/{group_id}` or `projects/{projectID}/l"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "groupName": {
+                          "groupId": {
+                            "from_step": 1,
+                            "from_op": "gcp.clouderrorreporting.projects.groupStats.list",
+                            "field": "representative"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.clouderrorreporting.projects.locations.groups.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1beta1/{+groupName}"
+                },
+                "python_call": "svc.projects().locations().groups().get(**params).execute()",
+                "required_params": {
+                  "groupName": {
+                    "from_identifier": "transforms \u2192 groupName"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.clouderrorreporting.projects.locations.groups.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.clouderrorreporting.projects.groupStats.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().groupStats().list(**params).execute()",
+                      "path": "/v1beta1/{+projectName}/groupStats",
+                      "required_params": {
+                        "projectName": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+$",
+                          "description": "Required. The resource name of the Google Cloud Platform project. Written as `projects/{projectID}` or `projects/{projec"
+                        }
+                      },
+                      "output_list_field": "errorGroupStats",
+                      "output_id_field": "representative",
+                      "produces": {
+                        "groupStatId": {
+                          "via_list_field": "errorGroupStats",
+                          "from_id_field": "representative",
+                          "note": "Iterate response[\"errorGroupStats\"][], extract item[\"representative\"] \u2192 pass as \"groupStatId\""
+                        }
+                      },
+                      "param_sources": {
+                        "projectName": "always_available"
+                      },
+                      "purpose": "Provides: groupStatId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.clouderrorreporting.projects.locations.groups.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().groups().get(**params).execute()",
+                      "path": "/v1beta1/{+groupName}",
+                      "required_params": {
+                        "groupName": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/groups/[^/]+$",
+                          "description": "Required. The group resource name. Written as either `projects/{projectID}/groups/{group_id}` or `projects/{projectID}/l"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "groupName": {
+                          "groupId": {
+                            "from_step": 1,
+                            "from_op": "gcp.clouderrorreporting.projects.groupStats.list",
+                            "field": "representative"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        }
+      }
+    }
+  }
+}

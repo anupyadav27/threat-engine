@@ -1,0 +1,48 @@
+# ============================================================
+# Discovery YAML — dataportability (v1)
+# Generated: 2026-02-21T03:06:39Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 1 | independent: 0 | dependent: 1
+# ops with fields: 1/1 | dep ops with chain: 0/1
+# ============================================================
+version: '1.0'
+provider: gcp
+service: dataportability
+
+services:
+  client: dataportability
+  module: "googleapiclient.discovery.build('dataportability', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Retrieves the state of an Archive job for the Portability API.
+  # ── gcp.dataportability.archiveJobs.getPortabilityArchiveState [dependent] ──
+  - discovery_id: gcp.dataportability.archiveJobs.getPortabilityArchiveState
+    # python: svc.archiveJobs().getPortabilityArchiveState(**params).execute()
+    calls:
+      - action: archiveJobs.getPortabilityArchiveState
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        exportTime: '{{ response.exportTime }}'
+        name: '{{ response.name }}'
+        startTime: '{{ response.startTime }}'
+        state: '{{ response.state }}'
+        urls: '{{ response.urls }}'
+    # required_params: ['name']

@@ -1,0 +1,177 @@
+# ============================================================
+# Discovery YAML — textract (AWS)
+# Generated: 2026-02-21T04:57:00Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: textract
+services:
+  client: textract
+  module: boto3.client
+discovery:
+  # ── ListAdapterVersions ──
+  - discovery_id: aws.textract.list_adapter_versions
+    calls:
+      - action: list_adapter_versions
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.AdapterVersions }}'
+      item:
+        CreationTime: '{{ item.CreationTime }}'
+        Status: '{{ item.Status }}'
+        Tags: '{{ item.Tags }}'
+        AdapterId: '{{ item.AdapterId }}'
+        AdapterVersion: '{{ item.AdapterVersion }}'
+        AutoUpdate: '{{ item.AutoUpdate }}'
+        Description: '{{ item.Description }}'
+        FeatureTypes: '{{ item.FeatureTypes }}'
+        StatusMessage: '{{ item.StatusMessage }}'
+  # ── ListAdapters ──
+  - discovery_id: aws.textract.list_adapters
+    calls:
+      - action: list_adapters
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Adapters }}'
+      item:
+        CreationTime: '{{ item.CreationTime }}'
+        AdapterId: '{{ item.AdapterId }}'
+        AdapterName: '{{ item.AdapterName }}'
+        FeatureTypes: '{{ item.FeatureTypes }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── GetAdapter ──
+  - discovery_id: aws.textract.get_adapter
+    for_each: aws.textract.list_adapter_versions
+    calls:
+      - action: get_adapter
+        params:
+          AdapterId: '{{ item.AdapterId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.FeatureTypes }}'
+      item:
+        Tags: '{{ item.Tags }}'
+        AutoUpdate: '{{ item.AutoUpdate }}'
+        Description: '{{ item.Description }}'
+  # ── GetAdapterVersion ──
+  - discovery_id: aws.textract.get_adapter_version
+    for_each: aws.textract.list_adapter_versions
+    calls:
+      - action: get_adapter_version
+        params:
+          AdapterId: '{{ item.AdapterId }}'
+          AdapterVersion: '{{ item.AdapterVersion }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.FeatureTypes }}'
+  # ── GetDocumentAnalysis ──
+  - discovery_id: aws.textract.get_document_analysis
+    calls:
+      - action: get_document_analysis
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Blocks }}'
+      item:
+        Id: '{{ item.Id }}'
+        BlockType: '{{ item.BlockType }}'
+        ColumnIndex: '{{ item.ColumnIndex }}'
+        ColumnSpan: '{{ item.ColumnSpan }}'
+        Confidence: '{{ item.Confidence }}'
+        EntityTypes: '{{ item.EntityTypes }}'
+        Geometry: '{{ item.Geometry }}'
+        Page: '{{ item.Page }}'
+        Query: '{{ item.Query }}'
+        Relationships: '{{ item.Relationships }}'
+        RowIndex: '{{ item.RowIndex }}'
+        RowSpan: '{{ item.RowSpan }}'
+        SelectionStatus: '{{ item.SelectionStatus }}'
+        Text: '{{ item.Text }}'
+        TextType: '{{ item.TextType }}'
+        Warnings: '{{ item.Warnings }}'
+  # ── GetDocumentTextDetection ──
+  - discovery_id: aws.textract.get_document_text_detection
+    calls:
+      - action: get_document_text_detection
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Blocks }}'
+      item:
+        Id: '{{ item.Id }}'
+        BlockType: '{{ item.BlockType }}'
+        ColumnIndex: '{{ item.ColumnIndex }}'
+        ColumnSpan: '{{ item.ColumnSpan }}'
+        Confidence: '{{ item.Confidence }}'
+        EntityTypes: '{{ item.EntityTypes }}'
+        Geometry: '{{ item.Geometry }}'
+        Page: '{{ item.Page }}'
+        Query: '{{ item.Query }}'
+        Relationships: '{{ item.Relationships }}'
+        RowIndex: '{{ item.RowIndex }}'
+        RowSpan: '{{ item.RowSpan }}'
+        SelectionStatus: '{{ item.SelectionStatus }}'
+        Text: '{{ item.Text }}'
+        TextType: '{{ item.TextType }}'
+  # ── GetExpenseAnalysis ──
+  - discovery_id: aws.textract.get_expense_analysis
+    calls:
+      - action: get_expense_analysis
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ExpenseDocuments }}'
+      item:
+        Blocks: '{{ item.Blocks }}'
+        ExpenseIndex: '{{ item.ExpenseIndex }}'
+        LineItemGroups: '{{ item.LineItemGroups }}'
+        SummaryFields: '{{ item.SummaryFields }}'
+  # ── GetLendingAnalysis ──
+  - discovery_id: aws.textract.get_lending_analysis
+    calls:
+      - action: get_lending_analysis
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Results }}'
+      item:
+        Extractions: '{{ item.Extractions }}'
+        Page: '{{ item.Page }}'
+        PageClassification: '{{ item.PageClassification }}'
+        Results: '{{ item.Results }}'
+  # ── GetLendingAnalysisSummary ──
+  - discovery_id: aws.textract.get_lending_analysis_summary
+    calls:
+      - action: get_lending_analysis_summary
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Warnings }}'
+      item:
+        ErrorCode: '{{ item.ErrorCode }}'
+        Pages: '{{ item.Pages }}'
+        Summary: '{{ item.Summary }}'
+  # ── ListTagsForResource ──
+  - discovery_id: aws.textract.list_tags_for_resource
+    calls:
+      - action: list_tags_for_resource
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        Tags: '{{ response.Tags }}'

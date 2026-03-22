@@ -1,0 +1,54 @@
+version: '1.0'
+provider: aws
+service: dsql
+services:
+  client: dsql
+  module: boto3.client
+discovery:
+- discovery_id: aws.dsql.listClusters
+  calls:
+  - action: listClusters
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.clusters }}'
+    item:
+      identifier: '{{ item.identifier }}'
+      arn: '{{ item.arn }}'
+- discovery_id: aws.dsql.getCluster
+  calls:
+  - action: getCluster
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.multiRegionProperties }}'
+    item:
+      witnessRegion: '{{ item.witnessRegion }}'
+      clusters: '{{ item.clusters }}'
+- discovery_id: aws.dsql.getClusterPolicy
+  calls:
+  - action: getClusterPolicy
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.policy }}'
+- discovery_id: aws.dsql.getVpcEndpointServiceName
+  calls:
+  - action: getVpcEndpointServiceName
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.serviceName }}'
+- discovery_id: aws.dsql.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.tags }}'
+checks: []

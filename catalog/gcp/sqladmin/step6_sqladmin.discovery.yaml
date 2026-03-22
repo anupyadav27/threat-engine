@@ -1,0 +1,627 @@
+# ============================================================
+# Discovery YAML — sqladmin (v1)
+# Generated: 2026-02-21T03:06:41Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 22 | independent: 5 | dependent: 17
+# ops with fields: 22/22 | dep ops with chain: 16/17
+# ============================================================
+version: '1.0'
+provider: gcp
+service: sqladmin
+
+services:
+  client: sqladmin
+  module: "googleapiclient.discovery.build('sqladmin', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists all backups associated with the project.
+  # ── gcp.sqladmin.Backups.ListBackups ──
+  - discovery_id: gcp.sqladmin.Backups.ListBackups
+    # python: svc.Backups().ListBackups(**params).execute()
+    calls:
+      - action: Backups.ListBackups
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Backups }}'
+      item:
+        backupInterval: '{{ item.backupInterval }}'
+        backupKind: '{{ item.backupKind }}'
+        backupRun: '{{ item.backupRun }}'
+        databaseVersion: '{{ item.databaseVersion }}'
+        description: '{{ item.description }}'
+        error: '{{ item.error }}'
+        expiryTime: '{{ item.expiryTime }}'
+        instance: '{{ item.instance }}'
+        instanceDeletionTime: '{{ item.instanceDeletionTime }}'
+        instanceSettings: '{{ item.instanceSettings }}'
+        kmsKey: '{{ item.kmsKey }}'
+        kmsKeyVersion: '{{ item.kmsKeyVersion }}'
+        location: '{{ item.location }}'
+        maxChargeableBytes: '{{ item.maxChargeableBytes }}'
+        name: '{{ item.name }}'
+        satisfiesPzi: '{{ item.satisfiesPzi }}'
+        satisfiesPzs: '{{ item.satisfiesPzs }}'
+        state: '{{ item.state }}'
+        timeZone: '{{ item.timeZone }}'
+        ttlDays: '{{ item.ttlDays }}'
+        type: '{{ item.type }}'
+  # Lists all available database flags for Cloud SQL instances.
+  # ── gcp.sqladmin.flags.list ──
+  - discovery_id: gcp.sqladmin.flags.list
+    # python: svc.flags().list(**params).execute()
+    calls:
+      - action: flags.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.flags }}'
+      item:
+        allowedIntValues: '{{ item.allowedIntValues }}'
+        allowedStringValues: '{{ item.allowedStringValues }}'
+        appliesTo: '{{ item.appliesTo }}'
+        flagScope: '{{ item.flagScope }}'
+        inBeta: '{{ item.inBeta }}'
+        maxValue: '{{ item.maxValue }}'
+        minValue: '{{ item.minValue }}'
+        name: '{{ item.name }}'
+        recommendedIntValue: '{{ item.recommendedIntValue }}'
+        recommendedStringValue: '{{ item.recommendedStringValue }}'
+        requiresRestart: '{{ item.requiresRestart }}'
+        type: '{{ item.type }}'
+  # Lists instances under a given project.
+  # ── gcp.sqladmin.instances.list ──
+  - discovery_id: gcp.sqladmin.instances.list
+    # python: svc.instances().list(**params).execute()
+    calls:
+      - action: instances.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.instances }}'
+      item:
+        code: '{{ item.code }}'
+        message: '{{ item.message }}'
+        region: '{{ item.region }}'
+  # Lists all instance operations that have been performed on the given Cloud SQL instance in the revers
+  # ── gcp.sqladmin.operations.list ──
+  - discovery_id: gcp.sqladmin.operations.list
+    # python: svc.operations().list(**params).execute()
+    calls:
+      - action: operations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.operations }}'
+      item:
+        acquireSsrsLeaseContext: '{{ item.acquireSsrsLeaseContext }}'
+        apiWarning: '{{ item.apiWarning }}'
+        backupContext: '{{ item.backupContext }}'
+        endTime: '{{ item.endTime }}'
+        error: '{{ item.error }}'
+        exportContext: '{{ item.exportContext }}'
+        importContext: '{{ item.importContext }}'
+        insertTime: '{{ item.insertTime }}'
+        name: '{{ item.name }}'
+        operationType: '{{ item.operationType }}'
+        preCheckMajorVersionUpgradeContext: '{{ item.preCheckMajorVersionUpgradeContext }}'
+        startTime: '{{ item.startTime }}'
+        status: '{{ item.status }}'
+        subOperationType: '{{ item.subOperationType }}'
+        targetId: '{{ item.targetId }}'
+        targetLink: '{{ item.targetLink }}'
+        targetProject: '{{ item.targetProject }}'
+        user: '{{ item.user }}'
+  # Lists all available machine types (tiers) for Cloud SQL, for example, `db-custom-1-3840`. For more i
+  # ── gcp.sqladmin.tiers.list ──
+  - discovery_id: gcp.sqladmin.tiers.list
+    # python: svc.tiers().list(**params).execute()
+    calls:
+      - action: tiers.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.tiers }}'
+      item:
+        DiskQuota: '{{ item.DiskQuota }}'
+        RAM: '{{ item.RAM }}'
+        region: '{{ item.region }}'
+        tier: '{{ item.tier }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Retrieves a resource containing information about a backup.
+  # ── gcp.sqladmin.Backups.GetBackup [dependent] ──
+  - discovery_id: gcp.sqladmin.Backups.GetBackup
+    for_each: gcp.sqladmin.Backups.ListBackups
+    # python: svc.Backups().GetBackup(**params).execute()
+    calls:
+      - action: Backups.GetBackup
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        backupInterval: '{{ response.backupInterval }}'
+        backupKind: '{{ response.backupKind }}'
+        backupRun: '{{ response.backupRun }}'
+        databaseVersion: '{{ response.databaseVersion }}'
+        description: '{{ response.description }}'
+        error: '{{ response.error }}'
+        expiryTime: '{{ response.expiryTime }}'
+        instance: '{{ response.instance }}'
+        instanceDeletionTime: '{{ response.instanceDeletionTime }}'
+        instanceSettings: '{{ response.instanceSettings }}'
+        kmsKey: '{{ response.kmsKey }}'
+        kmsKeyVersion: '{{ response.kmsKeyVersion }}'
+        location: '{{ response.location }}'
+        maxChargeableBytes: '{{ response.maxChargeableBytes }}'
+        name: '{{ response.name }}'
+        satisfiesPzi: '{{ response.satisfiesPzi }}'
+        satisfiesPzs: '{{ response.satisfiesPzs }}'
+        state: '{{ response.state }}'
+        timeZone: '{{ response.timeZone }}'
+        ttlDays: '{{ response.ttlDays }}'
+        type: '{{ response.type }}'
+    # required_params: ['name']
+  # Retrieves a resource containing information about a backup run.
+  # ── gcp.sqladmin.backupRuns.get [dependent] ──
+  - discovery_id: gcp.sqladmin.backupRuns.get
+    for_each: gcp.sqladmin.instances.listServerCas
+    # python: svc.backupRuns().get(**params).execute()
+    calls:
+      - action: backupRuns.get
+        params:
+          id: '{{ item.name }}'
+          instance: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        backupKind: '{{ response.backupKind }}'
+        databaseVersion: '{{ response.databaseVersion }}'
+        description: '{{ response.description }}'
+        diskEncryptionConfiguration: '{{ response.diskEncryptionConfiguration }}'
+        diskEncryptionStatus: '{{ response.diskEncryptionStatus }}'
+        endTime: '{{ response.endTime }}'
+        enqueuedTime: '{{ response.enqueuedTime }}'
+        error: '{{ response.error }}'
+        id: '{{ response.id }}'
+        instance: '{{ response.instance }}'
+        location: '{{ response.location }}'
+        maxChargeableBytes: '{{ response.maxChargeableBytes }}'
+        startTime: '{{ response.startTime }}'
+        status: '{{ response.status }}'
+        timeZone: '{{ response.timeZone }}'
+        type: '{{ response.type }}'
+        windowStartTime: '{{ response.windowStartTime }}'
+    # required_params: ['project', 'id', 'instance']
+  # Lists all backup runs associated with the project or a given instance and configuration in the rever
+  # ── gcp.sqladmin.backupRuns.list [dependent] ──
+  - discovery_id: gcp.sqladmin.backupRuns.list
+    for_each: gcp.sqladmin.instances.listServerCas
+    # python: svc.backupRuns().list(**params).execute()
+    calls:
+      - action: backupRuns.list
+        params:
+          instance: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.backupRuns }}'
+      item:
+        backupKind: '{{ item.backupKind }}'
+        databaseVersion: '{{ item.databaseVersion }}'
+        description: '{{ item.description }}'
+        diskEncryptionConfiguration: '{{ item.diskEncryptionConfiguration }}'
+        diskEncryptionStatus: '{{ item.diskEncryptionStatus }}'
+        endTime: '{{ item.endTime }}'
+        enqueuedTime: '{{ item.enqueuedTime }}'
+        error: '{{ item.error }}'
+        id: '{{ item.id }}'
+        instance: '{{ item.instance }}'
+        location: '{{ item.location }}'
+        maxChargeableBytes: '{{ item.maxChargeableBytes }}'
+        startTime: '{{ item.startTime }}'
+        status: '{{ item.status }}'
+        timeZone: '{{ item.timeZone }}'
+        type: '{{ item.type }}'
+        windowStartTime: '{{ item.windowStartTime }}'
+    # required_params: ['instance', 'project']
+  # Retrieves connect settings about a Cloud SQL instance.
+  # ── gcp.sqladmin.connect.get [dependent] ──
+  - discovery_id: gcp.sqladmin.connect.get
+    for_each: gcp.sqladmin.instances.listServerCas
+    # python: svc.connect().get(**params).execute()
+    calls:
+      - action: connect.get
+        params:
+          instance: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        backendType: '{{ response.backendType }}'
+        customSubjectAlternativeNames: '{{ response.customSubjectAlternativeNames }}'
+        databaseVersion: '{{ response.databaseVersion }}'
+        dnsName: '{{ response.dnsName }}'
+        dnsNames: '{{ response.dnsNames }}'
+        ipAddresses: '{{ response.ipAddresses }}'
+        mdxProtocolSupport: '{{ response.mdxProtocolSupport }}'
+        nodeCount: '{{ response.nodeCount }}'
+        nodes: '{{ response.nodes }}'
+        pscEnabled: '{{ response.pscEnabled }}'
+        region: '{{ response.region }}'
+        serverCaCert: '{{ response.serverCaCert }}'
+        serverCaMode: '{{ response.serverCaMode }}'
+    # required_params: ['instance', 'project']
+  # Retrieves a resource containing information about a database inside a Cloud SQL instance.
+  # ── gcp.sqladmin.databases.get [dependent] ──
+  - discovery_id: gcp.sqladmin.databases.get
+    for_each: gcp.sqladmin.backupRuns.list
+    # python: svc.databases().get(**params).execute()
+    calls:
+      - action: databases.get
+        params:
+          database: '{{ item.selfLink }}'
+          instance: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        charset: '{{ response.charset }}'
+        collation: '{{ response.collation }}'
+        instance: '{{ response.instance }}'
+        name: '{{ response.name }}'
+        project: '{{ response.project }}'
+        sqlserverDatabaseDetails: '{{ response.sqlserverDatabaseDetails }}'
+    # required_params: ['instance', 'project', 'database']
+  # Lists databases in the specified Cloud SQL instance.
+  # ── gcp.sqladmin.databases.list [dependent] ──
+  - discovery_id: gcp.sqladmin.databases.list
+    for_each: gcp.sqladmin.instances.listServerCas
+    # python: svc.databases().list(**params).execute()
+    calls:
+      - action: databases.list
+        params:
+          instance: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.databases }}'
+      item:
+        charset: '{{ item.charset }}'
+        collation: '{{ item.collation }}'
+        instance: '{{ item.instance }}'
+        name: '{{ item.name }}'
+        project: '{{ item.project }}'
+        sqlserverDatabaseDetails: '{{ item.sqlserverDatabaseDetails }}'
+    # required_params: ['project', 'instance']
+  # Lists all versions of EntraID certificates for the specified instance. There can be up to three sets
+  # ── gcp.sqladmin.instances.ListEntraIdCertificates [dependent] ──
+  - discovery_id: gcp.sqladmin.instances.ListEntraIdCertificates
+    for_each: gcp.sqladmin.instances.listServerCas
+    # python: svc.instances().ListEntraIdCertificates(**params).execute()
+    calls:
+      - action: instances.ListEntraIdCertificates
+        params:
+          instance: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.instances }}'
+      item:
+        cert: '{{ item.cert }}'
+        certSerialNumber: '{{ item.certSerialNumber }}'
+        commonName: '{{ item.commonName }}'
+        createTime: '{{ item.createTime }}'
+        expirationTime: '{{ item.expirationTime }}'
+        instance: '{{ item.instance }}'
+        sha1Fingerprint: '{{ item.sha1Fingerprint }}'
+    # required_params: ['instance', 'project']
+  # Lists all versions of server certificates and certificate authorities (CAs) for the specified instan
+  # ── gcp.sqladmin.instances.ListServerCertificates [dependent] ──
+  - discovery_id: gcp.sqladmin.instances.ListServerCertificates
+    for_each: gcp.sqladmin.instances.listServerCas
+    # python: svc.instances().ListServerCertificates(**params).execute()
+    calls:
+      - action: instances.ListServerCertificates
+        params:
+          instance: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.instances }}'
+      item:
+        cert: '{{ item.cert }}'
+        certSerialNumber: '{{ item.certSerialNumber }}'
+        commonName: '{{ item.commonName }}'
+        createTime: '{{ item.createTime }}'
+        expirationTime: '{{ item.expirationTime }}'
+        instance: '{{ item.instance }}'
+        sha1Fingerprint: '{{ item.sha1Fingerprint }}'
+    # required_params: ['project', 'instance']
+  # Retrieves a resource containing information about a Cloud SQL instance.
+  # ── gcp.sqladmin.instances.get [dependent] ──
+  - discovery_id: gcp.sqladmin.instances.get
+    for_each: gcp.sqladmin.instances.listServerCas
+    # python: svc.instances().get(**params).execute()
+    calls:
+      - action: instances.get
+        params:
+          instance: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        availableMaintenanceVersions: '{{ response.availableMaintenanceVersions }}'
+        backendType: '{{ response.backendType }}'
+        connectionName: '{{ response.connectionName }}'
+        createTime: '{{ response.createTime }}'
+        currentDiskSize: '{{ response.currentDiskSize }}'
+        databaseInstalledVersion: '{{ response.databaseInstalledVersion }}'
+        databaseVersion: '{{ response.databaseVersion }}'
+        diskEncryptionConfiguration: '{{ response.diskEncryptionConfiguration }}'
+        diskEncryptionStatus: '{{ response.diskEncryptionStatus }}'
+        dnsName: '{{ response.dnsName }}'
+        dnsNames: '{{ response.dnsNames }}'
+        failoverReplica: '{{ response.failoverReplica }}'
+        gceZone: '{{ response.gceZone }}'
+        geminiConfig: '{{ response.geminiConfig }}'
+        includeReplicasForMajorVersionUpgrade: '{{ response.includeReplicasForMajorVersionUpgrade }}'
+        instanceType: '{{ response.instanceType }}'
+        ipAddresses: '{{ response.ipAddresses }}'
+        ipv6Address: '{{ response.ipv6Address }}'
+        maintenanceVersion: '{{ response.maintenanceVersion }}'
+        masterInstanceName: '{{ response.masterInstanceName }}'
+        maxDiskSize: '{{ response.maxDiskSize }}'
+        name: '{{ response.name }}'
+        nodeCount: '{{ response.nodeCount }}'
+        nodes: '{{ response.nodes }}'
+        onPremisesConfiguration: '{{ response.onPremisesConfiguration }}'
+        outOfDiskReport: '{{ response.outOfDiskReport }}'
+        primaryDnsName: '{{ response.primaryDnsName }}'
+        project: '{{ response.project }}'
+        pscServiceAttachmentLink: '{{ response.pscServiceAttachmentLink }}'
+        region: '{{ response.region }}'
+        replicaConfiguration: '{{ response.replicaConfiguration }}'
+        replicaNames: '{{ response.replicaNames }}'
+        replicationCluster: '{{ response.replicationCluster }}'
+        rootPassword: '{{ response.rootPassword }}'
+        satisfiesPzi: '{{ response.satisfiesPzi }}'
+        satisfiesPzs: '{{ response.satisfiesPzs }}'
+        scheduledMaintenance: '{{ response.scheduledMaintenance }}'
+        secondaryGceZone: '{{ response.secondaryGceZone }}'
+        serverCaCert: '{{ response.serverCaCert }}'
+        serviceAccountEmailAddress: '{{ response.serviceAccountEmailAddress }}'
+        settings: '{{ response.settings }}'
+        sqlNetworkArchitecture: '{{ response.sqlNetworkArchitecture }}'
+        state: '{{ response.state }}'
+        suspensionReason: '{{ response.suspensionReason }}'
+        switchTransactionLogsToCloudStorageEnabled: '{{ response.switchTransactionLogsToCloudStorageEnabled }}'
+        tags: '{{ response.tags }}'
+        upgradableDatabaseVersions: '{{ response.upgradableDatabaseVersions }}'
+        writeEndpoint: '{{ response.writeEndpoint }}'
+    # required_params: ['instance', 'project']
+  # Lists all of the trusted Certificate Authorities (CAs) for the specified instance. There can be up t
+  # ── gcp.sqladmin.instances.listServerCas [dependent] ──
+  - discovery_id: gcp.sqladmin.instances.listServerCas
+    # python: svc.instances().listServerCas(**params).execute()
+    calls:
+      - action: instances.listServerCas
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.instances }}'
+      item:
+        cert: '{{ item.cert }}'
+        certSerialNumber: '{{ item.certSerialNumber }}'
+        commonName: '{{ item.commonName }}'
+        createTime: '{{ item.createTime }}'
+        expirationTime: '{{ item.expirationTime }}'
+        instance: '{{ item.instance }}'
+        sha1Fingerprint: '{{ item.sha1Fingerprint }}'
+    # required_params: ['project', 'instance']
+  # Retrieves an instance operation that has been performed on an instance.
+  # ── gcp.sqladmin.operations.get [dependent] ──
+  - discovery_id: gcp.sqladmin.operations.get
+    for_each: gcp.sqladmin.operations.list
+    # python: svc.operations().get(**params).execute()
+    calls:
+      - action: operations.get
+        params:
+          operation: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        acquireSsrsLeaseContext: '{{ response.acquireSsrsLeaseContext }}'
+        apiWarning: '{{ response.apiWarning }}'
+        backupContext: '{{ response.backupContext }}'
+        endTime: '{{ response.endTime }}'
+        error: '{{ response.error }}'
+        exportContext: '{{ response.exportContext }}'
+        importContext: '{{ response.importContext }}'
+        insertTime: '{{ response.insertTime }}'
+        name: '{{ response.name }}'
+        operationType: '{{ response.operationType }}'
+        preCheckMajorVersionUpgradeContext: '{{ response.preCheckMajorVersionUpgradeContext }}'
+        startTime: '{{ response.startTime }}'
+        status: '{{ response.status }}'
+        subOperationType: '{{ response.subOperationType }}'
+        targetId: '{{ response.targetId }}'
+        targetLink: '{{ response.targetLink }}'
+        targetProject: '{{ response.targetProject }}'
+        user: '{{ response.user }}'
+    # required_params: ['project', 'operation']
+  # Get Disk Shrink Config for a given instance.
+  # ── gcp.sqladmin.projects.instances.getDiskShrinkConfig [dependent] ──
+  - discovery_id: gcp.sqladmin.projects.instances.getDiskShrinkConfig
+    for_each: gcp.sqladmin.instances.listServerCas
+    # python: svc.projects().instances().getDiskShrinkConfig(**params).execute()
+    calls:
+      - action: projects.instances.getDiskShrinkConfig
+        params:
+          instance: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        message: '{{ response.message }}'
+        minimalTargetSizeGb: '{{ response.minimalTargetSizeGb }}'
+    # required_params: ['project', 'instance']
+  # Get Latest Recovery Time for a given instance.
+  # ── gcp.sqladmin.projects.instances.getLatestRecoveryTime [dependent] ──
+  - discovery_id: gcp.sqladmin.projects.instances.getLatestRecoveryTime
+    for_each: gcp.sqladmin.instances.listServerCas
+    # python: svc.projects().instances().getLatestRecoveryTime(**params).execute()
+    calls:
+      - action: projects.instances.getLatestRecoveryTime
+        params:
+          instance: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        earliestRecoveryTime: '{{ response.earliestRecoveryTime }}'
+        latestRecoveryTime: '{{ response.latestRecoveryTime }}'
+    # required_params: ['instance', 'project']
+  # Retrieves a particular SSL certificate. Does not include the private key (required for usage). The p
+  # ── gcp.sqladmin.sslCerts.get [dependent] ──
+  - discovery_id: gcp.sqladmin.sslCerts.get
+    for_each: gcp.sqladmin.sslCerts.list
+    # python: svc.sslCerts().get(**params).execute()
+    calls:
+      - action: sslCerts.get
+        params:
+          instance: '{{ item.selfLink }}'
+          sha1Fingerprint: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        cert: '{{ response.cert }}'
+        certSerialNumber: '{{ response.certSerialNumber }}'
+        commonName: '{{ response.commonName }}'
+        createTime: '{{ response.createTime }}'
+        expirationTime: '{{ response.expirationTime }}'
+        instance: '{{ response.instance }}'
+        sha1Fingerprint: '{{ response.sha1Fingerprint }}'
+    # required_params: ['instance', 'project', 'sha1Fingerprint']
+  # Lists all of the current SSL certificates for the instance.
+  # ── gcp.sqladmin.sslCerts.list [dependent] ──
+  - discovery_id: gcp.sqladmin.sslCerts.list
+    for_each: gcp.sqladmin.instances.listServerCas
+    # python: svc.sslCerts().list(**params).execute()
+    calls:
+      - action: sslCerts.list
+        params:
+          instance: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.sslCerts }}'
+      item:
+        cert: '{{ item.cert }}'
+        certSerialNumber: '{{ item.certSerialNumber }}'
+        commonName: '{{ item.commonName }}'
+        createTime: '{{ item.createTime }}'
+        expirationTime: '{{ item.expirationTime }}'
+        instance: '{{ item.instance }}'
+        sha1Fingerprint: '{{ item.sha1Fingerprint }}'
+    # required_params: ['project', 'instance']
+  # Retrieves a resource containing information about a user.
+  # ── gcp.sqladmin.users.get [dependent] ──
+  - discovery_id: gcp.sqladmin.users.get
+    for_each: gcp.sqladmin.sslCerts.list
+    # python: svc.users().get(**params).execute()
+    calls:
+      - action: users.get
+        params:
+          instance: '{{ item.selfLink }}'
+          name: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        databaseRoles: '{{ response.databaseRoles }}'
+        dualPasswordType: '{{ response.dualPasswordType }}'
+        host: '{{ response.host }}'
+        iamEmail: '{{ response.iamEmail }}'
+        iamStatus: '{{ response.iamStatus }}'
+        instance: '{{ response.instance }}'
+        name: '{{ response.name }}'
+        password: '{{ response.password }}'
+        passwordPolicy: '{{ response.passwordPolicy }}'
+        project: '{{ response.project }}'
+        sqlserverUserDetails: '{{ response.sqlserverUserDetails }}'
+        type: '{{ response.type }}'
+    # required_params: ['project', 'name', 'instance']
+  # Lists users in the specified Cloud SQL instance.
+  # ── gcp.sqladmin.users.list [dependent] ──
+  - discovery_id: gcp.sqladmin.users.list
+    for_each: gcp.sqladmin.instances.listServerCas
+    # python: svc.users().list(**params).execute()
+    calls:
+      - action: users.list
+        params:
+          instance: '{{ item.selfLink }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.users }}'
+      item:
+        databaseRoles: '{{ item.databaseRoles }}'
+        dualPasswordType: '{{ item.dualPasswordType }}'
+        host: '{{ item.host }}'
+        iamEmail: '{{ item.iamEmail }}'
+        iamStatus: '{{ item.iamStatus }}'
+        instance: '{{ item.instance }}'
+        name: '{{ item.name }}'
+        password: '{{ item.password }}'
+        passwordPolicy: '{{ item.passwordPolicy }}'
+        project: '{{ item.project }}'
+        sqlserverUserDetails: '{{ item.sqlserverUserDetails }}'
+        type: '{{ item.type }}'
+    # required_params: ['project', 'instance']

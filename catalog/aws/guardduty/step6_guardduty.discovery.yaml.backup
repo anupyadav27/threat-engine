@@ -1,0 +1,484 @@
+version: '1.0'
+provider: aws
+service: guardduty
+services:
+  client: guardduty
+  module: boto3.client
+discovery:
+- discovery_id: aws.guardduty.getInvitationsCount
+  calls:
+  - action: getInvitationsCount
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.InvitationsCount }}'
+- discovery_id: aws.guardduty.getOrganizationStatistics
+  calls:
+  - action: getOrganizationStatistics
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.OrganizationDetails }}'
+    item:
+      UpdatedAt: '{{ item.UpdatedAt }}'
+      OrganizationStatistics: '{{ item.OrganizationStatistics }}'
+- discovery_id: aws.guardduty.listDetectors
+  calls:
+  - action: listDetectors
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.DetectorIds }}'
+- discovery_id: aws.guardduty.listInvitations
+  calls:
+  - action: listInvitations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Invitations }}'
+    item:
+      AccountId: '{{ item.AccountId }}'
+      InvitationId: '{{ item.InvitationId }}'
+      RelationshipStatus: '{{ item.RelationshipStatus }}'
+      InvitedAt: '{{ item.InvitedAt }}'
+- discovery_id: aws.guardduty.listMalwareProtectionPlans
+  calls:
+  - action: listMalwareProtectionPlans
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.MalwareProtectionPlans }}'
+    item:
+      MalwareProtectionPlanId: '{{ item.MalwareProtectionPlanId }}'
+- discovery_id: aws.guardduty.listMalwareScans
+  calls:
+  - action: listMalwareScans
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Scans }}'
+    item:
+      ResourceArn: '{{ item.ResourceArn }}'
+      ResourceType: '{{ item.ResourceType }}'
+      ScanId: '{{ item.ScanId }}'
+      ScanStatus: '{{ item.ScanStatus }}'
+      ScanResultStatus: '{{ item.ScanResultStatus }}'
+      ScanType: '{{ item.ScanType }}'
+      ScanStartedAt: '{{ item.ScanStartedAt }}'
+      ScanCompletedAt: '{{ item.ScanCompletedAt }}'
+- discovery_id: aws.guardduty.listOrganizationAdminAccounts
+  calls:
+  - action: listOrganizationAdminAccounts
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.AdminAccounts }}'
+    item:
+      AdminAccountId: '{{ item.AdminAccountId }}'
+      AdminStatus: '{{ item.AdminStatus }}'
+- discovery_id: aws.guardduty.describeMalwareScans
+  calls:
+  - action: describeMalwareScans
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Scans }}'
+    item:
+      DetectorId: '{{ item.DetectorId }}'
+      AdminDetectorId: '{{ item.AdminDetectorId }}'
+      ScanId: '{{ item.ScanId }}'
+      ScanStatus: '{{ item.ScanStatus }}'
+      FailureReason: '{{ item.FailureReason }}'
+      ScanStartTime: '{{ item.ScanStartTime }}'
+      ScanEndTime: '{{ item.ScanEndTime }}'
+      TriggerDetails: '{{ item.TriggerDetails }}'
+      ResourceDetails: '{{ item.ResourceDetails }}'
+      ScanResultDetails: '{{ item.ScanResultDetails }}'
+      AccountId: '{{ item.AccountId }}'
+      TotalBytes: '{{ item.TotalBytes }}'
+      FileCount: '{{ item.FileCount }}'
+      AttachedVolumes: '{{ item.AttachedVolumes }}'
+      ScanType: '{{ item.ScanType }}'
+- discovery_id: aws.guardduty.describeOrganizationConfiguration
+  calls:
+  - action: describeOrganizationConfiguration
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Features }}'
+    item:
+      Name: '{{ item.Name }}'
+      AutoEnable: '{{ item.AutoEnable }}'
+      AdditionalConfiguration: '{{ item.AdditionalConfiguration }}'
+- discovery_id: aws.guardduty.describePublishingDestination
+  calls:
+  - action: describePublishingDestination
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.DestinationProperties }}'
+    item:
+      DestinationArn: '{{ item.DestinationArn }}'
+      KmsKeyArn: '{{ item.KmsKeyArn }}'
+- discovery_id: aws.guardduty.getAdministratorAccount
+  calls:
+  - action: getAdministratorAccount
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Administrator }}'
+    item:
+      AccountId: '{{ item.AccountId }}'
+      InvitationId: '{{ item.InvitationId }}'
+      RelationshipStatus: '{{ item.RelationshipStatus }}'
+      InvitedAt: '{{ item.InvitedAt }}'
+- discovery_id: aws.guardduty.getCoverageStatistics
+  calls:
+  - action: getCoverageStatistics
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.CoverageStatistics }}'
+    item:
+      CountByResourceType: '{{ item.CountByResourceType }}'
+      CountByCoverageStatus: '{{ item.CountByCoverageStatus }}'
+- discovery_id: aws.guardduty.getDetector
+  calls:
+  - action: getDetector
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Features }}'
+    item:
+      Name: '{{ item.Name }}'
+      Status: '{{ item.Status }}'
+      UpdatedAt: '{{ item.UpdatedAt }}'
+      AdditionalConfiguration: '{{ item.AdditionalConfiguration }}'
+- discovery_id: aws.guardduty.getFilter
+  calls:
+  - action: getFilter
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.FindingCriteria }}'
+    item:
+      Criterion: '{{ item.Criterion }}'
+- discovery_id: aws.guardduty.getFindings
+  calls:
+  - action: getFindings
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Findings }}'
+    item:
+      AccountId: '{{ item.AccountId }}'
+      Arn: '{{ item.Arn }}'
+      Confidence: '{{ item.Confidence }}'
+      CreatedAt: '{{ item.CreatedAt }}'
+      Description: '{{ item.Description }}'
+      Id: '{{ item.Id }}'
+      Partition: '{{ item.Partition }}'
+      Region: '{{ item.Region }}'
+      Resource: '{{ item.Resource }}'
+      SchemaVersion: '{{ item.SchemaVersion }}'
+      Service: '{{ item.Service }}'
+      Severity: '{{ item.Severity }}'
+      Title: '{{ item.Title }}'
+      Type: '{{ item.Type }}'
+      UpdatedAt: '{{ item.UpdatedAt }}'
+      AssociatedAttackSequenceArn: '{{ item.AssociatedAttackSequenceArn }}'
+- discovery_id: aws.guardduty.getFindingsStatistics
+  calls:
+  - action: getFindingsStatistics
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.FindingStatistics }}'
+    item:
+      CountBySeverity: '{{ item.CountBySeverity }}'
+      GroupedByAccount: '{{ item.GroupedByAccount }}'
+      GroupedByDate: '{{ item.GroupedByDate }}'
+      GroupedByFindingType: '{{ item.GroupedByFindingType }}'
+      GroupedByResource: '{{ item.GroupedByResource }}'
+      GroupedBySeverity: '{{ item.GroupedBySeverity }}'
+- discovery_id: aws.guardduty.getIpSet
+  calls:
+  - action: getIpSet
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Name }}'
+- discovery_id: aws.guardduty.getMalwareProtectionPlan
+  calls:
+  - action: getMalwareProtectionPlan
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.StatusReasons }}'
+    item:
+      Code: '{{ item.Code }}'
+      Message: '{{ item.Message }}'
+- discovery_id: aws.guardduty.getMalwareScan
+  calls:
+  - action: getMalwareScan
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ScannedResources }}'
+    item:
+      ScannedResourceArn: '{{ item.ScannedResourceArn }}'
+      ScannedResourceType: '{{ item.ScannedResourceType }}'
+      ScannedResourceStatus: '{{ item.ScannedResourceStatus }}'
+      ScanStatusReason: '{{ item.ScanStatusReason }}'
+      ResourceDetails: '{{ item.ResourceDetails }}'
+- discovery_id: aws.guardduty.getMalwareScanSettings
+  calls:
+  - action: getMalwareScanSettings
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ScanResourceCriteria }}'
+    item:
+      Include: '{{ item.Include }}'
+      Exclude: '{{ item.Exclude }}'
+- discovery_id: aws.guardduty.getMasterAccount
+  calls:
+  - action: getMasterAccount
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Master }}'
+    item:
+      AccountId: '{{ item.AccountId }}'
+      InvitationId: '{{ item.InvitationId }}'
+      RelationshipStatus: '{{ item.RelationshipStatus }}'
+      InvitedAt: '{{ item.InvitedAt }}'
+- discovery_id: aws.guardduty.getMemberDetectors
+  calls:
+  - action: getMemberDetectors
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.MemberDataSourceConfigurations }}'
+    item:
+      AccountId: '{{ item.AccountId }}'
+      DataSources: '{{ item.DataSources }}'
+      Features: '{{ item.Features }}'
+- discovery_id: aws.guardduty.getMembers
+  calls:
+  - action: getMembers
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Members }}'
+    item:
+      AccountId: '{{ item.AccountId }}'
+      DetectorId: '{{ item.DetectorId }}'
+      MasterId: '{{ item.MasterId }}'
+      Email: '{{ item.Email }}'
+      RelationshipStatus: '{{ item.RelationshipStatus }}'
+      InvitedAt: '{{ item.InvitedAt }}'
+      UpdatedAt: '{{ item.UpdatedAt }}'
+      AdministratorId: '{{ item.AdministratorId }}'
+- discovery_id: aws.guardduty.getRemainingFreeTrialDays
+  calls:
+  - action: getRemainingFreeTrialDays
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Accounts }}'
+    item:
+      AccountId: '{{ item.AccountId }}'
+      DataSources: '{{ item.DataSources }}'
+      Features: '{{ item.Features }}'
+- discovery_id: aws.guardduty.getThreatEntitySet
+  calls:
+  - action: getThreatEntitySet
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Name }}'
+- discovery_id: aws.guardduty.getThreatIntelSet
+  calls:
+  - action: getThreatIntelSet
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Name }}'
+- discovery_id: aws.guardduty.getTrustedEntitySet
+  calls:
+  - action: getTrustedEntitySet
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Name }}'
+- discovery_id: aws.guardduty.getUsageStatistics
+  calls:
+  - action: getUsageStatistics
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.UsageStatistics }}'
+    item:
+      SumByAccount: '{{ item.SumByAccount }}'
+      TopAccountsByFeature: '{{ item.TopAccountsByFeature }}'
+      SumByDataSource: '{{ item.SumByDataSource }}'
+      SumByResource: '{{ item.SumByResource }}'
+      TopResources: '{{ item.TopResources }}'
+      SumByFeature: '{{ item.SumByFeature }}'
+- discovery_id: aws.guardduty.listCoverage
+  calls:
+  - action: listCoverage
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Resources }}'
+    item:
+      ResourceId: '{{ item.ResourceId }}'
+      DetectorId: '{{ item.DetectorId }}'
+      AccountId: '{{ item.AccountId }}'
+      ResourceDetails: '{{ item.ResourceDetails }}'
+      CoverageStatus: '{{ item.CoverageStatus }}'
+      Issue: '{{ item.Issue }}'
+      UpdatedAt: '{{ item.UpdatedAt }}'
+- discovery_id: aws.guardduty.listFilters
+  calls:
+  - action: listFilters
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.FilterNames }}'
+- discovery_id: aws.guardduty.listFindings
+  calls:
+  - action: listFindings
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.FindingIds }}'
+- discovery_id: aws.guardduty.listIpSets
+  calls:
+  - action: listIpSets
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.IpSetIds }}'
+- discovery_id: aws.guardduty.listMembers
+  calls:
+  - action: listMembers
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Members }}'
+    item:
+      AccountId: '{{ item.AccountId }}'
+      DetectorId: '{{ item.DetectorId }}'
+      MasterId: '{{ item.MasterId }}'
+      Email: '{{ item.Email }}'
+      RelationshipStatus: '{{ item.RelationshipStatus }}'
+      InvitedAt: '{{ item.InvitedAt }}'
+      UpdatedAt: '{{ item.UpdatedAt }}'
+      AdministratorId: '{{ item.AdministratorId }}'
+- discovery_id: aws.guardduty.listPublishingDestinations
+  calls:
+  - action: listPublishingDestinations
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Destinations }}'
+    item:
+      DestinationId: '{{ item.DestinationId }}'
+      DestinationType: '{{ item.DestinationType }}'
+      Status: '{{ item.Status }}'
+- discovery_id: aws.guardduty.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+- discovery_id: aws.guardduty.listThreatEntitySets
+  calls:
+  - action: listThreatEntitySets
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ThreatEntitySetIds }}'
+- discovery_id: aws.guardduty.listThreatIntelSets
+  calls:
+  - action: listThreatIntelSets
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ThreatIntelSetIds }}'
+- discovery_id: aws.guardduty.listTrustedEntitySets
+  calls:
+  - action: listTrustedEntitySets
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.TrustedEntitySetIds }}'
+checks: []

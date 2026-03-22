@@ -1,0 +1,117 @@
+version: '1.0'
+provider: aws
+service: cognito-identity
+services:
+  client: cognito-identity
+  module: boto3.client
+discovery:
+- discovery_id: aws.cognito-identity.describeIdentity
+  calls:
+  - action: describeIdentity
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Logins }}'
+- discovery_id: aws.cognito-identity.describeIdentityPool
+  calls:
+  - action: describeIdentityPool
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.OpenIdConnectProviderARNs }}'
+- discovery_id: aws.cognito-identity.getCredentialsForIdentity
+  calls:
+  - action: getCredentialsForIdentity
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Credentials }}'
+    item:
+      AccessKeyId: '{{ item.AccessKeyId }}'
+      SecretKey: '{{ item.SecretKey }}'
+      SessionToken: '{{ item.SessionToken }}'
+      Expiration: '{{ item.Expiration }}'
+- discovery_id: aws.cognito-identity.getId
+  calls:
+  - action: getId
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.IdentityId }}'
+- discovery_id: aws.cognito-identity.getIdentityPoolRoles
+  calls:
+  - action: getIdentityPoolRoles
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.IdentityPoolId }}'
+- discovery_id: aws.cognito-identity.getOpenIdToken
+  calls:
+  - action: getOpenIdToken
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.IdentityId }}'
+- discovery_id: aws.cognito-identity.getOpenIdTokenForDeveloperIdentity
+  calls:
+  - action: getOpenIdTokenForDeveloperIdentity
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.IdentityId }}'
+- discovery_id: aws.cognito-identity.getPrincipalTagAttributeMap
+  calls:
+  - action: getPrincipalTagAttributeMap
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.IdentityPoolId }}'
+- discovery_id: aws.cognito-identity.listIdentities
+  calls:
+  - action: listIdentities
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Identities }}'
+    item:
+      IdentityId: '{{ item.IdentityId }}'
+      Logins: '{{ item.Logins }}'
+      CreationDate: '{{ item.CreationDate }}'
+      LastModifiedDate: '{{ item.LastModifiedDate }}'
+- discovery_id: aws.cognito-identity.listIdentityPools
+  calls:
+  - action: listIdentityPools
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.IdentityPools }}'
+    item:
+      IdentityPoolId: '{{ item.IdentityPoolId }}'
+      IdentityPoolName: '{{ item.IdentityPoolName }}'
+- discovery_id: aws.cognito-identity.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+- discovery_id: aws.cognito-identity.lookupDeveloperIdentity
+  calls:
+  - action: lookupDeveloperIdentity
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.DeveloperUserIdentifierList }}'
+checks: []

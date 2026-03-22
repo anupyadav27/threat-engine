@@ -1,0 +1,116 @@
+# ============================================================
+# Discovery YAML — elb (AWS)
+# Generated: 2026-02-21T04:56:58Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: elb
+services:
+  client: elb
+  module: boto3.client
+discovery:
+  # ── DescribeAccountLimits ──
+  - discovery_id: aws.elb.describe_account_limits
+    calls:
+      - action: describe_account_limits
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Limits }}'
+      item:
+        Name: '{{ item.Name }}'
+        Limits: '{{ item.Limits }}'
+        Max: '{{ item.Max }}'
+  # ── DescribeLoadBalancerPolicies ──
+  - discovery_id: aws.elb.describe_load_balancer_policies
+    is_active: false
+    calls:
+      - action: describe_load_balancer_policies
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.PolicyDescriptions }}'
+  # ── DescribeLoadBalancerPolicyTypes ──
+  - discovery_id: aws.elb.describe_load_balancer_policy_types
+    is_active: false
+    calls:
+      - action: describe_load_balancer_policy_types
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.PolicyTypeDescriptions }}'
+  # ── DescribeLoadBalancers ──
+  - discovery_id: aws.elb.describe_load_balancers
+    calls:
+      - action: describe_load_balancers
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.LoadBalancerDescriptions }}'
+      item:
+        SecurityGroups: '{{ item.SecurityGroups }}'
+        State: '{{ item.State }}'
+        VpcId: '{{ item.VpcId }}'
+        AccessLog: '{{ item.AccessLog }}'
+        AvailabilityZones: '{{ item.AvailabilityZones }}'
+        CanonicalHostedZoneId: '{{ item.CanonicalHostedZoneId }}'
+        CreatedTime: '{{ item.CreatedTime }}'
+        CustomerOwnedIpv4Pool: '{{ item.CustomerOwnedIpv4Pool }}'
+        DNSName: '{{ item.DNSName }}'
+        EnablePrefixForIpv6SourceNat: '{{ item.EnablePrefixForIpv6SourceNat }}'
+        EnforceSecurityGroupInboundRulesOnPrivateLinkTraffic: '{{ item.EnforceSecurityGroupInboundRulesOnPrivateLinkTraffic }}'
+        IpAddressType: '{{ item.IpAddressType }}'
+        IpamPools: '{{ item.IpamPools }}'
+        LoadBalancerArn: '{{ item.LoadBalancerArn }}'
+        LoadBalancerAttributes: '{{ item.LoadBalancerAttributes }}'
+        LoadBalancerName: '{{ item.LoadBalancerName }}'
+        LoadBalancers: '{{ item.LoadBalancers }}'
+        Scheme: '{{ item.Scheme }}'
+        Type: '{{ item.Type }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── DescribeInstanceHealth ──
+  - discovery_id: aws.elb.describe_instance_health
+    for_each: aws.elb.describe_load_balancers
+    calls:
+      - action: describe_instance_health
+        params:
+          LoadBalancerName: '{{ item.LoadBalancerName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.InstanceStates }}'
+  # ── DescribeLoadBalancerAttributes ──
+  - discovery_id: aws.elb.describe_load_balancer_attributes
+    for_each: aws.elb.describe_load_balancers
+    calls:
+      - action: describe_load_balancer_attributes
+        params:
+          LoadBalancerName: '{{ item.LoadBalancerName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Attributes }}'
+      item:
+        AccessLog: '{{ item.AccessLog }}'
+        Key: '{{ item.Key }}'
+        LoadBalancerAttributes: '{{ item.LoadBalancerAttributes }}'
+        Value: '{{ item.Value }}'
+  # ── DescribeTags ──
+  - discovery_id: aws.elb.describe_tags
+    calls:
+      - action: describe_tags
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.TagDescriptions }}'
+      item:
+        ResourceArn: '{{ item.ResourceArn }}'
+        Tags: '{{ item.Tags }}'

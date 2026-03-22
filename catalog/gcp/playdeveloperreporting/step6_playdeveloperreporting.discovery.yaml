@@ -1,0 +1,427 @@
+# ============================================================
+# Discovery YAML — playdeveloperreporting (v1beta1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 21 | independent: 4 | dependent: 17
+# ops with fields: 21/21 | dep ops with chain: 17/17
+# ============================================================
+version: '1.0'
+provider: gcp
+service: playdeveloperreporting
+
+services:
+  client: playdeveloperreporting
+  module: "googleapiclient.discovery.build('playdeveloperreporting', 'v1beta1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists anomalies in any of the datasets.
+  # ── gcp.playdeveloperreporting.anomalies.list ──
+  - discovery_id: gcp.playdeveloperreporting.anomalies.list
+    # python: svc.anomalies().list(**params).execute()
+    calls:
+      - action: anomalies.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.anomalies }}'
+      item:
+        dimensions: '{{ item.dimensions }}'
+        metric: '{{ item.metric }}'
+        metricSet: '{{ item.metricSet }}'
+        name: '{{ item.name }}'
+        timelineSpec: '{{ item.timelineSpec }}'
+  # Searches for Apps accessible by the user.
+  # ── gcp.playdeveloperreporting.apps.search ──
+  - discovery_id: gcp.playdeveloperreporting.apps.search
+    # python: svc.apps().search(**params).execute()
+    calls:
+      - action: apps.search
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.apps }}'
+      item:
+        displayName: '{{ item.displayName }}'
+        name: '{{ item.name }}'
+        packageName: '{{ item.packageName }}'
+  # Searches all error issues in which reports have been grouped.
+  # ── gcp.playdeveloperreporting.vitals.errors.issues.search ──
+  - discovery_id: gcp.playdeveloperreporting.vitals.errors.issues.search
+    # python: svc.vitals().errors().issues().search(**params).execute()
+    calls:
+      - action: vitals.errors.issues.search
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.issues }}'
+      item:
+        annotations: '{{ item.annotations }}'
+        cause: '{{ item.cause }}'
+        distinctUsers: '{{ item.distinctUsers }}'
+        distinctUsersPercent: '{{ item.distinctUsersPercent }}'
+        errorReportCount: '{{ item.errorReportCount }}'
+        firstAppVersion: '{{ item.firstAppVersion }}'
+        firstOsVersion: '{{ item.firstOsVersion }}'
+        issueUri: '{{ item.issueUri }}'
+        lastAppVersion: '{{ item.lastAppVersion }}'
+        lastErrorReportTime: '{{ item.lastErrorReportTime }}'
+        lastOsVersion: '{{ item.lastOsVersion }}'
+        location: '{{ item.location }}'
+        name: '{{ item.name }}'
+        sampleErrorReports: '{{ item.sampleErrorReports }}'
+        type: '{{ item.type }}'
+  # Searches all error reports received for an app.
+  # ── gcp.playdeveloperreporting.vitals.errors.reports.search ──
+  - discovery_id: gcp.playdeveloperreporting.vitals.errors.reports.search
+    # python: svc.vitals().errors().reports().search(**params).execute()
+    calls:
+      - action: vitals.errors.reports.search
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.reports }}'
+      item:
+        appVersion: '{{ item.appVersion }}'
+        deviceModel: '{{ item.deviceModel }}'
+        eventTime: '{{ item.eventTime }}'
+        issue: '{{ item.issue }}'
+        name: '{{ item.name }}'
+        osVersion: '{{ item.osVersion }}'
+        reportText: '{{ item.reportText }}'
+        type: '{{ item.type }}'
+        vcsInformation: '{{ item.vcsInformation }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Describes filtering options for releases.
+  # ── gcp.playdeveloperreporting.apps.fetchReleaseFilterOptions [dependent] ──
+  - discovery_id: gcp.playdeveloperreporting.apps.fetchReleaseFilterOptions
+    for_each: gcp.playdeveloperreporting.apps.search
+    # python: svc.apps().fetchReleaseFilterOptions(**params).execute()
+    calls:
+      - action: apps.fetchReleaseFilterOptions
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        tracks: '{{ response.tracks }}'
+    # required_params: ['name']
+  # Describes the properties of the metric set.
+  # ── gcp.playdeveloperreporting.vitals.anrrate.get [dependent] ──
+  - discovery_id: gcp.playdeveloperreporting.vitals.anrrate.get
+    for_each: gcp.playdeveloperreporting.apps.search
+    # python: svc.vitals().anrrate().get(**params).execute()
+    calls:
+      - action: vitals.anrrate.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        freshnessInfo: '{{ response.freshnessInfo }}'
+        name: '{{ response.name }}'
+    # required_params: ['name']
+  # Queries the metrics in the metric set.
+  # ── gcp.playdeveloperreporting.vitals.anrrate.query [dependent] ──
+  - discovery_id: gcp.playdeveloperreporting.vitals.anrrate.query
+    for_each: gcp.playdeveloperreporting.apps.search
+    # python: svc.vitals().anrrate().query(**params).execute()
+    calls:
+      - action: vitals.anrrate.query
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.anrrate }}'
+      item:
+        aggregationPeriod: '{{ item.aggregationPeriod }}'
+        dimensions: '{{ item.dimensions }}'
+        metrics: '{{ item.metrics }}'
+        startTime: '{{ item.startTime }}'
+    # required_params: ['name']
+  # Describes the properties of the metric set.
+  # ── gcp.playdeveloperreporting.vitals.crashrate.get [dependent] ──
+  - discovery_id: gcp.playdeveloperreporting.vitals.crashrate.get
+    for_each: gcp.playdeveloperreporting.apps.search
+    # python: svc.vitals().crashrate().get(**params).execute()
+    calls:
+      - action: vitals.crashrate.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        freshnessInfo: '{{ response.freshnessInfo }}'
+        name: '{{ response.name }}'
+    # required_params: ['name']
+  # Queries the metrics in the metric set.
+  # ── gcp.playdeveloperreporting.vitals.crashrate.query [dependent] ──
+  - discovery_id: gcp.playdeveloperreporting.vitals.crashrate.query
+    for_each: gcp.playdeveloperreporting.apps.search
+    # python: svc.vitals().crashrate().query(**params).execute()
+    calls:
+      - action: vitals.crashrate.query
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.crashrate }}'
+      item:
+        aggregationPeriod: '{{ item.aggregationPeriod }}'
+        dimensions: '{{ item.dimensions }}'
+        metrics: '{{ item.metrics }}'
+        startTime: '{{ item.startTime }}'
+    # required_params: ['name']
+  # Describes the properties of the metrics set.
+  # ── gcp.playdeveloperreporting.vitals.errors.counts.get [dependent] ──
+  - discovery_id: gcp.playdeveloperreporting.vitals.errors.counts.get
+    for_each: gcp.playdeveloperreporting.apps.search
+    # python: svc.vitals().errors().counts().get(**params).execute()
+    calls:
+      - action: vitals.errors.counts.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        freshnessInfo: '{{ response.freshnessInfo }}'
+        name: '{{ response.name }}'
+    # required_params: ['name']
+  # Queries the metrics in the metrics set.
+  # ── gcp.playdeveloperreporting.vitals.errors.counts.query [dependent] ──
+  - discovery_id: gcp.playdeveloperreporting.vitals.errors.counts.query
+    for_each: gcp.playdeveloperreporting.apps.search
+    # python: svc.vitals().errors().counts().query(**params).execute()
+    calls:
+      - action: vitals.errors.counts.query
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.counts }}'
+      item:
+        aggregationPeriod: '{{ item.aggregationPeriod }}'
+        dimensions: '{{ item.dimensions }}'
+        metrics: '{{ item.metrics }}'
+        startTime: '{{ item.startTime }}'
+    # required_params: ['name']
+  # Describes the properties of the metric set.
+  # ── gcp.playdeveloperreporting.vitals.excessivewakeuprate.get [dependent] ──
+  - discovery_id: gcp.playdeveloperreporting.vitals.excessivewakeuprate.get
+    for_each: gcp.playdeveloperreporting.apps.search
+    # python: svc.vitals().excessivewakeuprate().get(**params).execute()
+    calls:
+      - action: vitals.excessivewakeuprate.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        freshnessInfo: '{{ response.freshnessInfo }}'
+        name: '{{ response.name }}'
+    # required_params: ['name']
+  # Queries the metrics in the metric set.
+  # ── gcp.playdeveloperreporting.vitals.excessivewakeuprate.query [dependent] ──
+  - discovery_id: gcp.playdeveloperreporting.vitals.excessivewakeuprate.query
+    for_each: gcp.playdeveloperreporting.apps.search
+    # python: svc.vitals().excessivewakeuprate().query(**params).execute()
+    calls:
+      - action: vitals.excessivewakeuprate.query
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.excessivewakeuprate }}'
+      item:
+        aggregationPeriod: '{{ item.aggregationPeriod }}'
+        dimensions: '{{ item.dimensions }}'
+        metrics: '{{ item.metrics }}'
+        startTime: '{{ item.startTime }}'
+    # required_params: ['name']
+  # Describes the properties of the metric set.
+  # ── gcp.playdeveloperreporting.vitals.lmkrate.get [dependent] ──
+  - discovery_id: gcp.playdeveloperreporting.vitals.lmkrate.get
+    for_each: gcp.playdeveloperreporting.apps.search
+    # python: svc.vitals().lmkrate().get(**params).execute()
+    calls:
+      - action: vitals.lmkrate.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        freshnessInfo: '{{ response.freshnessInfo }}'
+        name: '{{ response.name }}'
+    # required_params: ['name']
+  # Queries the metrics in the metric set.
+  # ── gcp.playdeveloperreporting.vitals.lmkrate.query [dependent] ──
+  - discovery_id: gcp.playdeveloperreporting.vitals.lmkrate.query
+    for_each: gcp.playdeveloperreporting.apps.search
+    # python: svc.vitals().lmkrate().query(**params).execute()
+    calls:
+      - action: vitals.lmkrate.query
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.lmkrate }}'
+      item:
+        aggregationPeriod: '{{ item.aggregationPeriod }}'
+        dimensions: '{{ item.dimensions }}'
+        metrics: '{{ item.metrics }}'
+        startTime: '{{ item.startTime }}'
+    # required_params: ['name']
+  # Describes the properties of the metric set.
+  # ── gcp.playdeveloperreporting.vitals.slowrenderingrate.get [dependent] ──
+  - discovery_id: gcp.playdeveloperreporting.vitals.slowrenderingrate.get
+    for_each: gcp.playdeveloperreporting.apps.search
+    # python: svc.vitals().slowrenderingrate().get(**params).execute()
+    calls:
+      - action: vitals.slowrenderingrate.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        freshnessInfo: '{{ response.freshnessInfo }}'
+        name: '{{ response.name }}'
+    # required_params: ['name']
+  # Queries the metrics in the metric set.
+  # ── gcp.playdeveloperreporting.vitals.slowrenderingrate.query [dependent] ──
+  - discovery_id: gcp.playdeveloperreporting.vitals.slowrenderingrate.query
+    for_each: gcp.playdeveloperreporting.apps.search
+    # python: svc.vitals().slowrenderingrate().query(**params).execute()
+    calls:
+      - action: vitals.slowrenderingrate.query
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.slowrenderingrate }}'
+      item:
+        aggregationPeriod: '{{ item.aggregationPeriod }}'
+        dimensions: '{{ item.dimensions }}'
+        metrics: '{{ item.metrics }}'
+        startTime: '{{ item.startTime }}'
+    # required_params: ['name']
+  # Describes the properties of the metric set.
+  # ── gcp.playdeveloperreporting.vitals.slowstartrate.get [dependent] ──
+  - discovery_id: gcp.playdeveloperreporting.vitals.slowstartrate.get
+    for_each: gcp.playdeveloperreporting.apps.search
+    # python: svc.vitals().slowstartrate().get(**params).execute()
+    calls:
+      - action: vitals.slowstartrate.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        freshnessInfo: '{{ response.freshnessInfo }}'
+        name: '{{ response.name }}'
+    # required_params: ['name']
+  # Queries the metrics in the metric set.
+  # ── gcp.playdeveloperreporting.vitals.slowstartrate.query [dependent] ──
+  - discovery_id: gcp.playdeveloperreporting.vitals.slowstartrate.query
+    for_each: gcp.playdeveloperreporting.apps.search
+    # python: svc.vitals().slowstartrate().query(**params).execute()
+    calls:
+      - action: vitals.slowstartrate.query
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.slowstartrate }}'
+      item:
+        aggregationPeriod: '{{ item.aggregationPeriod }}'
+        dimensions: '{{ item.dimensions }}'
+        metrics: '{{ item.metrics }}'
+        startTime: '{{ item.startTime }}'
+    # required_params: ['name']
+  # Describes the properties of the metric set.
+  # ── gcp.playdeveloperreporting.vitals.stuckbackgroundwakelockrate.get [dependent] ──
+  - discovery_id: gcp.playdeveloperreporting.vitals.stuckbackgroundwakelockrate.get
+    for_each: gcp.playdeveloperreporting.apps.search
+    # python: svc.vitals().stuckbackgroundwakelockrate().get(**params).execute()
+    calls:
+      - action: vitals.stuckbackgroundwakelockrate.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        freshnessInfo: '{{ response.freshnessInfo }}'
+        name: '{{ response.name }}'
+    # required_params: ['name']
+  # Queries the metrics in the metric set.
+  # ── gcp.playdeveloperreporting.vitals.stuckbackgroundwakelockrate.query [dependent] ──
+  - discovery_id: gcp.playdeveloperreporting.vitals.stuckbackgroundwakelockrate.query
+    for_each: gcp.playdeveloperreporting.apps.search
+    # python: svc.vitals().stuckbackgroundwakelockrate().query(**params).execute()
+    calls:
+      - action: vitals.stuckbackgroundwakelockrate.query
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.stuckbackgroundwakelockrate }}'
+      item:
+        aggregationPeriod: '{{ item.aggregationPeriod }}'
+        dimensions: '{{ item.dimensions }}'
+        metrics: '{{ item.metrics }}'
+        startTime: '{{ item.startTime }}'
+    # required_params: ['name']

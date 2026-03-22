@@ -1,0 +1,46 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install dependencies
+COPY engine_discoveries/engine_discoveries_aws/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy multi-CSP architecture files
+# Common layer (CSP-agnostic)
+COPY engine_discoveries/common/ ./common/
+
+# Providers layer (CSP-specific)
+COPY engine_discoveries/providers/ ./providers/
+
+# Utils layer (database-driven config)
+COPY engine_discoveries/utils/ ./utils/
+
+# Database configuration (simplified - only what we need)
+COPY engine_discoveries/engine_discoveries_aws/database/connection/ ./database/connection/
+COPY engine_discoveries/engine_discoveries_aws/database/config/ ./database/config/
+
+# Copy engine_common for shared utilities
+COPY engine_common/ ./engine_common/
+
+# Set Python path
+ENV PYTHONPATH=/app
+
+# Allow PORT to be configured via environment variable
+ENV PORT=8001
+
+# Expose port
+EXPOSE ${PORT}
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD python -c "import requests; requests.get('http://localhost:${PORT}/api/v1/health/live', timeout=5)" || exit 1
+
+# Run multi-CSP API server
+CMD ["sh", "-c", "uvicorn common.api_server:app --host 0.0.0.0 --port ${PORT:-8001} --timeout-keep-alive 75 --log-level info"]

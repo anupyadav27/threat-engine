@@ -1,0 +1,176 @@
+# ============================================================
+# Discovery YAML — servicedirectory (v1)
+# Generated: 2026-02-21T03:06:41Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 8 | independent: 5 | dependent: 3
+# ops with fields: 8/8 | dep ops with chain: 3/3
+# ============================================================
+version: '1.0'
+provider: gcp
+service: servicedirectory
+
+services:
+  client: servicedirectory
+  module: "googleapiclient.discovery.build('servicedirectory', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Gets information about a location.
+  # ── gcp.servicedirectory.projects.locations.get ──
+  - discovery_id: gcp.servicedirectory.projects.locations.get
+    # python: svc.projects().locations().get(**params).execute()
+    calls:
+      - action: projects.locations.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        displayName: '{{ response.displayName }}'
+        labels: '{{ response.labels }}'
+        locationId: '{{ response.locationId }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+  # Lists information about the supported locations for this service. This method can be called in two w
+  # ── gcp.servicedirectory.projects.locations.list ──
+  - discovery_id: gcp.servicedirectory.projects.locations.list
+    # python: svc.projects().locations().list(**params).execute()
+    calls:
+      - action: projects.locations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.locations }}'
+      item:
+        displayName: '{{ item.displayName }}'
+        labels: '{{ item.labels }}'
+        locationId: '{{ item.locationId }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+  # Lists all namespaces.
+  # ── gcp.servicedirectory.projects.locations.namespaces.list ──
+  - discovery_id: gcp.servicedirectory.projects.locations.namespaces.list
+    # python: svc.projects().locations().namespaces().list(**params).execute()
+    calls:
+      - action: projects.locations.namespaces.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.namespaces }}'
+      item:
+        labels: '{{ item.labels }}'
+        name: '{{ item.name }}'
+        uid: '{{ item.uid }}'
+  # Lists all endpoints.
+  # ── gcp.servicedirectory.projects.locations.namespaces.services.endpoints.list ──
+  - discovery_id: gcp.servicedirectory.projects.locations.namespaces.services.endpoints.list
+    # python: svc.projects().locations().namespaces().services().endpoints().list(**params).execute()
+    calls:
+      - action: projects.locations.namespaces.services.endpoints.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.endpoints }}'
+      item:
+        address: '{{ item.address }}'
+        annotations: '{{ item.annotations }}'
+        name: '{{ item.name }}'
+        network: '{{ item.network }}'
+        port: '{{ item.port }}'
+        uid: '{{ item.uid }}'
+  # Lists all services belonging to a namespace.
+  # ── gcp.servicedirectory.projects.locations.namespaces.services.list ──
+  - discovery_id: gcp.servicedirectory.projects.locations.namespaces.services.list
+    # python: svc.projects().locations().namespaces().services().list(**params).execute()
+    calls:
+      - action: projects.locations.namespaces.services.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.services }}'
+      item:
+        annotations: '{{ item.annotations }}'
+        endpoints: '{{ item.endpoints }}'
+        name: '{{ item.name }}'
+        uid: '{{ item.uid }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets a namespace.
+  # ── gcp.servicedirectory.projects.locations.namespaces.get [dependent] ──
+  - discovery_id: gcp.servicedirectory.projects.locations.namespaces.get
+    for_each: gcp.servicedirectory.projects.locations.namespaces.list
+    # python: svc.projects().locations().namespaces().get(**params).execute()
+    calls:
+      - action: projects.locations.namespaces.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        labels: '{{ response.labels }}'
+        name: '{{ response.name }}'
+        uid: '{{ response.uid }}'
+    # required_params: ['name']
+  # Gets an endpoint.
+  # ── gcp.servicedirectory.projects.locations.namespaces.services.endpoints.get [dependent] ──
+  - discovery_id: gcp.servicedirectory.projects.locations.namespaces.services.endpoints.get
+    for_each: gcp.servicedirectory.projects.locations.namespaces.services.endpoints.list
+    # python: svc.projects().locations().namespaces().services().endpoints().get(**params).execute()
+    calls:
+      - action: projects.locations.namespaces.services.endpoints.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        address: '{{ response.address }}'
+        annotations: '{{ response.annotations }}'
+        name: '{{ response.name }}'
+        network: '{{ response.network }}'
+        port: '{{ response.port }}'
+        uid: '{{ response.uid }}'
+    # required_params: ['name']
+  # Gets a service.
+  # ── gcp.servicedirectory.projects.locations.namespaces.services.get [dependent] ──
+  - discovery_id: gcp.servicedirectory.projects.locations.namespaces.services.get
+    for_each: gcp.servicedirectory.projects.locations.namespaces.services.list
+    # python: svc.projects().locations().namespaces().services().get(**params).execute()
+    calls:
+      - action: projects.locations.namespaces.services.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        annotations: '{{ response.annotations }}'
+        endpoints: '{{ response.endpoints }}'
+        name: '{{ response.name }}'
+        uid: '{{ response.uid }}'
+    # required_params: ['name']

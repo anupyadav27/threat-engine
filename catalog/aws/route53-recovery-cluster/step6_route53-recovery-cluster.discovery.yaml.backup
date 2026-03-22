@@ -1,0 +1,33 @@
+version: '1.0'
+provider: aws
+service: route53-recovery-cluster
+services:
+  client: route53-recovery-cluster
+  module: boto3.client
+discovery:
+- discovery_id: aws.route53-recovery-cluster.listRoutingControls
+  calls:
+  - action: listRoutingControls
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.RoutingControls }}'
+    item:
+      ControlPanelArn: '{{ item.ControlPanelArn }}'
+      ControlPanelName: '{{ item.ControlPanelName }}'
+      RoutingControlArn: '{{ item.RoutingControlArn }}'
+      RoutingControlName: '{{ item.RoutingControlName }}'
+      RoutingControlState: '{{ item.RoutingControlState }}'
+      Owner: '{{ item.Owner }}'
+- discovery_id: aws.route53-recovery-cluster.getRoutingControlState
+  calls:
+  - action: getRoutingControlState
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.RoutingControlArn }}'
+checks: []

@@ -1,0 +1,73 @@
+# ============================================================
+# Discovery YAML — billingbudgets (v1)
+# Generated: 2026-02-21T03:06:38Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 2 | independent: 1 | dependent: 1
+# ops with fields: 2/2 | dep ops with chain: 1/1
+# ============================================================
+version: '1.0'
+provider: gcp
+service: billingbudgets
+
+services:
+  client: billingbudgets
+  module: "googleapiclient.discovery.build('billingbudgets', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Returns a list of budgets for a billing account. WARNING: There are some fields exposed on the Googl
+  # ── gcp.billingbudgets.billingAccounts.budgets.list ──
+  - discovery_id: gcp.billingbudgets.billingAccounts.budgets.list
+    # python: svc.billingAccounts().budgets().list(**params).execute()
+    calls:
+      - action: billingAccounts.budgets.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.budgets }}'
+      item:
+        amount: '{{ item.amount }}'
+        budgetFilter: '{{ item.budgetFilter }}'
+        displayName: '{{ item.displayName }}'
+        name: '{{ item.name }}'
+        notificationsRule: '{{ item.notificationsRule }}'
+        ownershipScope: '{{ item.ownershipScope }}'
+        thresholdRules: '{{ item.thresholdRules }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Returns a budget. WARNING: There are some fields exposed on the Google Cloud Console that aren't ava
+  # ── gcp.billingbudgets.billingAccounts.budgets.get [dependent] ──
+  - discovery_id: gcp.billingbudgets.billingAccounts.budgets.get
+    for_each: gcp.billingbudgets.billingAccounts.budgets.list
+    # python: svc.billingAccounts().budgets().get(**params).execute()
+    calls:
+      - action: billingAccounts.budgets.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        amount: '{{ response.amount }}'
+        budgetFilter: '{{ response.budgetFilter }}'
+        displayName: '{{ response.displayName }}'
+        name: '{{ response.name }}'
+        notificationsRule: '{{ response.notificationsRule }}'
+        ownershipScope: '{{ response.ownershipScope }}'
+        thresholdRules: '{{ response.thresholdRules }}'
+    # required_params: ['name']

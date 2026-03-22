@@ -1,0 +1,616 @@
+{
+  "csp": "gcp",
+  "generated_at": "2026-02-19T14:43:27.854326+00:00",
+  "anchors": {
+    "fixed": [
+      "project_id",
+      "org_id",
+      "folder_id",
+      "location",
+      "zone",
+      "region"
+    ]
+  },
+  "services": {
+    "recaptchaenterprise": {
+      "version": "v1",
+      "resources": {
+        "firewallpolicies": {
+          "resource_type": "firewallpolicies",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.recaptchaenterprise.projects.firewallpolicies.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/firewallpolicies"
+                },
+                "python_call": "svc.projects().firewallpolicies().list(**params).execute()",
+                "produces": {
+                  "name": "firewallPolicies[].name",
+                  "path": "firewallPolicies[].path",
+                  "condition": "firewallPolicies[].condition",
+                  "description": "firewallPolicies[].description",
+                  "actions": "firewallPolicies[].actions"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.recaptchaenterprise.projects.firewallpolicies.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().firewallpolicies().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.recaptchaenterprise.projects.firewallpolicies.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.recaptchaenterprise.projects.firewallpolicies.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().firewallpolicies().list(**params).execute()",
+                      "path": "/v1/{+parent}/firewallpolicies",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+$",
+                          "description": "Required. The name of the project to list the policies for, in the format `projects/{project}`."
+                        }
+                      },
+                      "output_list_field": "firewallPolicies",
+                      "output_id_field": "name",
+                      "produces": {
+                        "firewallpolicyId": {
+                          "via_list_field": "firewallPolicies",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"firewallPolicies\"][], extract item[\"name\"] \u2192 pass as \"firewallpolicyId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: firewallpolicyId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.recaptchaenterprise.projects.firewallpolicies.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().firewallpolicies().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/firewallpolicies/[^/]+$",
+                          "description": "Required. The name of the requested policy, in the format `projects/{project}/firewallpolicies/{firewallpolicy}`."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "firewallpolicyId": {
+                            "from_step": 1,
+                            "from_op": "gcp.recaptchaenterprise.projects.firewallpolicies.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "keys": {
+          "resource_type": "keys",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "constructed",
+            "full_identifier": {
+              "template": "projects/{url_encoded_ip}",
+              "built_from_parts": [
+                "ipOverrides[].ip"
+              ],
+              "notes": ""
+            },
+            "parts": [
+              "ip"
+            ],
+            "part_sources": {
+              "ip": {
+                "op": "gcp.recaptchaenterprise.projects.keys.listIpOverrides",
+                "field_path": "ipOverrides[].ip",
+                "transform": null
+              }
+            },
+            "transforms": [
+              {
+                "from": "ipOverrides[].ip",
+                "fn": "url_encode",
+                "to": "url_encoded_ip"
+              },
+              {
+                "from": "url_encoded_ip",
+                "fn": "prefix:projects/",
+                "to": "name"
+              },
+              {
+                "build": "full_id",
+                "template": "projects/{url_encoded_ip}"
+              }
+            ]
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.recaptchaenterprise.projects.keys.listIpOverrides",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}:listIpOverrides"
+                },
+                "python_call": "svc.projects().keys().listIpOverrides(**params).execute()",
+                "produces": {
+                  "ip": "ipOverrides[].ip",
+                  "overrideType": "ipOverrides[].overrideType"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.recaptchaenterprise.projects.keys.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/keys"
+                },
+                "python_call": "svc.projects().keys().list(**params).execute()",
+                "produces": {
+                  "name": "keys[].name",
+                  "createTime": "keys[].createTime",
+                  "displayName": "keys[].displayName",
+                  "labels": "keys[].labels",
+                  "iosSettings": "keys[].iosSettings",
+                  "androidSettings": "keys[].androidSettings",
+                  "webSettings": "keys[].webSettings",
+                  "expressSettings": "keys[].expressSettings",
+                  "wafSettings": "keys[].wafSettings",
+                  "testingOptions": "keys[].testingOptions"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.recaptchaenterprise.projects.keys.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().keys().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "transforms \u2192 name"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.recaptchaenterprise.projects.keys.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.recaptchaenterprise.projects.keys.listIpOverrides",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().keys().listIpOverrides(**params).execute()",
+                      "path": "/v1/{+parent}:listIpOverrides",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/keys/[^/]+$",
+                          "description": "Required. The parent key for which the IP overrides are listed, in the format `projects/{project}/keys/{key}`."
+                        }
+                      },
+                      "output_list_field": "ipOverrides",
+                      "output_id_field": "ip",
+                      "produces": {
+                        "keyId": {
+                          "via_list_field": "ipOverrides",
+                          "from_id_field": "ip",
+                          "note": "Iterate response[\"ipOverrides\"][], extract item[\"ip\"] \u2192 pass as \"keyId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: keyId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.recaptchaenterprise.projects.keys.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().keys().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/keys/[^/]+$",
+                          "description": "Required. The name of the requested key, in the format `projects/{project}/keys/{key}`."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "keyId": {
+                            "from_step": 1,
+                            "from_op": "gcp.recaptchaenterprise.projects.keys.listIpOverrides",
+                            "field": "ip"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.recaptchaenterprise.projects.keys.getMetrics",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().keys().getMetrics(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "transforms \u2192 name"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.recaptchaenterprise.projects.keys.getMetrics",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.recaptchaenterprise.projects.keys.listIpOverrides",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().keys().listIpOverrides(**params).execute()",
+                      "path": "/v1/{+parent}:listIpOverrides",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/keys/[^/]+$",
+                          "description": "Required. The parent key for which the IP overrides are listed, in the format `projects/{project}/keys/{key}`."
+                        }
+                      },
+                      "output_list_field": "ipOverrides",
+                      "output_id_field": "ip",
+                      "produces": {
+                        "keyId": {
+                          "via_list_field": "ipOverrides",
+                          "from_id_field": "ip",
+                          "note": "Iterate response[\"ipOverrides\"][], extract item[\"ip\"] \u2192 pass as \"keyId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: keyId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.recaptchaenterprise.projects.keys.getMetrics",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().keys().getMetrics(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/keys/[^/]+/metrics$",
+                          "description": "Required. The name of the requested metrics, in the format `projects/{project}/keys/{key}/metrics`."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "keyId": {
+                            "from_step": 1,
+                            "from_op": "gcp.recaptchaenterprise.projects.keys.listIpOverrides",
+                            "field": "ip"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.recaptchaenterprise.projects.keys.retrieveLegacySecretKey",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+key}:retrieveLegacySecretKey"
+                },
+                "python_call": "svc.projects().keys().retrieveLegacySecretKey(**params).execute()",
+                "required_params": {
+                  "key": {
+                    "from_identifier": "gcp.recaptchaenterprise.projects.keys.listIpOverrides \u2192 ipOverrides[].ip"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.recaptchaenterprise.projects.keys.retrieveLegacySecretKey",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.recaptchaenterprise.projects.keys.listIpOverrides",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().keys().listIpOverrides(**params).execute()",
+                      "path": "/v1/{+parent}:listIpOverrides",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/keys/[^/]+$",
+                          "description": "Required. The parent key for which the IP overrides are listed, in the format `projects/{project}/keys/{key}`."
+                        }
+                      },
+                      "output_list_field": "ipOverrides",
+                      "output_id_field": "ip",
+                      "produces": {
+                        "keyId": {
+                          "via_list_field": "ipOverrides",
+                          "from_id_field": "ip",
+                          "note": "Iterate response[\"ipOverrides\"][], extract item[\"ip\"] \u2192 pass as \"keyId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: keyId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.recaptchaenterprise.projects.keys.retrieveLegacySecretKey",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().keys().retrieveLegacySecretKey(**params).execute()",
+                      "path": "/v1/{+key}:retrieveLegacySecretKey",
+                      "required_params": {
+                        "key": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/keys/[^/]+$",
+                          "description": "Required. The public key name linked to the requested secret key in the format `projects/{project}/keys/{key}`."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "key": {
+                          "keyId": {
+                            "from_step": 1,
+                            "from_op": "gcp.recaptchaenterprise.projects.keys.listIpOverrides",
+                            "field": "ip"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        },
+        "memberships": {
+          "resource_type": "memberships",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "",
+              "built_from_parts": [],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.recaptchaenterprise.projects.relatedaccountgroups.memberships.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/memberships"
+                },
+                "python_call": "svc.projects().relatedaccountgroups().memberships().list(**params).execute()",
+                "produces": {
+                  "name": "relatedAccountGroupMemberships[].name",
+                  "hashedAccountId": "relatedAccountGroupMemberships[].hashedAccountId",
+                  "accountId": "relatedAccountGroupMemberships[].accountId"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": []
+          },
+          "confidence": 0.5,
+          "notes": "No enrich (get) ops found; inventory only."
+        },
+        "relatedaccountgroupmemberships": {
+          "resource_type": "relatedaccountgroupmemberships",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "",
+              "built_from_parts": [],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.recaptchaenterprise.projects.relatedaccountgroupmemberships.search",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "POST",
+                  "path": "/v1/{+project}/relatedaccountgroupmemberships:search"
+                },
+                "python_call": "svc.projects().relatedaccountgroupmemberships().search(**params).execute()",
+                "produces": {
+                  "name": "relatedAccountGroupMemberships[].name",
+                  "hashedAccountId": "relatedAccountGroupMemberships[].hashedAccountId",
+                  "accountId": "relatedAccountGroupMemberships[].accountId"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": []
+          },
+          "confidence": 0.5,
+          "notes": "No enrich (get) ops found; inventory only."
+        },
+        "relatedaccountgroups": {
+          "resource_type": "relatedaccountgroups",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "",
+              "built_from_parts": [],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.recaptchaenterprise.projects.relatedaccountgroups.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/relatedaccountgroups"
+                },
+                "python_call": "svc.projects().relatedaccountgroups().list(**params).execute()",
+                "produces": {
+                  "name": "relatedAccountGroups[].name"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": []
+          },
+          "confidence": 0.5,
+          "notes": "No enrich (get) ops found; inventory only."
+        }
+      }
+    }
+  }
+}

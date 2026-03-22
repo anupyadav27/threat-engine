@@ -1,0 +1,82 @@
+version: '1.0'
+provider: aws
+service: arc-zonal-shift
+services:
+  client: arc-zonal-shift
+  module: boto3.client
+discovery:
+- discovery_id: aws.arc-zonal-shift.getAutoshiftObserverNotificationStatus
+  calls:
+  - action: getAutoshiftObserverNotificationStatus
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.status }}'
+- discovery_id: aws.arc-zonal-shift.listAutoshifts
+  calls:
+  - action: listAutoshifts
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      awayFrom: '{{ item.awayFrom }}'
+      endTime: '{{ item.endTime }}'
+      startTime: '{{ item.startTime }}'
+      status: '{{ item.status }}'
+- discovery_id: aws.arc-zonal-shift.listManagedResources
+  calls:
+  - action: listManagedResources
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      arn: '{{ item.arn }}'
+      name: '{{ item.name }}'
+      availabilityZones: '{{ item.availabilityZones }}'
+      appliedWeights: '{{ item.appliedWeights }}'
+      zonalShifts: '{{ item.zonalShifts }}'
+      autoshifts: '{{ item.autoshifts }}'
+      zonalAutoshiftStatus: '{{ item.zonalAutoshiftStatus }}'
+      practiceRunStatus: '{{ item.practiceRunStatus }}'
+- discovery_id: aws.arc-zonal-shift.listZonalShifts
+  calls:
+  - action: listZonalShifts
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      zonalShiftId: '{{ item.zonalShiftId }}'
+      resourceIdentifier: '{{ item.resourceIdentifier }}'
+      awayFrom: '{{ item.awayFrom }}'
+      expiryTime: '{{ item.expiryTime }}'
+      startTime: '{{ item.startTime }}'
+      status: '{{ item.status }}'
+      comment: '{{ item.comment }}'
+      shiftType: '{{ item.shiftType }}'
+      practiceRunOutcome: '{{ item.practiceRunOutcome }}'
+- discovery_id: aws.arc-zonal-shift.getManagedResource
+  calls:
+  - action: getManagedResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.zonalShifts }}'
+    item:
+      appliedStatus: '{{ item.appliedStatus }}'
+      zonalShiftId: '{{ item.zonalShiftId }}'
+      resourceIdentifier: '{{ item.resourceIdentifier }}'
+      awayFrom: '{{ item.awayFrom }}'
+      expiryTime: '{{ item.expiryTime }}'
+      startTime: '{{ item.startTime }}'
+      comment: '{{ item.comment }}'
+      shiftType: '{{ item.shiftType }}'
+      practiceRunOutcome: '{{ item.practiceRunOutcome }}'
+checks: []

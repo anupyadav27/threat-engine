@@ -1,0 +1,115 @@
+# ============================================================
+# Discovery YAML — webrisk (v1)
+# Generated: 2026-02-21T03:06:41Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 5 | independent: 4 | dependent: 1
+# ops with fields: 4/5 | dep ops with chain: 1/1
+# ============================================================
+version: '1.0'
+provider: gcp
+service: webrisk
+
+services:
+  client: webrisk
+  module: "googleapiclient.discovery.build('webrisk', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Gets the full hashes that match the requested hash prefix. This is used after a hash prefix is looke
+  # ── gcp.webrisk.hashes.search ──
+  - discovery_id: gcp.webrisk.hashes.search
+    # python: svc.hashes().search(**params).execute()
+    calls:
+      - action: hashes.search
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.hashes }}'
+      item:
+        expireTime: '{{ item.expireTime }}'
+        hash: '{{ item.hash }}'
+        threatTypes: '{{ item.threatTypes }}'
+  # Lists operations that match the specified filter in the request. If the server doesn't support this 
+  # ── gcp.webrisk.projects.operations.list ──
+  - discovery_id: gcp.webrisk.projects.operations.list
+    # python: svc.projects().operations().list(**params).execute()
+    calls:
+      - action: projects.operations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.operations }}'
+      item:
+        done: '{{ item.done }}'
+        error: '{{ item.error }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+        response: '{{ item.response }}'
+  # Gets the most recent threat list diffs. These diffs should be applied to a local database of hashes 
+  # ── gcp.webrisk.threatLists.computeDiff ──
+  - discovery_id: gcp.webrisk.threatLists.computeDiff
+    # python: svc.threatLists().computeDiff(**params).execute()
+    calls:
+      - action: threatLists.computeDiff
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        additions: '{{ response.additions }}'
+        checksum: '{{ response.checksum }}'
+        newVersionToken: '{{ response.newVersionToken }}'
+        recommendedNextDiff: '{{ response.recommendedNextDiff }}'
+        removals: '{{ response.removals }}'
+        responseType: '{{ response.responseType }}'
+  # This method is used to check whether a URI is on a given threatList. Multiple threatLists may be sea
+  # ── gcp.webrisk.uris.search ──
+  - discovery_id: gcp.webrisk.uris.search
+    # python: svc.uris().search(**params).execute()
+    calls:
+      - action: uris.search
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.uris }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.webrisk.projects.operations.get [dependent] ──
+  - discovery_id: gcp.webrisk.projects.operations.get
+    for_each: gcp.webrisk.projects.operations.list
+    # python: svc.projects().operations().get(**params).execute()
+    calls:
+      - action: projects.operations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']

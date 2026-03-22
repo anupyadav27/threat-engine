@@ -1,6 +1,6 @@
 # Database Dependency Map
 
-> Last updated: 2026-02-22
+> Last updated: 2026-03-01
 > RDS: `postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com:5432`
 
 All databases live on a **single RDS PostgreSQL 15 instance**.
@@ -25,7 +25,7 @@ Cloud Accounts
                             │ creates orchestration row
                             ▼
 ┌───────────────────────────────────────────────────────────────────────┐
-│  DISCOVERIES  (threat_engine_discoveries)                             │
+│  DISCOVERIES  (discoveries)                             │
 │  Tables:                                                              │
 │    discovery_findings   ← raw cloud resource records (WRITE)         │
 │    discovery_report     ← scan metadata/summary (WRITE)              │
@@ -78,8 +78,8 @@ Cloud Accounts
 │  check_        │ │  check_      │ │  check_    │  │  check_findings  │
 │  findings      │ │  findings    │ │  findings  │  │  inventory DB    │
 │                │ │  inventory DB│ │            │  │  inventory_      │
-│  Port: 8000    │ │  Port: 8020  │ │  Port:8001 │  │  findings        │
-│                │ │              │ │            │  │  Port: 8003      │
+│  Port: 8010    │ │  Port: 8020  │ │  Port:8003 │  │  findings        │
+│                │ │              │ │            │  │  Port: 8004      │
 └────────────────┘ └──────────────┘ └────────────┘  └──────────────────┘
 ```
 
@@ -98,7 +98,7 @@ Cloud Accounts
 
 ---
 
-### `threat_engine_discoveries`
+### `discoveries`
 **Owner:** engine-discoveries
 **Access:** WRITE by discoveries; READ by check, inventory, compliance, threat, iam, datasec
 
@@ -148,7 +148,7 @@ Cloud Accounts
 
 ---
 
-### `threat_engine_threat`
+### `threat`
 **Owner:** engine-threat
 **Access:** WRITE by threat; READ by UI
 
@@ -267,9 +267,9 @@ All engines use environment variables injected from ConfigMap + Secret:
 
 ```bash
 # ConfigMap: threat-engine-db-config
-<ENGINE>_DB_HOST=postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com
+<ENGINE>_DB_HOST=pgbouncer.threat-engine-engines.svc.cluster.local  # via PgBouncer
 <ENGINE>_DB_PORT=5432
-<ENGINE>_DB_NAME=threat_engine_<engine>
+<ENGINE>_DB_NAME=threat_engine_<engine>  # except: discoveries→discoveries, threat→threat
 <ENGINE>_DB_USER=postgres
 
 # Secret: threat-engine-db-passwords
@@ -290,9 +290,9 @@ Local reference schemas (match production RDS):
 
 | File | Database |
 |------|----------|
-| `consolidated_services/database/schemas/onboarding_schema.sql` | threat_engine_onboarding |
-| `consolidated_services/database/schemas/discoveries_schema.sql` | threat_engine_discoveries |
-| `consolidated_services/database/schemas/check_schema.sql` | threat_engine_check |
-| `consolidated_services/database/schemas/inventory_schema.sql` | threat_engine_inventory |
-| `consolidated_services/database/schemas/compliance_schema.sql` | threat_engine_compliance |
-| `consolidated_services/database/schemas/shared_schema.sql` | threat_engine_shared (deprecated) |
+| `shared/database/schemas/onboarding_schema.sql` | threat_engine_onboarding |
+| `shared/database/schemas/discoveries_schema.sql` | discoveries |
+| `shared/database/schemas/check_schema.sql` | threat_engine_check |
+| `shared/database/schemas/inventory_schema.sql` | threat_engine_inventory |
+| `shared/database/schemas/compliance_schema.sql` | threat_engine_compliance |
+| `shared/database/schemas/shared_schema.sql` | threat_engine_shared (deprecated) |

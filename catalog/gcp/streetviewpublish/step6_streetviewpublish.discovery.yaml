@@ -1,0 +1,134 @@
+# ============================================================
+# Discovery YAML — streetviewpublish (v1)
+# Generated: 2026-02-21T03:06:41Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 5 | independent: 3 | dependent: 2
+# ops with fields: 5/5 | dep ops with chain: 1/2
+# ============================================================
+version: '1.0'
+provider: gcp
+service: streetviewpublish
+
+services:
+  client: streetviewpublish
+  module: "googleapiclient.discovery.build('streetviewpublish', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists all the PhotoSequences that belong to the user, in descending CreatePhotoSequence timestamp or
+  # ── gcp.streetviewpublish.photoSequences.list ──
+  - discovery_id: gcp.streetviewpublish.photoSequences.list
+    # python: svc.photoSequences().list(**params).execute()
+    calls:
+      - action: photoSequences.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.photoSequences }}'
+      item:
+        done: '{{ item.done }}'
+        error: '{{ item.error }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+        response: '{{ item.response }}'
+  # Gets the metadata of the specified Photo batch. Note that if BatchGetPhotos fails, either critical f
+  # ── gcp.streetviewpublish.photos.batchGet ──
+  - discovery_id: gcp.streetviewpublish.photos.batchGet
+    # python: svc.photos().batchGet(**params).execute()
+    calls:
+      - action: photos.batchGet
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        results: '{{ response.results }}'
+  # Lists all the Photos that belong to the user. > Note: Recently created photos that are still being i
+  # ── gcp.streetviewpublish.photos.list ──
+  - discovery_id: gcp.streetviewpublish.photos.list
+    # python: svc.photos().list(**params).execute()
+    calls:
+      - action: photos.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.photos }}'
+      item:
+        captureTime: '{{ item.captureTime }}'
+        connections: '{{ item.connections }}'
+        downloadUrl: '{{ item.downloadUrl }}'
+        mapsPublishStatus: '{{ item.mapsPublishStatus }}'
+        photoId: '{{ item.photoId }}'
+        places: '{{ item.places }}'
+        pose: '{{ item.pose }}'
+        shareLink: '{{ item.shareLink }}'
+        thumbnailUrl: '{{ item.thumbnailUrl }}'
+        transferStatus: '{{ item.transferStatus }}'
+        uploadReference: '{{ item.uploadReference }}'
+        uploadTime: '{{ item.uploadTime }}'
+        viewCount: '{{ item.viewCount }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets the metadata of the specified Photo. This method returns the following error codes: * google.rp
+  # ── gcp.streetviewpublish.photo.get [dependent] ──
+  - discovery_id: gcp.streetviewpublish.photo.get
+    for_each: gcp.streetviewpublish.photos.list
+    # python: svc.photo().get(**params).execute()
+    calls:
+      - action: photo.get
+        params:
+          photoId: '{{ item.mapsPublishStatus }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        captureTime: '{{ response.captureTime }}'
+        connections: '{{ response.connections }}'
+        downloadUrl: '{{ response.downloadUrl }}'
+        mapsPublishStatus: '{{ response.mapsPublishStatus }}'
+        photoId: '{{ response.photoId }}'
+        places: '{{ response.places }}'
+        pose: '{{ response.pose }}'
+        shareLink: '{{ response.shareLink }}'
+        thumbnailUrl: '{{ response.thumbnailUrl }}'
+        transferStatus: '{{ response.transferStatus }}'
+        uploadReference: '{{ response.uploadReference }}'
+        uploadTime: '{{ response.uploadTime }}'
+        viewCount: '{{ response.viewCount }}'
+    # required_params: ['photoId']
+  # Gets the metadata of the specified PhotoSequence via the Operation interface. This method returns th
+  # ── gcp.streetviewpublish.photoSequence.get [dependent] ──
+  - discovery_id: gcp.streetviewpublish.photoSequence.get
+    # python: svc.photoSequence().get(**params).execute()
+    calls:
+      - action: photoSequence.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['sequenceId']

@@ -1,0 +1,264 @@
+{
+  "csp": "gcp",
+  "generated_at": "2026-02-19T14:43:27.891553+00:00",
+  "anchors": {
+    "fixed": [
+      "project_id",
+      "org_id",
+      "folder_id",
+      "location",
+      "zone",
+      "region"
+    ]
+  },
+  "services": {
+    "reseller": {
+      "version": "v1",
+      "resources": {
+        "customers": {
+          "resource_type": "customers",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "tuple",
+            "full_identifier": {
+              "template": "reseller/v1/customers/{customerId}",
+              "built_from_parts": [],
+              "notes": "Tuple identifier; anchor parts are user-provided."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": []
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.reseller.customers.get",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/apps/reseller/v1/customers/{customerId}"
+                },
+                "python_call": "svc.customers().get(**params).execute()",
+                "required_params": {
+                  "customerId": {
+                    "from_identifier": "customerId"
+                  }
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "confidence": 0.4,
+          "notes": "No inventory (list) ops found; enrich only."
+        },
+        "resellernotify": {
+          "resource_type": "resellernotify",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "tuple",
+            "full_identifier": {
+              "template": "reseller/v1/resellernotify/getwatchdetails",
+              "built_from_parts": [],
+              "notes": "Tuple identifier; anchor parts are user-provided."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": []
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.reseller.resellernotify.getwatchdetails",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/apps/reseller/v1/resellernotify/getwatchdetails"
+                },
+                "python_call": "svc.resellernotify().getwatchdetails(**params).execute()",
+                "required_params": {},
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "confidence": 0.4,
+          "notes": "No inventory (list) ops found; enrich only."
+        },
+        "subscriptions": {
+          "resource_type": "subscriptions",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "constructed",
+            "full_identifier": {
+              "template": "subscriptions/{url_encoded_status}",
+              "built_from_parts": [
+                "subscriptions[].status"
+              ],
+              "notes": ""
+            },
+            "parts": [
+              "status"
+            ],
+            "part_sources": {
+              "status": {
+                "op": "gcp.reseller.subscriptions.list",
+                "field_path": "subscriptions[].status",
+                "transform": null
+              }
+            },
+            "transforms": [
+              {
+                "from": "subscriptions[].status",
+                "fn": "url_encode",
+                "to": "url_encoded_status"
+              },
+              {
+                "from": "url_encoded_status",
+                "fn": "prefix:subscriptions/",
+                "to": "customerId"
+              },
+              {
+                "build": "full_id",
+                "template": "subscriptions/{url_encoded_status}"
+              }
+            ]
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.reseller.subscriptions.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/apps/reseller/v1/subscriptions"
+                },
+                "python_call": "svc.subscriptions().list(**params).execute()",
+                "produces": {
+                  "status": "subscriptions[].status",
+                  "dealCode": "subscriptions[].dealCode",
+                  "skuId": "subscriptions[].skuId",
+                  "renewalSettings": "subscriptions[].renewalSettings",
+                  "plan": "subscriptions[].plan",
+                  "trialSettings": "subscriptions[].trialSettings",
+                  "billingMethod": "subscriptions[].billingMethod",
+                  "subscriptionId": "subscriptions[].subscriptionId",
+                  "skuName": "subscriptions[].skuName",
+                  "creationTime": "subscriptions[].creationTime",
+                  "resourceUiUrl": "subscriptions[].resourceUiUrl",
+                  "seats": "subscriptions[].seats",
+                  "purchaseOrderId": "subscriptions[].purchaseOrderId",
+                  "customerDomain": "subscriptions[].customerDomain",
+                  "suspensionReasons": "subscriptions[].suspensionReasons",
+                  "customerId": "subscriptions[].customerId",
+                  "transferInfo": "subscriptions[].transferInfo"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.reseller.subscriptions.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/apps/reseller/v1/customers/{customerId}/subscriptions/{subscriptionId}"
+                },
+                "python_call": "svc.subscriptions().get(**params).execute()",
+                "required_params": {
+                  "customerId": {
+                    "from_identifier": "transforms \u2192 customerId"
+                  },
+                  "subscriptionId": {
+                    "from_identifier": "subscriptions[].subscriptionId"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.reseller.subscriptions.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.reseller.subscriptions.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.subscriptions().list(**params).execute()",
+                      "path": "/apps/reseller/v1/subscriptions",
+                      "required_params": {},
+                      "output_list_field": "subscriptions",
+                      "output_id_field": "status",
+                      "produces": {
+                        "subscriptionId": {
+                          "via_list_field": "subscriptions",
+                          "from_id_field": "status",
+                          "note": "Iterate response[\"subscriptions\"][], extract item[\"status\"] \u2192 pass as \"subscriptionId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: subscriptionId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.reseller.subscriptions.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.subscriptions().get(**params).execute()",
+                      "path": "/apps/reseller/v1/customers/{customerId}/subscriptions/{subscriptionId}",
+                      "required_params": {
+                        "customerId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "This can be either the customer's primary domain name or the customer's unique identifier. If the domain name for a cust"
+                        },
+                        "subscriptionId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "This is a required property. The `subscriptionId` is the subscription identifier and is unique for each customer. Since "
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "customerId": "always_available",
+                        "subscriptionId": {
+                          "from_step": 1,
+                          "from_op": "gcp.reseller.subscriptions.list",
+                          "field": "status"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [
+                    "customerId"
+                  ],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        }
+      }
+    }
+  }
+}

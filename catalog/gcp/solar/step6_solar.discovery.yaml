@@ -1,0 +1,88 @@
+# ============================================================
+# Discovery YAML — solar (v1)
+# Generated: 2026-02-21T03:06:41Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 3 | independent: 3 | dependent: 0
+# ops with fields: 3/3 | dep ops with chain: 0/0
+# ============================================================
+version: '1.0'
+provider: gcp
+service: solar
+
+services:
+  client: solar
+  module: "googleapiclient.discovery.build('solar', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Locates the building whose centroid is closest to a query point. Returns an error with code `NOT_FOU
+  # ── gcp.solar.buildingInsights.findClosest ──
+  - discovery_id: gcp.solar.buildingInsights.findClosest
+    # python: svc.buildingInsights().findClosest(**params).execute()
+    calls:
+      - action: buildingInsights.findClosest
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        administrativeArea: '{{ response.administrativeArea }}'
+        boundingBox: '{{ response.boundingBox }}'
+        center: '{{ response.center }}'
+        imageryDate: '{{ response.imageryDate }}'
+        imageryProcessedDate: '{{ response.imageryProcessedDate }}'
+        imageryQuality: '{{ response.imageryQuality }}'
+        name: '{{ response.name }}'
+        postalCode: '{{ response.postalCode }}'
+        regionCode: '{{ response.regionCode }}'
+        solarPotential: '{{ response.solarPotential }}'
+        statisticalArea: '{{ response.statisticalArea }}'
+  # Gets solar information for a region surrounding a location. Returns an error with code `NOT_FOUND` i
+  # ── gcp.solar.dataLayers.get ──
+  - discovery_id: gcp.solar.dataLayers.get
+    # python: svc.dataLayers().get(**params).execute()
+    calls:
+      - action: dataLayers.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        annualFluxUrl: '{{ response.annualFluxUrl }}'
+        dsmUrl: '{{ response.dsmUrl }}'
+        hourlyShadeUrls: '{{ response.hourlyShadeUrls }}'
+        imageryDate: '{{ response.imageryDate }}'
+        imageryProcessedDate: '{{ response.imageryProcessedDate }}'
+        imageryQuality: '{{ response.imageryQuality }}'
+        maskUrl: '{{ response.maskUrl }}'
+        monthlyFluxUrl: '{{ response.monthlyFluxUrl }}'
+        rgbUrl: '{{ response.rgbUrl }}'
+  # Returns an image by its ID.
+  # ── gcp.solar.geoTiff.get ──
+  - discovery_id: gcp.solar.geoTiff.get
+    # python: svc.geoTiff().get(**params).execute()
+    calls:
+      - action: geoTiff.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        contentType: '{{ response.contentType }}'
+        data: '{{ response.data }}'
+        extensions: '{{ response.extensions }}'

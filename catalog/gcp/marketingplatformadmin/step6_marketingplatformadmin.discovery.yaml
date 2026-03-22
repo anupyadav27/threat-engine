@@ -1,0 +1,75 @@
+# ============================================================
+# Discovery YAML — marketingplatformadmin (v1alpha)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 3 | independent: 3 | dependent: 0
+# ops with fields: 3/3 | dep ops with chain: 0/0
+# ============================================================
+version: '1.0'
+provider: gcp
+service: marketingplatformadmin
+
+services:
+  client: marketingplatformadmin
+  module: "googleapiclient.discovery.build('marketingplatformadmin', 'v1alpha')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists the Google Analytics accounts link to the specified Google Marketing Platform organization.
+  # ── gcp.marketingplatformadmin.organizations.analyticsAccountLinks.list ──
+  - discovery_id: gcp.marketingplatformadmin.organizations.analyticsAccountLinks.list
+    # python: svc.organizations().analyticsAccountLinks().list(**params).execute()
+    calls:
+      - action: organizations.analyticsAccountLinks.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.analyticsAccountLinks }}'
+      item:
+        analyticsAccount: '{{ item.analyticsAccount }}'
+        displayName: '{{ item.displayName }}'
+        linkVerificationState: '{{ item.linkVerificationState }}'
+        name: '{{ item.name }}'
+  # Lookup for a single organization.
+  # ── gcp.marketingplatformadmin.organizations.get ──
+  - discovery_id: gcp.marketingplatformadmin.organizations.get
+    # python: svc.organizations().get(**params).execute()
+    calls:
+      - action: organizations.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        displayName: '{{ response.displayName }}'
+        name: '{{ response.name }}'
+  # Returns a list of organizations that the user has access to.
+  # ── gcp.marketingplatformadmin.organizations.list ──
+  - discovery_id: gcp.marketingplatformadmin.organizations.list
+    # python: svc.organizations().list(**params).execute()
+    calls:
+      - action: organizations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.organizations }}'
+      item:
+        displayName: '{{ item.displayName }}'
+        name: '{{ item.name }}'

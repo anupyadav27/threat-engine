@@ -1,0 +1,54 @@
+version: '1.0'
+provider: aws
+service: pipes
+services:
+  client: pipes
+  module: boto3.client
+discovery:
+- discovery_id: aws.pipes.listPipes
+  calls:
+  - action: listPipes
+    save_as: response
+    on_error: continue
+    params:
+      Limit: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Pipes }}'
+    item:
+      Name: '{{ item.Name }}'
+      Arn: '{{ item.Arn }}'
+      DesiredState: '{{ item.DesiredState }}'
+      CurrentState: '{{ item.CurrentState }}'
+      StateReason: '{{ item.StateReason }}'
+      CreationTime: '{{ item.CreationTime }}'
+      LastModifiedTime: '{{ item.LastModifiedTime }}'
+      Source: '{{ item.Source }}'
+      Target: '{{ item.Target }}'
+      Enrichment: '{{ item.Enrichment }}'
+- discovery_id: aws.pipes.describePipe
+  calls:
+  - action: describePipe
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.SourceParameters }}'
+    item:
+      FilterCriteria: '{{ item.FilterCriteria }}'
+      KinesisStreamParameters: '{{ item.KinesisStreamParameters }}'
+      DynamoDBStreamParameters: '{{ item.DynamoDBStreamParameters }}'
+      SqsQueueParameters: '{{ item.SqsQueueParameters }}'
+      ActiveMQBrokerParameters: '{{ item.ActiveMQBrokerParameters }}'
+      RabbitMQBrokerParameters: '{{ item.RabbitMQBrokerParameters }}'
+      ManagedStreamingKafkaParameters: '{{ item.ManagedStreamingKafkaParameters }}'
+      SelfManagedKafkaParameters: '{{ item.SelfManagedKafkaParameters }}'
+- discovery_id: aws.pipes.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.tags }}'
+checks: []

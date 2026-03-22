@@ -1,0 +1,3464 @@
+{
+  "service": "blogger",
+  "version": "v3",
+  "total_ops": 24,
+  "total_chains": 24,
+  "independent_ops": 0,
+  "dependent_ops": 24,
+  "chains": {
+    "gcp.blogger.comments.approve": {
+      "target_op": "gcp.blogger.comments.approve",
+      "kind": "other",
+      "independent": false,
+      "hop_distance": 999,
+      "chain_length": 5,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.blogger.postUserInfos.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.postUserInfos().list(**params).execute()",
+          "path": "/v3/users/{userId}/blogs/{blogId}/posts",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "kind",
+          "produces": {
+            "postUserInfoId": {
+              "via_list_field": "items",
+              "from_id_field": "kind",
+              "note": "Iterate response[\"items\"][], extract item[\"kind\"] \u2192 pass as \"postUserInfoId\""
+            }
+          },
+          "param_sources": {
+            "userId": "unresolved",
+            "blogId": "unresolved"
+          },
+          "purpose": "Provides: postUserInfoId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.blogger.blogs.listByUser",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.blogs().listByUser(**params).execute()",
+          "path": "/v3/users/{userId}/blogs",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "name",
+          "produces": {
+            "blogId": {
+              "via_list_field": "items",
+              "from_id_field": "name",
+              "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"blogId\""
+            }
+          },
+          "param_sources": {
+            "userId": {
+              "from_step": 1,
+              "from_op": "gcp.blogger.postUserInfos.list",
+              "field": "kind"
+            }
+          },
+          "purpose": "Provides: blogId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 3,
+          "op": "gcp.blogger.posts.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.posts().list(**params).execute()",
+          "path": "/v3/blogs/{blogId}/posts",
+          "required_params": {
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "selfLink",
+          "produces": {
+            "postId": {
+              "via_list_field": "items",
+              "from_id_field": "selfLink",
+              "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"postId\""
+            }
+          },
+          "param_sources": {
+            "blogId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            }
+          },
+          "purpose": "Provides: postId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 4,
+          "op": "gcp.blogger.comments.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.comments().list(**params).execute()",
+          "path": "/v3/blogs/{blogId}/posts/{postId}/comments",
+          "required_params": {
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "postId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "selfLink",
+          "produces": {
+            "commentId": {
+              "via_list_field": "items",
+              "from_id_field": "selfLink",
+              "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"commentId\""
+            }
+          },
+          "param_sources": {
+            "blogId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            },
+            "postId": {
+              "from_step": 3,
+              "from_op": "gcp.blogger.posts.list",
+              "field": "selfLink"
+            }
+          },
+          "purpose": "Provides: commentId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 5,
+          "op": "gcp.blogger.comments.approve",
+          "kind": "other",
+          "independent": false,
+          "python_call": "svc.comments().approve(**params).execute()",
+          "path": "/v3/blogs/{blogId}/posts/{postId}/comments/{commentId}/approve",
+          "required_params": {
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "postId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "commentId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "blogId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            },
+            "postId": {
+              "from_step": 3,
+              "from_op": "gcp.blogger.posts.list",
+              "field": "selfLink"
+            },
+            "commentId": {
+              "from_step": 4,
+              "from_op": "gcp.blogger.comments.list",
+              "field": "selfLink"
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.blogger.comments.get": {
+      "target_op": "gcp.blogger.comments.get",
+      "kind": "read_get",
+      "independent": false,
+      "hop_distance": 999,
+      "chain_length": 5,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.blogger.postUserInfos.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.postUserInfos().list(**params).execute()",
+          "path": "/v3/users/{userId}/blogs/{blogId}/posts",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "kind",
+          "produces": {
+            "postUserInfoId": {
+              "via_list_field": "items",
+              "from_id_field": "kind",
+              "note": "Iterate response[\"items\"][], extract item[\"kind\"] \u2192 pass as \"postUserInfoId\""
+            }
+          },
+          "param_sources": {
+            "userId": "unresolved",
+            "blogId": "unresolved"
+          },
+          "purpose": "Provides: postUserInfoId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.blogger.blogs.listByUser",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.blogs().listByUser(**params).execute()",
+          "path": "/v3/users/{userId}/blogs",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "name",
+          "produces": {
+            "blogId": {
+              "via_list_field": "items",
+              "from_id_field": "name",
+              "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"blogId\""
+            }
+          },
+          "param_sources": {
+            "userId": {
+              "from_step": 1,
+              "from_op": "gcp.blogger.postUserInfos.list",
+              "field": "kind"
+            }
+          },
+          "purpose": "Provides: blogId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 3,
+          "op": "gcp.blogger.posts.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.posts().list(**params).execute()",
+          "path": "/v3/blogs/{blogId}/posts",
+          "required_params": {
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "selfLink",
+          "produces": {
+            "postId": {
+              "via_list_field": "items",
+              "from_id_field": "selfLink",
+              "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"postId\""
+            }
+          },
+          "param_sources": {
+            "blogId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            }
+          },
+          "purpose": "Provides: postId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 4,
+          "op": "gcp.blogger.comments.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.comments().list(**params).execute()",
+          "path": "/v3/blogs/{blogId}/posts/{postId}/comments",
+          "required_params": {
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "postId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "selfLink",
+          "produces": {
+            "commentId": {
+              "via_list_field": "items",
+              "from_id_field": "selfLink",
+              "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"commentId\""
+            }
+          },
+          "param_sources": {
+            "blogId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            },
+            "postId": {
+              "from_step": 3,
+              "from_op": "gcp.blogger.posts.list",
+              "field": "selfLink"
+            }
+          },
+          "purpose": "Provides: commentId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 5,
+          "op": "gcp.blogger.comments.get",
+          "kind": "read_get",
+          "independent": false,
+          "python_call": "svc.comments().get(**params).execute()",
+          "path": "/v3/blogs/{blogId}/posts/{postId}/comments/{commentId}",
+          "required_params": {
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "postId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "commentId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "blogId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            },
+            "postId": {
+              "from_step": 3,
+              "from_op": "gcp.blogger.posts.list",
+              "field": "selfLink"
+            },
+            "commentId": {
+              "from_step": 4,
+              "from_op": "gcp.blogger.comments.list",
+              "field": "selfLink"
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.blogger.comments.list": {
+      "target_op": "gcp.blogger.comments.list",
+      "kind": "read_list",
+      "independent": false,
+      "hop_distance": 999,
+      "chain_length": 4,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.blogger.postUserInfos.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.postUserInfos().list(**params).execute()",
+          "path": "/v3/users/{userId}/blogs/{blogId}/posts",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "kind",
+          "produces": {
+            "postUserInfoId": {
+              "via_list_field": "items",
+              "from_id_field": "kind",
+              "note": "Iterate response[\"items\"][], extract item[\"kind\"] \u2192 pass as \"postUserInfoId\""
+            }
+          },
+          "param_sources": {
+            "userId": "unresolved",
+            "blogId": "unresolved"
+          },
+          "purpose": "Provides: postUserInfoId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.blogger.blogs.listByUser",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.blogs().listByUser(**params).execute()",
+          "path": "/v3/users/{userId}/blogs",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "name",
+          "produces": {
+            "blogId": {
+              "via_list_field": "items",
+              "from_id_field": "name",
+              "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"blogId\""
+            }
+          },
+          "param_sources": {
+            "userId": {
+              "from_step": 1,
+              "from_op": "gcp.blogger.postUserInfos.list",
+              "field": "kind"
+            }
+          },
+          "purpose": "Provides: blogId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 3,
+          "op": "gcp.blogger.posts.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.posts().list(**params).execute()",
+          "path": "/v3/blogs/{blogId}/posts",
+          "required_params": {
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "selfLink",
+          "produces": {
+            "postId": {
+              "via_list_field": "items",
+              "from_id_field": "selfLink",
+              "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"postId\""
+            }
+          },
+          "param_sources": {
+            "blogId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            }
+          },
+          "purpose": "Provides: postId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 4,
+          "op": "gcp.blogger.comments.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.comments().list(**params).execute()",
+          "path": "/v3/blogs/{blogId}/posts/{postId}/comments",
+          "required_params": {
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "postId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "selfLink",
+          "produces": {
+            "commentId": {
+              "via_list_field": "items",
+              "from_id_field": "selfLink",
+              "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"commentId\""
+            }
+          },
+          "param_sources": {
+            "blogId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            },
+            "postId": {
+              "from_step": 3,
+              "from_op": "gcp.blogger.posts.list",
+              "field": "selfLink"
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.blogger.comments.listByBlog": {
+      "target_op": "gcp.blogger.comments.listByBlog",
+      "kind": "read_list",
+      "independent": false,
+      "hop_distance": 999,
+      "chain_length": 3,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.blogger.postUserInfos.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.postUserInfos().list(**params).execute()",
+          "path": "/v3/users/{userId}/blogs/{blogId}/posts",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "kind",
+          "produces": {
+            "postUserInfoId": {
+              "via_list_field": "items",
+              "from_id_field": "kind",
+              "note": "Iterate response[\"items\"][], extract item[\"kind\"] \u2192 pass as \"postUserInfoId\""
+            }
+          },
+          "param_sources": {
+            "userId": "unresolved",
+            "blogId": "unresolved"
+          },
+          "purpose": "Provides: postUserInfoId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.blogger.blogs.listByUser",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.blogs().listByUser(**params).execute()",
+          "path": "/v3/users/{userId}/blogs",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "name",
+          "produces": {
+            "blogId": {
+              "via_list_field": "items",
+              "from_id_field": "name",
+              "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"blogId\""
+            }
+          },
+          "param_sources": {
+            "userId": {
+              "from_step": 1,
+              "from_op": "gcp.blogger.postUserInfos.list",
+              "field": "kind"
+            }
+          },
+          "purpose": "Provides: blogId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 3,
+          "op": "gcp.blogger.comments.listByBlog",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.comments().listByBlog(**params).execute()",
+          "path": "/v3/blogs/{blogId}/comments",
+          "required_params": {
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "selfLink",
+          "produces": {
+            "commentId": {
+              "via_list_field": "items",
+              "from_id_field": "selfLink",
+              "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"commentId\""
+            }
+          },
+          "param_sources": {
+            "blogId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.blogger.comments.markAsSpam": {
+      "target_op": "gcp.blogger.comments.markAsSpam",
+      "kind": "other",
+      "independent": false,
+      "hop_distance": 999,
+      "chain_length": 5,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.blogger.postUserInfos.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.postUserInfos().list(**params).execute()",
+          "path": "/v3/users/{userId}/blogs/{blogId}/posts",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "kind",
+          "produces": {
+            "postUserInfoId": {
+              "via_list_field": "items",
+              "from_id_field": "kind",
+              "note": "Iterate response[\"items\"][], extract item[\"kind\"] \u2192 pass as \"postUserInfoId\""
+            }
+          },
+          "param_sources": {
+            "userId": "unresolved",
+            "blogId": "unresolved"
+          },
+          "purpose": "Provides: postUserInfoId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.blogger.blogs.listByUser",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.blogs().listByUser(**params).execute()",
+          "path": "/v3/users/{userId}/blogs",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "name",
+          "produces": {
+            "blogId": {
+              "via_list_field": "items",
+              "from_id_field": "name",
+              "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"blogId\""
+            }
+          },
+          "param_sources": {
+            "userId": {
+              "from_step": 1,
+              "from_op": "gcp.blogger.postUserInfos.list",
+              "field": "kind"
+            }
+          },
+          "purpose": "Provides: blogId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 3,
+          "op": "gcp.blogger.posts.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.posts().list(**params).execute()",
+          "path": "/v3/blogs/{blogId}/posts",
+          "required_params": {
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "selfLink",
+          "produces": {
+            "postId": {
+              "via_list_field": "items",
+              "from_id_field": "selfLink",
+              "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"postId\""
+            }
+          },
+          "param_sources": {
+            "blogId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            }
+          },
+          "purpose": "Provides: postId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 4,
+          "op": "gcp.blogger.comments.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.comments().list(**params).execute()",
+          "path": "/v3/blogs/{blogId}/posts/{postId}/comments",
+          "required_params": {
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "postId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "selfLink",
+          "produces": {
+            "commentId": {
+              "via_list_field": "items",
+              "from_id_field": "selfLink",
+              "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"commentId\""
+            }
+          },
+          "param_sources": {
+            "blogId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            },
+            "postId": {
+              "from_step": 3,
+              "from_op": "gcp.blogger.posts.list",
+              "field": "selfLink"
+            }
+          },
+          "purpose": "Provides: commentId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 5,
+          "op": "gcp.blogger.comments.markAsSpam",
+          "kind": "other",
+          "independent": false,
+          "python_call": "svc.comments().markAsSpam(**params).execute()",
+          "path": "/v3/blogs/{blogId}/posts/{postId}/comments/{commentId}/spam",
+          "required_params": {
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "postId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "commentId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "blogId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            },
+            "postId": {
+              "from_step": 3,
+              "from_op": "gcp.blogger.posts.list",
+              "field": "selfLink"
+            },
+            "commentId": {
+              "from_step": 4,
+              "from_op": "gcp.blogger.comments.list",
+              "field": "selfLink"
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.blogger.comments.removeContent": {
+      "target_op": "gcp.blogger.comments.removeContent",
+      "kind": "other",
+      "independent": false,
+      "hop_distance": 999,
+      "chain_length": 5,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.blogger.postUserInfos.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.postUserInfos().list(**params).execute()",
+          "path": "/v3/users/{userId}/blogs/{blogId}/posts",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "kind",
+          "produces": {
+            "postUserInfoId": {
+              "via_list_field": "items",
+              "from_id_field": "kind",
+              "note": "Iterate response[\"items\"][], extract item[\"kind\"] \u2192 pass as \"postUserInfoId\""
+            }
+          },
+          "param_sources": {
+            "userId": "unresolved",
+            "blogId": "unresolved"
+          },
+          "purpose": "Provides: postUserInfoId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.blogger.blogs.listByUser",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.blogs().listByUser(**params).execute()",
+          "path": "/v3/users/{userId}/blogs",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "name",
+          "produces": {
+            "blogId": {
+              "via_list_field": "items",
+              "from_id_field": "name",
+              "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"blogId\""
+            }
+          },
+          "param_sources": {
+            "userId": {
+              "from_step": 1,
+              "from_op": "gcp.blogger.postUserInfos.list",
+              "field": "kind"
+            }
+          },
+          "purpose": "Provides: blogId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 3,
+          "op": "gcp.blogger.posts.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.posts().list(**params).execute()",
+          "path": "/v3/blogs/{blogId}/posts",
+          "required_params": {
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "selfLink",
+          "produces": {
+            "postId": {
+              "via_list_field": "items",
+              "from_id_field": "selfLink",
+              "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"postId\""
+            }
+          },
+          "param_sources": {
+            "blogId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            }
+          },
+          "purpose": "Provides: postId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 4,
+          "op": "gcp.blogger.comments.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.comments().list(**params).execute()",
+          "path": "/v3/blogs/{blogId}/posts/{postId}/comments",
+          "required_params": {
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "postId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "selfLink",
+          "produces": {
+            "commentId": {
+              "via_list_field": "items",
+              "from_id_field": "selfLink",
+              "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"commentId\""
+            }
+          },
+          "param_sources": {
+            "blogId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            },
+            "postId": {
+              "from_step": 3,
+              "from_op": "gcp.blogger.posts.list",
+              "field": "selfLink"
+            }
+          },
+          "purpose": "Provides: commentId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 5,
+          "op": "gcp.blogger.comments.removeContent",
+          "kind": "other",
+          "independent": false,
+          "python_call": "svc.comments().removeContent(**params).execute()",
+          "path": "/v3/blogs/{blogId}/posts/{postId}/comments/{commentId}/removecontent",
+          "required_params": {
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "postId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "commentId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "blogId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            },
+            "postId": {
+              "from_step": 3,
+              "from_op": "gcp.blogger.posts.list",
+              "field": "selfLink"
+            },
+            "commentId": {
+              "from_step": 4,
+              "from_op": "gcp.blogger.comments.list",
+              "field": "selfLink"
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.blogger.pages.get": {
+      "target_op": "gcp.blogger.pages.get",
+      "kind": "read_get",
+      "independent": false,
+      "hop_distance": 999,
+      "chain_length": 4,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.blogger.postUserInfos.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.postUserInfos().list(**params).execute()",
+          "path": "/v3/users/{userId}/blogs/{blogId}/posts",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "kind",
+          "produces": {
+            "postUserInfoId": {
+              "via_list_field": "items",
+              "from_id_field": "kind",
+              "note": "Iterate response[\"items\"][], extract item[\"kind\"] \u2192 pass as \"postUserInfoId\""
+            }
+          },
+          "param_sources": {
+            "userId": "unresolved",
+            "blogId": "unresolved"
+          },
+          "purpose": "Provides: postUserInfoId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.blogger.blogs.listByUser",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.blogs().listByUser(**params).execute()",
+          "path": "/v3/users/{userId}/blogs",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "name",
+          "produces": {
+            "blogId": {
+              "via_list_field": "items",
+              "from_id_field": "name",
+              "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"blogId\""
+            }
+          },
+          "param_sources": {
+            "userId": {
+              "from_step": 1,
+              "from_op": "gcp.blogger.postUserInfos.list",
+              "field": "kind"
+            }
+          },
+          "purpose": "Provides: blogId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 3,
+          "op": "gcp.blogger.pages.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.pages().list(**params).execute()",
+          "path": "/v3/blogs/{blogId}/pages",
+          "required_params": {
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "selfLink",
+          "produces": {
+            "pageId": {
+              "via_list_field": "items",
+              "from_id_field": "selfLink",
+              "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"pageId\""
+            }
+          },
+          "param_sources": {
+            "blogId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            }
+          },
+          "purpose": "Provides: pageId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 4,
+          "op": "gcp.blogger.pages.get",
+          "kind": "read_get",
+          "independent": false,
+          "python_call": "svc.pages().get(**params).execute()",
+          "path": "/v3/blogs/{blogId}/pages/{pageId}",
+          "required_params": {
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "pageId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "blogId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            },
+            "pageId": {
+              "from_step": 3,
+              "from_op": "gcp.blogger.pages.list",
+              "field": "selfLink"
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.blogger.pages.list": {
+      "target_op": "gcp.blogger.pages.list",
+      "kind": "read_list",
+      "independent": false,
+      "hop_distance": 999,
+      "chain_length": 3,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.blogger.postUserInfos.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.postUserInfos().list(**params).execute()",
+          "path": "/v3/users/{userId}/blogs/{blogId}/posts",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "kind",
+          "produces": {
+            "postUserInfoId": {
+              "via_list_field": "items",
+              "from_id_field": "kind",
+              "note": "Iterate response[\"items\"][], extract item[\"kind\"] \u2192 pass as \"postUserInfoId\""
+            }
+          },
+          "param_sources": {
+            "userId": "unresolved",
+            "blogId": "unresolved"
+          },
+          "purpose": "Provides: postUserInfoId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.blogger.blogs.listByUser",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.blogs().listByUser(**params).execute()",
+          "path": "/v3/users/{userId}/blogs",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "name",
+          "produces": {
+            "blogId": {
+              "via_list_field": "items",
+              "from_id_field": "name",
+              "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"blogId\""
+            }
+          },
+          "param_sources": {
+            "userId": {
+              "from_step": 1,
+              "from_op": "gcp.blogger.postUserInfos.list",
+              "field": "kind"
+            }
+          },
+          "purpose": "Provides: blogId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 3,
+          "op": "gcp.blogger.pages.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.pages().list(**params).execute()",
+          "path": "/v3/blogs/{blogId}/pages",
+          "required_params": {
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "selfLink",
+          "produces": {
+            "pageId": {
+              "via_list_field": "items",
+              "from_id_field": "selfLink",
+              "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"pageId\""
+            }
+          },
+          "param_sources": {
+            "blogId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.blogger.pages.publish": {
+      "target_op": "gcp.blogger.pages.publish",
+      "kind": "other",
+      "independent": false,
+      "hop_distance": 999,
+      "chain_length": 4,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.blogger.postUserInfos.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.postUserInfos().list(**params).execute()",
+          "path": "/v3/users/{userId}/blogs/{blogId}/posts",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "kind",
+          "produces": {
+            "postUserInfoId": {
+              "via_list_field": "items",
+              "from_id_field": "kind",
+              "note": "Iterate response[\"items\"][], extract item[\"kind\"] \u2192 pass as \"postUserInfoId\""
+            }
+          },
+          "param_sources": {
+            "userId": "unresolved",
+            "blogId": "unresolved"
+          },
+          "purpose": "Provides: postUserInfoId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.blogger.blogs.listByUser",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.blogs().listByUser(**params).execute()",
+          "path": "/v3/users/{userId}/blogs",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "name",
+          "produces": {
+            "blogId": {
+              "via_list_field": "items",
+              "from_id_field": "name",
+              "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"blogId\""
+            }
+          },
+          "param_sources": {
+            "userId": {
+              "from_step": 1,
+              "from_op": "gcp.blogger.postUserInfos.list",
+              "field": "kind"
+            }
+          },
+          "purpose": "Provides: blogId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 3,
+          "op": "gcp.blogger.pages.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.pages().list(**params).execute()",
+          "path": "/v3/blogs/{blogId}/pages",
+          "required_params": {
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "selfLink",
+          "produces": {
+            "pageId": {
+              "via_list_field": "items",
+              "from_id_field": "selfLink",
+              "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"pageId\""
+            }
+          },
+          "param_sources": {
+            "blogId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            }
+          },
+          "purpose": "Provides: pageId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 4,
+          "op": "gcp.blogger.pages.publish",
+          "kind": "other",
+          "independent": false,
+          "python_call": "svc.pages().publish(**params).execute()",
+          "path": "/v3/blogs/{blogId}/pages/{pageId}/publish",
+          "required_params": {
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "pageId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "blogId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            },
+            "pageId": {
+              "from_step": 3,
+              "from_op": "gcp.blogger.pages.list",
+              "field": "selfLink"
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.blogger.pages.revert": {
+      "target_op": "gcp.blogger.pages.revert",
+      "kind": "other",
+      "independent": false,
+      "hop_distance": 999,
+      "chain_length": 4,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.blogger.postUserInfos.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.postUserInfos().list(**params).execute()",
+          "path": "/v3/users/{userId}/blogs/{blogId}/posts",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "kind",
+          "produces": {
+            "postUserInfoId": {
+              "via_list_field": "items",
+              "from_id_field": "kind",
+              "note": "Iterate response[\"items\"][], extract item[\"kind\"] \u2192 pass as \"postUserInfoId\""
+            }
+          },
+          "param_sources": {
+            "userId": "unresolved",
+            "blogId": "unresolved"
+          },
+          "purpose": "Provides: postUserInfoId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.blogger.blogs.listByUser",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.blogs().listByUser(**params).execute()",
+          "path": "/v3/users/{userId}/blogs",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "name",
+          "produces": {
+            "blogId": {
+              "via_list_field": "items",
+              "from_id_field": "name",
+              "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"blogId\""
+            }
+          },
+          "param_sources": {
+            "userId": {
+              "from_step": 1,
+              "from_op": "gcp.blogger.postUserInfos.list",
+              "field": "kind"
+            }
+          },
+          "purpose": "Provides: blogId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 3,
+          "op": "gcp.blogger.pages.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.pages().list(**params).execute()",
+          "path": "/v3/blogs/{blogId}/pages",
+          "required_params": {
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "selfLink",
+          "produces": {
+            "pageId": {
+              "via_list_field": "items",
+              "from_id_field": "selfLink",
+              "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"pageId\""
+            }
+          },
+          "param_sources": {
+            "blogId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            }
+          },
+          "purpose": "Provides: pageId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 4,
+          "op": "gcp.blogger.pages.revert",
+          "kind": "other",
+          "independent": false,
+          "python_call": "svc.pages().revert(**params).execute()",
+          "path": "/v3/blogs/{blogId}/pages/{pageId}/revert",
+          "required_params": {
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "pageId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "blogId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            },
+            "pageId": {
+              "from_step": 3,
+              "from_op": "gcp.blogger.pages.list",
+              "field": "selfLink"
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.blogger.posts.get": {
+      "target_op": "gcp.blogger.posts.get",
+      "kind": "read_get",
+      "independent": false,
+      "hop_distance": 999,
+      "chain_length": 4,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.blogger.postUserInfos.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.postUserInfos().list(**params).execute()",
+          "path": "/v3/users/{userId}/blogs/{blogId}/posts",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "kind",
+          "produces": {
+            "postUserInfoId": {
+              "via_list_field": "items",
+              "from_id_field": "kind",
+              "note": "Iterate response[\"items\"][], extract item[\"kind\"] \u2192 pass as \"postUserInfoId\""
+            }
+          },
+          "param_sources": {
+            "userId": "unresolved",
+            "blogId": "unresolved"
+          },
+          "purpose": "Provides: postUserInfoId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.blogger.blogs.listByUser",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.blogs().listByUser(**params).execute()",
+          "path": "/v3/users/{userId}/blogs",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "name",
+          "produces": {
+            "blogId": {
+              "via_list_field": "items",
+              "from_id_field": "name",
+              "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"blogId\""
+            }
+          },
+          "param_sources": {
+            "userId": {
+              "from_step": 1,
+              "from_op": "gcp.blogger.postUserInfos.list",
+              "field": "kind"
+            }
+          },
+          "purpose": "Provides: blogId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 3,
+          "op": "gcp.blogger.posts.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.posts().list(**params).execute()",
+          "path": "/v3/blogs/{blogId}/posts",
+          "required_params": {
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "selfLink",
+          "produces": {
+            "postId": {
+              "via_list_field": "items",
+              "from_id_field": "selfLink",
+              "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"postId\""
+            }
+          },
+          "param_sources": {
+            "blogId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            }
+          },
+          "purpose": "Provides: postId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 4,
+          "op": "gcp.blogger.posts.get",
+          "kind": "read_get",
+          "independent": false,
+          "python_call": "svc.posts().get(**params).execute()",
+          "path": "/v3/blogs/{blogId}/posts/{postId}",
+          "required_params": {
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "postId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "blogId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            },
+            "postId": {
+              "from_step": 3,
+              "from_op": "gcp.blogger.posts.list",
+              "field": "selfLink"
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.blogger.posts.getByPath": {
+      "target_op": "gcp.blogger.posts.getByPath",
+      "kind": "read_get",
+      "independent": false,
+      "hop_distance": 999,
+      "chain_length": 3,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.blogger.postUserInfos.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.postUserInfos().list(**params).execute()",
+          "path": "/v3/users/{userId}/blogs/{blogId}/posts",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "kind",
+          "produces": {
+            "postUserInfoId": {
+              "via_list_field": "items",
+              "from_id_field": "kind",
+              "note": "Iterate response[\"items\"][], extract item[\"kind\"] \u2192 pass as \"postUserInfoId\""
+            }
+          },
+          "param_sources": {
+            "userId": "unresolved",
+            "blogId": "unresolved"
+          },
+          "purpose": "Provides: postUserInfoId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.blogger.blogs.listByUser",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.blogs().listByUser(**params).execute()",
+          "path": "/v3/users/{userId}/blogs",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "name",
+          "produces": {
+            "blogId": {
+              "via_list_field": "items",
+              "from_id_field": "name",
+              "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"blogId\""
+            }
+          },
+          "param_sources": {
+            "userId": {
+              "from_step": 1,
+              "from_op": "gcp.blogger.postUserInfos.list",
+              "field": "kind"
+            }
+          },
+          "purpose": "Provides: blogId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 3,
+          "op": "gcp.blogger.posts.getByPath",
+          "kind": "read_get",
+          "independent": false,
+          "python_call": "svc.posts().getByPath(**params).execute()",
+          "path": "/v3/blogs/{blogId}/posts/bypath",
+          "required_params": {
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "path": {
+              "type": "string",
+              "location": "query",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "blogId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            },
+            "path": "unresolved"
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": [
+        "path"
+      ]
+    },
+    "gcp.blogger.posts.list": {
+      "target_op": "gcp.blogger.posts.list",
+      "kind": "read_list",
+      "independent": false,
+      "hop_distance": 999,
+      "chain_length": 3,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.blogger.postUserInfos.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.postUserInfos().list(**params).execute()",
+          "path": "/v3/users/{userId}/blogs/{blogId}/posts",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "kind",
+          "produces": {
+            "postUserInfoId": {
+              "via_list_field": "items",
+              "from_id_field": "kind",
+              "note": "Iterate response[\"items\"][], extract item[\"kind\"] \u2192 pass as \"postUserInfoId\""
+            }
+          },
+          "param_sources": {
+            "userId": "unresolved",
+            "blogId": "unresolved"
+          },
+          "purpose": "Provides: postUserInfoId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.blogger.blogs.listByUser",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.blogs().listByUser(**params).execute()",
+          "path": "/v3/users/{userId}/blogs",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "name",
+          "produces": {
+            "blogId": {
+              "via_list_field": "items",
+              "from_id_field": "name",
+              "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"blogId\""
+            }
+          },
+          "param_sources": {
+            "userId": {
+              "from_step": 1,
+              "from_op": "gcp.blogger.postUserInfos.list",
+              "field": "kind"
+            }
+          },
+          "purpose": "Provides: blogId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 3,
+          "op": "gcp.blogger.posts.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.posts().list(**params).execute()",
+          "path": "/v3/blogs/{blogId}/posts",
+          "required_params": {
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "selfLink",
+          "produces": {
+            "postId": {
+              "via_list_field": "items",
+              "from_id_field": "selfLink",
+              "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"postId\""
+            }
+          },
+          "param_sources": {
+            "blogId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.blogger.posts.publish": {
+      "target_op": "gcp.blogger.posts.publish",
+      "kind": "other",
+      "independent": false,
+      "hop_distance": 999,
+      "chain_length": 4,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.blogger.postUserInfos.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.postUserInfos().list(**params).execute()",
+          "path": "/v3/users/{userId}/blogs/{blogId}/posts",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "kind",
+          "produces": {
+            "postUserInfoId": {
+              "via_list_field": "items",
+              "from_id_field": "kind",
+              "note": "Iterate response[\"items\"][], extract item[\"kind\"] \u2192 pass as \"postUserInfoId\""
+            }
+          },
+          "param_sources": {
+            "userId": "unresolved",
+            "blogId": "unresolved"
+          },
+          "purpose": "Provides: postUserInfoId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.blogger.blogs.listByUser",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.blogs().listByUser(**params).execute()",
+          "path": "/v3/users/{userId}/blogs",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "name",
+          "produces": {
+            "blogId": {
+              "via_list_field": "items",
+              "from_id_field": "name",
+              "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"blogId\""
+            }
+          },
+          "param_sources": {
+            "userId": {
+              "from_step": 1,
+              "from_op": "gcp.blogger.postUserInfos.list",
+              "field": "kind"
+            }
+          },
+          "purpose": "Provides: blogId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 3,
+          "op": "gcp.blogger.posts.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.posts().list(**params).execute()",
+          "path": "/v3/blogs/{blogId}/posts",
+          "required_params": {
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "selfLink",
+          "produces": {
+            "postId": {
+              "via_list_field": "items",
+              "from_id_field": "selfLink",
+              "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"postId\""
+            }
+          },
+          "param_sources": {
+            "blogId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            }
+          },
+          "purpose": "Provides: postId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 4,
+          "op": "gcp.blogger.posts.publish",
+          "kind": "other",
+          "independent": false,
+          "python_call": "svc.posts().publish(**params).execute()",
+          "path": "/v3/blogs/{blogId}/posts/{postId}/publish",
+          "required_params": {
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "postId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "blogId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            },
+            "postId": {
+              "from_step": 3,
+              "from_op": "gcp.blogger.posts.list",
+              "field": "selfLink"
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.blogger.posts.revert": {
+      "target_op": "gcp.blogger.posts.revert",
+      "kind": "other",
+      "independent": false,
+      "hop_distance": 999,
+      "chain_length": 4,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.blogger.postUserInfos.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.postUserInfos().list(**params).execute()",
+          "path": "/v3/users/{userId}/blogs/{blogId}/posts",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "kind",
+          "produces": {
+            "postUserInfoId": {
+              "via_list_field": "items",
+              "from_id_field": "kind",
+              "note": "Iterate response[\"items\"][], extract item[\"kind\"] \u2192 pass as \"postUserInfoId\""
+            }
+          },
+          "param_sources": {
+            "userId": "unresolved",
+            "blogId": "unresolved"
+          },
+          "purpose": "Provides: postUserInfoId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.blogger.blogs.listByUser",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.blogs().listByUser(**params).execute()",
+          "path": "/v3/users/{userId}/blogs",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "name",
+          "produces": {
+            "blogId": {
+              "via_list_field": "items",
+              "from_id_field": "name",
+              "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"blogId\""
+            }
+          },
+          "param_sources": {
+            "userId": {
+              "from_step": 1,
+              "from_op": "gcp.blogger.postUserInfos.list",
+              "field": "kind"
+            }
+          },
+          "purpose": "Provides: blogId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 3,
+          "op": "gcp.blogger.posts.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.posts().list(**params).execute()",
+          "path": "/v3/blogs/{blogId}/posts",
+          "required_params": {
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "selfLink",
+          "produces": {
+            "postId": {
+              "via_list_field": "items",
+              "from_id_field": "selfLink",
+              "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"postId\""
+            }
+          },
+          "param_sources": {
+            "blogId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            }
+          },
+          "purpose": "Provides: postId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 4,
+          "op": "gcp.blogger.posts.revert",
+          "kind": "other",
+          "independent": false,
+          "python_call": "svc.posts().revert(**params).execute()",
+          "path": "/v3/blogs/{blogId}/posts/{postId}/revert",
+          "required_params": {
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "postId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "blogId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            },
+            "postId": {
+              "from_step": 3,
+              "from_op": "gcp.blogger.posts.list",
+              "field": "selfLink"
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.blogger.posts.search": {
+      "target_op": "gcp.blogger.posts.search",
+      "kind": "read_list",
+      "independent": false,
+      "hop_distance": 999,
+      "chain_length": 3,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.blogger.postUserInfos.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.postUserInfos().list(**params).execute()",
+          "path": "/v3/users/{userId}/blogs/{blogId}/posts",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "kind",
+          "produces": {
+            "postUserInfoId": {
+              "via_list_field": "items",
+              "from_id_field": "kind",
+              "note": "Iterate response[\"items\"][], extract item[\"kind\"] \u2192 pass as \"postUserInfoId\""
+            }
+          },
+          "param_sources": {
+            "userId": "unresolved",
+            "blogId": "unresolved"
+          },
+          "purpose": "Provides: postUserInfoId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.blogger.blogs.listByUser",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.blogs().listByUser(**params).execute()",
+          "path": "/v3/users/{userId}/blogs",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "name",
+          "produces": {
+            "blogId": {
+              "via_list_field": "items",
+              "from_id_field": "name",
+              "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"blogId\""
+            }
+          },
+          "param_sources": {
+            "userId": {
+              "from_step": 1,
+              "from_op": "gcp.blogger.postUserInfos.list",
+              "field": "kind"
+            }
+          },
+          "purpose": "Provides: blogId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 3,
+          "op": "gcp.blogger.posts.search",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.posts().search(**params).execute()",
+          "path": "/v3/blogs/{blogId}/posts/search",
+          "required_params": {
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "q": {
+              "type": "string",
+              "location": "query",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "selfLink",
+          "produces": {
+            "postId": {
+              "via_list_field": "items",
+              "from_id_field": "selfLink",
+              "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"postId\""
+            }
+          },
+          "param_sources": {
+            "blogId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            },
+            "q": "unresolved"
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": [
+        "q"
+      ]
+    },
+    "gcp.blogger.blogs.get": {
+      "target_op": "gcp.blogger.blogs.get",
+      "kind": "read_get",
+      "independent": false,
+      "hop_distance": 999,
+      "chain_length": 3,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.blogger.postUserInfos.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.postUserInfos().list(**params).execute()",
+          "path": "/v3/users/{userId}/blogs/{blogId}/posts",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "kind",
+          "produces": {
+            "postUserInfoId": {
+              "via_list_field": "items",
+              "from_id_field": "kind",
+              "note": "Iterate response[\"items\"][], extract item[\"kind\"] \u2192 pass as \"postUserInfoId\""
+            }
+          },
+          "param_sources": {
+            "userId": "unresolved",
+            "blogId": "unresolved"
+          },
+          "purpose": "Provides: postUserInfoId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.blogger.blogs.listByUser",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.blogs().listByUser(**params).execute()",
+          "path": "/v3/users/{userId}/blogs",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "name",
+          "produces": {
+            "blogId": {
+              "via_list_field": "items",
+              "from_id_field": "name",
+              "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"blogId\""
+            }
+          },
+          "param_sources": {
+            "userId": {
+              "from_step": 1,
+              "from_op": "gcp.blogger.postUserInfos.list",
+              "field": "kind"
+            }
+          },
+          "purpose": "Provides: blogId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 3,
+          "op": "gcp.blogger.blogs.get",
+          "kind": "read_get",
+          "independent": false,
+          "python_call": "svc.blogs().get(**params).execute()",
+          "path": "/v3/blogs/{blogId}",
+          "required_params": {
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "blogId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.blogger.blogs.getByUrl": {
+      "target_op": "gcp.blogger.blogs.getByUrl",
+      "kind": "read_get",
+      "independent": false,
+      "hop_distance": 999,
+      "chain_length": 4,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.blogger.postUserInfos.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.postUserInfos().list(**params).execute()",
+          "path": "/v3/users/{userId}/blogs/{blogId}/posts",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "kind",
+          "produces": {
+            "postUserInfoId": {
+              "via_list_field": "items",
+              "from_id_field": "kind",
+              "note": "Iterate response[\"items\"][], extract item[\"kind\"] \u2192 pass as \"postUserInfoId\""
+            }
+          },
+          "param_sources": {
+            "userId": "unresolved",
+            "blogId": "unresolved"
+          },
+          "purpose": "Provides: postUserInfoId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.blogger.blogs.listByUser",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.blogs().listByUser(**params).execute()",
+          "path": "/v3/users/{userId}/blogs",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "name",
+          "produces": {
+            "blogId": {
+              "via_list_field": "items",
+              "from_id_field": "name",
+              "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"blogId\""
+            }
+          },
+          "param_sources": {
+            "userId": {
+              "from_step": 1,
+              "from_op": "gcp.blogger.postUserInfos.list",
+              "field": "kind"
+            }
+          },
+          "purpose": "Provides: blogId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 3,
+          "op": "gcp.blogger.pages.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.pages().list(**params).execute()",
+          "path": "/v3/blogs/{blogId}/pages",
+          "required_params": {
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "selfLink",
+          "produces": {
+            "pageId": {
+              "via_list_field": "items",
+              "from_id_field": "selfLink",
+              "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"pageId\""
+            }
+          },
+          "param_sources": {
+            "blogId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            }
+          },
+          "purpose": "Provides: pageId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 4,
+          "op": "gcp.blogger.blogs.getByUrl",
+          "kind": "read_get",
+          "independent": false,
+          "python_call": "svc.blogs().getByUrl(**params).execute()",
+          "path": "/v3/blogs/byurl",
+          "required_params": {
+            "url": {
+              "type": "string",
+              "location": "query",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "url": {
+              "from_step": 3,
+              "from_op": "gcp.blogger.pages.list",
+              "field": "selfLink"
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.blogger.blogs.listByUser": {
+      "target_op": "gcp.blogger.blogs.listByUser",
+      "kind": "read_list",
+      "independent": false,
+      "hop_distance": 999,
+      "chain_length": 2,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.blogger.postUserInfos.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.postUserInfos().list(**params).execute()",
+          "path": "/v3/users/{userId}/blogs/{blogId}/posts",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "kind",
+          "produces": {
+            "postUserInfoId": {
+              "via_list_field": "items",
+              "from_id_field": "kind",
+              "note": "Iterate response[\"items\"][], extract item[\"kind\"] \u2192 pass as \"postUserInfoId\""
+            }
+          },
+          "param_sources": {
+            "userId": "unresolved",
+            "blogId": "unresolved"
+          },
+          "purpose": "Provides: postUserInfoId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.blogger.blogs.listByUser",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.blogs().listByUser(**params).execute()",
+          "path": "/v3/users/{userId}/blogs",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "name",
+          "produces": {
+            "blogId": {
+              "via_list_field": "items",
+              "from_id_field": "name",
+              "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"blogId\""
+            }
+          },
+          "param_sources": {
+            "userId": {
+              "from_step": 1,
+              "from_op": "gcp.blogger.postUserInfos.list",
+              "field": "kind"
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.blogger.blogUserInfos.get": {
+      "target_op": "gcp.blogger.blogUserInfos.get",
+      "kind": "read_get",
+      "independent": false,
+      "hop_distance": 999,
+      "chain_length": 3,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.blogger.blogs.listByUser",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.blogs().listByUser(**params).execute()",
+          "path": "/v3/users/{userId}/blogs",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "name",
+          "produces": {
+            "blogId": {
+              "via_list_field": "items",
+              "from_id_field": "name",
+              "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"blogId\""
+            }
+          },
+          "param_sources": {
+            "userId": "unresolved"
+          },
+          "purpose": "Provides: blogId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.blogger.postUserInfos.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.postUserInfos().list(**params).execute()",
+          "path": "/v3/users/{userId}/blogs/{blogId}/posts",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "kind",
+          "produces": {
+            "postUserInfoId": {
+              "via_list_field": "items",
+              "from_id_field": "kind",
+              "note": "Iterate response[\"items\"][], extract item[\"kind\"] \u2192 pass as \"postUserInfoId\""
+            }
+          },
+          "param_sources": {
+            "userId": "unresolved",
+            "blogId": {
+              "from_step": 1,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            }
+          },
+          "purpose": "Provides: postUserInfoId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 3,
+          "op": "gcp.blogger.blogUserInfos.get",
+          "kind": "read_get",
+          "independent": false,
+          "python_call": "svc.blogUserInfos().get(**params).execute()",
+          "path": "/v3/users/{userId}/blogs/{blogId}",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "userId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.postUserInfos.list",
+              "field": "kind"
+            },
+            "blogId": {
+              "from_step": 1,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.blogger.pageViews.get": {
+      "target_op": "gcp.blogger.pageViews.get",
+      "kind": "read_get",
+      "independent": false,
+      "hop_distance": 999,
+      "chain_length": 3,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.blogger.postUserInfos.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.postUserInfos().list(**params).execute()",
+          "path": "/v3/users/{userId}/blogs/{blogId}/posts",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "kind",
+          "produces": {
+            "postUserInfoId": {
+              "via_list_field": "items",
+              "from_id_field": "kind",
+              "note": "Iterate response[\"items\"][], extract item[\"kind\"] \u2192 pass as \"postUserInfoId\""
+            }
+          },
+          "param_sources": {
+            "userId": "unresolved",
+            "blogId": "unresolved"
+          },
+          "purpose": "Provides: postUserInfoId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.blogger.blogs.listByUser",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.blogs().listByUser(**params).execute()",
+          "path": "/v3/users/{userId}/blogs",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "name",
+          "produces": {
+            "blogId": {
+              "via_list_field": "items",
+              "from_id_field": "name",
+              "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"blogId\""
+            }
+          },
+          "param_sources": {
+            "userId": {
+              "from_step": 1,
+              "from_op": "gcp.blogger.postUserInfos.list",
+              "field": "kind"
+            }
+          },
+          "purpose": "Provides: blogId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 3,
+          "op": "gcp.blogger.pageViews.get",
+          "kind": "read_get",
+          "independent": false,
+          "python_call": "svc.pageViews().get(**params).execute()",
+          "path": "/v3/blogs/{blogId}/pageviews",
+          "required_params": {
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "blogId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.blogger.postUserInfos.get": {
+      "target_op": "gcp.blogger.postUserInfos.get",
+      "kind": "read_get",
+      "independent": false,
+      "hop_distance": 999,
+      "chain_length": 4,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.blogger.blogs.listByUser",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.blogs().listByUser(**params).execute()",
+          "path": "/v3/users/{userId}/blogs",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "name",
+          "produces": {
+            "blogId": {
+              "via_list_field": "items",
+              "from_id_field": "name",
+              "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"blogId\""
+            }
+          },
+          "param_sources": {
+            "userId": "unresolved"
+          },
+          "purpose": "Provides: blogId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.blogger.postUserInfos.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.postUserInfos().list(**params).execute()",
+          "path": "/v3/users/{userId}/blogs/{blogId}/posts",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "kind",
+          "produces": {
+            "postUserInfoId": {
+              "via_list_field": "items",
+              "from_id_field": "kind",
+              "note": "Iterate response[\"items\"][], extract item[\"kind\"] \u2192 pass as \"postUserInfoId\""
+            }
+          },
+          "param_sources": {
+            "userId": "unresolved",
+            "blogId": {
+              "from_step": 1,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            }
+          },
+          "purpose": "Provides: postUserInfoId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 3,
+          "op": "gcp.blogger.posts.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.posts().list(**params).execute()",
+          "path": "/v3/blogs/{blogId}/posts",
+          "required_params": {
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "selfLink",
+          "produces": {
+            "postId": {
+              "via_list_field": "items",
+              "from_id_field": "selfLink",
+              "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"postId\""
+            }
+          },
+          "param_sources": {
+            "blogId": {
+              "from_step": 1,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            }
+          },
+          "purpose": "Provides: postId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 4,
+          "op": "gcp.blogger.postUserInfos.get",
+          "kind": "read_get",
+          "independent": false,
+          "python_call": "svc.postUserInfos().get(**params).execute()",
+          "path": "/v3/users/{userId}/blogs/{blogId}/posts/{postId}",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "postId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "userId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.postUserInfos.list",
+              "field": "kind"
+            },
+            "blogId": {
+              "from_step": 1,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            },
+            "postId": {
+              "from_step": 3,
+              "from_op": "gcp.blogger.posts.list",
+              "field": "selfLink"
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.blogger.postUserInfos.list": {
+      "target_op": "gcp.blogger.postUserInfos.list",
+      "kind": "read_list",
+      "independent": false,
+      "hop_distance": 999,
+      "chain_length": 2,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.blogger.blogs.listByUser",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.blogs().listByUser(**params).execute()",
+          "path": "/v3/users/{userId}/blogs",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "name",
+          "produces": {
+            "blogId": {
+              "via_list_field": "items",
+              "from_id_field": "name",
+              "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"blogId\""
+            }
+          },
+          "param_sources": {
+            "userId": "unresolved"
+          },
+          "purpose": "Provides: blogId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.blogger.postUserInfos.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.postUserInfos().list(**params).execute()",
+          "path": "/v3/users/{userId}/blogs/{blogId}/posts",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "kind",
+          "produces": {
+            "postUserInfoId": {
+              "via_list_field": "items",
+              "from_id_field": "kind",
+              "note": "Iterate response[\"items\"][], extract item[\"kind\"] \u2192 pass as \"postUserInfoId\""
+            }
+          },
+          "param_sources": {
+            "userId": "unresolved",
+            "blogId": {
+              "from_step": 1,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": [
+        "userId"
+      ]
+    },
+    "gcp.blogger.users.get": {
+      "target_op": "gcp.blogger.users.get",
+      "kind": "read_get",
+      "independent": false,
+      "hop_distance": 999,
+      "chain_length": 3,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.blogger.blogs.listByUser",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.blogs().listByUser(**params).execute()",
+          "path": "/v3/users/{userId}/blogs",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "name",
+          "produces": {
+            "blogId": {
+              "via_list_field": "items",
+              "from_id_field": "name",
+              "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"blogId\""
+            }
+          },
+          "param_sources": {
+            "userId": "unresolved"
+          },
+          "purpose": "Provides: blogId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.blogger.postUserInfos.list",
+          "kind": "read_list",
+          "independent": false,
+          "python_call": "svc.postUserInfos().list(**params).execute()",
+          "path": "/v3/users/{userId}/blogs/{blogId}/posts",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            },
+            "blogId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": "items",
+          "output_id_field": "kind",
+          "produces": {
+            "postUserInfoId": {
+              "via_list_field": "items",
+              "from_id_field": "kind",
+              "note": "Iterate response[\"items\"][], extract item[\"kind\"] \u2192 pass as \"postUserInfoId\""
+            }
+          },
+          "param_sources": {
+            "userId": "unresolved",
+            "blogId": {
+              "from_step": 1,
+              "from_op": "gcp.blogger.blogs.listByUser",
+              "field": "name"
+            }
+          },
+          "purpose": "Provides: postUserInfoId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 3,
+          "op": "gcp.blogger.users.get",
+          "kind": "read_get",
+          "independent": false,
+          "python_call": "svc.users().get(**params).execute()",
+          "path": "/v3/users/{userId}",
+          "required_params": {
+            "userId": {
+              "type": "string",
+              "location": "path",
+              "pattern": "",
+              "description": ""
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "userId": {
+              "from_step": 2,
+              "from_op": "gcp.blogger.postUserInfos.list",
+              "field": "kind"
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    }
+  }
+}

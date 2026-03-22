@@ -1,0 +1,95 @@
+# ============================================================================
+# Network Engine K8s Manifest — Task 2.8 [Seq 62 | DO]
+# Deployment + Service — Port 8007
+# ============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: engine-network
+  namespace: threat-engine-engines
+  labels:
+    app: engine-network
+    component: engine
+    tier: layer-2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: engine-network
+  template:
+    metadata:
+      labels:
+        app: engine-network
+        component: engine
+        tier: layer-2
+    spec:
+      serviceAccountName: threat-engine-sa
+      containers:
+        - name: engine-network
+          image: yadavanup84/engine-network:v1.0
+          ports:
+            - containerPort: 8007
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: threat-engine-db-config
+          env:
+            - name: NETWORK_DB_NAME
+              value: "threat_engine_network"
+            - name: DISCOVERY_DB_NAME
+              value: "threat_engine_discovery"
+            - name: LOG_DB_NAME
+              value: "threat_engine_logs"
+            - name: EXTERNAL_DB_NAME
+              value: "threat_engine_external"
+            - name: ONBOARDING_DB_NAME
+              value: "threat_engine_onboarding"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: external-secret-db-passwords
+                  key: network-db-password
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health/live
+              port: 8007
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health/ready
+              port: 8007
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 3
+      restartPolicy: Always
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: engine-network
+  namespace: threat-engine-engines
+  labels:
+    app: engine-network
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8007
+      targetPort: 8007
+      protocol: TCP
+      name: http
+  selector:
+    app: engine-network

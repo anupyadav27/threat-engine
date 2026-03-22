@@ -1,0 +1,30 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::588989875114:oidc-provider/oidc.eks.ap-south-1.amazonaws.com/id/<OIDC_ID>"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "oidc.eks.ap-south-1.amazonaws.com/id/<OIDC_ID>:sub": "system:serviceaccount:threat-engine-engines:engine-sa",
+          "oidc.eks.ap-south-1.amazonaws.com/id/<OIDC_ID>:aud": "sts.amazonaws.com"
+        }
+      }
+    }
+  ]
+}
+
+// Replace <OIDC_ID> with the cluster's OIDC provider ID:
+//   aws eks describe-cluster --name vulnerability-eks-cluster --region ap-south-1 \
+//     --query "cluster.identity.oidc.issuer" --output text
+//   Output: https://oidc.eks.ap-south-1.amazonaws.com/id/ABCD1234...
+//   Use the hex ID at the end (e.g. ABCD1234...)
+//
+// Role name: threat-engine-platform-role
+// Service account: engine-sa (namespace: threat-engine-engines)
+// Attached policies (cumulative):
+//   - ThreatEngineS3Policy   (s3-access-policy.json)
+//   - ThreatEngineSQSPolicy  (sqs-access-policy.json)

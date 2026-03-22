@@ -1,0 +1,100 @@
+# Discovery YAML — reservations (Azure)
+# Generated: 2026-02-21T05:02:44Z
+# Actions use Azure Python SDK snake_case names (azure-mgmt-*)
+version: '1.0'
+provider: azure
+service: reservations
+services:
+  client: reservations
+  module: azure.mgmt.reservations
+discovery:
+  # ── list_all ──
+  - discovery_id: azure.reservations.list_all
+    calls:
+      - action: list_all
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        id: '{{ item.id }}'
+        location: '{{ item.location }}'
+        name: '{{ item.name }}'
+        type: '{{ item.type }}'
+        kind: '{{ item.kind }}'
+        properties: '{{ item.properties }}'
+        sku: '{{ item.sku }}'
+        system_data: '{{ item.system_data }}'
+  # ── Dependent ops ──
+  # ── get_applied_reservation_list [dependent] ──
+  - discovery_id: azure.reservations.get_applied_reservation_list
+    calls:
+      - action: get_applied_reservation_list
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.id }}'
+      item:
+        id: '{{ item.id }}'
+        name: '{{ item.name }}'
+        type: '{{ item.type }}'
+        reservation_order_ids: '{{ item.reservation_order_ids }}'
+  # ── get_catalog [dependent] ──
+  - discovery_id: azure.reservations.get_catalog
+    calls:
+      - action: get_catalog
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        name: '{{ response.name }}'
+        billing_plans: '{{ response.billing_plans }}'
+        capabilities: '{{ response.capabilities }}'
+        locations: '{{ response.locations }}'
+        msrp: '{{ response.msrp }}'
+        resource_type: '{{ response.resource_type }}'
+        restrictions: '{{ response.restrictions }}'
+        size: '{{ response.size }}'
+        sku_properties: '{{ response.sku_properties }}'
+        terms: '{{ response.terms }}'
+        tier: '{{ response.tier }}'
+  # ── list [dependent] ──
+  - discovery_id: azure.reservations.list
+    calls:
+      - action: list
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        id: '{{ item.id }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        type: '{{ item.type }}'
+        message: '{{ item.message }}'
+        request_submit_time: '{{ item.request_submit_time }}'
+        value: '{{ item.value }}'
+    # required_params: ['provider_id', 'location']
+  # ── list_revisions [dependent] ──
+  - discovery_id: azure.reservations.list_revisions
+    calls:
+      - action: list_revisions
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        id: '{{ item.id }}'
+        location: '{{ item.location }}'
+        name: '{{ item.name }}'
+        type: '{{ item.type }}'
+        kind: '{{ item.kind }}'
+        properties: '{{ item.properties }}'
+        sku: '{{ item.sku }}'
+        system_data: '{{ item.system_data }}'
+    # required_params: ['reservation_order_id', 'reservation_id']

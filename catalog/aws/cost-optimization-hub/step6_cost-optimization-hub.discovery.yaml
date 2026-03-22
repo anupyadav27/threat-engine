@@ -1,0 +1,114 @@
+# ============================================================
+# Discovery YAML — cost-optimization-hub (AWS)
+# Generated: 2026-02-21T04:56:57Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: cost-optimization-hub
+services:
+  client: cost-optimization-hub
+  module: boto3.client
+discovery:
+  # ── GetPreferences ──
+  - discovery_id: aws.cost-optimization-hub.get_preferences
+    calls:
+      - action: get_preferences
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.savingsEstimationMode }}'
+      item:
+        memberAccountDiscountVisibility: '{{ item.memberAccountDiscountVisibility }}'
+        paymentOption: '{{ item.paymentOption }}'
+        preferredCommitment: '{{ item.preferredCommitment }}'
+        savingsEstimationMode: '{{ item.savingsEstimationMode }}'
+        term: '{{ item.term }}'
+  # ── ListEnrollmentStatuses ──
+  - discovery_id: aws.cost-optimization-hub.list_enrollment_statuses
+    calls:
+      - action: list_enrollment_statuses
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        createdTimestamp: '{{ item.createdTimestamp }}'
+        lastUpdatedTimestamp: '{{ item.lastUpdatedTimestamp }}'
+        status: '{{ item.status }}'
+  # ── ListRecommendations ──
+  - discovery_id: aws.cost-optimization-hub.list_recommendations
+    calls:
+      - action: list_recommendations
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        actionType: '{{ item.actionType }}'
+        currencyCode: '{{ item.currencyCode }}'
+        currentResourceSummary: '{{ item.currentResourceSummary }}'
+        currentResourceType: '{{ item.currentResourceType }}'
+        estimatedMonthlyCost: '{{ item.estimatedMonthlyCost }}'
+        estimatedMonthlySavings: '{{ item.estimatedMonthlySavings }}'
+        estimatedSavingsPercentage: '{{ item.estimatedSavingsPercentage }}'
+        implementationEffort: '{{ item.implementationEffort }}'
+        lastRefreshTimestamp: '{{ item.lastRefreshTimestamp }}'
+        recommendationId: '{{ item.recommendationId }}'
+        recommendationLookbackPeriodInDays: '{{ item.recommendationLookbackPeriodInDays }}'
+        recommendedResourceSummary: '{{ item.recommendedResourceSummary }}'
+        recommendedResourceType: '{{ item.recommendedResourceType }}'
+        region: '{{ item.region }}'
+        resourceArn: '{{ item.resourceArn }}'
+        resourceId: '{{ item.resourceId }}'
+        restartNeeded: '{{ item.restartNeeded }}'
+        rollbackPossible: '{{ item.rollbackPossible }}'
+        source: '{{ item.source }}'
+        tags: '{{ item.tags }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── GetRecommendation ──
+  - discovery_id: aws.cost-optimization-hub.get_recommendation
+    for_each: aws.cost-optimization-hub.list_recommendations
+    calls:
+      - action: get_recommendation
+        params:
+          recommendationId: '{{ item.recommendationId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.tags }}'
+      item:
+        key: '{{ item.key }}'
+        value: '{{ item.value }}'
+  # ── ListEfficiencyMetrics ──
+  - discovery_id: aws.cost-optimization-hub.list_efficiency_metrics
+    calls:
+      - action: list_efficiency_metrics
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.efficiencyMetricsByGroup }}'
+      item:
+        group: '{{ item.group }}'
+        message: '{{ item.message }}'
+        metricsByTime: '{{ item.metricsByTime }}'
+  # ── ListRecommendationSummaries ──
+  - discovery_id: aws.cost-optimization-hub.list_recommendation_summaries
+    calls:
+      - action: list_recommendation_summaries
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        estimatedMonthlySavings: '{{ item.estimatedMonthlySavings }}'
+        group: '{{ item.group }}'
+        recommendationCount: '{{ item.recommendationCount }}'

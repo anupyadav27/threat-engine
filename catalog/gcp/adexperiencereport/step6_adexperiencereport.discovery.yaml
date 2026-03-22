@@ -1,0 +1,65 @@
+# ============================================================
+# Discovery YAML — adexperiencereport (v1)
+# Generated: 2026-02-21T03:06:38Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 2 | independent: 1 | dependent: 1
+# ops with fields: 2/2 | dep ops with chain: 1/1
+# ============================================================
+version: '1.0'
+provider: gcp
+service: adexperiencereport
+
+services:
+  client: adexperiencereport
+  module: "googleapiclient.discovery.build('adexperiencereport', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists sites that are failing in the Ad Experience Report on at least one platform.
+  # ── gcp.adexperiencereport.violatingSites.list ──
+  - discovery_id: gcp.adexperiencereport.violatingSites.list
+    # python: svc.violatingSites().list(**params).execute()
+    calls:
+      - action: violatingSites.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.violatingSites }}'
+      item:
+        desktopSummary: '{{ item.desktopSummary }}'
+        mobileSummary: '{{ item.mobileSummary }}'
+        reviewedSite: '{{ item.reviewedSite }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets a site's Ad Experience Report summary.
+  # ── gcp.adexperiencereport.sites.get [dependent] ──
+  - discovery_id: gcp.adexperiencereport.sites.get
+    for_each: gcp.adexperiencereport.violatingSites.list
+    # python: svc.sites().get(**params).execute()
+    calls:
+      - action: sites.get
+        params:
+          name: '{{ item.reviewedSite }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        desktopSummary: '{{ response.desktopSummary }}'
+        mobileSummary: '{{ response.mobileSummary }}'
+        reviewedSite: '{{ response.reviewedSite }}'
+    # required_params: ['name']

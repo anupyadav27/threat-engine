@@ -1,0 +1,79 @@
+version: '1.0'
+provider: aws
+service: cloudhsmv2
+services:
+  client: cloudhsmv2
+  module: boto3.client
+discovery:
+- discovery_id: aws.cloudhsmv2.describeBackups
+  calls:
+  - action: describeBackups
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Backups }}'
+    item:
+      BackupId: '{{ item.BackupId }}'
+      BackupArn: '{{ item.BackupArn }}'
+      BackupState: '{{ item.BackupState }}'
+      ClusterId: '{{ item.ClusterId }}'
+      CreateTimestamp: '{{ item.CreateTimestamp }}'
+      CopyTimestamp: '{{ item.CopyTimestamp }}'
+      NeverExpires: '{{ item.NeverExpires }}'
+      SourceRegion: '{{ item.SourceRegion }}'
+      SourceBackup: '{{ item.SourceBackup }}'
+      SourceCluster: '{{ item.SourceCluster }}'
+      DeleteTimestamp: '{{ item.DeleteTimestamp }}'
+      TagList: '{{ item.TagList }}'
+      HsmType: '{{ item.HsmType }}'
+      Mode: '{{ item.Mode }}'
+- discovery_id: aws.cloudhsmv2.describeClusters
+  calls:
+  - action: describeClusters
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Clusters }}'
+    item:
+      BackupPolicy: '{{ item.BackupPolicy }}'
+      BackupRetentionPolicy: '{{ item.BackupRetentionPolicy }}'
+      ClusterId: '{{ item.ClusterId }}'
+      CreateTimestamp: '{{ item.CreateTimestamp }}'
+      Hsms: '{{ item.Hsms }}'
+      HsmType: '{{ item.HsmType }}'
+      HsmTypeRollbackExpiration: '{{ item.HsmTypeRollbackExpiration }}'
+      PreCoPassword: '{{ item.PreCoPassword }}'
+      SecurityGroup: '{{ item.SecurityGroup }}'
+      SourceBackupId: '{{ item.SourceBackupId }}'
+      State: '{{ item.State }}'
+      StateMessage: '{{ item.StateMessage }}'
+      SubnetMapping: '{{ item.SubnetMapping }}'
+      VpcId: '{{ item.VpcId }}'
+      NetworkType: '{{ item.NetworkType }}'
+      Certificates: '{{ item.Certificates }}'
+      TagList: '{{ item.TagList }}'
+      Mode: '{{ item.Mode }}'
+- discovery_id: aws.cloudhsmv2.getResourcePolicy
+  calls:
+  - action: getResourcePolicy
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Policy }}'
+- discovery_id: aws.cloudhsmv2.listTags
+  calls:
+  - action: listTags
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.TagList }}'
+    item:
+      Key: '{{ item.Key }}'
+      Value: '{{ item.Value }}'
+checks: []

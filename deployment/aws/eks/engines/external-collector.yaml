@@ -1,0 +1,176 @@
+# ---------------------------------------------------------------------------
+# External Collector — Task 0.3.15 [Seq 39 | DO]
+# Deployment + Service + CronJob for cache refresh
+# Namespace: threat-engine-engines
+# ---------------------------------------------------------------------------
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: external-collector
+  namespace: threat-engine-engines
+  labels:
+    app: external-collector
+    tier: collector
+    version: v0.3.0
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: external-collector
+  template:
+    metadata:
+      labels:
+        app: external-collector
+        tier: collector
+    spec:
+      serviceAccountName: threat-engine-external-collector
+      initContainers:
+        - name: trivy-db-refresh
+          image: aquasec/trivy:latest
+          command: ["trivy", "image", "--download-db-only"]
+          volumeMounts:
+            - name: trivy-cache
+              mountPath: /tmp/trivy-cache
+          env:
+            - name: TRIVY_CACHE_DIR
+              value: /tmp/trivy-cache
+      containers:
+        - name: external-collector
+          image: yadavanup84/threat-engine-external-collector:latest
+          ports:
+            - containerPort: 8031
+              name: http
+          envFrom:
+            - configMapRef:
+                name: threat-engine-db-config
+            - secretRef:
+                name: external-secret-db-passwords
+          env:
+            - name: TH_EXTERNAL_COLLECTOR_PORT
+              value: "8031"
+            - name: TH_DB_EXTERNAL_NAME
+              value: threat_engine_external
+            - name: AWS_REGION
+              value: us-east-1
+            - name: TRIVY_CACHE_DIR
+              value: /tmp/trivy-cache
+            - name: OTEL_SERVICE_NAME
+              value: external-collector
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-otel-config
+                  key: OTEL_EXPORTER_OTLP_ENDPOINT
+                  optional: true
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          volumeMounts:
+            - name: trivy-cache
+              mountPath: /tmp/trivy-cache
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health/live
+              port: 8031
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health/ready
+              port: 8031
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+          securityContext:
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+      volumes:
+        - name: trivy-cache
+          emptyDir:
+            sizeLimit: 500Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: external-collector
+  namespace: threat-engine-engines
+  labels:
+    app: external-collector
+spec:
+  type: ClusterIP
+  selector:
+    app: external-collector
+  ports:
+    - port: 8031
+      targetPort: 8031
+      protocol: TCP
+      name: http
+
+---
+# CronJob: Daily cache refresh (NVD + EPSS + KEV at 02:00 UTC)
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: external-collector-daily-refresh
+  namespace: threat-engine-engines
+spec:
+  schedule: "0 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          serviceAccountName: threat-engine-external-collector
+          containers:
+            - name: refresh
+              image: curlimages/curl:latest
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  curl -sf -X POST http://external-collector.threat-engine-engines:8031/api/v1/collect/nvd &&
+                  sleep 300 &&
+                  curl -sf -X POST http://external-collector.threat-engine-engines:8031/api/v1/collect/epss &&
+                  sleep 60 &&
+                  curl -sf -X POST http://external-collector.threat-engine-engines:8031/api/v1/collect/kev
+          restartPolicy: OnFailure
+
+---
+# CronJob: Threat intel refresh every 6 hours
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: external-collector-threat-intel-refresh
+  namespace: threat-engine-engines
+spec:
+  schedule: "0 */6 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          serviceAccountName: threat-engine-external-collector
+          containers:
+            - name: refresh
+              image: curlimages/curl:latest
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  curl -sf -X POST http://external-collector.threat-engine-engines:8031/api/v1/collect/threat_intel
+          restartPolicy: OnFailure

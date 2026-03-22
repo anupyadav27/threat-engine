@@ -1,0 +1,119 @@
+# ============================================================
+# Discovery YAML — doubleclicksearch (v2)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 6 | independent: 0 | dependent: 6
+# ops with fields: 4/6 | dep ops with chain: 0/6
+# ============================================================
+version: '1.0'
+provider: gcp
+service: doubleclicksearch
+
+services:
+  client: doubleclicksearch
+  module: "googleapiclient.discovery.build('doubleclicksearch', 'v2')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Retrieves a list of conversions from a DoubleClick Search engine account.
+  # ── gcp.doubleclicksearch.conversion.get [dependent] ──
+  - discovery_id: gcp.doubleclicksearch.conversion.get
+    # python: svc.conversion().get(**params).execute()
+    calls:
+      - action: conversion.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        conversion: '{{ response.conversion }}'
+    # required_params: ['endDate', 'rowCount', 'agencyId', 'engineAccountId', 'startDate', 'startRow', 'advertiserId']
+  # Retrieves a list of conversions from a DoubleClick Search engine account.
+  # ── gcp.doubleclicksearch.conversion.getByCustomerId [dependent] ──
+  - discovery_id: gcp.doubleclicksearch.conversion.getByCustomerId
+    # python: svc.conversion().getByCustomerId(**params).execute()
+    calls:
+      - action: conversion.getByCustomerId
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        conversion: '{{ response.conversion }}'
+    # required_params: ['startRow', 'customerId', 'endDate', 'startDate', 'rowCount']
+  # Polls for the status of a report request.
+  # ── gcp.doubleclicksearch.reports.get [dependent] ──
+  - discovery_id: gcp.doubleclicksearch.reports.get
+    # python: svc.reports().get(**params).execute()
+    calls:
+      - action: reports.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        files: '{{ response.files }}'
+        id: '{{ response.id }}'
+        isReportReady: '{{ response.isReportReady }}'
+        request: '{{ response.request }}'
+        rowCount: '{{ response.rowCount }}'
+        rows: '{{ response.rows }}'
+        statisticsCurrencyCode: '{{ response.statisticsCurrencyCode }}'
+        statisticsTimeZone: '{{ response.statisticsTimeZone }}'
+    # required_params: ['reportId']
+  # Downloads a report file encoded in UTF-8.
+  # ── gcp.doubleclicksearch.reports.getFile [dependent] ──
+  - discovery_id: gcp.doubleclicksearch.reports.getFile
+    # python: svc.reports().getFile(**params).execute()
+    calls:
+      - action: reports.getFile
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+    # required_params: ['reportFragment', 'reportId']
+  # Downloads a csv file(encoded in UTF-8) that contains ID mappings between legacy SA360 and new SA360.
+  # ── gcp.doubleclicksearch.reports.getIdMappingFile [dependent] ──
+  - discovery_id: gcp.doubleclicksearch.reports.getIdMappingFile
+    # python: svc.reports().getIdMappingFile(**params).execute()
+    calls:
+      - action: reports.getIdMappingFile
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+    # required_params: ['agencyId', 'advertiserId']
+  # Retrieve the list of saved columns for a specified advertiser.
+  # ── gcp.doubleclicksearch.savedColumns.list [dependent] ──
+  - discovery_id: gcp.doubleclicksearch.savedColumns.list
+    # python: svc.savedColumns().list(**params).execute()
+    calls:
+      - action: savedColumns.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.savedColumns }}'
+      item:
+        savedColumnName: '{{ item.savedColumnName }}'
+        type: '{{ item.type }}'
+    # required_params: ['agencyId', 'advertiserId']

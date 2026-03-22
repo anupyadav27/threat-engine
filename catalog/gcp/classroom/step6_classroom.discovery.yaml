@@ -1,0 +1,1073 @@
+# ============================================================
+# Discovery YAML — classroom (v1)
+# Generated: 2026-02-21T03:06:39Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 43 | independent: 2 | dependent: 41
+# ops with fields: 43/43 | dep ops with chain: 33/41
+# ============================================================
+version: '1.0'
+provider: gcp
+service: classroom
+
+services:
+  client: classroom
+  module: "googleapiclient.discovery.build('classroom', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Returns a list of courses that the requesting user is permitted to view, restricted to those that ma
+  # ── gcp.classroom.courses.list ──
+  - discovery_id: gcp.classroom.courses.list
+    # python: svc.courses().list(**params).execute()
+    calls:
+      - action: courses.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.courses }}'
+      item:
+        alternateLink: '{{ item.alternateLink }}'
+        calendarId: '{{ item.calendarId }}'
+        courseGroupEmail: '{{ item.courseGroupEmail }}'
+        courseMaterialSets: '{{ item.courseMaterialSets }}'
+        courseState: '{{ item.courseState }}'
+        creationTime: '{{ item.creationTime }}'
+        description: '{{ item.description }}'
+        descriptionHeading: '{{ item.descriptionHeading }}'
+        enrollmentCode: '{{ item.enrollmentCode }}'
+        gradebookSettings: '{{ item.gradebookSettings }}'
+        guardiansEnabled: '{{ item.guardiansEnabled }}'
+        id: '{{ item.id }}'
+        name: '{{ item.name }}'
+        ownerId: '{{ item.ownerId }}'
+        room: '{{ item.room }}'
+        section: '{{ item.section }}'
+        subject: '{{ item.subject }}'
+        teacherFolder: '{{ item.teacherFolder }}'
+        teacherGroupEmail: '{{ item.teacherGroupEmail }}'
+        updateTime: '{{ item.updateTime }}'
+  # Returns a list of invitations that the requesting user is permitted to view, restricted to those tha
+  # ── gcp.classroom.invitations.list ──
+  - discovery_id: gcp.classroom.invitations.list
+    # python: svc.invitations().list(**params).execute()
+    calls:
+      - action: invitations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.invitations }}'
+      item:
+        courseId: '{{ item.courseId }}'
+        id: '{{ item.id }}'
+        role: '{{ item.role }}'
+        userId: '{{ item.userId }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Returns a list of aliases for a course. This method returns the following error codes: * `PERMISSION
+  # ── gcp.classroom.courses.aliases.list [dependent] ──
+  - discovery_id: gcp.classroom.courses.aliases.list
+    for_each: gcp.classroom.courses.list
+    # python: svc.courses().aliases().list(**params).execute()
+    calls:
+      - action: courses.aliases.list
+        params:
+          courseId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.aliases }}'
+      item:
+        alias: '{{ item.alias }}'
+    # required_params: ['courseId']
+  # Returns an add-on attachment. Requires the add-on requesting the attachment to be the original creat
+  # ── gcp.classroom.courses.announcements.addOnAttachments.get [dependent] ──
+  - discovery_id: gcp.classroom.courses.announcements.addOnAttachments.get
+    # python: svc.courses().announcements().addOnAttachments().get(**params).execute()
+    calls:
+      - action: courses.announcements.addOnAttachments.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        copyHistory: '{{ response.copyHistory }}'
+        courseId: '{{ response.courseId }}'
+        dueDate: '{{ response.dueDate }}'
+        dueTime: '{{ response.dueTime }}'
+        id: '{{ response.id }}'
+        itemId: '{{ response.itemId }}'
+        maxPoints: '{{ response.maxPoints }}'
+        postId: '{{ response.postId }}'
+        studentViewUri: '{{ response.studentViewUri }}'
+        studentWorkReviewUri: '{{ response.studentWorkReviewUri }}'
+        teacherViewUri: '{{ response.teacherViewUri }}'
+        title: '{{ response.title }}'
+    # required_params: ['attachmentId', 'itemId', 'courseId']
+  # Returns all attachments created by an add-on under the post. Requires the add-on to have active atta
+  # ── gcp.classroom.courses.announcements.addOnAttachments.list [dependent] ──
+  - discovery_id: gcp.classroom.courses.announcements.addOnAttachments.list
+    for_each: gcp.classroom.courses.courseWorkMaterials.addOnAttachments.list
+    # python: svc.courses().announcements().addOnAttachments().list(**params).execute()
+    calls:
+      - action: courses.announcements.addOnAttachments.list
+        params:
+          courseId: '{{ item.name }}'
+          itemId: '{{ item.id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.addOnAttachments }}'
+      item:
+        copyHistory: '{{ item.copyHistory }}'
+        courseId: '{{ item.courseId }}'
+        dueDate: '{{ item.dueDate }}'
+        dueTime: '{{ item.dueTime }}'
+        id: '{{ item.id }}'
+        itemId: '{{ item.itemId }}'
+        maxPoints: '{{ item.maxPoints }}'
+        postId: '{{ item.postId }}'
+        studentViewUri: '{{ item.studentViewUri }}'
+        studentWorkReviewUri: '{{ item.studentWorkReviewUri }}'
+        teacherViewUri: '{{ item.teacherViewUri }}'
+        title: '{{ item.title }}'
+    # required_params: ['courseId', 'itemId']
+  # Returns an announcement. This method returns the following error codes: * `PERMISSION_DENIED` if the
+  # ── gcp.classroom.courses.announcements.get [dependent] ──
+  - discovery_id: gcp.classroom.courses.announcements.get
+    for_each: gcp.classroom.courses.list
+    # python: svc.courses().announcements().get(**params).execute()
+    calls:
+      - action: courses.announcements.get
+        params:
+          courseId: '{{ item.name }}'
+          id: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        alternateLink: '{{ response.alternateLink }}'
+        assigneeMode: '{{ response.assigneeMode }}'
+        courseId: '{{ response.courseId }}'
+        creationTime: '{{ response.creationTime }}'
+        creatorUserId: '{{ response.creatorUserId }}'
+        id: '{{ response.id }}'
+        individualStudentsOptions: '{{ response.individualStudentsOptions }}'
+        materials: '{{ response.materials }}'
+        scheduledTime: '{{ response.scheduledTime }}'
+        state: '{{ response.state }}'
+        text: '{{ response.text }}'
+        updateTime: '{{ response.updateTime }}'
+    # required_params: ['courseId', 'id']
+  # Gets metadata for Classroom add-ons in the context of a specific post. To maintain the integrity of 
+  # ── gcp.classroom.courses.announcements.getAddOnContext [dependent] ──
+  - discovery_id: gcp.classroom.courses.announcements.getAddOnContext
+    for_each: gcp.classroom.courses.courseWorkMaterials.addOnAttachments.list
+    # python: svc.courses().announcements().getAddOnContext(**params).execute()
+    calls:
+      - action: courses.announcements.getAddOnContext
+        params:
+          courseId: '{{ item.name }}'
+          itemId: '{{ item.id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        courseId: '{{ response.courseId }}'
+        itemId: '{{ response.itemId }}'
+        postId: '{{ response.postId }}'
+        studentContext: '{{ response.studentContext }}'
+        supportsStudentWork: '{{ response.supportsStudentWork }}'
+        teacherContext: '{{ response.teacherContext }}'
+    # required_params: ['courseId', 'itemId']
+  # Returns a list of announcements that the requester is permitted to view. Course students may only vi
+  # ── gcp.classroom.courses.announcements.list [dependent] ──
+  - discovery_id: gcp.classroom.courses.announcements.list
+    for_each: gcp.classroom.courses.list
+    # python: svc.courses().announcements().list(**params).execute()
+    calls:
+      - action: courses.announcements.list
+        params:
+          courseId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.announcements }}'
+      item:
+        alternateLink: '{{ item.alternateLink }}'
+        assigneeMode: '{{ item.assigneeMode }}'
+        courseId: '{{ item.courseId }}'
+        creationTime: '{{ item.creationTime }}'
+        creatorUserId: '{{ item.creatorUserId }}'
+        id: '{{ item.id }}'
+        individualStudentsOptions: '{{ item.individualStudentsOptions }}'
+        materials: '{{ item.materials }}'
+        scheduledTime: '{{ item.scheduledTime }}'
+        state: '{{ item.state }}'
+        text: '{{ item.text }}'
+        updateTime: '{{ item.updateTime }}'
+    # required_params: ['courseId']
+  # Returns an add-on attachment. Requires the add-on requesting the attachment to be the original creat
+  # ── gcp.classroom.courses.courseWork.addOnAttachments.get [dependent] ──
+  - discovery_id: gcp.classroom.courses.courseWork.addOnAttachments.get
+    # python: svc.courses().courseWork().addOnAttachments().get(**params).execute()
+    calls:
+      - action: courses.courseWork.addOnAttachments.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        copyHistory: '{{ response.copyHistory }}'
+        courseId: '{{ response.courseId }}'
+        dueDate: '{{ response.dueDate }}'
+        dueTime: '{{ response.dueTime }}'
+        id: '{{ response.id }}'
+        itemId: '{{ response.itemId }}'
+        maxPoints: '{{ response.maxPoints }}'
+        postId: '{{ response.postId }}'
+        studentViewUri: '{{ response.studentViewUri }}'
+        studentWorkReviewUri: '{{ response.studentWorkReviewUri }}'
+        teacherViewUri: '{{ response.teacherViewUri }}'
+        title: '{{ response.title }}'
+    # required_params: ['courseId', 'attachmentId', 'itemId']
+  # Returns all attachments created by an add-on under the post. Requires the add-on to have active atta
+  # ── gcp.classroom.courses.courseWork.addOnAttachments.list [dependent] ──
+  - discovery_id: gcp.classroom.courses.courseWork.addOnAttachments.list
+    for_each: gcp.classroom.courses.courseWorkMaterials.addOnAttachments.list
+    # python: svc.courses().courseWork().addOnAttachments().list(**params).execute()
+    calls:
+      - action: courses.courseWork.addOnAttachments.list
+        params:
+          courseId: '{{ item.name }}'
+          itemId: '{{ item.id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.addOnAttachments }}'
+      item:
+        copyHistory: '{{ item.copyHistory }}'
+        courseId: '{{ item.courseId }}'
+        dueDate: '{{ item.dueDate }}'
+        dueTime: '{{ item.dueTime }}'
+        id: '{{ item.id }}'
+        itemId: '{{ item.itemId }}'
+        maxPoints: '{{ item.maxPoints }}'
+        postId: '{{ item.postId }}'
+        studentViewUri: '{{ item.studentViewUri }}'
+        studentWorkReviewUri: '{{ item.studentWorkReviewUri }}'
+        teacherViewUri: '{{ item.teacherViewUri }}'
+        title: '{{ item.title }}'
+    # required_params: ['itemId', 'courseId']
+  # Returns a student submission for an add-on attachment. This method returns the following error codes
+  # ── gcp.classroom.courses.courseWork.addOnAttachments.studentSubmissions.get [dependent] ──
+  - discovery_id: gcp.classroom.courses.courseWork.addOnAttachments.studentSubmissions.get
+    # python: svc.courses().courseWork().addOnAttachments().studentSubmissions().get(**params).execute()
+    calls:
+      - action: courses.courseWork.addOnAttachments.studentSubmissions.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        pointsEarned: '{{ response.pointsEarned }}'
+        postSubmissionState: '{{ response.postSubmissionState }}'
+    # required_params: ['courseId', 'submissionId', 'attachmentId', 'itemId']
+  # Returns course work. This method returns the following error codes: * `PERMISSION_DENIED` if the req
+  # ── gcp.classroom.courses.courseWork.get [dependent] ──
+  - discovery_id: gcp.classroom.courses.courseWork.get
+    for_each: gcp.classroom.courses.list
+    # python: svc.courses().courseWork().get(**params).execute()
+    calls:
+      - action: courses.courseWork.get
+        params:
+          courseId: '{{ item.name }}'
+          id: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        alternateLink: '{{ response.alternateLink }}'
+        assigneeMode: '{{ response.assigneeMode }}'
+        assignment: '{{ response.assignment }}'
+        associatedWithDeveloper: '{{ response.associatedWithDeveloper }}'
+        courseId: '{{ response.courseId }}'
+        creationTime: '{{ response.creationTime }}'
+        creatorUserId: '{{ response.creatorUserId }}'
+        description: '{{ response.description }}'
+        dueDate: '{{ response.dueDate }}'
+        dueTime: '{{ response.dueTime }}'
+        gradeCategory: '{{ response.gradeCategory }}'
+        gradingPeriodId: '{{ response.gradingPeriodId }}'
+        id: '{{ response.id }}'
+        individualStudentsOptions: '{{ response.individualStudentsOptions }}'
+        materials: '{{ response.materials }}'
+        maxPoints: '{{ response.maxPoints }}'
+        multipleChoiceQuestion: '{{ response.multipleChoiceQuestion }}'
+        scheduledTime: '{{ response.scheduledTime }}'
+        state: '{{ response.state }}'
+        submissionModificationMode: '{{ response.submissionModificationMode }}'
+        title: '{{ response.title }}'
+        topicId: '{{ response.topicId }}'
+        updateTime: '{{ response.updateTime }}'
+        workType: '{{ response.workType }}'
+    # required_params: ['id', 'courseId']
+  # Gets metadata for Classroom add-ons in the context of a specific post. To maintain the integrity of 
+  # ── gcp.classroom.courses.courseWork.getAddOnContext [dependent] ──
+  - discovery_id: gcp.classroom.courses.courseWork.getAddOnContext
+    for_each: gcp.classroom.courses.courseWorkMaterials.addOnAttachments.list
+    # python: svc.courses().courseWork().getAddOnContext(**params).execute()
+    calls:
+      - action: courses.courseWork.getAddOnContext
+        params:
+          courseId: '{{ item.name }}'
+          itemId: '{{ item.id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        courseId: '{{ response.courseId }}'
+        itemId: '{{ response.itemId }}'
+        postId: '{{ response.postId }}'
+        studentContext: '{{ response.studentContext }}'
+        supportsStudentWork: '{{ response.supportsStudentWork }}'
+        teacherContext: '{{ response.teacherContext }}'
+    # required_params: ['itemId', 'courseId']
+  # Returns a list of course work that the requester is permitted to view. Course students may only view
+  # ── gcp.classroom.courses.courseWork.list [dependent] ──
+  - discovery_id: gcp.classroom.courses.courseWork.list
+    for_each: gcp.classroom.courses.list
+    # python: svc.courses().courseWork().list(**params).execute()
+    calls:
+      - action: courses.courseWork.list
+        params:
+          courseId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.courseWork }}'
+      item:
+        alternateLink: '{{ item.alternateLink }}'
+        assigneeMode: '{{ item.assigneeMode }}'
+        assignment: '{{ item.assignment }}'
+        associatedWithDeveloper: '{{ item.associatedWithDeveloper }}'
+        courseId: '{{ item.courseId }}'
+        creationTime: '{{ item.creationTime }}'
+        creatorUserId: '{{ item.creatorUserId }}'
+        description: '{{ item.description }}'
+        dueDate: '{{ item.dueDate }}'
+        dueTime: '{{ item.dueTime }}'
+        gradeCategory: '{{ item.gradeCategory }}'
+        gradingPeriodId: '{{ item.gradingPeriodId }}'
+        id: '{{ item.id }}'
+        individualStudentsOptions: '{{ item.individualStudentsOptions }}'
+        materials: '{{ item.materials }}'
+        maxPoints: '{{ item.maxPoints }}'
+        multipleChoiceQuestion: '{{ item.multipleChoiceQuestion }}'
+        scheduledTime: '{{ item.scheduledTime }}'
+        state: '{{ item.state }}'
+        submissionModificationMode: '{{ item.submissionModificationMode }}'
+        title: '{{ item.title }}'
+        topicId: '{{ item.topicId }}'
+        updateTime: '{{ item.updateTime }}'
+        workType: '{{ item.workType }}'
+    # required_params: ['courseId']
+  # Returns a rubric. This method returns the following error codes: * `PERMISSION_DENIED` for access er
+  # ── gcp.classroom.courses.courseWork.rubrics.get [dependent] ──
+  - discovery_id: gcp.classroom.courses.courseWork.rubrics.get
+    for_each: gcp.classroom.courses.courseWork.list
+    # python: svc.courses().courseWork().rubrics().get(**params).execute()
+    calls:
+      - action: courses.courseWork.rubrics.get
+        params:
+          courseId: '{{ item.name }}'
+          courseWorkId: '{{ item.id }}'
+          id: '{{ item.id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        courseId: '{{ response.courseId }}'
+        courseWorkId: '{{ response.courseWorkId }}'
+        creationTime: '{{ response.creationTime }}'
+        criteria: '{{ response.criteria }}'
+        id: '{{ response.id }}'
+        sourceSpreadsheetId: '{{ response.sourceSpreadsheetId }}'
+        updateTime: '{{ response.updateTime }}'
+    # required_params: ['courseWorkId', 'id', 'courseId']
+  # Returns a list of rubrics that the requester is permitted to view. This method returns the following
+  # ── gcp.classroom.courses.courseWork.rubrics.list [dependent] ──
+  - discovery_id: gcp.classroom.courses.courseWork.rubrics.list
+    for_each: gcp.classroom.courses.courseWork.list
+    # python: svc.courses().courseWork().rubrics().list(**params).execute()
+    calls:
+      - action: courses.courseWork.rubrics.list
+        params:
+          courseId: '{{ item.name }}'
+          courseWorkId: '{{ item.id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.rubrics }}'
+      item:
+        courseId: '{{ item.courseId }}'
+        courseWorkId: '{{ item.courseWorkId }}'
+        creationTime: '{{ item.creationTime }}'
+        criteria: '{{ item.criteria }}'
+        id: '{{ item.id }}'
+        sourceSpreadsheetId: '{{ item.sourceSpreadsheetId }}'
+        updateTime: '{{ item.updateTime }}'
+    # required_params: ['courseId', 'courseWorkId']
+  # Returns a student submission. * `PERMISSION_DENIED` if the requesting user is not permitted to acces
+  # ── gcp.classroom.courses.courseWork.studentSubmissions.get [dependent] ──
+  - discovery_id: gcp.classroom.courses.courseWork.studentSubmissions.get
+    for_each: gcp.classroom.courses.courseWork.list
+    # python: svc.courses().courseWork().studentSubmissions().get(**params).execute()
+    calls:
+      - action: courses.courseWork.studentSubmissions.get
+        params:
+          courseId: '{{ item.name }}'
+          courseWorkId: '{{ item.id }}'
+          id: '{{ item.id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        alternateLink: '{{ response.alternateLink }}'
+        assignedGrade: '{{ response.assignedGrade }}'
+        assignedRubricGrades: '{{ response.assignedRubricGrades }}'
+        assignmentSubmission: '{{ response.assignmentSubmission }}'
+        associatedWithDeveloper: '{{ response.associatedWithDeveloper }}'
+        courseId: '{{ response.courseId }}'
+        courseWorkId: '{{ response.courseWorkId }}'
+        courseWorkType: '{{ response.courseWorkType }}'
+        creationTime: '{{ response.creationTime }}'
+        draftGrade: '{{ response.draftGrade }}'
+        draftRubricGrades: '{{ response.draftRubricGrades }}'
+        id: '{{ response.id }}'
+        late: '{{ response.late }}'
+        multipleChoiceSubmission: '{{ response.multipleChoiceSubmission }}'
+        shortAnswerSubmission: '{{ response.shortAnswerSubmission }}'
+        state: '{{ response.state }}'
+        submissionHistory: '{{ response.submissionHistory }}'
+        updateTime: '{{ response.updateTime }}'
+        userId: '{{ response.userId }}'
+    # required_params: ['courseId', 'id', 'courseWorkId']
+  # Returns a list of student submissions that the requester is permitted to view, factoring in the OAut
+  # ── gcp.classroom.courses.courseWork.studentSubmissions.list [dependent] ──
+  - discovery_id: gcp.classroom.courses.courseWork.studentSubmissions.list
+    for_each: gcp.classroom.courses.courseWork.list
+    # python: svc.courses().courseWork().studentSubmissions().list(**params).execute()
+    calls:
+      - action: courses.courseWork.studentSubmissions.list
+        params:
+          courseId: '{{ item.name }}'
+          courseWorkId: '{{ item.id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.studentSubmissions }}'
+      item:
+        alternateLink: '{{ item.alternateLink }}'
+        assignedGrade: '{{ item.assignedGrade }}'
+        assignedRubricGrades: '{{ item.assignedRubricGrades }}'
+        assignmentSubmission: '{{ item.assignmentSubmission }}'
+        associatedWithDeveloper: '{{ item.associatedWithDeveloper }}'
+        courseId: '{{ item.courseId }}'
+        courseWorkId: '{{ item.courseWorkId }}'
+        courseWorkType: '{{ item.courseWorkType }}'
+        creationTime: '{{ item.creationTime }}'
+        draftGrade: '{{ item.draftGrade }}'
+        draftRubricGrades: '{{ item.draftRubricGrades }}'
+        id: '{{ item.id }}'
+        late: '{{ item.late }}'
+        multipleChoiceSubmission: '{{ item.multipleChoiceSubmission }}'
+        shortAnswerSubmission: '{{ item.shortAnswerSubmission }}'
+        state: '{{ item.state }}'
+        submissionHistory: '{{ item.submissionHistory }}'
+        updateTime: '{{ item.updateTime }}'
+        userId: '{{ item.userId }}'
+    # required_params: ['courseWorkId', 'courseId']
+  # Returns an add-on attachment. Requires the add-on requesting the attachment to be the original creat
+  # ── gcp.classroom.courses.courseWorkMaterials.addOnAttachments.get [dependent] ──
+  - discovery_id: gcp.classroom.courses.courseWorkMaterials.addOnAttachments.get
+    # python: svc.courses().courseWorkMaterials().addOnAttachments().get(**params).execute()
+    calls:
+      - action: courses.courseWorkMaterials.addOnAttachments.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        copyHistory: '{{ response.copyHistory }}'
+        courseId: '{{ response.courseId }}'
+        dueDate: '{{ response.dueDate }}'
+        dueTime: '{{ response.dueTime }}'
+        id: '{{ response.id }}'
+        itemId: '{{ response.itemId }}'
+        maxPoints: '{{ response.maxPoints }}'
+        postId: '{{ response.postId }}'
+        studentViewUri: '{{ response.studentViewUri }}'
+        studentWorkReviewUri: '{{ response.studentWorkReviewUri }}'
+        teacherViewUri: '{{ response.teacherViewUri }}'
+        title: '{{ response.title }}'
+    # required_params: ['itemId', 'courseId', 'attachmentId']
+  # Returns all attachments created by an add-on under the post. Requires the add-on to have active atta
+  # ── gcp.classroom.courses.courseWorkMaterials.addOnAttachments.list [dependent] ──
+  - discovery_id: gcp.classroom.courses.courseWorkMaterials.addOnAttachments.list
+    # python: svc.courses().courseWorkMaterials().addOnAttachments().list(**params).execute()
+    calls:
+      - action: courses.courseWorkMaterials.addOnAttachments.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.addOnAttachments }}'
+      item:
+        copyHistory: '{{ item.copyHistory }}'
+        courseId: '{{ item.courseId }}'
+        dueDate: '{{ item.dueDate }}'
+        dueTime: '{{ item.dueTime }}'
+        id: '{{ item.id }}'
+        itemId: '{{ item.itemId }}'
+        maxPoints: '{{ item.maxPoints }}'
+        postId: '{{ item.postId }}'
+        studentViewUri: '{{ item.studentViewUri }}'
+        studentWorkReviewUri: '{{ item.studentWorkReviewUri }}'
+        teacherViewUri: '{{ item.teacherViewUri }}'
+        title: '{{ item.title }}'
+    # required_params: ['itemId', 'courseId']
+  # Returns a course work material. This method returns the following error codes: * `PERMISSION_DENIED`
+  # ── gcp.classroom.courses.courseWorkMaterials.get [dependent] ──
+  - discovery_id: gcp.classroom.courses.courseWorkMaterials.get
+    for_each: gcp.classroom.courses.list
+    # python: svc.courses().courseWorkMaterials().get(**params).execute()
+    calls:
+      - action: courses.courseWorkMaterials.get
+        params:
+          courseId: '{{ item.name }}'
+          id: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        alternateLink: '{{ response.alternateLink }}'
+        assigneeMode: '{{ response.assigneeMode }}'
+        courseId: '{{ response.courseId }}'
+        creationTime: '{{ response.creationTime }}'
+        creatorUserId: '{{ response.creatorUserId }}'
+        description: '{{ response.description }}'
+        id: '{{ response.id }}'
+        individualStudentsOptions: '{{ response.individualStudentsOptions }}'
+        materials: '{{ response.materials }}'
+        scheduledTime: '{{ response.scheduledTime }}'
+        state: '{{ response.state }}'
+        title: '{{ response.title }}'
+        topicId: '{{ response.topicId }}'
+        updateTime: '{{ response.updateTime }}'
+    # required_params: ['id', 'courseId']
+  # Gets metadata for Classroom add-ons in the context of a specific post. To maintain the integrity of 
+  # ── gcp.classroom.courses.courseWorkMaterials.getAddOnContext [dependent] ──
+  - discovery_id: gcp.classroom.courses.courseWorkMaterials.getAddOnContext
+    for_each: gcp.classroom.courses.courseWorkMaterials.addOnAttachments.list
+    # python: svc.courses().courseWorkMaterials().getAddOnContext(**params).execute()
+    calls:
+      - action: courses.courseWorkMaterials.getAddOnContext
+        params:
+          courseId: '{{ item.name }}'
+          itemId: '{{ item.id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        courseId: '{{ response.courseId }}'
+        itemId: '{{ response.itemId }}'
+        postId: '{{ response.postId }}'
+        studentContext: '{{ response.studentContext }}'
+        supportsStudentWork: '{{ response.supportsStudentWork }}'
+        teacherContext: '{{ response.teacherContext }}'
+    # required_params: ['itemId', 'courseId']
+  # Returns a list of course work material that the requester is permitted to view. Course students may 
+  # ── gcp.classroom.courses.courseWorkMaterials.list [dependent] ──
+  - discovery_id: gcp.classroom.courses.courseWorkMaterials.list
+    for_each: gcp.classroom.courses.list
+    # python: svc.courses().courseWorkMaterials().list(**params).execute()
+    calls:
+      - action: courses.courseWorkMaterials.list
+        params:
+          courseId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.courseWorkMaterials }}'
+      item:
+        alternateLink: '{{ item.alternateLink }}'
+        assigneeMode: '{{ item.assigneeMode }}'
+        courseId: '{{ item.courseId }}'
+        creationTime: '{{ item.creationTime }}'
+        creatorUserId: '{{ item.creatorUserId }}'
+        description: '{{ item.description }}'
+        id: '{{ item.id }}'
+        individualStudentsOptions: '{{ item.individualStudentsOptions }}'
+        materials: '{{ item.materials }}'
+        scheduledTime: '{{ item.scheduledTime }}'
+        state: '{{ item.state }}'
+        title: '{{ item.title }}'
+        topicId: '{{ item.topicId }}'
+        updateTime: '{{ item.updateTime }}'
+    # required_params: ['courseId']
+  # Returns a course. This method returns the following error codes: * `PERMISSION_DENIED` if the reques
+  # ── gcp.classroom.courses.get [dependent] ──
+  - discovery_id: gcp.classroom.courses.get
+    for_each: gcp.classroom.courses.list
+    # python: svc.courses().get(**params).execute()
+    calls:
+      - action: courses.get
+        params:
+          id: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        alternateLink: '{{ response.alternateLink }}'
+        calendarId: '{{ response.calendarId }}'
+        courseGroupEmail: '{{ response.courseGroupEmail }}'
+        courseMaterialSets: '{{ response.courseMaterialSets }}'
+        courseState: '{{ response.courseState }}'
+        creationTime: '{{ response.creationTime }}'
+        description: '{{ response.description }}'
+        descriptionHeading: '{{ response.descriptionHeading }}'
+        enrollmentCode: '{{ response.enrollmentCode }}'
+        gradebookSettings: '{{ response.gradebookSettings }}'
+        guardiansEnabled: '{{ response.guardiansEnabled }}'
+        id: '{{ response.id }}'
+        name: '{{ response.name }}'
+        ownerId: '{{ response.ownerId }}'
+        room: '{{ response.room }}'
+        section: '{{ response.section }}'
+        subject: '{{ response.subject }}'
+        teacherFolder: '{{ response.teacherFolder }}'
+        teacherGroupEmail: '{{ response.teacherGroupEmail }}'
+        updateTime: '{{ response.updateTime }}'
+    # required_params: ['id']
+  # Returns the grading period settings in a course. This method returns the following error codes: * `P
+  # ── gcp.classroom.courses.getGradingPeriodSettings [dependent] ──
+  - discovery_id: gcp.classroom.courses.getGradingPeriodSettings
+    for_each: gcp.classroom.courses.list
+    # python: svc.courses().getGradingPeriodSettings(**params).execute()
+    calls:
+      - action: courses.getGradingPeriodSettings
+        params:
+          courseId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        applyToExistingCoursework: '{{ response.applyToExistingCoursework }}'
+        gradingPeriods: '{{ response.gradingPeriods }}'
+    # required_params: ['courseId']
+  # Returns an add-on attachment. Requires the add-on requesting the attachment to be the original creat
+  # ── gcp.classroom.courses.posts.addOnAttachments.get [dependent] ──
+  - discovery_id: gcp.classroom.courses.posts.addOnAttachments.get
+    # python: svc.courses().posts().addOnAttachments().get(**params).execute()
+    calls:
+      - action: courses.posts.addOnAttachments.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        copyHistory: '{{ response.copyHistory }}'
+        courseId: '{{ response.courseId }}'
+        dueDate: '{{ response.dueDate }}'
+        dueTime: '{{ response.dueTime }}'
+        id: '{{ response.id }}'
+        itemId: '{{ response.itemId }}'
+        maxPoints: '{{ response.maxPoints }}'
+        postId: '{{ response.postId }}'
+        studentViewUri: '{{ response.studentViewUri }}'
+        studentWorkReviewUri: '{{ response.studentWorkReviewUri }}'
+        teacherViewUri: '{{ response.teacherViewUri }}'
+        title: '{{ response.title }}'
+    # required_params: ['attachmentId', 'postId', 'courseId']
+  # Returns all attachments created by an add-on under the post. Requires the add-on to have active atta
+  # ── gcp.classroom.courses.posts.addOnAttachments.list [dependent] ──
+  - discovery_id: gcp.classroom.courses.posts.addOnAttachments.list
+    for_each: gcp.classroom.courses.courseWorkMaterials.addOnAttachments.list
+    # python: svc.courses().posts().addOnAttachments().list(**params).execute()
+    calls:
+      - action: courses.posts.addOnAttachments.list
+        params:
+          courseId: '{{ item.name }}'
+          postId: '{{ item.id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.addOnAttachments }}'
+      item:
+        copyHistory: '{{ item.copyHistory }}'
+        courseId: '{{ item.courseId }}'
+        dueDate: '{{ item.dueDate }}'
+        dueTime: '{{ item.dueTime }}'
+        id: '{{ item.id }}'
+        itemId: '{{ item.itemId }}'
+        maxPoints: '{{ item.maxPoints }}'
+        postId: '{{ item.postId }}'
+        studentViewUri: '{{ item.studentViewUri }}'
+        studentWorkReviewUri: '{{ item.studentWorkReviewUri }}'
+        teacherViewUri: '{{ item.teacherViewUri }}'
+        title: '{{ item.title }}'
+    # required_params: ['postId', 'courseId']
+  # Returns a student submission for an add-on attachment. This method returns the following error codes
+  # ── gcp.classroom.courses.posts.addOnAttachments.studentSubmissions.get [dependent] ──
+  - discovery_id: gcp.classroom.courses.posts.addOnAttachments.studentSubmissions.get
+    # python: svc.courses().posts().addOnAttachments().studentSubmissions().get(**params).execute()
+    calls:
+      - action: courses.posts.addOnAttachments.studentSubmissions.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        pointsEarned: '{{ response.pointsEarned }}'
+        postSubmissionState: '{{ response.postSubmissionState }}'
+    # required_params: ['postId', 'submissionId', 'attachmentId', 'courseId']
+  # Gets metadata for Classroom add-ons in the context of a specific post. To maintain the integrity of 
+  # ── gcp.classroom.courses.posts.getAddOnContext [dependent] ──
+  - discovery_id: gcp.classroom.courses.posts.getAddOnContext
+    for_each: gcp.classroom.courses.courseWorkMaterials.addOnAttachments.list
+    # python: svc.courses().posts().getAddOnContext(**params).execute()
+    calls:
+      - action: courses.posts.getAddOnContext
+        params:
+          courseId: '{{ item.name }}'
+          postId: '{{ item.id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        courseId: '{{ response.courseId }}'
+        itemId: '{{ response.itemId }}'
+        postId: '{{ response.postId }}'
+        studentContext: '{{ response.studentContext }}'
+        supportsStudentWork: '{{ response.supportsStudentWork }}'
+        teacherContext: '{{ response.teacherContext }}'
+    # required_params: ['courseId', 'postId']
+  # Returns a list of groups in a course. This method returns the following error codes: * `NOT_FOUND` i
+  # ── gcp.classroom.courses.studentGroups.list [dependent] ──
+  - discovery_id: gcp.classroom.courses.studentGroups.list
+    for_each: gcp.classroom.courses.list
+    # python: svc.courses().studentGroups().list(**params).execute()
+    calls:
+      - action: courses.studentGroups.list
+        params:
+          courseId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.studentGroups }}'
+      item:
+        courseId: '{{ item.courseId }}'
+        id: '{{ item.id }}'
+        title: '{{ item.title }}'
+    # required_params: ['courseId']
+  # Returns a list of students in a group. This method returns the following error codes: * `NOT_FOUND` 
+  # ── gcp.classroom.courses.studentGroups.studentGroupMembers.list [dependent] ──
+  - discovery_id: gcp.classroom.courses.studentGroups.studentGroupMembers.list
+    # python: svc.courses().studentGroups().studentGroupMembers().list(**params).execute()
+    calls:
+      - action: courses.studentGroups.studentGroupMembers.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.studentGroupMembers }}'
+      item:
+        courseId: '{{ item.courseId }}'
+        studentGroupId: '{{ item.studentGroupId }}'
+        userId: '{{ item.userId }}'
+    # required_params: ['courseId', 'studentGroupId']
+  # Returns a student of a course. This method returns the following error codes: * `PERMISSION_DENIED` 
+  # ── gcp.classroom.courses.students.get [dependent] ──
+  - discovery_id: gcp.classroom.courses.students.get
+    for_each: gcp.classroom.courses.teachers.list
+    # python: svc.courses().students().get(**params).execute()
+    calls:
+      - action: courses.students.get
+        params:
+          courseId: '{{ item.name }}'
+          userId: '{{ item.profile }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        courseId: '{{ response.courseId }}'
+        profile: '{{ response.profile }}'
+        studentWorkFolder: '{{ response.studentWorkFolder }}'
+        userId: '{{ response.userId }}'
+    # required_params: ['userId', 'courseId']
+  # Returns a list of students of this course that the requester is permitted to view. This method retur
+  # ── gcp.classroom.courses.students.list [dependent] ──
+  - discovery_id: gcp.classroom.courses.students.list
+    for_each: gcp.classroom.courses.list
+    # python: svc.courses().students().list(**params).execute()
+    calls:
+      - action: courses.students.list
+        params:
+          courseId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.students }}'
+      item:
+        courseId: '{{ item.courseId }}'
+        profile: '{{ item.profile }}'
+        studentWorkFolder: '{{ item.studentWorkFolder }}'
+        userId: '{{ item.userId }}'
+    # required_params: ['courseId']
+  # Returns a teacher of a course. This method returns the following error codes: * `PERMISSION_DENIED` 
+  # ── gcp.classroom.courses.teachers.get [dependent] ──
+  - discovery_id: gcp.classroom.courses.teachers.get
+    for_each: gcp.classroom.courses.teachers.list
+    # python: svc.courses().teachers().get(**params).execute()
+    calls:
+      - action: courses.teachers.get
+        params:
+          courseId: '{{ item.name }}'
+          userId: '{{ item.profile }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        courseId: '{{ response.courseId }}'
+        profile: '{{ response.profile }}'
+        userId: '{{ response.userId }}'
+    # required_params: ['userId', 'courseId']
+  # Returns a list of teachers of this course that the requester is permitted to view. This method retur
+  # ── gcp.classroom.courses.teachers.list [dependent] ──
+  - discovery_id: gcp.classroom.courses.teachers.list
+    for_each: gcp.classroom.courses.list
+    # python: svc.courses().teachers().list(**params).execute()
+    calls:
+      - action: courses.teachers.list
+        params:
+          courseId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.teachers }}'
+      item:
+        courseId: '{{ item.courseId }}'
+        profile: '{{ item.profile }}'
+        userId: '{{ item.userId }}'
+    # required_params: ['courseId']
+  # Returns a topic. This method returns the following error codes: * `PERMISSION_DENIED` if the request
+  # ── gcp.classroom.courses.topics.get [dependent] ──
+  - discovery_id: gcp.classroom.courses.topics.get
+    for_each: gcp.classroom.courses.list
+    # python: svc.courses().topics().get(**params).execute()
+    calls:
+      - action: courses.topics.get
+        params:
+          courseId: '{{ item.name }}'
+          id: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        courseId: '{{ response.courseId }}'
+        name: '{{ response.name }}'
+        topicId: '{{ response.topicId }}'
+        updateTime: '{{ response.updateTime }}'
+    # required_params: ['courseId', 'id']
+  # Returns the list of topics that the requester is permitted to view. This method returns the followin
+  # ── gcp.classroom.courses.topics.list [dependent] ──
+  - discovery_id: gcp.classroom.courses.topics.list
+    for_each: gcp.classroom.courses.list
+    # python: svc.courses().topics().list(**params).execute()
+    calls:
+      - action: courses.topics.list
+        params:
+          courseId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.topics }}'
+      item:
+        courseId: '{{ item.courseId }}'
+        name: '{{ item.name }}'
+        topicId: '{{ item.topicId }}'
+        updateTime: '{{ item.updateTime }}'
+    # required_params: ['courseId']
+  # Returns an invitation. This method returns the following error codes: * `PERMISSION_DENIED` if the r
+  # ── gcp.classroom.invitations.get [dependent] ──
+  - discovery_id: gcp.classroom.invitations.get
+    for_each: gcp.classroom.courses.list
+    # python: svc.invitations().get(**params).execute()
+    calls:
+      - action: invitations.get
+        params:
+          id: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        courseId: '{{ response.courseId }}'
+        id: '{{ response.id }}'
+        role: '{{ response.role }}'
+        userId: '{{ response.userId }}'
+    # required_params: ['id']
+  # Returns a user profile. This method returns the following error codes: * `PERMISSION_DENIED` if the 
+  # ── gcp.classroom.userProfiles.get [dependent] ──
+  - discovery_id: gcp.classroom.userProfiles.get
+    for_each: gcp.classroom.courses.teachers.list
+    # python: svc.userProfiles().get(**params).execute()
+    calls:
+      - action: userProfiles.get
+        params:
+          userId: '{{ item.profile }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        emailAddress: '{{ response.emailAddress }}'
+        id: '{{ response.id }}'
+        name: '{{ response.name }}'
+        permissions: '{{ response.permissions }}'
+        photoUrl: '{{ response.photoUrl }}'
+        verifiedTeacher: '{{ response.verifiedTeacher }}'
+    # required_params: ['userId']
+  # Returns a specific guardian invitation. This method returns the following error codes: * `PERMISSION
+  # ── gcp.classroom.userProfiles.guardianInvitations.get [dependent] ──
+  - discovery_id: gcp.classroom.userProfiles.guardianInvitations.get
+    for_each: gcp.classroom.invitations.list
+    # python: svc.userProfiles().guardianInvitations().get(**params).execute()
+    calls:
+      - action: userProfiles.guardianInvitations.get
+        params:
+          invitationId: '{{ item.id }}'
+          studentId: '{{ item.profile }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        creationTime: '{{ response.creationTime }}'
+        invitationId: '{{ response.invitationId }}'
+        invitedEmailAddress: '{{ response.invitedEmailAddress }}'
+        state: '{{ response.state }}'
+        studentId: '{{ response.studentId }}'
+    # required_params: ['studentId', 'invitationId']
+  # Returns a list of guardian invitations that the requesting user is permitted to view, filtered by th
+  # ── gcp.classroom.userProfiles.guardianInvitations.list [dependent] ──
+  - discovery_id: gcp.classroom.userProfiles.guardianInvitations.list
+    for_each: gcp.classroom.courses.students.list
+    # python: svc.userProfiles().guardianInvitations().list(**params).execute()
+    calls:
+      - action: userProfiles.guardianInvitations.list
+        params:
+          studentId: '{{ item.profile }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.guardianInvitations }}'
+      item:
+        creationTime: '{{ item.creationTime }}'
+        invitationId: '{{ item.invitationId }}'
+        invitedEmailAddress: '{{ item.invitedEmailAddress }}'
+        state: '{{ item.state }}'
+        studentId: '{{ item.studentId }}'
+    # required_params: ['studentId']
+  # Returns a specific guardian. This method returns the following error codes: * `PERMISSION_DENIED` if
+  # ── gcp.classroom.userProfiles.guardians.get [dependent] ──
+  - discovery_id: gcp.classroom.userProfiles.guardians.get
+    for_each: gcp.classroom.userProfiles.guardians.list
+    # python: svc.userProfiles().guardians().get(**params).execute()
+    calls:
+      - action: userProfiles.guardians.get
+        params:
+          guardianId: '{{ item.guardianId }}'
+          studentId: '{{ item.profile }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        guardianId: '{{ response.guardianId }}'
+        guardianProfile: '{{ response.guardianProfile }}'
+        invitedEmailAddress: '{{ response.invitedEmailAddress }}'
+        studentId: '{{ response.studentId }}'
+    # required_params: ['studentId', 'guardianId']
+  # Returns a list of guardians that the requesting user is permitted to view, restricted to those that 
+  # ── gcp.classroom.userProfiles.guardians.list [dependent] ──
+  - discovery_id: gcp.classroom.userProfiles.guardians.list
+    for_each: gcp.classroom.courses.students.list
+    # python: svc.userProfiles().guardians().list(**params).execute()
+    calls:
+      - action: userProfiles.guardians.list
+        params:
+          studentId: '{{ item.profile }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.guardians }}'
+      item:
+        guardianId: '{{ item.guardianId }}'
+        guardianProfile: '{{ item.guardianProfile }}'
+        invitedEmailAddress: '{{ item.invitedEmailAddress }}'
+        studentId: '{{ item.studentId }}'
+    # required_params: ['studentId']

@@ -1,0 +1,281 @@
+# ============================================================
+# Discovery YAML — servicemanagement (v1)
+# Generated: 2026-02-21T03:06:41Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 9 | independent: 2 | dependent: 7
+# ops with fields: 9/9 | dep ops with chain: 7/7
+# ============================================================
+version: '1.0'
+provider: gcp
+service: servicemanagement
+
+services:
+  client: servicemanagement
+  module: "googleapiclient.discovery.build('servicemanagement', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists service operations that match the specified filter in the request.
+  # ── gcp.servicemanagement.operations.list ──
+  - discovery_id: gcp.servicemanagement.operations.list
+    # python: svc.operations().list(**params).execute()
+    calls:
+      - action: operations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.operations }}'
+      item:
+        done: '{{ item.done }}'
+        error: '{{ item.error }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+        response: '{{ item.response }}'
+  # Lists managed services. Returns all public services. For authenticated users, also returns all servi
+  # ── gcp.servicemanagement.services.list ──
+  - discovery_id: gcp.servicemanagement.services.list
+    # python: svc.services().list(**params).execute()
+    calls:
+      - action: services.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.services }}'
+      item:
+        producerProjectId: '{{ item.producerProjectId }}'
+        serviceName: '{{ item.serviceName }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.servicemanagement.operations.get [dependent] ──
+  - discovery_id: gcp.servicemanagement.operations.get
+    for_each: gcp.servicemanagement.operations.list
+    # python: svc.operations().get(**params).execute()
+    calls:
+      - action: operations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']
+  # Gets a service configuration (version) for a managed service.
+  # ── gcp.servicemanagement.services.configs.get [dependent] ──
+  - discovery_id: gcp.servicemanagement.services.configs.get
+    for_each: gcp.servicemanagement.services.configs.list
+    # python: svc.services().configs().get(**params).execute()
+    calls:
+      - action: services.configs.get
+        params:
+          configId: '{{ item.name }}'
+          serviceName: '{{ item.serviceName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        apis: '{{ response.apis }}'
+        aspects: '{{ response.aspects }}'
+        authentication: '{{ response.authentication }}'
+        backend: '{{ response.backend }}'
+        billing: '{{ response.billing }}'
+        configVersion: '{{ response.configVersion }}'
+        context: '{{ response.context }}'
+        control: '{{ response.control }}'
+        customError: '{{ response.customError }}'
+        documentation: '{{ response.documentation }}'
+        endpoints: '{{ response.endpoints }}'
+        enums: '{{ response.enums }}'
+        http: '{{ response.http }}'
+        id: '{{ response.id }}'
+        logging: '{{ response.logging }}'
+        logs: '{{ response.logs }}'
+        metrics: '{{ response.metrics }}'
+        monitoredResources: '{{ response.monitoredResources }}'
+        monitoring: '{{ response.monitoring }}'
+        name: '{{ response.name }}'
+        producerProjectId: '{{ response.producerProjectId }}'
+        publishing: '{{ response.publishing }}'
+        quota: '{{ response.quota }}'
+        sourceInfo: '{{ response.sourceInfo }}'
+        systemParameters: '{{ response.systemParameters }}'
+        systemTypes: '{{ response.systemTypes }}'
+        title: '{{ response.title }}'
+        types: '{{ response.types }}'
+        usage: '{{ response.usage }}'
+    # required_params: ['serviceName', 'configId']
+  # Lists the history of the service configuration for a managed service, from the newest to the oldest.
+  # ── gcp.servicemanagement.services.configs.list [dependent] ──
+  - discovery_id: gcp.servicemanagement.services.configs.list
+    for_each: gcp.servicemanagement.services.list
+    # python: svc.services().configs().list(**params).execute()
+    calls:
+      - action: services.configs.list
+        params:
+          serviceName: '{{ item.serviceName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.configs }}'
+      item:
+        apis: '{{ item.apis }}'
+        aspects: '{{ item.aspects }}'
+        authentication: '{{ item.authentication }}'
+        backend: '{{ item.backend }}'
+        billing: '{{ item.billing }}'
+        configVersion: '{{ item.configVersion }}'
+        context: '{{ item.context }}'
+        control: '{{ item.control }}'
+        customError: '{{ item.customError }}'
+        documentation: '{{ item.documentation }}'
+        endpoints: '{{ item.endpoints }}'
+        enums: '{{ item.enums }}'
+        http: '{{ item.http }}'
+        id: '{{ item.id }}'
+        logging: '{{ item.logging }}'
+        logs: '{{ item.logs }}'
+        metrics: '{{ item.metrics }}'
+        monitoredResources: '{{ item.monitoredResources }}'
+        monitoring: '{{ item.monitoring }}'
+        name: '{{ item.name }}'
+        producerProjectId: '{{ item.producerProjectId }}'
+        publishing: '{{ item.publishing }}'
+        quota: '{{ item.quota }}'
+        sourceInfo: '{{ item.sourceInfo }}'
+        systemParameters: '{{ item.systemParameters }}'
+        systemTypes: '{{ item.systemTypes }}'
+        title: '{{ item.title }}'
+        types: '{{ item.types }}'
+        usage: '{{ item.usage }}'
+    # required_params: ['serviceName']
+  # Gets a managed service. Authentication is required unless the service is public.
+  # ── gcp.servicemanagement.services.get [dependent] ──
+  - discovery_id: gcp.servicemanagement.services.get
+    for_each: gcp.servicemanagement.services.list
+    # python: svc.services().get(**params).execute()
+    calls:
+      - action: services.get
+        params:
+          serviceName: '{{ item.serviceName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        producerProjectId: '{{ response.producerProjectId }}'
+        serviceName: '{{ response.serviceName }}'
+    # required_params: ['serviceName']
+  # Gets a service configuration (version) for a managed service.
+  # ── gcp.servicemanagement.services.getConfig [dependent] ──
+  - discovery_id: gcp.servicemanagement.services.getConfig
+    for_each: gcp.servicemanagement.services.list
+    # python: svc.services().getConfig(**params).execute()
+    calls:
+      - action: services.getConfig
+        params:
+          serviceName: '{{ item.serviceName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        apis: '{{ response.apis }}'
+        aspects: '{{ response.aspects }}'
+        authentication: '{{ response.authentication }}'
+        backend: '{{ response.backend }}'
+        billing: '{{ response.billing }}'
+        configVersion: '{{ response.configVersion }}'
+        context: '{{ response.context }}'
+        control: '{{ response.control }}'
+        customError: '{{ response.customError }}'
+        documentation: '{{ response.documentation }}'
+        endpoints: '{{ response.endpoints }}'
+        enums: '{{ response.enums }}'
+        http: '{{ response.http }}'
+        id: '{{ response.id }}'
+        logging: '{{ response.logging }}'
+        logs: '{{ response.logs }}'
+        metrics: '{{ response.metrics }}'
+        monitoredResources: '{{ response.monitoredResources }}'
+        monitoring: '{{ response.monitoring }}'
+        name: '{{ response.name }}'
+        producerProjectId: '{{ response.producerProjectId }}'
+        publishing: '{{ response.publishing }}'
+        quota: '{{ response.quota }}'
+        sourceInfo: '{{ response.sourceInfo }}'
+        systemParameters: '{{ response.systemParameters }}'
+        systemTypes: '{{ response.systemTypes }}'
+        title: '{{ response.title }}'
+        types: '{{ response.types }}'
+        usage: '{{ response.usage }}'
+    # required_params: ['serviceName']
+  # Gets a service configuration rollout.
+  # ── gcp.servicemanagement.services.rollouts.get [dependent] ──
+  - discovery_id: gcp.servicemanagement.services.rollouts.get
+    for_each: gcp.servicemanagement.services.rollouts.list
+    # python: svc.services().rollouts().get(**params).execute()
+    calls:
+      - action: services.rollouts.get
+        params:
+          rolloutId: '{{ item.createdBy }}'
+          serviceName: '{{ item.serviceName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        createTime: '{{ response.createTime }}'
+        createdBy: '{{ response.createdBy }}'
+        deleteServiceStrategy: '{{ response.deleteServiceStrategy }}'
+        rolloutId: '{{ response.rolloutId }}'
+        serviceName: '{{ response.serviceName }}'
+        status: '{{ response.status }}'
+        trafficPercentStrategy: '{{ response.trafficPercentStrategy }}'
+    # required_params: ['rolloutId', 'serviceName']
+  # Lists the history of the service configuration rollouts for a managed service, from the newest to th
+  # ── gcp.servicemanagement.services.rollouts.list [dependent] ──
+  - discovery_id: gcp.servicemanagement.services.rollouts.list
+    for_each: gcp.servicemanagement.services.list
+    # python: svc.services().rollouts().list(**params).execute()
+    calls:
+      - action: services.rollouts.list
+        params:
+          serviceName: '{{ item.serviceName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.rollouts }}'
+      item:
+        createTime: '{{ item.createTime }}'
+        createdBy: '{{ item.createdBy }}'
+        deleteServiceStrategy: '{{ item.deleteServiceStrategy }}'
+        rolloutId: '{{ item.rolloutId }}'
+        serviceName: '{{ item.serviceName }}'
+        status: '{{ item.status }}'
+        trafficPercentStrategy: '{{ item.trafficPercentStrategy }}'
+    # required_params: ['serviceName']

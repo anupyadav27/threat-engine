@@ -1,0 +1,216 @@
+# ============================================================
+# Discovery YAML — sns (AWS)
+# Generated: 2026-02-21T04:56:59Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: sns
+services:
+  client: sns
+  module: boto3.client
+discovery:
+  # ── GetSMSAttributes ──
+  - discovery_id: aws.sns.get_sms_attributes
+    calls:
+      - action: get_sms_attributes
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.attributes }}'
+      item:
+        attributes: '{{ item.attributes }}'
+  # ── GetSMSSandboxAccountStatus ──
+  - discovery_id: aws.sns.get_sms_sandbox_account_status
+    calls:
+      - action: get_sms_sandbox_account_status
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.IsInSandbox }}'
+      item:
+        IsInSandbox: '{{ item.IsInSandbox }}'
+  # ── ListOriginationNumbers ──
+  - discovery_id: aws.sns.list_origination_numbers
+    calls:
+      - action: list_origination_numbers
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.PhoneNumbers }}'
+      item:
+        Status: '{{ item.Status }}'
+        CreatedAt: '{{ item.CreatedAt }}'
+        Iso2CountryCode: '{{ item.Iso2CountryCode }}'
+        NumberCapabilities: '{{ item.NumberCapabilities }}'
+        PhoneNumber: '{{ item.PhoneNumber }}'
+        RouteType: '{{ item.RouteType }}'
+  # ── ListPhoneNumbersOptedOut ──
+  - discovery_id: aws.sns.list_phone_numbers_opted_out
+    calls:
+      - action: list_phone_numbers_opted_out
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.phoneNumbers }}'
+  # ── ListPlatformApplications ──
+  - discovery_id: aws.sns.list_platform_applications
+    calls:
+      - action: list_platform_applications
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.PlatformApplications }}'
+      item:
+        Attributes: '{{ item.Attributes }}'
+        PlatformApplicationArn: '{{ item.PlatformApplicationArn }}'
+  # ── ListSMSSandboxPhoneNumbers ──
+  - discovery_id: aws.sns.list_sms_sandbox_phone_numbers
+    calls:
+      - action: list_sms_sandbox_phone_numbers
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.PhoneNumbers }}'
+      item:
+        Status: '{{ item.Status }}'
+        PhoneNumber: '{{ item.PhoneNumber }}'
+  # ── ListSubscriptions ──
+  - discovery_id: aws.sns.list_subscriptions
+    calls:
+      - action: list_subscriptions
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Subscriptions }}'
+      item:
+        Endpoint: '{{ item.Endpoint }}'
+        Owner: '{{ item.Owner }}'
+        Protocol: '{{ item.Protocol }}'
+        SubscriptionArn: '{{ item.SubscriptionArn }}'
+        TopicArn: '{{ item.TopicArn }}'
+  # ── ListTopics ──
+  - discovery_id: aws.sns.list_topics
+    calls:
+      - action: list_topics
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Topics }}'
+      item:
+        TopicArn: '{{ item.TopicArn }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── GetDataProtectionPolicy ──
+  - discovery_id: aws.sns.get_data_protection_policy
+    calls:
+      - action: get_data_protection_policy
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.DataProtectionPolicy }}'
+      item:
+        Statement: '{{ item.Statement }}'
+        Version: '{{ item.Version }}'
+  # ── GetEndpointAttributes ──
+  - discovery_id: aws.sns.get_endpoint_attributes
+    calls:
+      - action: get_endpoint_attributes
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        Attributes: '{{ response.Attributes }}'
+  # ── GetPlatformApplicationAttributes ──
+  - discovery_id: aws.sns.get_platform_application_attributes
+    for_each: aws.sns.list_platform_applications
+    calls:
+      - action: get_platform_application_attributes
+        params:
+          PlatformApplicationArn: '{{ item.PlatformApplicationArn }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        Attributes: '{{ response.Attributes }}'
+  # ── GetSubscriptionAttributes ──
+  - discovery_id: aws.sns.get_subscription_attributes
+    for_each: aws.sns.list_subscriptions
+    calls:
+      - action: get_subscription_attributes
+        params:
+          SubscriptionArn: '{{ item.SubscriptionArn }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        Attributes: '{{ response.Attributes }}'
+  # ── GetTopicAttributes ──
+  - discovery_id: aws.sns.get_topic_attributes
+    for_each: aws.sns.list_subscriptions
+    calls:
+      - action: get_topic_attributes
+        params:
+          TopicArn: '{{ item.TopicArn }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        Attributes: '{{ response.Attributes }}'
+  # ── ListEndpointsByPlatformApplication ──
+  - discovery_id: aws.sns.list_endpoints_by_platform_application
+    for_each: aws.sns.list_platform_applications
+    calls:
+      - action: list_endpoints_by_platform_application
+        params:
+          PlatformApplicationArn: '{{ item.PlatformApplicationArn }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Endpoints }}'
+      item:
+        Attributes: '{{ item.Attributes }}'
+        EndpointArn: '{{ item.EndpointArn }}'
+  # ── ListSubscriptionsByTopic ──
+  - discovery_id: aws.sns.list_subscriptions_by_topic
+    for_each: aws.sns.list_subscriptions
+    calls:
+      - action: list_subscriptions_by_topic
+        params:
+          TopicArn: '{{ item.TopicArn }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Subscriptions }}'
+      item:
+        Endpoint: '{{ item.Endpoint }}'
+        Owner: '{{ item.Owner }}'
+        Protocol: '{{ item.Protocol }}'
+        SubscriptionArn: '{{ item.SubscriptionArn }}'
+        TopicArn: '{{ item.TopicArn }}'
+  # ── ListTagsForResource ──
+  - discovery_id: aws.sns.list_tags_for_resource
+    calls:
+      - action: list_tags_for_resource
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Tags }}'
+      item:
+        Key: '{{ item.Key }}'
+        Value: '{{ item.Value }}'

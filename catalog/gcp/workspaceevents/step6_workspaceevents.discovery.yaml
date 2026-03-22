@@ -1,0 +1,173 @@
+# ============================================================
+# Discovery YAML — workspaceevents (v1)
+# Generated: 2026-02-21T03:06:41Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 7 | independent: 2 | dependent: 5
+# ops with fields: 7/7 | dep ops with chain: 2/5
+# ============================================================
+version: '1.0'
+provider: gcp
+service: workspaceevents
+
+services:
+  client: workspaceevents
+  module: "googleapiclient.discovery.build('workspaceevents', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists Google Workspace subscriptions. To learn how to use this method, see [List Google Workspace su
+  # ── gcp.workspaceevents.subscriptions.list ──
+  - discovery_id: gcp.workspaceevents.subscriptions.list
+    # python: svc.subscriptions().list(**params).execute()
+    calls:
+      - action: subscriptions.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.subscriptions }}'
+      item:
+        authority: '{{ item.authority }}'
+        createTime: '{{ item.createTime }}'
+        eventTypes: '{{ item.eventTypes }}'
+        expireTime: '{{ item.expireTime }}'
+        name: '{{ item.name }}'
+        notificationEndpoint: '{{ item.notificationEndpoint }}'
+        payloadOptions: '{{ item.payloadOptions }}'
+        reconciling: '{{ item.reconciling }}'
+        state: '{{ item.state }}'
+        suspensionReason: '{{ item.suspensionReason }}'
+        targetResource: '{{ item.targetResource }}'
+        ttl: '{{ item.ttl }}'
+        uid: '{{ item.uid }}'
+        updateTime: '{{ item.updateTime }}'
+  # Get a list of push notifications configured for a task.
+  # ── gcp.workspaceevents.tasks.pushNotificationConfigs.list ──
+  - discovery_id: gcp.workspaceevents.tasks.pushNotificationConfigs.list
+    # python: svc.tasks().pushNotificationConfigs().list(**params).execute()
+    calls:
+      - action: tasks.pushNotificationConfigs.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.pushNotificationConfigs }}'
+      item:
+        name: '{{ item.name }}'
+        pushNotificationConfig: '{{ item.pushNotificationConfig }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.workspaceevents.operations.get [dependent] ──
+  - discovery_id: gcp.workspaceevents.operations.get
+    # python: svc.operations().get(**params).execute()
+    calls:
+      - action: operations.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']
+  # Gets details about a Google Workspace subscription. To learn how to use this method, see [Get detail
+  # ── gcp.workspaceevents.subscriptions.get [dependent] ──
+  - discovery_id: gcp.workspaceevents.subscriptions.get
+    for_each: gcp.workspaceevents.subscriptions.list
+    # python: svc.subscriptions().get(**params).execute()
+    calls:
+      - action: subscriptions.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        authority: '{{ response.authority }}'
+        createTime: '{{ response.createTime }}'
+        eventTypes: '{{ response.eventTypes }}'
+        expireTime: '{{ response.expireTime }}'
+        name: '{{ response.name }}'
+        notificationEndpoint: '{{ response.notificationEndpoint }}'
+        payloadOptions: '{{ response.payloadOptions }}'
+        reconciling: '{{ response.reconciling }}'
+        state: '{{ response.state }}'
+        suspensionReason: '{{ response.suspensionReason }}'
+        targetResource: '{{ response.targetResource }}'
+        ttl: '{{ response.ttl }}'
+        uid: '{{ response.uid }}'
+        updateTime: '{{ response.updateTime }}'
+    # required_params: ['name']
+  # Get the current state of a task from the agent.
+  # ── gcp.workspaceevents.tasks.get [dependent] ──
+  - discovery_id: gcp.workspaceevents.tasks.get
+    # python: svc.tasks().get(**params).execute()
+    calls:
+      - action: tasks.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        artifacts: '{{ response.artifacts }}'
+        contextId: '{{ response.contextId }}'
+        history: '{{ response.history }}'
+        id: '{{ response.id }}'
+        metadata: '{{ response.metadata }}'
+        status: '{{ response.status }}'
+    # required_params: ['name']
+  # Get a push notification config for a task.
+  # ── gcp.workspaceevents.tasks.pushNotificationConfigs.get [dependent] ──
+  - discovery_id: gcp.workspaceevents.tasks.pushNotificationConfigs.get
+    for_each: gcp.workspaceevents.tasks.pushNotificationConfigs.list
+    # python: svc.tasks().pushNotificationConfigs().get(**params).execute()
+    calls:
+      - action: tasks.pushNotificationConfigs.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        name: '{{ response.name }}'
+        pushNotificationConfig: '{{ response.pushNotificationConfig }}'
+    # required_params: ['name']
+  # TaskSubscription is a streaming call that will return a stream of task update events. This attaches 
+  # ── gcp.workspaceevents.tasks.subscribe [dependent] ──
+  - discovery_id: gcp.workspaceevents.tasks.subscribe
+    # python: svc.tasks().subscribe(**params).execute()
+    calls:
+      - action: tasks.subscribe
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        artifactUpdate: '{{ response.artifactUpdate }}'
+        message: '{{ response.message }}'
+        statusUpdate: '{{ response.statusUpdate }}'
+        task: '{{ response.task }}'
+    # required_params: ['name']

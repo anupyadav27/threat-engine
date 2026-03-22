@@ -1,0 +1,3622 @@
+{
+  "csp": "gcp",
+  "generated_at": "2026-02-19T14:43:26.524780+00:00",
+  "anchors": {
+    "fixed": [
+      "project_id",
+      "org_id",
+      "folder_id",
+      "location",
+      "zone",
+      "region"
+    ]
+  },
+  "services": {
+    "drive": {
+      "version": "v2",
+      "resources": {
+        "about": {
+          "resource_type": "about",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "tuple",
+            "full_identifier": {
+              "template": "/about",
+              "built_from_parts": [],
+              "notes": "Tuple identifier; anchor parts are user-provided."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": []
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.drive.about.get",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/about"
+                },
+                "python_call": "svc.about().get(**params).execute()",
+                "required_params": {},
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "confidence": 0.4,
+          "notes": "No inventory (list) ops found; enrich only."
+        },
+        "apps": {
+          "resource_type": "apps",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{appId}",
+              "built_from_parts": [
+                "appId"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [
+              "appId"
+            ],
+            "part_sources": {
+              "appId": {
+                "op": "gcp.drive.apps.list",
+                "field_path": "items[].name",
+                "transform": null
+              }
+            },
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.drive.apps.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/apps"
+                },
+                "python_call": "svc.apps().list(**params).execute()",
+                "produces": {
+                  "name": "items[].name",
+                  "supportsOfflineCreate": "items[].supportsOfflineCreate",
+                  "longDescription": "items[].longDescription",
+                  "supportsCreate": "items[].supportsCreate",
+                  "authorized": "items[].authorized",
+                  "secondaryFileExtensions": "items[].secondaryFileExtensions",
+                  "id": "items[].id",
+                  "createInFolderTemplate": "items[].createInFolderTemplate",
+                  "createUrl": "items[].createUrl",
+                  "primaryMimeTypes": "items[].primaryMimeTypes",
+                  "objectType": "items[].objectType",
+                  "productUrl": "items[].productUrl",
+                  "supportsImport": "items[].supportsImport",
+                  "primaryFileExtensions": "items[].primaryFileExtensions",
+                  "hasDriveWideScope": "items[].hasDriveWideScope",
+                  "useByDefault": "items[].useByDefault",
+                  "productId": "items[].productId",
+                  "installed": "items[].installed",
+                  "secondaryMimeTypes": "items[].secondaryMimeTypes",
+                  "icons": "items[].icons",
+                  "supportsMultiOpen": "items[].supportsMultiOpen",
+                  "shortDescription": "items[].shortDescription",
+                  "openUrlTemplate": "items[].openUrlTemplate",
+                  "selfLink": "selfLink"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.drive.apps.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/apps/{appId}"
+                },
+                "python_call": "svc.apps().get(**params).execute()",
+                "required_params": {
+                  "appId": {
+                    "from_identifier": "appId"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.drive.apps.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.drive.apps.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.apps().list(**params).execute()",
+                      "path": "/apps",
+                      "required_params": {},
+                      "output_list_field": "items",
+                      "output_id_field": "name",
+                      "produces": {
+                        "appId": {
+                          "via_list_field": "items",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"appId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: appId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.drive.apps.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.apps().get(**params).execute()",
+                      "path": "/apps/{appId}",
+                      "required_params": {
+                        "appId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the app."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "appId": {
+                          "from_step": 1,
+                          "from_op": "gcp.drive.apps.list",
+                          "field": "name"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        },
+        "changes": {
+          "resource_type": "changes",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{changeId}",
+              "built_from_parts": [
+                "changeId"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [
+              "changeId"
+            ],
+            "part_sources": {
+              "changeId": {
+                "op": "gcp.drive.changes.list",
+                "field_path": "items[].selfLink",
+                "transform": null
+              }
+            },
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.drive.changes.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/changes"
+                },
+                "python_call": "svc.changes().list(**params).execute()",
+                "produces": {
+                  "selfLink": "selfLink",
+                  "fileId": "items[].fileId",
+                  "teamDriveId": "items[].teamDriveId",
+                  "file": "items[].file",
+                  "deleted": "items[].deleted",
+                  "teamDrive": "items[].teamDrive",
+                  "type": "items[].type",
+                  "id": "items[].id",
+                  "changeType": "items[].changeType",
+                  "driveId": "items[].driveId",
+                  "drive": "items[].drive",
+                  "modificationDate": "items[].modificationDate",
+                  "largestChangeId": "largestChangeId",
+                  "newStartPageToken": "newStartPageToken",
+                  "nextLink": "nextLink"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.drive.changes.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/changes/{changeId}"
+                },
+                "python_call": "svc.changes().get(**params).execute()",
+                "required_params": {
+                  "changeId": {
+                    "from_identifier": "changeId"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.drive.changes.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.drive.changes.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.changes().list(**params).execute()",
+                      "path": "/changes",
+                      "required_params": {},
+                      "output_list_field": "items",
+                      "output_id_field": "selfLink",
+                      "produces": {
+                        "changeId": {
+                          "via_list_field": "items",
+                          "from_id_field": "selfLink",
+                          "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"changeId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: changeId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.drive.changes.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.changes().get(**params).execute()",
+                      "path": "/changes/{changeId}",
+                      "required_params": {
+                        "changeId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the change."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "changeId": {
+                          "from_step": 1,
+                          "from_op": "gcp.drive.changes.list",
+                          "field": "selfLink"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.drive.changes.getStartPageToken",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/changes/startPageToken"
+                },
+                "python_call": "svc.changes().getStartPageToken(**params).execute()",
+                "required_params": {},
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        },
+        "children": {
+          "resource_type": "children",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{folderId}/children/{childId}",
+              "built_from_parts": [
+                "folderId",
+                "childId"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [
+              "folderId",
+              "childId"
+            ],
+            "part_sources": {
+              "folderId": {
+                "op": "service_anchor",
+                "field_path": "folder_id",
+                "transform": null
+              },
+              "childId": {
+                "op": "gcp.drive.children.list",
+                "field_path": "items[].selfLink",
+                "transform": null
+              }
+            },
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.drive.children.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/files/{folderId}/children"
+                },
+                "python_call": "svc.children().list(**params).execute()",
+                "produces": {
+                  "selfLink": "selfLink",
+                  "id": "items[].id",
+                  "childLink": "items[].childLink",
+                  "nextLink": "nextLink"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.drive.children.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/files/{folderId}/children/{childId}"
+                },
+                "python_call": "svc.children().get(**params).execute()",
+                "required_params": {
+                  "childId": {
+                    "from_identifier": "childId"
+                  },
+                  "folderId": {
+                    "from_identifier": "folderId"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.drive.children.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.drive.children.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.children().list(**params).execute()",
+                      "path": "/files/{folderId}/children",
+                      "required_params": {
+                        "folderId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the folder."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "selfLink",
+                      "produces": {
+                        "childrenId": {
+                          "via_list_field": "items",
+                          "from_id_field": "selfLink",
+                          "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"childrenId\""
+                        }
+                      },
+                      "param_sources": {
+                        "folderId": "always_available"
+                      },
+                      "purpose": "Provides: childrenId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.drive.children.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.children().get(**params).execute()",
+                      "path": "/files/{folderId}/children/{childId}",
+                      "required_params": {
+                        "childId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the child."
+                        },
+                        "folderId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the folder."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "childId": {
+                          "from_step": 1,
+                          "from_op": "gcp.drive.children.list",
+                          "field": "selfLink"
+                        },
+                        "folderId": "always_available"
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [
+                    "folderId"
+                  ],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        },
+        "comments": {
+          "resource_type": "comments",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "constructed",
+            "full_identifier": {
+              "template": "comments/{url_encoded_id}",
+              "built_from_parts": [
+                "items[].id"
+              ],
+              "notes": ""
+            },
+            "parts": [
+              "id"
+            ],
+            "part_sources": {
+              "id": {
+                "op": "gcp.drive.files.listLabels",
+                "field_path": "items[].id",
+                "transform": null
+              }
+            },
+            "transforms": [
+              {
+                "from": "items[].id",
+                "fn": "url_encode",
+                "to": "url_encoded_id"
+              },
+              {
+                "from": "url_encoded_id",
+                "fn": "prefix:comments/",
+                "to": "commentId"
+              },
+              {
+                "build": "full_id",
+                "template": "comments/{url_encoded_id}"
+              }
+            ]
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.drive.files.listLabels",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/files/{fileId}/listLabels"
+                },
+                "python_call": "svc.files().listLabels(**params).execute()",
+                "produces": {
+                  "id": "items[].id",
+                  "fields": "items[].fields",
+                  "revisionId": "items[].revisionId"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.drive.files.listLabels",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 1,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.drive.files.listLabels",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.files().listLabels(**params).execute()",
+                      "path": "/files/{fileId}/listLabels",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID for the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "id",
+                      "produces": {
+                        "fileId": {
+                          "via_list_field": "items",
+                          "from_id_field": "id",
+                          "note": "Iterate response[\"items\"][], extract item[\"id\"] \u2192 pass as \"fileId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": "unresolved"
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": [
+                    "fileId"
+                  ]
+                }
+              },
+              {
+                "op": "gcp.drive.comments.list",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/files/{fileId}/comments"
+                },
+                "python_call": "svc.comments().list(**params).execute()",
+                "produces": {
+                  "selfLink": "selfLink",
+                  "htmlContent": "items[].htmlContent",
+                  "status": "items[].status",
+                  "anchor": "items[].anchor",
+                  "author": "items[].author",
+                  "deleted": "items[].deleted",
+                  "context": "items[].context",
+                  "createdDate": "items[].createdDate",
+                  "modifiedDate": "items[].modifiedDate",
+                  "commentId": "items[].commentId",
+                  "fileId": "items[].fileId",
+                  "replies": "items[].replies",
+                  "content": "items[].content",
+                  "fileTitle": "items[].fileTitle",
+                  "nextLink": "nextLink"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.drive.comments.list",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.drive.files.listLabels",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.files().listLabels(**params).execute()",
+                      "path": "/files/{fileId}/listLabels",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID for the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "id",
+                      "produces": {
+                        "fileId": {
+                          "via_list_field": "items",
+                          "from_id_field": "id",
+                          "note": "Iterate response[\"items\"][], extract item[\"id\"] \u2192 pass as \"fileId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": "unresolved"
+                      },
+                      "purpose": "Provides: fileId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.drive.comments.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.comments().list(**params).execute()",
+                      "path": "/files/{fileId}/comments",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "selfLink",
+                      "produces": {
+                        "commentId": {
+                          "via_list_field": "items",
+                          "from_id_field": "selfLink",
+                          "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"commentId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": {
+                          "from_step": 1,
+                          "from_op": "gcp.drive.files.listLabels",
+                          "field": "id"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.drive.comments.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/files/{fileId}/comments/{commentId}"
+                },
+                "python_call": "svc.comments().get(**params).execute()",
+                "required_params": {
+                  "commentId": {
+                    "from_identifier": "transforms \u2192 commentId"
+                  },
+                  "fileId": {
+                    "from_identifier": "items[].fileId"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.drive.comments.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 3,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.drive.files.listLabels",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.files().listLabels(**params).execute()",
+                      "path": "/files/{fileId}/listLabels",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID for the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "id",
+                      "produces": {
+                        "fileId": {
+                          "via_list_field": "items",
+                          "from_id_field": "id",
+                          "note": "Iterate response[\"items\"][], extract item[\"id\"] \u2192 pass as \"fileId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": "unresolved"
+                      },
+                      "purpose": "Provides: fileId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.drive.comments.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.comments().list(**params).execute()",
+                      "path": "/files/{fileId}/comments",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "selfLink",
+                      "produces": {
+                        "commentId": {
+                          "via_list_field": "items",
+                          "from_id_field": "selfLink",
+                          "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"commentId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": {
+                          "from_step": 1,
+                          "from_op": "gcp.drive.files.listLabels",
+                          "field": "id"
+                        }
+                      },
+                      "purpose": "Provides: commentId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.drive.comments.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.comments().get(**params).execute()",
+                      "path": "/files/{fileId}/comments/{commentId}",
+                      "required_params": {
+                        "commentId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the comment."
+                        },
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the file."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "commentId": {
+                          "from_step": 2,
+                          "from_op": "gcp.drive.comments.list",
+                          "field": "selfLink"
+                        },
+                        "fileId": {
+                          "from_step": 1,
+                          "from_op": "gcp.drive.files.listLabels",
+                          "field": "id"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        },
+        "drives": {
+          "resource_type": "drives",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{driveId}",
+              "built_from_parts": [
+                "driveId"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [
+              "driveId"
+            ],
+            "part_sources": {
+              "driveId": {
+                "op": "gcp.drive.drives.list",
+                "field_path": "items[].name",
+                "transform": null
+              }
+            },
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.drive.drives.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/drives"
+                },
+                "python_call": "svc.drives().list(**params).execute()",
+                "produces": {
+                  "name": "items[].name",
+                  "hidden": "items[].hidden",
+                  "id": "items[].id",
+                  "themeId": "items[].themeId",
+                  "capabilities": "items[].capabilities",
+                  "colorRgb": "items[].colorRgb",
+                  "restrictions": "items[].restrictions",
+                  "createdDate": "items[].createdDate",
+                  "backgroundImageFile": "items[].backgroundImageFile",
+                  "orgUnitId": "items[].orgUnitId",
+                  "backgroundImageLink": "items[].backgroundImageLink"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.drive.drives.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/drives/{driveId}"
+                },
+                "python_call": "svc.drives().get(**params).execute()",
+                "required_params": {
+                  "driveId": {
+                    "from_identifier": "driveId"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.drive.drives.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.drive.drives.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.drives().list(**params).execute()",
+                      "path": "/drives",
+                      "required_params": {},
+                      "output_list_field": "items",
+                      "output_id_field": "name",
+                      "produces": {
+                        "driveId": {
+                          "via_list_field": "items",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"driveId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: driveId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.drive.drives.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.drives().get(**params).execute()",
+                      "path": "/drives/{driveId}",
+                      "required_params": {
+                        "driveId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the shared drive."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "driveId": {
+                          "from_step": 1,
+                          "from_op": "gcp.drive.drives.list",
+                          "field": "name"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        },
+        "files": {
+          "resource_type": "files",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "constructed",
+            "full_identifier": {
+              "template": "files/{url_encoded_id}",
+              "built_from_parts": [
+                "items[].id"
+              ],
+              "notes": ""
+            },
+            "parts": [
+              "id"
+            ],
+            "part_sources": {
+              "id": {
+                "op": "gcp.drive.files.listLabels",
+                "field_path": "items[].id",
+                "transform": null
+              }
+            },
+            "transforms": [
+              {
+                "from": "items[].id",
+                "fn": "url_encode",
+                "to": "url_encoded_id"
+              },
+              {
+                "from": "url_encoded_id",
+                "fn": "prefix:files/",
+                "to": "mimeType"
+              },
+              {
+                "build": "full_id",
+                "template": "files/{url_encoded_id}"
+              }
+            ]
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.drive.files.listLabels",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/files/{fileId}/listLabels"
+                },
+                "python_call": "svc.files().listLabels(**params).execute()",
+                "produces": {
+                  "id": "items[].id",
+                  "fields": "items[].fields",
+                  "revisionId": "items[].revisionId"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.drive.files.listLabels",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 1,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.drive.files.listLabels",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.files().listLabels(**params).execute()",
+                      "path": "/files/{fileId}/listLabels",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID for the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "id",
+                      "produces": {
+                        "fileId": {
+                          "via_list_field": "items",
+                          "from_id_field": "id",
+                          "note": "Iterate response[\"items\"][], extract item[\"id\"] \u2192 pass as \"fileId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": "unresolved"
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": [
+                    "fileId"
+                  ]
+                }
+              },
+              {
+                "op": "gcp.drive.revisions.list",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/files/{fileId}/revisions"
+                },
+                "python_call": "svc.revisions().list(**params).execute()",
+                "produces": {
+                  "selfLink": "selfLink",
+                  "pinned": "items[].pinned",
+                  "downloadUrl": "items[].downloadUrl",
+                  "modifiedDate": "items[].modifiedDate",
+                  "published": "items[].published",
+                  "exportLinks": "items[].exportLinks",
+                  "lastModifyingUserName": "items[].lastModifyingUserName",
+                  "md5Checksum": "items[].md5Checksum",
+                  "lastModifyingUser": "items[].lastModifyingUser",
+                  "publishedOutsideDomain": "items[].publishedOutsideDomain",
+                  "publishedLink": "items[].publishedLink",
+                  "id": "items[].id",
+                  "publishAuto": "items[].publishAuto",
+                  "originalFilename": "items[].originalFilename",
+                  "fileSize": "items[].fileSize",
+                  "mimeType": "items[].mimeType"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.drive.revisions.list",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.drive.files.listLabels",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.files().listLabels(**params).execute()",
+                      "path": "/files/{fileId}/listLabels",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID for the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "id",
+                      "produces": {
+                        "fileId": {
+                          "via_list_field": "items",
+                          "from_id_field": "id",
+                          "note": "Iterate response[\"items\"][], extract item[\"id\"] \u2192 pass as \"fileId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": "unresolved"
+                      },
+                      "purpose": "Provides: fileId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.drive.revisions.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.revisions().list(**params).execute()",
+                      "path": "/files/{fileId}/revisions",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "selfLink",
+                      "produces": {
+                        "revisionId": {
+                          "via_list_field": "items",
+                          "from_id_field": "selfLink",
+                          "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"revisionId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": {
+                          "from_step": 1,
+                          "from_op": "gcp.drive.files.listLabels",
+                          "field": "id"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.drive.files.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/files"
+                },
+                "python_call": "svc.files().list(**params).execute()",
+                "produces": {
+                  "selfLink": "selfLink",
+                  "downloadUrl": "items[].downloadUrl",
+                  "explicitlyTrashed": "items[].explicitlyTrashed",
+                  "canReadRevisions": "items[].canReadRevisions",
+                  "indexableText": "items[].indexableText",
+                  "permissions": "items[].permissions",
+                  "fileExtension": "items[].fileExtension",
+                  "copyRequiresWriterPermission": "items[].copyRequiresWriterPermission",
+                  "editable": "items[].editable",
+                  "contentRestrictions": "items[].contentRestrictions",
+                  "ownedByMe": "items[].ownedByMe",
+                  "id": "items[].id",
+                  "teamDriveId": "items[].teamDriveId",
+                  "fileSize": "items[].fileSize",
+                  "openWithLinks": "items[].openWithLinks",
+                  "hasThumbnail": "items[].hasThumbnail",
+                  "quotaBytesUsed": "items[].quotaBytesUsed",
+                  "alternateLink": "items[].alternateLink",
+                  "driveId": "items[].driveId",
+                  "webViewLink": "items[].webViewLink",
+                  "shareable": "items[].shareable",
+                  "lastViewedByMeDate": "items[].lastViewedByMeDate",
+                  "iconLink": "items[].iconLink",
+                  "inheritedPermissionsDisabled": "items[].inheritedPermissionsDisabled",
+                  "sharedWithMeDate": "items[].sharedWithMeDate",
+                  "isAppAuthorized": "items[].isAppAuthorized",
+                  "sha1Checksum": "items[].sha1Checksum",
+                  "originalFilename": "items[].originalFilename",
+                  "properties": "items[].properties",
+                  "embedLink": "items[].embedLink",
+                  "userPermission": "items[].userPermission",
+                  "mimeType": "items[].mimeType",
+                  "copyable": "items[].copyable",
+                  "markedViewedByMeDate": "items[].markedViewedByMeDate",
+                  "modifiedDate": "items[].modifiedDate",
+                  "hasAugmentedPermissions": "items[].hasAugmentedPermissions",
+                  "folderColorRgb": "items[].folderColorRgb",
+                  "sharingUser": "items[].sharingUser",
+                  "title": "items[].title",
+                  "trashedDate": "items[].trashedDate",
+                  "webContentLink": "items[].webContentLink",
+                  "shared": "items[].shared",
+                  "ownerNames": "items[].ownerNames",
+                  "parents": "items[].parents",
+                  "imageMediaMetadata": "items[].imageMediaMetadata",
+                  "md5Checksum": "items[].md5Checksum",
+                  "lastModifyingUserName": "items[].lastModifyingUserName",
+                  "labels": "items[].labels",
+                  "resourceKey": "items[].resourceKey",
+                  "exportLinks": "items[].exportLinks",
+                  "version": "items[].version",
+                  "thumbnail": "items[].thumbnail",
+                  "defaultOpenWithLink": "items[].defaultOpenWithLink",
+                  "videoMediaMetadata": "items[].videoMediaMetadata",
+                  "permissionIds": "items[].permissionIds",
+                  "modifiedByMeDate": "items[].modifiedByMeDate",
+                  "capabilities": "items[].capabilities",
+                  "sha256Checksum": "items[].sha256Checksum",
+                  "headRevisionId": "items[].headRevisionId",
+                  "thumbnailLink": "items[].thumbnailLink",
+                  "shortcutDetails": "items[].shortcutDetails",
+                  "owners": "items[].owners",
+                  "lastModifyingUser": "items[].lastModifyingUser",
+                  "fullFileExtension": "items[].fullFileExtension",
+                  "thumbnailVersion": "items[].thumbnailVersion",
+                  "createdDate": "items[].createdDate",
+                  "canComment": "items[].canComment",
+                  "description": "items[].description",
+                  "labelInfo": "items[].labelInfo",
+                  "spaces": "items[].spaces",
+                  "appDataContents": "items[].appDataContents",
+                  "trashingUser": "items[].trashingUser",
+                  "writersCanShare": "items[].writersCanShare",
+                  "linkShareMetadata": "items[].linkShareMetadata",
+                  "incompleteSearch": "incompleteSearch",
+                  "nextLink": "nextLink"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.drive.files.export",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/files/{fileId}/export"
+                },
+                "python_call": "svc.files().export(**params).execute()",
+                "required_params": {
+                  "mimeType": {
+                    "from_identifier": "transforms \u2192 mimeType"
+                  },
+                  "fileId": {
+                    "from_identifier": "gcp.drive.files.listLabels \u2192 items[].id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.drive.files.export",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 3,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.drive.files.listLabels",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.files().listLabels(**params).execute()",
+                      "path": "/files/{fileId}/listLabels",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID for the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "id",
+                      "produces": {
+                        "fileId": {
+                          "via_list_field": "items",
+                          "from_id_field": "id",
+                          "note": "Iterate response[\"items\"][], extract item[\"id\"] \u2192 pass as \"fileId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": "unresolved"
+                      },
+                      "purpose": "Provides: fileId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.drive.revisions.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.revisions().list(**params).execute()",
+                      "path": "/files/{fileId}/revisions",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "selfLink",
+                      "produces": {
+                        "revisionId": {
+                          "via_list_field": "items",
+                          "from_id_field": "selfLink",
+                          "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"revisionId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": {
+                          "from_step": 1,
+                          "from_op": "gcp.drive.files.listLabels",
+                          "field": "id"
+                        }
+                      },
+                      "purpose": "Provides: revisionId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.drive.files.export",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.files().export(**params).execute()",
+                      "path": "/files/{fileId}/export",
+                      "required_params": {
+                        "mimeType": {
+                          "type": "string",
+                          "location": "query",
+                          "pattern": "",
+                          "description": "Required. The MIME type of the format requested for this export."
+                        },
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the file."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "mimeType": {
+                          "from_step": 2,
+                          "from_op": "gcp.drive.revisions.list",
+                          "field": "selfLink"
+                        },
+                        "fileId": {
+                          "from_step": 1,
+                          "from_op": "gcp.drive.files.listLabels",
+                          "field": "id"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.drive.files.generateIds",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/files/generateIds"
+                },
+                "python_call": "svc.files().generateIds(**params).execute()",
+                "required_params": {},
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.drive.files.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/files/{fileId}"
+                },
+                "python_call": "svc.files().get(**params).execute()",
+                "required_params": {
+                  "fileId": {
+                    "from_identifier": "gcp.drive.files.listLabels \u2192 items[].id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.drive.files.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.drive.files.listLabels",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.files().listLabels(**params).execute()",
+                      "path": "/files/{fileId}/listLabels",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID for the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "id",
+                      "produces": {
+                        "fileId": {
+                          "via_list_field": "items",
+                          "from_id_field": "id",
+                          "note": "Iterate response[\"items\"][], extract item[\"id\"] \u2192 pass as \"fileId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": "unresolved"
+                      },
+                      "purpose": "Provides: fileId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.drive.files.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.files().get(**params).execute()",
+                      "path": "/files/{fileId}",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID for the file in question."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "fileId": {
+                          "from_step": 1,
+                          "from_op": "gcp.drive.files.listLabels",
+                          "field": "id"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        },
+        "parents": {
+          "resource_type": "parents",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "constructed",
+            "full_identifier": {
+              "template": "parents/{url_encoded_id}",
+              "built_from_parts": [
+                "items[].id"
+              ],
+              "notes": ""
+            },
+            "parts": [
+              "id"
+            ],
+            "part_sources": {
+              "id": {
+                "op": "gcp.drive.files.listLabels",
+                "field_path": "items[].id",
+                "transform": null
+              }
+            },
+            "transforms": [
+              {
+                "from": "items[].id",
+                "fn": "url_encode",
+                "to": "url_encoded_id"
+              },
+              {
+                "from": "url_encoded_id",
+                "fn": "prefix:parents/",
+                "to": "fileId"
+              },
+              {
+                "build": "full_id",
+                "template": "parents/{url_encoded_id}"
+              }
+            ]
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.drive.files.listLabels",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/files/{fileId}/listLabels"
+                },
+                "python_call": "svc.files().listLabels(**params).execute()",
+                "produces": {
+                  "id": "items[].id",
+                  "fields": "items[].fields",
+                  "revisionId": "items[].revisionId"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.drive.files.listLabels",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 1,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.drive.files.listLabels",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.files().listLabels(**params).execute()",
+                      "path": "/files/{fileId}/listLabels",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID for the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "id",
+                      "produces": {
+                        "fileId": {
+                          "via_list_field": "items",
+                          "from_id_field": "id",
+                          "note": "Iterate response[\"items\"][], extract item[\"id\"] \u2192 pass as \"fileId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": "unresolved"
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": [
+                    "fileId"
+                  ]
+                }
+              },
+              {
+                "op": "gcp.drive.parents.list",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/files/{fileId}/parents"
+                },
+                "python_call": "svc.parents().list(**params).execute()",
+                "produces": {
+                  "selfLink": "selfLink",
+                  "id": "items[].id",
+                  "parentLink": "items[].parentLink",
+                  "isRoot": "items[].isRoot"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.drive.parents.list",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.drive.files.listLabels",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.files().listLabels(**params).execute()",
+                      "path": "/files/{fileId}/listLabels",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID for the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "id",
+                      "produces": {
+                        "fileId": {
+                          "via_list_field": "items",
+                          "from_id_field": "id",
+                          "note": "Iterate response[\"items\"][], extract item[\"id\"] \u2192 pass as \"fileId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": "unresolved"
+                      },
+                      "purpose": "Provides: fileId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.drive.parents.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.parents().list(**params).execute()",
+                      "path": "/files/{fileId}/parents",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "selfLink",
+                      "produces": {
+                        "parentId": {
+                          "via_list_field": "items",
+                          "from_id_field": "selfLink",
+                          "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"parentId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": {
+                          "from_step": 1,
+                          "from_op": "gcp.drive.files.listLabels",
+                          "field": "id"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.drive.parents.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/files/{fileId}/parents/{parentId}"
+                },
+                "python_call": "svc.parents().get(**params).execute()",
+                "required_params": {
+                  "fileId": {
+                    "from_identifier": "transforms \u2192 fileId"
+                  },
+                  "parentId": {
+                    "from_identifier": "gcp.drive.parents.list \u2192 items[].selfLink"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.drive.parents.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 3,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.drive.files.listLabels",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.files().listLabels(**params).execute()",
+                      "path": "/files/{fileId}/listLabels",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID for the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "id",
+                      "produces": {
+                        "fileId": {
+                          "via_list_field": "items",
+                          "from_id_field": "id",
+                          "note": "Iterate response[\"items\"][], extract item[\"id\"] \u2192 pass as \"fileId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": "unresolved"
+                      },
+                      "purpose": "Provides: fileId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.drive.parents.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.parents().list(**params).execute()",
+                      "path": "/files/{fileId}/parents",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "selfLink",
+                      "produces": {
+                        "parentId": {
+                          "via_list_field": "items",
+                          "from_id_field": "selfLink",
+                          "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"parentId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": {
+                          "from_step": 1,
+                          "from_op": "gcp.drive.files.listLabels",
+                          "field": "id"
+                        }
+                      },
+                      "purpose": "Provides: parentId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.drive.parents.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.parents().get(**params).execute()",
+                      "path": "/files/{fileId}/parents/{parentId}",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the file."
+                        },
+                        "parentId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the parent."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "fileId": {
+                          "from_step": 1,
+                          "from_op": "gcp.drive.files.listLabels",
+                          "field": "id"
+                        },
+                        "parentId": {
+                          "from_step": 2,
+                          "from_op": "gcp.drive.parents.list",
+                          "field": "selfLink"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        },
+        "permissions": {
+          "resource_type": "permissions",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "constructed",
+            "full_identifier": {
+              "template": "permissions/{url_encoded_id}",
+              "built_from_parts": [
+                "items[].id"
+              ],
+              "notes": ""
+            },
+            "parts": [
+              "id"
+            ],
+            "part_sources": {
+              "id": {
+                "op": "gcp.drive.files.listLabels",
+                "field_path": "items[].id",
+                "transform": null
+              }
+            },
+            "transforms": [
+              {
+                "from": "items[].id",
+                "fn": "url_encode",
+                "to": "url_encoded_id"
+              },
+              {
+                "from": "url_encoded_id",
+                "fn": "prefix:permissions/",
+                "to": "permissionId"
+              },
+              {
+                "build": "full_id",
+                "template": "permissions/{url_encoded_id}"
+              }
+            ]
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.drive.files.listLabels",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/files/{fileId}/listLabels"
+                },
+                "python_call": "svc.files().listLabels(**params).execute()",
+                "produces": {
+                  "id": "items[].id",
+                  "fields": "items[].fields",
+                  "revisionId": "items[].revisionId"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.drive.files.listLabels",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 1,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.drive.files.listLabels",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.files().listLabels(**params).execute()",
+                      "path": "/files/{fileId}/listLabels",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID for the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "id",
+                      "produces": {
+                        "fileId": {
+                          "via_list_field": "items",
+                          "from_id_field": "id",
+                          "note": "Iterate response[\"items\"][], extract item[\"id\"] \u2192 pass as \"fileId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": "unresolved"
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": [
+                    "fileId"
+                  ]
+                }
+              },
+              {
+                "op": "gcp.drive.permissions.list",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/files/{fileId}/permissions"
+                },
+                "python_call": "svc.permissions().list(**params).execute()",
+                "produces": {
+                  "name": "items[].name",
+                  "additionalRoles": "items[].additionalRoles",
+                  "withLink": "items[].withLink",
+                  "inheritedPermissionsDisabled": "items[].inheritedPermissionsDisabled",
+                  "teamDrivePermissionDetails": "items[].teamDrivePermissionDetails",
+                  "value": "items[].value",
+                  "type": "items[].type",
+                  "deleted": "items[].deleted",
+                  "selfLink": "selfLink",
+                  "authKey": "items[].authKey",
+                  "permissionDetails": "items[].permissionDetails",
+                  "id": "items[].id",
+                  "emailAddress": "items[].emailAddress",
+                  "role": "items[].role",
+                  "expirationDate": "items[].expirationDate",
+                  "view": "items[].view",
+                  "photoLink": "items[].photoLink",
+                  "pendingOwner": "items[].pendingOwner",
+                  "domain": "items[].domain"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.drive.permissions.list",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.drive.files.listLabels",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.files().listLabels(**params).execute()",
+                      "path": "/files/{fileId}/listLabels",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID for the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "id",
+                      "produces": {
+                        "fileId": {
+                          "via_list_field": "items",
+                          "from_id_field": "id",
+                          "note": "Iterate response[\"items\"][], extract item[\"id\"] \u2192 pass as \"fileId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": "unresolved"
+                      },
+                      "purpose": "Provides: fileId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.drive.permissions.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.permissions().list(**params).execute()",
+                      "path": "/files/{fileId}/permissions",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID for the file or shared drive."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "name",
+                      "produces": {
+                        "permissionId": {
+                          "via_list_field": "items",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"permissionId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": {
+                          "from_step": 1,
+                          "from_op": "gcp.drive.files.listLabels",
+                          "field": "id"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.drive.permissions.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/files/{fileId}/permissions/{permissionId}"
+                },
+                "python_call": "svc.permissions().get(**params).execute()",
+                "required_params": {
+                  "permissionId": {
+                    "from_identifier": "transforms \u2192 permissionId"
+                  },
+                  "fileId": {
+                    "from_identifier": "gcp.drive.files.listLabels \u2192 items[].id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.drive.permissions.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 3,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.drive.files.listLabels",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.files().listLabels(**params).execute()",
+                      "path": "/files/{fileId}/listLabels",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID for the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "id",
+                      "produces": {
+                        "fileId": {
+                          "via_list_field": "items",
+                          "from_id_field": "id",
+                          "note": "Iterate response[\"items\"][], extract item[\"id\"] \u2192 pass as \"fileId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": "unresolved"
+                      },
+                      "purpose": "Provides: fileId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.drive.permissions.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.permissions().list(**params).execute()",
+                      "path": "/files/{fileId}/permissions",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID for the file or shared drive."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "name",
+                      "produces": {
+                        "permissionId": {
+                          "via_list_field": "items",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"permissionId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": {
+                          "from_step": 1,
+                          "from_op": "gcp.drive.files.listLabels",
+                          "field": "id"
+                        }
+                      },
+                      "purpose": "Provides: permissionId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.drive.permissions.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.permissions().get(**params).execute()",
+                      "path": "/files/{fileId}/permissions/{permissionId}",
+                      "required_params": {
+                        "permissionId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID for the permission."
+                        },
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID for the file or shared drive."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "permissionId": {
+                          "from_step": 2,
+                          "from_op": "gcp.drive.permissions.list",
+                          "field": "name"
+                        },
+                        "fileId": {
+                          "from_step": 1,
+                          "from_op": "gcp.drive.files.listLabels",
+                          "field": "id"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.drive.permissions.getIdForEmail",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/permissionIds/{email}"
+                },
+                "python_call": "svc.permissions().getIdForEmail(**params).execute()",
+                "required_params": {
+                  "email": {
+                    "from_identifier": "gcp.drive.permissions.list \u2192 items[].name"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.drive.permissions.getIdForEmail",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 3,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.drive.files.listLabels",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.files().listLabels(**params).execute()",
+                      "path": "/files/{fileId}/listLabels",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID for the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "id",
+                      "produces": {
+                        "fileId": {
+                          "via_list_field": "items",
+                          "from_id_field": "id",
+                          "note": "Iterate response[\"items\"][], extract item[\"id\"] \u2192 pass as \"fileId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": "unresolved"
+                      },
+                      "purpose": "Provides: fileId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.drive.permissions.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.permissions().list(**params).execute()",
+                      "path": "/files/{fileId}/permissions",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID for the file or shared drive."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "name",
+                      "produces": {
+                        "permissionId": {
+                          "via_list_field": "items",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"permissionId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": {
+                          "from_step": 1,
+                          "from_op": "gcp.drive.files.listLabels",
+                          "field": "id"
+                        }
+                      },
+                      "purpose": "Provides: permissionId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.drive.permissions.getIdForEmail",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.permissions().getIdForEmail(**params).execute()",
+                      "path": "/permissionIds/{email}",
+                      "required_params": {
+                        "email": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The email address for which to return a permission ID"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "email": {
+                          "from_step": 2,
+                          "from_op": "gcp.drive.permissions.list",
+                          "field": "name"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        },
+        "properties": {
+          "resource_type": "properties",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "constructed",
+            "full_identifier": {
+              "template": "properties/{url_encoded_id}",
+              "built_from_parts": [
+                "items[].id"
+              ],
+              "notes": ""
+            },
+            "parts": [
+              "id"
+            ],
+            "part_sources": {
+              "id": {
+                "op": "gcp.drive.files.listLabels",
+                "field_path": "items[].id",
+                "transform": null
+              }
+            },
+            "transforms": [
+              {
+                "from": "items[].id",
+                "fn": "url_encode",
+                "to": "url_encoded_id"
+              },
+              {
+                "from": "url_encoded_id",
+                "fn": "prefix:properties/",
+                "to": "propertyKey"
+              },
+              {
+                "build": "full_id",
+                "template": "properties/{url_encoded_id}"
+              }
+            ]
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.drive.files.listLabels",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/files/{fileId}/listLabels"
+                },
+                "python_call": "svc.files().listLabels(**params).execute()",
+                "produces": {
+                  "id": "items[].id",
+                  "fields": "items[].fields",
+                  "revisionId": "items[].revisionId"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.drive.files.listLabels",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 1,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.drive.files.listLabels",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.files().listLabels(**params).execute()",
+                      "path": "/files/{fileId}/listLabels",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID for the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "id",
+                      "produces": {
+                        "fileId": {
+                          "via_list_field": "items",
+                          "from_id_field": "id",
+                          "note": "Iterate response[\"items\"][], extract item[\"id\"] \u2192 pass as \"fileId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": "unresolved"
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": [
+                    "fileId"
+                  ]
+                }
+              },
+              {
+                "op": "gcp.drive.properties.list",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/files/{fileId}/properties"
+                },
+                "python_call": "svc.properties().list(**params).execute()",
+                "produces": {
+                  "selfLink": "selfLink",
+                  "key": "items[].key",
+                  "value": "items[].value",
+                  "visibility": "items[].visibility"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.drive.properties.list",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.drive.files.listLabels",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.files().listLabels(**params).execute()",
+                      "path": "/files/{fileId}/listLabels",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID for the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "id",
+                      "produces": {
+                        "fileId": {
+                          "via_list_field": "items",
+                          "from_id_field": "id",
+                          "note": "Iterate response[\"items\"][], extract item[\"id\"] \u2192 pass as \"fileId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": "unresolved"
+                      },
+                      "purpose": "Provides: fileId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.drive.properties.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.properties().list(**params).execute()",
+                      "path": "/files/{fileId}/properties",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "selfLink",
+                      "produces": {
+                        "propertyId": {
+                          "via_list_field": "items",
+                          "from_id_field": "selfLink",
+                          "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"propertyId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": {
+                          "from_step": 1,
+                          "from_op": "gcp.drive.files.listLabels",
+                          "field": "id"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.drive.properties.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/files/{fileId}/properties/{propertyKey}"
+                },
+                "python_call": "svc.properties().get(**params).execute()",
+                "required_params": {
+                  "propertyKey": {
+                    "from_identifier": "transforms \u2192 propertyKey"
+                  },
+                  "fileId": {
+                    "from_identifier": "gcp.drive.files.listLabels \u2192 items[].id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.drive.properties.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.drive.files.listLabels",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.files().listLabels(**params).execute()",
+                      "path": "/files/{fileId}/listLabels",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID for the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "id",
+                      "produces": {
+                        "fileId": {
+                          "via_list_field": "items",
+                          "from_id_field": "id",
+                          "note": "Iterate response[\"items\"][], extract item[\"id\"] \u2192 pass as \"fileId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": "unresolved"
+                      },
+                      "purpose": "Provides: fileId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.drive.properties.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.properties().get(**params).execute()",
+                      "path": "/files/{fileId}/properties/{propertyKey}",
+                      "required_params": {
+                        "propertyKey": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The key of the property."
+                        },
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the file."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "propertyKey": "unresolved",
+                        "fileId": {
+                          "from_step": 1,
+                          "from_op": "gcp.drive.files.listLabels",
+                          "field": "id"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": [
+                    "propertyKey"
+                  ]
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        },
+        "replies": {
+          "resource_type": "replies",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "constructed",
+            "full_identifier": {
+              "template": "replies/{url_encoded_id}",
+              "built_from_parts": [
+                "items[].id"
+              ],
+              "notes": ""
+            },
+            "parts": [
+              "id"
+            ],
+            "part_sources": {
+              "id": {
+                "op": "gcp.drive.files.listLabels",
+                "field_path": "items[].id",
+                "transform": null
+              }
+            },
+            "transforms": [
+              {
+                "from": "items[].id",
+                "fn": "url_encode",
+                "to": "url_encoded_id"
+              },
+              {
+                "from": "url_encoded_id",
+                "fn": "prefix:replies/",
+                "to": "fileId"
+              },
+              {
+                "build": "full_id",
+                "template": "replies/{url_encoded_id}"
+              }
+            ]
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.drive.files.listLabels",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/files/{fileId}/listLabels"
+                },
+                "python_call": "svc.files().listLabels(**params).execute()",
+                "produces": {
+                  "id": "items[].id",
+                  "fields": "items[].fields",
+                  "revisionId": "items[].revisionId"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.drive.files.listLabels",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 1,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.drive.files.listLabels",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.files().listLabels(**params).execute()",
+                      "path": "/files/{fileId}/listLabels",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID for the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "id",
+                      "produces": {
+                        "fileId": {
+                          "via_list_field": "items",
+                          "from_id_field": "id",
+                          "note": "Iterate response[\"items\"][], extract item[\"id\"] \u2192 pass as \"fileId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": "unresolved"
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": [
+                    "fileId"
+                  ]
+                }
+              },
+              {
+                "op": "gcp.drive.comments.list",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/files/{fileId}/comments"
+                },
+                "python_call": "svc.comments().list(**params).execute()",
+                "produces": {
+                  "selfLink": "selfLink",
+                  "htmlContent": "items[].htmlContent",
+                  "status": "items[].status",
+                  "anchor": "items[].anchor",
+                  "author": "items[].author",
+                  "deleted": "items[].deleted",
+                  "context": "items[].context",
+                  "createdDate": "items[].createdDate",
+                  "modifiedDate": "items[].modifiedDate",
+                  "commentId": "items[].commentId",
+                  "fileId": "items[].fileId",
+                  "replies": "items[].replies",
+                  "content": "items[].content",
+                  "fileTitle": "items[].fileTitle",
+                  "nextLink": "nextLink"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.drive.comments.list",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.drive.files.listLabels",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.files().listLabels(**params).execute()",
+                      "path": "/files/{fileId}/listLabels",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID for the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "id",
+                      "produces": {
+                        "fileId": {
+                          "via_list_field": "items",
+                          "from_id_field": "id",
+                          "note": "Iterate response[\"items\"][], extract item[\"id\"] \u2192 pass as \"fileId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": "unresolved"
+                      },
+                      "purpose": "Provides: fileId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.drive.comments.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.comments().list(**params).execute()",
+                      "path": "/files/{fileId}/comments",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "selfLink",
+                      "produces": {
+                        "commentId": {
+                          "via_list_field": "items",
+                          "from_id_field": "selfLink",
+                          "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"commentId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": {
+                          "from_step": 1,
+                          "from_op": "gcp.drive.files.listLabels",
+                          "field": "id"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.drive.replies.list",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/files/{fileId}/comments/{commentId}/replies"
+                },
+                "python_call": "svc.replies().list(**params).execute()",
+                "produces": {
+                  "htmlContent": "items[].htmlContent",
+                  "author": "items[].author",
+                  "createdDate": "items[].createdDate",
+                  "content": "items[].content",
+                  "modifiedDate": "items[].modifiedDate",
+                  "replyId": "items[].replyId",
+                  "verb": "items[].verb",
+                  "deleted": "items[].deleted",
+                  "nextLink": "nextLink",
+                  "selfLink": "selfLink"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.drive.replies.list",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 3,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.drive.files.listLabels",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.files().listLabels(**params).execute()",
+                      "path": "/files/{fileId}/listLabels",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID for the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "id",
+                      "produces": {
+                        "fileId": {
+                          "via_list_field": "items",
+                          "from_id_field": "id",
+                          "note": "Iterate response[\"items\"][], extract item[\"id\"] \u2192 pass as \"fileId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": "unresolved"
+                      },
+                      "purpose": "Provides: fileId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.drive.comments.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.comments().list(**params).execute()",
+                      "path": "/files/{fileId}/comments",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "selfLink",
+                      "produces": {
+                        "commentId": {
+                          "via_list_field": "items",
+                          "from_id_field": "selfLink",
+                          "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"commentId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": {
+                          "from_step": 1,
+                          "from_op": "gcp.drive.files.listLabels",
+                          "field": "id"
+                        }
+                      },
+                      "purpose": "Provides: commentId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.drive.replies.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.replies().list(**params).execute()",
+                      "path": "/files/{fileId}/comments/{commentId}/replies",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the file."
+                        },
+                        "commentId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the comment."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "htmlContent",
+                      "produces": {
+                        "replyId": {
+                          "via_list_field": "items",
+                          "from_id_field": "htmlContent",
+                          "note": "Iterate response[\"items\"][], extract item[\"htmlContent\"] \u2192 pass as \"replyId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": {
+                          "from_step": 1,
+                          "from_op": "gcp.drive.files.listLabels",
+                          "field": "id"
+                        },
+                        "commentId": {
+                          "from_step": 2,
+                          "from_op": "gcp.drive.comments.list",
+                          "field": "selfLink"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.drive.replies.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/files/{fileId}/comments/{commentId}/replies/{replyId}"
+                },
+                "python_call": "svc.replies().get(**params).execute()",
+                "required_params": {
+                  "fileId": {
+                    "from_identifier": "transforms \u2192 fileId"
+                  },
+                  "commentId": {
+                    "from_identifier": "items[].commentId"
+                  },
+                  "replyId": {
+                    "from_identifier": "items[].replyId"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.drive.replies.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 4,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.drive.files.listLabels",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.files().listLabels(**params).execute()",
+                      "path": "/files/{fileId}/listLabels",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID for the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "id",
+                      "produces": {
+                        "fileId": {
+                          "via_list_field": "items",
+                          "from_id_field": "id",
+                          "note": "Iterate response[\"items\"][], extract item[\"id\"] \u2192 pass as \"fileId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": "unresolved"
+                      },
+                      "purpose": "Provides: fileId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.drive.comments.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.comments().list(**params).execute()",
+                      "path": "/files/{fileId}/comments",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "selfLink",
+                      "produces": {
+                        "commentId": {
+                          "via_list_field": "items",
+                          "from_id_field": "selfLink",
+                          "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"commentId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": {
+                          "from_step": 1,
+                          "from_op": "gcp.drive.files.listLabels",
+                          "field": "id"
+                        }
+                      },
+                      "purpose": "Provides: commentId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.drive.replies.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.replies().list(**params).execute()",
+                      "path": "/files/{fileId}/comments/{commentId}/replies",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the file."
+                        },
+                        "commentId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the comment."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "htmlContent",
+                      "produces": {
+                        "replyId": {
+                          "via_list_field": "items",
+                          "from_id_field": "htmlContent",
+                          "note": "Iterate response[\"items\"][], extract item[\"htmlContent\"] \u2192 pass as \"replyId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": {
+                          "from_step": 1,
+                          "from_op": "gcp.drive.files.listLabels",
+                          "field": "id"
+                        },
+                        "commentId": {
+                          "from_step": 2,
+                          "from_op": "gcp.drive.comments.list",
+                          "field": "selfLink"
+                        }
+                      },
+                      "purpose": "Provides: replyId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 4,
+                      "op": "gcp.drive.replies.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.replies().get(**params).execute()",
+                      "path": "/files/{fileId}/comments/{commentId}/replies/{replyId}",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the file."
+                        },
+                        "commentId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the comment."
+                        },
+                        "replyId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the reply."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "fileId": {
+                          "from_step": 1,
+                          "from_op": "gcp.drive.files.listLabels",
+                          "field": "id"
+                        },
+                        "commentId": {
+                          "from_step": 2,
+                          "from_op": "gcp.drive.comments.list",
+                          "field": "selfLink"
+                        },
+                        "replyId": {
+                          "from_step": 3,
+                          "from_op": "gcp.drive.replies.list",
+                          "field": "htmlContent"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        },
+        "revisions": {
+          "resource_type": "revisions",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "constructed",
+            "full_identifier": {
+              "template": "revisions/{url_encoded_id}",
+              "built_from_parts": [
+                "items[].id"
+              ],
+              "notes": ""
+            },
+            "parts": [
+              "id"
+            ],
+            "part_sources": {
+              "id": {
+                "op": "gcp.drive.files.listLabels",
+                "field_path": "items[].id",
+                "transform": null
+              }
+            },
+            "transforms": [
+              {
+                "from": "items[].id",
+                "fn": "url_encode",
+                "to": "url_encoded_id"
+              },
+              {
+                "from": "url_encoded_id",
+                "fn": "prefix:revisions/",
+                "to": "fileId"
+              },
+              {
+                "build": "full_id",
+                "template": "revisions/{url_encoded_id}"
+              }
+            ]
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.drive.files.listLabels",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/files/{fileId}/listLabels"
+                },
+                "python_call": "svc.files().listLabels(**params).execute()",
+                "produces": {
+                  "id": "items[].id",
+                  "fields": "items[].fields",
+                  "revisionId": "items[].revisionId"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.drive.files.listLabels",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 1,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.drive.files.listLabels",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.files().listLabels(**params).execute()",
+                      "path": "/files/{fileId}/listLabels",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID for the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "id",
+                      "produces": {
+                        "fileId": {
+                          "via_list_field": "items",
+                          "from_id_field": "id",
+                          "note": "Iterate response[\"items\"][], extract item[\"id\"] \u2192 pass as \"fileId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": "unresolved"
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": [
+                    "fileId"
+                  ]
+                }
+              },
+              {
+                "op": "gcp.drive.revisions.list",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/files/{fileId}/revisions"
+                },
+                "python_call": "svc.revisions().list(**params).execute()",
+                "produces": {
+                  "selfLink": "selfLink",
+                  "pinned": "items[].pinned",
+                  "downloadUrl": "items[].downloadUrl",
+                  "modifiedDate": "items[].modifiedDate",
+                  "published": "items[].published",
+                  "exportLinks": "items[].exportLinks",
+                  "lastModifyingUserName": "items[].lastModifyingUserName",
+                  "md5Checksum": "items[].md5Checksum",
+                  "lastModifyingUser": "items[].lastModifyingUser",
+                  "publishedOutsideDomain": "items[].publishedOutsideDomain",
+                  "publishedLink": "items[].publishedLink",
+                  "id": "items[].id",
+                  "publishAuto": "items[].publishAuto",
+                  "originalFilename": "items[].originalFilename",
+                  "fileSize": "items[].fileSize",
+                  "mimeType": "items[].mimeType"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.drive.revisions.list",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.drive.files.listLabels",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.files().listLabels(**params).execute()",
+                      "path": "/files/{fileId}/listLabels",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID for the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "id",
+                      "produces": {
+                        "fileId": {
+                          "via_list_field": "items",
+                          "from_id_field": "id",
+                          "note": "Iterate response[\"items\"][], extract item[\"id\"] \u2192 pass as \"fileId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": "unresolved"
+                      },
+                      "purpose": "Provides: fileId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.drive.revisions.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.revisions().list(**params).execute()",
+                      "path": "/files/{fileId}/revisions",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "selfLink",
+                      "produces": {
+                        "revisionId": {
+                          "via_list_field": "items",
+                          "from_id_field": "selfLink",
+                          "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"revisionId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": {
+                          "from_step": 1,
+                          "from_op": "gcp.drive.files.listLabels",
+                          "field": "id"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.drive.revisions.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/files/{fileId}/revisions/{revisionId}"
+                },
+                "python_call": "svc.revisions().get(**params).execute()",
+                "required_params": {
+                  "fileId": {
+                    "from_identifier": "transforms \u2192 fileId"
+                  },
+                  "revisionId": {
+                    "from_identifier": "items[].revisionId"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.drive.revisions.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 3,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.drive.files.listLabels",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.files().listLabels(**params).execute()",
+                      "path": "/files/{fileId}/listLabels",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID for the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "id",
+                      "produces": {
+                        "fileId": {
+                          "via_list_field": "items",
+                          "from_id_field": "id",
+                          "note": "Iterate response[\"items\"][], extract item[\"id\"] \u2192 pass as \"fileId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": "unresolved"
+                      },
+                      "purpose": "Provides: fileId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.drive.revisions.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.revisions().list(**params).execute()",
+                      "path": "/files/{fileId}/revisions",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the file."
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "selfLink",
+                      "produces": {
+                        "revisionId": {
+                          "via_list_field": "items",
+                          "from_id_field": "selfLink",
+                          "note": "Iterate response[\"items\"][], extract item[\"selfLink\"] \u2192 pass as \"revisionId\""
+                        }
+                      },
+                      "param_sources": {
+                        "fileId": {
+                          "from_step": 1,
+                          "from_op": "gcp.drive.files.listLabels",
+                          "field": "id"
+                        }
+                      },
+                      "purpose": "Provides: revisionId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.drive.revisions.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.revisions().get(**params).execute()",
+                      "path": "/files/{fileId}/revisions/{revisionId}",
+                      "required_params": {
+                        "fileId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the file."
+                        },
+                        "revisionId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the revision."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "fileId": {
+                          "from_step": 1,
+                          "from_op": "gcp.drive.files.listLabels",
+                          "field": "id"
+                        },
+                        "revisionId": {
+                          "from_step": 2,
+                          "from_op": "gcp.drive.revisions.list",
+                          "field": "selfLink"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        },
+        "teamdrives": {
+          "resource_type": "teamdrives",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{teamDriveId}",
+              "built_from_parts": [
+                "teamDriveId"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [
+              "teamDriveId"
+            ],
+            "part_sources": {
+              "teamDriveId": {
+                "op": "gcp.drive.teamdrives.list",
+                "field_path": "items[].name",
+                "transform": null
+              }
+            },
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.drive.teamdrives.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/teamdrives"
+                },
+                "python_call": "svc.teamdrives().list(**params).execute()",
+                "produces": {
+                  "name": "items[].name",
+                  "backgroundImageFile": "items[].backgroundImageFile",
+                  "createdDate": "items[].createdDate",
+                  "capabilities": "items[].capabilities",
+                  "colorRgb": "items[].colorRgb",
+                  "backgroundImageLink": "items[].backgroundImageLink",
+                  "restrictions": "items[].restrictions",
+                  "id": "items[].id",
+                  "themeId": "items[].themeId",
+                  "orgUnitId": "items[].orgUnitId"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.drive.teamdrives.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/teamdrives/{teamDriveId}"
+                },
+                "python_call": "svc.teamdrives().get(**params).execute()",
+                "required_params": {
+                  "teamDriveId": {
+                    "from_identifier": "teamDriveId"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.drive.teamdrives.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.drive.teamdrives.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.teamdrives().list(**params).execute()",
+                      "path": "/teamdrives",
+                      "required_params": {},
+                      "output_list_field": "items",
+                      "output_id_field": "name",
+                      "produces": {
+                        "teamdriveId": {
+                          "via_list_field": "items",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"teamdriveId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: teamdriveId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.drive.teamdrives.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.teamdrives().get(**params).execute()",
+                      "path": "/teamdrives/{teamDriveId}",
+                      "required_params": {
+                        "teamDriveId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "The ID of the Team Drive"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "teamDriveId": {
+                          "from_step": 1,
+                          "from_op": "gcp.drive.teamdrives.list",
+                          "field": "name"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        }
+      }
+    }
+  }
+}

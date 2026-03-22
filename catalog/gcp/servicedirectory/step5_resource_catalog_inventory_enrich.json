@@ -1,0 +1,627 @@
+{
+  "csp": "gcp",
+  "generated_at": "2026-02-19T14:43:28.085602+00:00",
+  "anchors": {
+    "fixed": [
+      "project_id",
+      "org_id",
+      "folder_id",
+      "location",
+      "zone",
+      "region"
+    ]
+  },
+  "services": {
+    "servicedirectory": {
+      "version": "v1",
+      "resources": {
+        "endpoints": {
+          "resource_type": "endpoints",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.servicedirectory.projects.locations.namespaces.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/namespaces"
+                },
+                "python_call": "svc.projects().locations().namespaces().list(**params).execute()",
+                "produces": {
+                  "name": "namespaces[].name",
+                  "uid": "namespaces[].uid",
+                  "labels": "namespaces[].labels"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.servicedirectory.projects.locations.namespaces.services.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/services"
+                },
+                "python_call": "svc.projects().locations().namespaces().services().list(**params).execute()",
+                "produces": {
+                  "name": "services[].name",
+                  "uid": "services[].uid",
+                  "endpoints": "services[].endpoints",
+                  "annotations": "services[].annotations"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.servicedirectory.projects.locations.namespaces.services.endpoints.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/endpoints"
+                },
+                "python_call": "svc.projects().locations().namespaces().services().endpoints().list(**params).execute()",
+                "produces": {
+                  "name": "endpoints[].name",
+                  "uid": "endpoints[].uid",
+                  "network": "endpoints[].network",
+                  "port": "endpoints[].port",
+                  "address": "endpoints[].address",
+                  "annotations": "endpoints[].annotations"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.servicedirectory.projects.locations.namespaces.services.endpoints.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().namespaces().services().endpoints().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.servicedirectory.projects.locations.namespaces.services.endpoints.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 4,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.servicedirectory.projects.locations.namespaces.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().namespaces().list(**params).execute()",
+                      "path": "/v1/{+parent}/namespaces",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. The resource name of the project and location whose namespaces you'd like to list."
+                        }
+                      },
+                      "output_list_field": "namespaces",
+                      "output_id_field": "name",
+                      "produces": {
+                        "namespaceId": {
+                          "via_list_field": "namespaces",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"namespaces\"][], extract item[\"name\"] \u2192 pass as \"namespaceId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: namespaceId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.servicedirectory.projects.locations.namespaces.services.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().namespaces().services().list(**params).execute()",
+                      "path": "/v1/{+parent}/services",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/namespaces/[^/]+$",
+                          "description": "Required. The resource name of the namespace whose services you'd like to list."
+                        }
+                      },
+                      "output_list_field": "services",
+                      "output_id_field": "name",
+                      "produces": {
+                        "serviceId": {
+                          "via_list_field": "services",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"services\"][], extract item[\"name\"] \u2192 pass as \"serviceId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: serviceId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.servicedirectory.projects.locations.namespaces.services.endpoints.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().namespaces().services().endpoints().list(**params).execute()",
+                      "path": "/v1/{+parent}/endpoints",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/namespaces/[^/]+/services/[^/]+$",
+                          "description": "Required. The resource name of the service whose endpoints you'd like to list."
+                        }
+                      },
+                      "output_list_field": "endpoints",
+                      "output_id_field": "name",
+                      "produces": {
+                        "endpointId": {
+                          "via_list_field": "endpoints",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"endpoints\"][], extract item[\"name\"] \u2192 pass as \"endpointId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: endpointId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 4,
+                      "op": "gcp.servicedirectory.projects.locations.namespaces.services.endpoints.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().namespaces().services().endpoints().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/namespaces/[^/]+/services/[^/]+/endpoints/[^/]+$",
+                          "description": "Required. The name of the endpoint to get."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "namespaceId": {
+                            "from_step": 1,
+                            "from_op": "gcp.servicedirectory.projects.locations.namespaces.list",
+                            "field": "name"
+                          },
+                          "serviceId": {
+                            "from_step": 2,
+                            "from_op": "gcp.servicedirectory.projects.locations.namespaces.services.list",
+                            "field": "name"
+                          },
+                          "endpointId": {
+                            "from_step": 3,
+                            "from_op": "gcp.servicedirectory.projects.locations.namespaces.services.endpoints.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "locations": {
+          "resource_type": "locations",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.servicedirectory.projects.locations.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}/locations"
+                },
+                "python_call": "svc.projects().locations().list(**params).execute()",
+                "produces": {
+                  "name": "locations[].name",
+                  "metadata": "locations[].metadata",
+                  "displayName": "locations[].displayName",
+                  "labels": "locations[].labels",
+                  "locationId": "locations[].locationId"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.servicedirectory.projects.locations.get",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "namespaces": {
+          "resource_type": "namespaces",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.servicedirectory.projects.locations.namespaces.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/namespaces"
+                },
+                "python_call": "svc.projects().locations().namespaces().list(**params).execute()",
+                "produces": {
+                  "name": "namespaces[].name",
+                  "uid": "namespaces[].uid",
+                  "labels": "namespaces[].labels"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.servicedirectory.projects.locations.namespaces.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().namespaces().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.servicedirectory.projects.locations.namespaces.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.servicedirectory.projects.locations.namespaces.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().namespaces().list(**params).execute()",
+                      "path": "/v1/{+parent}/namespaces",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. The resource name of the project and location whose namespaces you'd like to list."
+                        }
+                      },
+                      "output_list_field": "namespaces",
+                      "output_id_field": "name",
+                      "produces": {
+                        "namespaceId": {
+                          "via_list_field": "namespaces",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"namespaces\"][], extract item[\"name\"] \u2192 pass as \"namespaceId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: namespaceId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.servicedirectory.projects.locations.namespaces.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().namespaces().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/namespaces/[^/]+$",
+                          "description": "Required. The name of the namespace to retrieve."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "namespaceId": {
+                            "from_step": 1,
+                            "from_op": "gcp.servicedirectory.projects.locations.namespaces.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "services": {
+          "resource_type": "services",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.servicedirectory.projects.locations.namespaces.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/namespaces"
+                },
+                "python_call": "svc.projects().locations().namespaces().list(**params).execute()",
+                "produces": {
+                  "name": "namespaces[].name",
+                  "uid": "namespaces[].uid",
+                  "labels": "namespaces[].labels"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.servicedirectory.projects.locations.namespaces.services.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/services"
+                },
+                "python_call": "svc.projects().locations().namespaces().services().list(**params).execute()",
+                "produces": {
+                  "name": "services[].name",
+                  "uid": "services[].uid",
+                  "endpoints": "services[].endpoints",
+                  "annotations": "services[].annotations"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.servicedirectory.projects.locations.namespaces.services.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().namespaces().services().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.servicedirectory.projects.locations.namespaces.services.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 3,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.servicedirectory.projects.locations.namespaces.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().namespaces().list(**params).execute()",
+                      "path": "/v1/{+parent}/namespaces",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. The resource name of the project and location whose namespaces you'd like to list."
+                        }
+                      },
+                      "output_list_field": "namespaces",
+                      "output_id_field": "name",
+                      "produces": {
+                        "namespaceId": {
+                          "via_list_field": "namespaces",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"namespaces\"][], extract item[\"name\"] \u2192 pass as \"namespaceId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: namespaceId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.servicedirectory.projects.locations.namespaces.services.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().namespaces().services().list(**params).execute()",
+                      "path": "/v1/{+parent}/services",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/namespaces/[^/]+$",
+                          "description": "Required. The resource name of the namespace whose services you'd like to list."
+                        }
+                      },
+                      "output_list_field": "services",
+                      "output_id_field": "name",
+                      "produces": {
+                        "serviceId": {
+                          "via_list_field": "services",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"services\"][], extract item[\"name\"] \u2192 pass as \"serviceId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: serviceId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.servicedirectory.projects.locations.namespaces.services.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().namespaces().services().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/namespaces/[^/]+/services/[^/]+$",
+                          "description": "Required. The name of the service to get."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "namespaceId": {
+                            "from_step": 1,
+                            "from_op": "gcp.servicedirectory.projects.locations.namespaces.list",
+                            "field": "name"
+                          },
+                          "serviceId": {
+                            "from_step": 2,
+                            "from_op": "gcp.servicedirectory.projects.locations.namespaces.services.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        }
+      }
+    }
+  }
+}

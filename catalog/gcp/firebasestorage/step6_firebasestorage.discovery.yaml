@@ -1,0 +1,77 @@
+# ============================================================
+# Discovery YAML — firebasestorage (v1beta)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 3 | independent: 2 | dependent: 1
+# ops with fields: 3/3 | dep ops with chain: 1/1
+# ============================================================
+version: '1.0'
+provider: gcp
+service: firebasestorage
+
+services:
+  client: firebasestorage
+  module: "googleapiclient.discovery.build('firebasestorage', 'v1beta')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists the linked storage buckets for a project.
+  # ── gcp.firebasestorage.projects.buckets.list ──
+  - discovery_id: gcp.firebasestorage.projects.buckets.list
+    # python: svc.projects().buckets().list(**params).execute()
+    calls:
+      - action: projects.buckets.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.buckets }}'
+      item:
+        name: '{{ item.name }}'
+  # Gets the default bucket.
+  # ── gcp.firebasestorage.projects.getDefaultBucket ──
+  - discovery_id: gcp.firebasestorage.projects.getDefaultBucket
+    # python: svc.projects().getDefaultBucket(**params).execute()
+    calls:
+      - action: projects.getDefaultBucket
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        bucket: '{{ response.bucket }}'
+        location: '{{ response.location }}'
+        name: '{{ response.name }}'
+        storageClass: '{{ response.storageClass }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets a single linked storage bucket.
+  # ── gcp.firebasestorage.projects.buckets.get [dependent] ──
+  - discovery_id: gcp.firebasestorage.projects.buckets.get
+    for_each: gcp.firebasestorage.projects.buckets.list
+    # python: svc.projects().buckets().get(**params).execute()
+    calls:
+      - action: projects.buckets.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        name: '{{ response.name }}'
+    # required_params: ['name']

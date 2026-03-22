@@ -13,12 +13,11 @@ http://<NLB>/gateway/...   (via API Gateway)
 ┌─────────────────────────────────┐
 │  CSPM Platform                  │
 │                                 │
-│  ▸ Dashboard                    │   ← Landing page / executive view
-│  ▸ Onboarding                   │   ← Account & tenant setup
-│     ├─ Tenants                  │
+│  ▸ Dashboard                    │   ← Unified risk posture, executive view
+│  ▸ Onboarding                   │   ← Multi-CSP account & credential mgmt
 │     ├─ Accounts                 │
 │     └─ Schedules                │
-│  ▸ Scans                        │   ← Orchestration & scan management
+│  ▸ Scans                        │   ← Orchestration & scan pipeline
 │     ├─ Run Scan                 │
 │     ├─ Scan History             │
 │     └─ Scan Detail              │
@@ -27,37 +26,44 @@ http://<NLB>/gateway/...   (via API Gateway)
 │     ├─ Relationships            │
 │     ├─ Graph View               │
 │     └─ Drift                    │
-│  ▸ Threats                      │   ← Threat detection & analysis
+│  ▸ Threats                      │   ← Threat detection & kill-chain analysis
 │     ├─ Overview                 │
 │     ├─ Threat List              │
 │     ├─ Threat Detail            │
+│     ├─ MITRE ATT&CK Matrix      │   ← NEW: tactic/technique heat map
+│     ├─ Internet Exposure        │   ← NEW: attack surface + toxic combos
 │     ├─ Attack Paths             │
 │     ├─ Analytics                │
-│     └─ Hunting                  │
-│  ▸ Compliance                   │   ← Framework compliance
+│     ├─ Hunting                  │
+│     └─ Intelligence             │
+│  ▸ Compliance                   │   ← 13 frameworks, PDF/Excel reports
 │     ├─ Dashboard                │
 │     ├─ Framework Detail         │
 │     ├─ Control Detail           │
 │     └─ Reports                  │
-│  ▸ IAM Security                 │   ← Identity & access posture
-│     ├─ Findings                 │
-│     └─ Modules                  │
-│  ▸ Data Security                │   ← Data protection & lineage
-│     ├─ Catalog                  │
-│     ├─ Classification           │
-│     ├─ Lineage                  │
-│     ├─ Residency                │
-│     └─ Activity                 │
-│  ▸ Code Security (SecOps)       │   ← Code scanning
+│  ▸ IAM Security                 │   ← Identity & access posture (6 modules)
+│     ├─ Overview                 │   ← NEW: module scorecard
+│     ├─ Least Privilege          │   ← NEW: overprivileged entities
+│     ├─ MFA & Credentials        │   ← NEW: MFA rate + password policy
+│     └─ Role Management          │   ← NEW: role hygiene + access control
+│  ▸ Data Security                │   ← Data protection, PII/PHI/PCI, GDPR
+│     ├─ Overview                 │   ← NEW: data risk summary
+│     ├─ Data Catalog             │   ← 21 stores with sensitivity labels
+│     ├─ Classification           │   ← NEW: PII/PHI/PCI heat map
+│     ├─ Data Residency           │   ← NEW: geographic compliance map
+│     ├─ Data Lineage             │   ← NEW: data flow graph
+│     └─ Activity & Anomalies     │   ← NEW: exfiltration detection
+│  ▸ Code Security (SecOps)       │   ← IaC scanning, 14 languages
 │     ├─ Run Scan                 │
 │     ├─ Scan Results             │
 │     └─ Rule Library             │
 │  ▸ Settings                     │
-│     ├─ Platform Health          │
-│     └─ Engine Status            │
+│     └─ Platform Health          │
 │                                 │
 └─────────────────────────────────┘
 ```
+
+> **NEW pages** vs original spec are marked ← NEW above. All new pages are backed by live engine APIs.
 
 ---
 
@@ -81,19 +87,47 @@ http://<NLB>/gateway/...   (via API Gateway)
 
 ### 5. Threats
 **Route**: `/threats/*`
-**Purpose**: View/filter threats, analyze attack paths, correlate patterns, run threat hunts.
+**Purpose**: Threat detection, kill-chain analysis, MITRE ATT&CK matrix, attack surface, threat hunting.
+
+| Sub-page | Route | Description |
+|----------|-------|-------------|
+| Overview | `/threats` | Severity KPIs, by-service/account charts, correlation matrix |
+| Threat List | `/threats/list` | Filterable table of all findings |
+| Threat Detail | `/threats/:id` | Root cause, remediation, blast radius |
+| MITRE ATT&CK | `/threats/mitre` | Tactic × technique heat map — kill-chain coverage |
+| Internet Exposure | `/threats/exposure` | Internet-exposed resources + toxic combinations |
+| Attack Paths | `/threats/attack-paths` | Multi-hop graph attack path analysis |
+| Analytics | `/threats/analytics` | Trend, distribution, pattern charts |
+| Hunting | `/threats/hunting` | Predefined + custom threat hunt queries |
+| Intelligence | `/threats/intel` | Threat intelligence feed |
 
 ### 6. Compliance
 **Route**: `/compliance/*`
-**Purpose**: Framework compliance dashboards, control drill-down, report generation/download.
+**Purpose**: 13 framework dashboards (GDPR, HIPAA, PCI-DSS, CIS, NIST, SOC2 + 7 more), control drill-down, PDF/Excel report generation/download.
 
 ### 7. IAM Security
 **Route**: `/iam/*`
-**Purpose**: Identity & access management findings, module-level drill-down.
+**Purpose**: 6-module IAM posture analysis — least privilege, policy analysis, MFA enforcement, role hygiene, password policy, access control.
+
+| Sub-page | Route | Module(s) | Description |
+|----------|-------|-----------|-------------|
+| Overview | `/iam` | All | Module scorecard, risk score, critical findings |
+| Least Privilege | `/iam/least-privilege` | `least_privilege` + `policy_analysis` | Overprivileged entities, wildcard policies |
+| MFA & Credentials | `/iam/mfa` | `mfa` + `password_policy` | MFA adoption rate, stale keys, password policy |
+| Role Management | `/iam/roles` | `role_management` + `access_control` | Unused roles, trust relationships, SCPs |
 
 ### 8. Data Security
 **Route**: `/datasec/*`
-**Purpose**: Data catalog, classification (PII/PCI/PHI), lineage, residency, activity monitoring.
+**Purpose**: Data store inventory (21 stores), PII/PHI/PCI classification, GDPR residency compliance, data lineage, and access anomaly detection.
+
+| Sub-page | Route | Description |
+|----------|-------|-------------|
+| Overview | `/datasec` | Risk KPIs, compliance scores, data-at-risk summary |
+| Data Catalog | `/datasec/catalog` | All stores with sensitivity, encryption, access status |
+| Classification | `/datasec/classification` | PII/PHI/PCI detection heat map per store |
+| Residency | `/datasec/residency` | Geographic map, GDPR/DPDP violation list |
+| Data Lineage | `/datasec/lineage` | Flow graph — data movement between services |
+| Activity | `/datasec/activity` | Access anomaly time-series, exfiltration detection |
 
 ### 9. Code Security (SecOps)
 **Route**: `/secops/*`

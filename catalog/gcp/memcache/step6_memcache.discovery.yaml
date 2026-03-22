@@ -1,0 +1,191 @@
+# ============================================================
+# Discovery YAML — memcache (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 7 | independent: 4 | dependent: 3
+# ops with fields: 7/7 | dep ops with chain: 3/3
+# ============================================================
+version: '1.0'
+provider: gcp
+service: memcache
+
+services:
+  client: memcache
+  module: "googleapiclient.discovery.build('memcache', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Gets information about a location.
+  # ── gcp.memcache.projects.locations.get ──
+  - discovery_id: gcp.memcache.projects.locations.get
+    # python: svc.projects().locations().get(**params).execute()
+    calls:
+      - action: projects.locations.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        displayName: '{{ response.displayName }}'
+        labels: '{{ response.labels }}'
+        locationId: '{{ response.locationId }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+  # Lists Instances in a given location.
+  # ── gcp.memcache.projects.locations.instances.list ──
+  - discovery_id: gcp.memcache.projects.locations.instances.list
+    # python: svc.projects().locations().instances().list(**params).execute()
+    calls:
+      - action: projects.locations.instances.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.instances }}'
+      item:
+        authorizedNetwork: '{{ item.authorizedNetwork }}'
+        createTime: '{{ item.createTime }}'
+        discoveryEndpoint: '{{ item.discoveryEndpoint }}'
+        displayName: '{{ item.displayName }}'
+        instanceMessages: '{{ item.instanceMessages }}'
+        labels: '{{ item.labels }}'
+        maintenancePolicy: '{{ item.maintenancePolicy }}'
+        maintenanceSchedule: '{{ item.maintenanceSchedule }}'
+        memcacheFullVersion: '{{ item.memcacheFullVersion }}'
+        memcacheNodes: '{{ item.memcacheNodes }}'
+        memcacheVersion: '{{ item.memcacheVersion }}'
+        name: '{{ item.name }}'
+        nodeConfig: '{{ item.nodeConfig }}'
+        nodeCount: '{{ item.nodeCount }}'
+        parameters: '{{ item.parameters }}'
+        reservedIpRangeId: '{{ item.reservedIpRangeId }}'
+        satisfiesPzi: '{{ item.satisfiesPzi }}'
+        satisfiesPzs: '{{ item.satisfiesPzs }}'
+        state: '{{ item.state }}'
+        updateTime: '{{ item.updateTime }}'
+        zones: '{{ item.zones }}'
+  # Lists information about the supported locations for this service. This method can be called in two w
+  # ── gcp.memcache.projects.locations.list ──
+  - discovery_id: gcp.memcache.projects.locations.list
+    # python: svc.projects().locations().list(**params).execute()
+    calls:
+      - action: projects.locations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.locations }}'
+      item:
+        displayName: '{{ item.displayName }}'
+        labels: '{{ item.labels }}'
+        locationId: '{{ item.locationId }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+  # Lists operations that match the specified filter in the request. If the server doesn't support this 
+  # ── gcp.memcache.projects.locations.operations.list ──
+  - discovery_id: gcp.memcache.projects.locations.operations.list
+    # python: svc.projects().locations().operations().list(**params).execute()
+    calls:
+      - action: projects.locations.operations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.operations }}'
+      item:
+        done: '{{ item.done }}'
+        error: '{{ item.error }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+        response: '{{ item.response }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets details of a single Instance.
+  # ── gcp.memcache.projects.locations.instances.get [dependent] ──
+  - discovery_id: gcp.memcache.projects.locations.instances.get
+    for_each: gcp.memcache.projects.locations.instances.list
+    # python: svc.projects().locations().instances().get(**params).execute()
+    calls:
+      - action: projects.locations.instances.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        authorizedNetwork: '{{ response.authorizedNetwork }}'
+        createTime: '{{ response.createTime }}'
+        discoveryEndpoint: '{{ response.discoveryEndpoint }}'
+        displayName: '{{ response.displayName }}'
+        instanceMessages: '{{ response.instanceMessages }}'
+        labels: '{{ response.labels }}'
+        maintenancePolicy: '{{ response.maintenancePolicy }}'
+        maintenanceSchedule: '{{ response.maintenanceSchedule }}'
+        memcacheFullVersion: '{{ response.memcacheFullVersion }}'
+        memcacheNodes: '{{ response.memcacheNodes }}'
+        memcacheVersion: '{{ response.memcacheVersion }}'
+        name: '{{ response.name }}'
+        nodeConfig: '{{ response.nodeConfig }}'
+        nodeCount: '{{ response.nodeCount }}'
+        parameters: '{{ response.parameters }}'
+        reservedIpRangeId: '{{ response.reservedIpRangeId }}'
+        satisfiesPzi: '{{ response.satisfiesPzi }}'
+        satisfiesPzs: '{{ response.satisfiesPzs }}'
+        state: '{{ response.state }}'
+        updateTime: '{{ response.updateTime }}'
+        zones: '{{ response.zones }}'
+    # required_params: ['name']
+  # Returns tags directly bound to a GCP resource.
+  # ── gcp.memcache.projects.locations.instances.getTags [dependent] ──
+  - discovery_id: gcp.memcache.projects.locations.instances.getTags
+    for_each: gcp.memcache.projects.locations.instances.list
+    # python: svc.projects().locations().instances().getTags(**params).execute()
+    calls:
+      - action: projects.locations.instances.getTags
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        name: '{{ response.name }}'
+        tags: '{{ response.tags }}'
+    # required_params: ['name']
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.memcache.projects.locations.operations.get [dependent] ──
+  - discovery_id: gcp.memcache.projects.locations.operations.get
+    for_each: gcp.memcache.projects.locations.operations.list
+    # python: svc.projects().locations().operations().get(**params).execute()
+    calls:
+      - action: projects.locations.operations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']

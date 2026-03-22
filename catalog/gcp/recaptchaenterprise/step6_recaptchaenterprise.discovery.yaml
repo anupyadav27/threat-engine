@@ -1,0 +1,213 @@
+# ============================================================
+# Discovery YAML — recaptchaenterprise (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 10 | independent: 6 | dependent: 4
+# ops with fields: 10/10 | dep ops with chain: 4/4
+# ============================================================
+version: '1.0'
+provider: gcp
+service: recaptchaenterprise
+
+services:
+  client: recaptchaenterprise
+  module: "googleapiclient.discovery.build('recaptchaenterprise', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Returns the list of all firewall policies that belong to a project.
+  # ── gcp.recaptchaenterprise.projects.firewallpolicies.list ──
+  - discovery_id: gcp.recaptchaenterprise.projects.firewallpolicies.list
+    # python: svc.projects().firewallpolicies().list(**params).execute()
+    calls:
+      - action: projects.firewallpolicies.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.firewallpolicies }}'
+      item:
+        actions: '{{ item.actions }}'
+        condition: '{{ item.condition }}'
+        description: '{{ item.description }}'
+        name: '{{ item.name }}'
+        path: '{{ item.path }}'
+  # Returns the list of all keys that belong to a project.
+  # ── gcp.recaptchaenterprise.projects.keys.list ──
+  - discovery_id: gcp.recaptchaenterprise.projects.keys.list
+    # python: svc.projects().keys().list(**params).execute()
+    calls:
+      - action: projects.keys.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.keys }}'
+      item:
+        androidSettings: '{{ item.androidSettings }}'
+        createTime: '{{ item.createTime }}'
+        displayName: '{{ item.displayName }}'
+        expressSettings: '{{ item.expressSettings }}'
+        iosSettings: '{{ item.iosSettings }}'
+        labels: '{{ item.labels }}'
+        name: '{{ item.name }}'
+        testingOptions: '{{ item.testingOptions }}'
+        wafSettings: '{{ item.wafSettings }}'
+        webSettings: '{{ item.webSettings }}'
+  # Lists all IP overrides for a key.
+  # ── gcp.recaptchaenterprise.projects.keys.listIpOverrides ──
+  - discovery_id: gcp.recaptchaenterprise.projects.keys.listIpOverrides
+    # python: svc.projects().keys().listIpOverrides(**params).execute()
+    calls:
+      - action: projects.keys.listIpOverrides
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.keys }}'
+      item:
+        ip: '{{ item.ip }}'
+        overrideType: '{{ item.overrideType }}'
+  # Search group memberships related to a given account.
+  # ── gcp.recaptchaenterprise.projects.relatedaccountgroupmemberships.search ──
+  - discovery_id: gcp.recaptchaenterprise.projects.relatedaccountgroupmemberships.search
+    # python: svc.projects().relatedaccountgroupmemberships().search(**params).execute()
+    calls:
+      - action: projects.relatedaccountgroupmemberships.search
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.relatedaccountgroupmemberships }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        hashedAccountId: '{{ item.hashedAccountId }}'
+        name: '{{ item.name }}'
+  # List groups of related accounts.
+  # ── gcp.recaptchaenterprise.projects.relatedaccountgroups.list ──
+  - discovery_id: gcp.recaptchaenterprise.projects.relatedaccountgroups.list
+    # python: svc.projects().relatedaccountgroups().list(**params).execute()
+    calls:
+      - action: projects.relatedaccountgroups.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.relatedaccountgroups }}'
+      item:
+        name: '{{ item.name }}'
+  # Get memberships in a group of related accounts.
+  # ── gcp.recaptchaenterprise.projects.relatedaccountgroups.memberships.list ──
+  - discovery_id: gcp.recaptchaenterprise.projects.relatedaccountgroups.memberships.list
+    # python: svc.projects().relatedaccountgroups().memberships().list(**params).execute()
+    calls:
+      - action: projects.relatedaccountgroups.memberships.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.memberships }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        hashedAccountId: '{{ item.hashedAccountId }}'
+        name: '{{ item.name }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Returns the specified firewall policy.
+  # ── gcp.recaptchaenterprise.projects.firewallpolicies.get [dependent] ──
+  - discovery_id: gcp.recaptchaenterprise.projects.firewallpolicies.get
+    for_each: gcp.recaptchaenterprise.projects.firewallpolicies.list
+    # python: svc.projects().firewallpolicies().get(**params).execute()
+    calls:
+      - action: projects.firewallpolicies.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        actions: '{{ response.actions }}'
+        condition: '{{ response.condition }}'
+        description: '{{ response.description }}'
+        name: '{{ response.name }}'
+        path: '{{ response.path }}'
+    # required_params: ['name']
+  # Returns the specified key.
+  # ── gcp.recaptchaenterprise.projects.keys.get [dependent] ──
+  - discovery_id: gcp.recaptchaenterprise.projects.keys.get
+    for_each: gcp.recaptchaenterprise.projects.keys.listIpOverrides
+    # python: svc.projects().keys().get(**params).execute()
+    calls:
+      - action: projects.keys.get
+        params:
+          name: '{{ item.ip }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        androidSettings: '{{ response.androidSettings }}'
+        createTime: '{{ response.createTime }}'
+        displayName: '{{ response.displayName }}'
+        expressSettings: '{{ response.expressSettings }}'
+        iosSettings: '{{ response.iosSettings }}'
+        labels: '{{ response.labels }}'
+        name: '{{ response.name }}'
+        testingOptions: '{{ response.testingOptions }}'
+        wafSettings: '{{ response.wafSettings }}'
+        webSettings: '{{ response.webSettings }}'
+    # required_params: ['name']
+  # Get some aggregated metrics for a Key. This data can be used to build dashboards.
+  # ── gcp.recaptchaenterprise.projects.keys.getMetrics [dependent] ──
+  - discovery_id: gcp.recaptchaenterprise.projects.keys.getMetrics
+    for_each: gcp.recaptchaenterprise.projects.keys.listIpOverrides
+    # python: svc.projects().keys().getMetrics(**params).execute()
+    calls:
+      - action: projects.keys.getMetrics
+        params:
+          name: '{{ item.ip }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        challengeMetrics: '{{ response.challengeMetrics }}'
+        name: '{{ response.name }}'
+        scoreMetrics: '{{ response.scoreMetrics }}'
+        startTime: '{{ response.startTime }}'
+    # required_params: ['name']
+  # Returns the secret key related to the specified public key. You must use the legacy secret key only 
+  # ── gcp.recaptchaenterprise.projects.keys.retrieveLegacySecretKey [dependent] ──
+  - discovery_id: gcp.recaptchaenterprise.projects.keys.retrieveLegacySecretKey
+    for_each: gcp.recaptchaenterprise.projects.keys.listIpOverrides
+    # python: svc.projects().keys().retrieveLegacySecretKey(**params).execute()
+    calls:
+      - action: projects.keys.retrieveLegacySecretKey
+        params:
+          key: '{{ item.ip }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        legacySecretKey: '{{ response.legacySecretKey }}'
+    # required_params: ['key']

@@ -25,10 +25,10 @@ spec:
       serviceAccountName: engine-sa
       containers:
       - name: engine-secops
-        image: yadavanup84/secops-scanner:latest
+        image: yadavanup84/secops-scanner:v-unified
         imagePullPolicy: Always
         ports:
-        - containerPort: 8000
+        - containerPort: 8009
           name: http
         envFrom:
         - configMapRef:
@@ -40,6 +40,39 @@ spec:
           value: /app
         - name: LOG_LEVEL
           value: "INFO"
+        # ── OpenTelemetry ─────────────────────────────────────────────────
+        - name: OTEL_SERVICE_NAME
+          value: "engine-secops"
+        - name: OTEL_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_ENABLED
+              optional: true
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_EXPORTER_OTLP_ENDPOINT
+              optional: true
+        - name: OTEL_EXPORTER_OTLP_INSECURE
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_EXPORTER_OTLP_INSECURE
+              optional: true
+        - name: OTEL_TRACES_SAMPLER
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_TRACES_SAMPLER
+              optional: true
+        - name: OTEL_PROPAGATORS
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_PROPAGATORS
+              optional: true
         - name: SCAN_INPUT_PATH
           value: "/app/scan_input"
         - name: SCAN_OUTPUT_PATH
@@ -58,6 +91,20 @@ spec:
               key: s3-region
         - name: ENGINE_NAME
           value: "secops"
+        # ── SCA/SBOM Engine — connects to vulnerability DB ──────────
+        - name: DB_HOST
+          value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_NAME
+          value: "vulnerability_db"
+        - name: DB_USER
+          value: "postgres"
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: SECOPS_DB_PASSWORD
         volumeMounts:
         - name: scan-input
           mountPath: /app/scan_input
@@ -72,15 +119,15 @@ spec:
             cpu: "500m"
         livenessProbe:
           httpGet:
-            path: /health
-            port: 8000
+            path: /api/v1/health/live
+            port: 8009
           initialDelaySeconds: 30
           periodSeconds: 30
           failureThreshold: 3
         readinessProbe:
           httpGet:
-            path: /health
-            port: 8000
+            path: /api/v1/health/ready
+            port: 8009
           initialDelaySeconds: 10
           periodSeconds: 10
           failureThreshold: 3
@@ -142,7 +189,7 @@ spec:
   type: ClusterIP
   ports:
   - port: 80
-    targetPort: 8000
+    targetPort: 8009
     protocol: TCP
     name: http
   selector:

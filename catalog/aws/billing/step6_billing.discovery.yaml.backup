@@ -1,0 +1,73 @@
+version: '1.0'
+provider: aws
+service: billing
+services:
+  client: billing
+  module: boto3.client
+discovery:
+- discovery_id: aws.billing.listBillingViews
+  calls:
+  - action: listBillingViews
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.billingViews }}'
+    item:
+      arn: '{{ item.arn }}'
+      name: '{{ item.name }}'
+      description: '{{ item.description }}'
+      ownerAccountId: '{{ item.ownerAccountId }}'
+      sourceAccountId: '{{ item.sourceAccountId }}'
+      billingViewType: '{{ item.billingViewType }}'
+      healthStatus: '{{ item.healthStatus }}'
+- discovery_id: aws.billing.getBillingView
+  calls:
+  - action: getBillingView
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.billingView }}'
+    item:
+      arn: '{{ item.arn }}'
+      name: '{{ item.name }}'
+      description: '{{ item.description }}'
+      billingViewType: '{{ item.billingViewType }}'
+      ownerAccountId: '{{ item.ownerAccountId }}'
+      sourceAccountId: '{{ item.sourceAccountId }}'
+      dataFilterExpression: '{{ item.dataFilterExpression }}'
+      createdAt: '{{ item.createdAt }}'
+      updatedAt: '{{ item.updatedAt }}'
+      derivedViewCount: '{{ item.derivedViewCount }}'
+      sourceViewCount: '{{ item.sourceViewCount }}'
+      viewDefinitionLastUpdatedAt: '{{ item.viewDefinitionLastUpdatedAt }}'
+      healthStatus: '{{ item.healthStatus }}'
+- discovery_id: aws.billing.getResourcePolicy
+  calls:
+  - action: getResourcePolicy
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.resourceArn }}'
+- discovery_id: aws.billing.listSourceViewsForBillingView
+  calls:
+  - action: listSourceViewsForBillingView
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.sourceViews }}'
+- discovery_id: aws.billing.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.resourceTags }}'
+    item:
+      key: '{{ item.key }}'
+      value: '{{ item.value }}'
+checks: []

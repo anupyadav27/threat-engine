@@ -1,0 +1,205 @@
+version: '1.0'
+provider: aws
+service: kms
+services:
+  client: kms
+  module: boto3.client
+discovery:
+- discovery_id: aws.kms.describeCustomKeyStores
+  calls:
+  - action: describeCustomKeyStores
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.CustomKeyStores }}'
+    item:
+      CustomKeyStoreId: '{{ item.CustomKeyStoreId }}'
+      CustomKeyStoreName: '{{ item.CustomKeyStoreName }}'
+      CloudHsmClusterId: '{{ item.CloudHsmClusterId }}'
+      TrustAnchorCertificate: '{{ item.TrustAnchorCertificate }}'
+      ConnectionState: '{{ item.ConnectionState }}'
+      ConnectionErrorCode: '{{ item.ConnectionErrorCode }}'
+      CreationDate: '{{ item.CreationDate }}'
+      CustomKeyStoreType: '{{ item.CustomKeyStoreType }}'
+      XksProxyConfiguration: '{{ item.XksProxyConfiguration }}'
+- discovery_id: aws.kms.listAliases
+  calls:
+  - action: listAliases
+    save_as: response
+    on_error: continue
+    params:
+      Limit: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Aliases }}'
+    item:
+      AliasName: '{{ item.AliasName }}'
+      AliasArn: '{{ item.AliasArn }}'
+      TargetKeyId: '{{ item.TargetKeyId }}'
+      CreationDate: '{{ item.CreationDate }}'
+      LastUpdatedDate: '{{ item.LastUpdatedDate }}'
+- discovery_id: aws.kms.listKeys
+  calls:
+  - action: listKeys
+    save_as: response
+    on_error: continue
+    params:
+      Limit: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Keys }}'
+    item:
+      KeyId: '{{ item.KeyId }}'
+      KeyArn: '{{ item.KeyArn }}'
+- discovery_id: aws.kms.describeKey
+  calls:
+  - action: describeKey
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.KeyMetadata }}'
+    item:
+      AWSAccountId: '{{ item.AWSAccountId }}'
+      KeyId: '{{ item.KeyId }}'
+      Arn: '{{ item.Arn }}'
+      CreationDate: '{{ item.CreationDate }}'
+      Enabled: '{{ item.Enabled }}'
+      Description: '{{ item.Description }}'
+      KeyUsage: '{{ item.KeyUsage }}'
+      KeyState: '{{ item.KeyState }}'
+      DeletionDate: '{{ item.DeletionDate }}'
+      ValidTo: '{{ item.ValidTo }}'
+      Origin: '{{ item.Origin }}'
+      CustomKeyStoreId: '{{ item.CustomKeyStoreId }}'
+      CloudHsmClusterId: '{{ item.CloudHsmClusterId }}'
+      ExpirationModel: '{{ item.ExpirationModel }}'
+      KeyManager: '{{ item.KeyManager }}'
+      CustomerMasterKeySpec: '{{ item.CustomerMasterKeySpec }}'
+      KeySpec: '{{ item.KeySpec }}'
+      EncryptionAlgorithms: '{{ item.EncryptionAlgorithms }}'
+      SigningAlgorithms: '{{ item.SigningAlgorithms }}'
+      KeyAgreementAlgorithms: '{{ item.KeyAgreementAlgorithms }}'
+      MultiRegion: '{{ item.MultiRegion }}'
+      MultiRegionConfiguration: '{{ item.MultiRegionConfiguration }}'
+      PendingDeletionWindowInDays: '{{ item.PendingDeletionWindowInDays }}'
+      MacAlgorithms: '{{ item.MacAlgorithms }}'
+      XksKeyConfiguration: '{{ item.XksKeyConfiguration }}'
+      CurrentKeyMaterialId: '{{ item.CurrentKeyMaterialId }}'
+- discovery_id: aws.kms.getKeyPolicy
+  calls:
+  - action: getKeyPolicy
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Policy }}'
+- discovery_id: aws.kms.getKeyRotationStatus
+  calls:
+  - action: getKeyRotationStatus
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.KeyRotationEnabled }}'
+- discovery_id: aws.kms.getParametersForImport
+  calls:
+  - action: getParametersForImport
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.KeyId }}'
+- discovery_id: aws.kms.getPublicKey
+  calls:
+  - action: getPublicKey
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.EncryptionAlgorithms }}'
+- discovery_id: aws.kms.listGrants
+  calls:
+  - action: listGrants
+    save_as: response
+    on_error: continue
+    params:
+      Limit: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Grants }}'
+    item:
+      KeyId: '{{ item.KeyId }}'
+      GrantId: '{{ item.GrantId }}'
+      Name: '{{ item.Name }}'
+      CreationDate: '{{ item.CreationDate }}'
+      GranteePrincipal: '{{ item.GranteePrincipal }}'
+      RetiringPrincipal: '{{ item.RetiringPrincipal }}'
+      IssuingAccount: '{{ item.IssuingAccount }}'
+      Operations: '{{ item.Operations }}'
+      Constraints: '{{ item.Constraints }}'
+- discovery_id: aws.kms.listKeyPolicies
+  calls:
+  - action: listKeyPolicies
+    save_as: response
+    on_error: continue
+    params:
+      Limit: 1000
+  emit:
+    as: item
+    items_for: '{{ response.PolicyNames }}'
+- discovery_id: aws.kms.listKeyRotations
+  calls:
+  - action: listKeyRotations
+    save_as: response
+    on_error: continue
+    params:
+      Limit: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Rotations }}'
+    item:
+      KeyId: '{{ item.KeyId }}'
+      KeyMaterialId: '{{ item.KeyMaterialId }}'
+      KeyMaterialDescription: '{{ item.KeyMaterialDescription }}'
+      ImportState: '{{ item.ImportState }}'
+      KeyMaterialState: '{{ item.KeyMaterialState }}'
+      ExpirationModel: '{{ item.ExpirationModel }}'
+      ValidTo: '{{ item.ValidTo }}'
+      RotationDate: '{{ item.RotationDate }}'
+      RotationType: '{{ item.RotationType }}'
+- discovery_id: aws.kms.listResourceTags
+  calls:
+  - action: listResourceTags
+    save_as: response
+    on_error: continue
+    params:
+      Limit: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+    item:
+      TagKey: '{{ item.TagKey }}'
+      TagValue: '{{ item.TagValue }}'
+- discovery_id: aws.kms.listRetirableGrants
+  calls:
+  - action: listRetirableGrants
+    save_as: response
+    on_error: continue
+    params:
+      Limit: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Grants }}'
+    item:
+      KeyId: '{{ item.KeyId }}'
+      GrantId: '{{ item.GrantId }}'
+      Name: '{{ item.Name }}'
+      CreationDate: '{{ item.CreationDate }}'
+      GranteePrincipal: '{{ item.GranteePrincipal }}'
+      RetiringPrincipal: '{{ item.RetiringPrincipal }}'
+      IssuingAccount: '{{ item.IssuingAccount }}'
+      Operations: '{{ item.Operations }}'
+      Constraints: '{{ item.Constraints }}'
+checks: []

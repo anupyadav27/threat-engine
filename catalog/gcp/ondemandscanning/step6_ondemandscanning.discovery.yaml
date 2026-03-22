@@ -1,0 +1,101 @@
+# ============================================================
+# Discovery YAML — ondemandscanning (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 3 | independent: 2 | dependent: 1
+# ops with fields: 3/3 | dep ops with chain: 1/1
+# ============================================================
+version: '1.0'
+provider: gcp
+service: ondemandscanning
+
+services:
+  client: ondemandscanning
+  module: "googleapiclient.discovery.build('ondemandscanning', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists operations that match the specified filter in the request. If the server doesn't support this 
+  # ── gcp.ondemandscanning.projects.locations.operations.list ──
+  - discovery_id: gcp.ondemandscanning.projects.locations.operations.list
+    # python: svc.projects().locations().operations().list(**params).execute()
+    calls:
+      - action: projects.locations.operations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.operations }}'
+      item:
+        done: '{{ item.done }}'
+        error: '{{ item.error }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+        response: '{{ item.response }}'
+  # Lists vulnerabilities resulting from a successfully completed scan.
+  # ── gcp.ondemandscanning.projects.locations.scans.vulnerabilities.list ──
+  - discovery_id: gcp.ondemandscanning.projects.locations.scans.vulnerabilities.list
+    # python: svc.projects().locations().scans().vulnerabilities().list(**params).execute()
+    calls:
+      - action: projects.locations.scans.vulnerabilities.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.vulnerabilities }}'
+      item:
+        attestation: '{{ item.attestation }}'
+        build: '{{ item.build }}'
+        compliance: '{{ item.compliance }}'
+        createTime: '{{ item.createTime }}'
+        deployment: '{{ item.deployment }}'
+        discovery: '{{ item.discovery }}'
+        dsseAttestation: '{{ item.dsseAttestation }}'
+        envelope: '{{ item.envelope }}'
+        image: '{{ item.image }}'
+        name: '{{ item.name }}'
+        noteName: '{{ item.noteName }}'
+        package: '{{ item.package }}'
+        remediation: '{{ item.remediation }}'
+        resourceUri: '{{ item.resourceUri }}'
+        sbomReference: '{{ item.sbomReference }}'
+        secret: '{{ item.secret }}'
+        updateTime: '{{ item.updateTime }}'
+        upgrade: '{{ item.upgrade }}'
+        vulnerability: '{{ item.vulnerability }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.ondemandscanning.projects.locations.operations.get [dependent] ──
+  - discovery_id: gcp.ondemandscanning.projects.locations.operations.get
+    for_each: gcp.ondemandscanning.projects.locations.operations.list
+    # python: svc.projects().locations().operations().get(**params).execute()
+    calls:
+      - action: projects.locations.operations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']

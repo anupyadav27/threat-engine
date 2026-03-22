@@ -1,0 +1,130 @@
+# ============================================================
+# Discovery YAML — searchconsole (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 5 | independent: 1 | dependent: 4
+# ops with fields: 5/5 | dep ops with chain: 3/4
+# ============================================================
+version: '1.0'
+provider: gcp
+service: searchconsole
+
+services:
+  client: searchconsole
+  module: "googleapiclient.discovery.build('searchconsole', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  #  Lists the user's Search Console sites.
+  # ── gcp.searchconsole.sites.list ──
+  - discovery_id: gcp.searchconsole.sites.list
+    # python: svc.sites().list(**params).execute()
+    calls:
+      - action: sites.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.sites }}'
+      item:
+        permissionLevel: '{{ item.permissionLevel }}'
+        siteUrl: '{{ item.siteUrl }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Query your data with filters and parameters that you define. Returns zero or more rows grouped by th
+  # ── gcp.searchconsole.searchanalytics.query [dependent] ──
+  - discovery_id: gcp.searchconsole.searchanalytics.query
+    for_each: gcp.searchconsole.sites.list
+    # python: svc.searchanalytics().query(**params).execute()
+    calls:
+      - action: searchanalytics.query
+        params:
+          siteUrl: '{{ item.siteUrl }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.searchanalytics }}'
+      item:
+        clicks: '{{ item.clicks }}'
+        ctr: '{{ item.ctr }}'
+        impressions: '{{ item.impressions }}'
+        keys: '{{ item.keys }}'
+        position: '{{ item.position }}'
+    # required_params: ['siteUrl']
+  # Retrieves information about a specific sitemap.
+  # ── gcp.searchconsole.sitemaps.get [dependent] ──
+  - discovery_id: gcp.searchconsole.sitemaps.get
+    # python: svc.sitemaps().get(**params).execute()
+    calls:
+      - action: sitemaps.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        contents: '{{ response.contents }}'
+        errors: '{{ response.errors }}'
+        isPending: '{{ response.isPending }}'
+        isSitemapsIndex: '{{ response.isSitemapsIndex }}'
+        lastDownloaded: '{{ response.lastDownloaded }}'
+        lastSubmitted: '{{ response.lastSubmitted }}'
+        path: '{{ response.path }}'
+        type: '{{ response.type }}'
+    # required_params: ['feedpath', 'siteUrl']
+  #  Lists the [sitemaps-entries](/webmaster-tools/v3/sitemaps) submitted for this site, or included in 
+  # ── gcp.searchconsole.sitemaps.list [dependent] ──
+  - discovery_id: gcp.searchconsole.sitemaps.list
+    for_each: gcp.searchconsole.sites.list
+    # python: svc.sitemaps().list(**params).execute()
+    calls:
+      - action: sitemaps.list
+        params:
+          siteUrl: '{{ item.siteUrl }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.sitemaps }}'
+      item:
+        contents: '{{ item.contents }}'
+        errors: '{{ item.errors }}'
+        isPending: '{{ item.isPending }}'
+        isSitemapsIndex: '{{ item.isSitemapsIndex }}'
+        lastDownloaded: '{{ item.lastDownloaded }}'
+        lastSubmitted: '{{ item.lastSubmitted }}'
+        path: '{{ item.path }}'
+        type: '{{ item.type }}'
+        warnings: '{{ item.warnings }}'
+    # required_params: ['siteUrl']
+  #  Retrieves information about specific site.
+  # ── gcp.searchconsole.sites.get [dependent] ──
+  - discovery_id: gcp.searchconsole.sites.get
+    for_each: gcp.searchconsole.sites.list
+    # python: svc.sites().get(**params).execute()
+    calls:
+      - action: sites.get
+        params:
+          siteUrl: '{{ item.siteUrl }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        permissionLevel: '{{ response.permissionLevel }}'
+        siteUrl: '{{ response.siteUrl }}'
+    # required_params: ['siteUrl']

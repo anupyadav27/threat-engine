@@ -1,0 +1,50 @@
+# ============================================================
+# Discovery YAML — pagespeedonline (v5)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 1 | independent: 0 | dependent: 1
+# ops with fields: 1/1 | dep ops with chain: 0/1
+# ============================================================
+version: '1.0'
+provider: gcp
+service: pagespeedonline
+
+services:
+  client: pagespeedonline
+  module: "googleapiclient.discovery.build('pagespeedonline', 'v5')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Runs PageSpeed analysis on the page at the specified URL, and returns PageSpeed scores, a list of su
+  # ── gcp.pagespeedonline.pagespeedapi.runpagespeed [dependent] ──
+  - discovery_id: gcp.pagespeedonline.pagespeedapi.runpagespeed
+    # python: svc.pagespeedapi().runpagespeed(**params).execute()
+    calls:
+      - action: pagespeedapi.runpagespeed
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        analysisUTCTimestamp: '{{ response.analysisUTCTimestamp }}'
+        captchaResult: '{{ response.captchaResult }}'
+        id: '{{ response.id }}'
+        lighthouseResult: '{{ response.lighthouseResult }}'
+        loadingExperience: '{{ response.loadingExperience }}'
+        originLoadingExperience: '{{ response.originLoadingExperience }}'
+        version: '{{ response.version }}'
+    # required_params: ['url']

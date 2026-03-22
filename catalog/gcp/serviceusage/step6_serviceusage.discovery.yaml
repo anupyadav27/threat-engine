@@ -1,0 +1,118 @@
+# ============================================================
+# Discovery YAML — serviceusage (v1)
+# Generated: 2026-02-21T03:06:41Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 5 | independent: 3 | dependent: 2
+# ops with fields: 5/5 | dep ops with chain: 2/2
+# ============================================================
+version: '1.0'
+provider: gcp
+service: serviceusage
+
+services:
+  client: serviceusage
+  module: "googleapiclient.discovery.build('serviceusage', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists operations that match the specified filter in the request. If the server doesn't support this 
+  # ── gcp.serviceusage.operations.list ──
+  - discovery_id: gcp.serviceusage.operations.list
+    # python: svc.operations().list(**params).execute()
+    calls:
+      - action: operations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.operations }}'
+      item:
+        done: '{{ item.done }}'
+        error: '{{ item.error }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+        response: '{{ item.response }}'
+  # Returns the service configurations and enabled states for a given list of services.
+  # ── gcp.serviceusage.services.batchGet ──
+  - discovery_id: gcp.serviceusage.services.batchGet
+    # python: svc.services().batchGet(**params).execute()
+    calls:
+      - action: services.batchGet
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        services: '{{ response.services }}'
+  # List all services available to the specified project, and the current state of those services with r
+  # ── gcp.serviceusage.services.list ──
+  - discovery_id: gcp.serviceusage.services.list
+    # python: svc.services().list(**params).execute()
+    calls:
+      - action: services.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.services }}'
+      item:
+        config: '{{ item.config }}'
+        name: '{{ item.name }}'
+        parent: '{{ item.parent }}'
+        state: '{{ item.state }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.serviceusage.operations.get [dependent] ──
+  - discovery_id: gcp.serviceusage.operations.get
+    for_each: gcp.serviceusage.operations.list
+    # python: svc.operations().get(**params).execute()
+    calls:
+      - action: operations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']
+  # Returns the service configuration and enabled state for a given service.
+  # ── gcp.serviceusage.services.get [dependent] ──
+  - discovery_id: gcp.serviceusage.services.get
+    for_each: gcp.serviceusage.services.list
+    # python: svc.services().get(**params).execute()
+    calls:
+      - action: services.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        config: '{{ response.config }}'
+        name: '{{ response.name }}'
+        parent: '{{ response.parent }}'
+        state: '{{ response.state }}'
+    # required_params: ['name']

@@ -1,0 +1,208 @@
+# ============================================================
+# Discovery YAML — script (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 9 | independent: 2 | dependent: 7
+# ops with fields: 9/9 | dep ops with chain: 6/7
+# ============================================================
+version: '1.0'
+provider: gcp
+service: script
+
+services:
+  client: script
+  module: "googleapiclient.discovery.build('script', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # List information about processes made by or on behalf of a user, such as process type and current st
+  # ── gcp.script.processes.list ──
+  - discovery_id: gcp.script.processes.list
+    # python: svc.processes().list(**params).execute()
+    calls:
+      - action: processes.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.processes }}'
+      item:
+        duration: '{{ item.duration }}'
+        functionName: '{{ item.functionName }}'
+        processStatus: '{{ item.processStatus }}'
+        processType: '{{ item.processType }}'
+        projectName: '{{ item.projectName }}'
+        runtimeVersion: '{{ item.runtimeVersion }}'
+        startTime: '{{ item.startTime }}'
+        userAccessLevel: '{{ item.userAccessLevel }}'
+  # List information about a script's executed processes, such as process type and current status.
+  # ── gcp.script.processes.listScriptProcesses ──
+  - discovery_id: gcp.script.processes.listScriptProcesses
+    # python: svc.processes().listScriptProcesses(**params).execute()
+    calls:
+      - action: processes.listScriptProcesses
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.processes }}'
+      item:
+        duration: '{{ item.duration }}'
+        functionName: '{{ item.functionName }}'
+        processStatus: '{{ item.processStatus }}'
+        processType: '{{ item.processType }}'
+        projectName: '{{ item.projectName }}'
+        runtimeVersion: '{{ item.runtimeVersion }}'
+        startTime: '{{ item.startTime }}'
+        userAccessLevel: '{{ item.userAccessLevel }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets a deployment of an Apps Script project.
+  # ── gcp.script.projects.deployments.get [dependent] ──
+  - discovery_id: gcp.script.projects.deployments.get
+    for_each: gcp.script.projects.deployments.list
+    # python: svc.projects().deployments().get(**params).execute()
+    calls:
+      - action: projects.deployments.get
+        params:
+          deploymentId: '{{ item.deploymentId }}'
+          scriptId: '{{ item.createTime }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        deploymentConfig: '{{ response.deploymentConfig }}'
+        deploymentId: '{{ response.deploymentId }}'
+        entryPoints: '{{ response.entryPoints }}'
+        updateTime: '{{ response.updateTime }}'
+    # required_params: ['scriptId', 'deploymentId']
+  # Lists the deployments of an Apps Script project.
+  # ── gcp.script.projects.deployments.list [dependent] ──
+  - discovery_id: gcp.script.projects.deployments.list
+    for_each: gcp.script.projects.versions.list
+    # python: svc.projects().deployments().list(**params).execute()
+    calls:
+      - action: projects.deployments.list
+        params:
+          scriptId: '{{ item.createTime }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.deployments }}'
+      item:
+        deploymentConfig: '{{ item.deploymentConfig }}'
+        deploymentId: '{{ item.deploymentId }}'
+        entryPoints: '{{ item.entryPoints }}'
+        updateTime: '{{ item.updateTime }}'
+    # required_params: ['scriptId']
+  # Gets a script project's metadata.
+  # ── gcp.script.projects.get [dependent] ──
+  - discovery_id: gcp.script.projects.get
+    for_each: gcp.script.projects.versions.list
+    # python: svc.projects().get(**params).execute()
+    calls:
+      - action: projects.get
+        params:
+          scriptId: '{{ item.createTime }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        createTime: '{{ response.createTime }}'
+        creator: '{{ response.creator }}'
+        lastModifyUser: '{{ response.lastModifyUser }}'
+        parentId: '{{ response.parentId }}'
+        scriptId: '{{ response.scriptId }}'
+        title: '{{ response.title }}'
+        updateTime: '{{ response.updateTime }}'
+    # required_params: ['scriptId']
+  # Gets the content of the script project, including the code source and metadata for each script file.
+  # ── gcp.script.projects.getContent [dependent] ──
+  - discovery_id: gcp.script.projects.getContent
+    for_each: gcp.script.projects.versions.list
+    # python: svc.projects().getContent(**params).execute()
+    calls:
+      - action: projects.getContent
+        params:
+          scriptId: '{{ item.createTime }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        files: '{{ response.files }}'
+        scriptId: '{{ response.scriptId }}'
+    # required_params: ['scriptId']
+  # Get metrics data for scripts, such as number of executions and active users.
+  # ── gcp.script.projects.getMetrics [dependent] ──
+  - discovery_id: gcp.script.projects.getMetrics
+    for_each: gcp.script.projects.versions.list
+    # python: svc.projects().getMetrics(**params).execute()
+    calls:
+      - action: projects.getMetrics
+        params:
+          scriptId: '{{ item.createTime }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        activeUsers: '{{ response.activeUsers }}'
+        failedExecutions: '{{ response.failedExecutions }}'
+        totalExecutions: '{{ response.totalExecutions }}'
+    # required_params: ['scriptId']
+  # Gets a version of a script project.
+  # ── gcp.script.projects.versions.get [dependent] ──
+  - discovery_id: gcp.script.projects.versions.get
+    for_each: gcp.script.projects.versions.list
+    # python: svc.projects().versions().get(**params).execute()
+    calls:
+      - action: projects.versions.get
+        params:
+          scriptId: '{{ item.createTime }}'
+          versionNumber: '{{ item.createTime }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        createTime: '{{ response.createTime }}'
+        description: '{{ response.description }}'
+        scriptId: '{{ response.scriptId }}'
+        versionNumber: '{{ response.versionNumber }}'
+    # required_params: ['scriptId', 'versionNumber']
+  # List the versions of a script project.
+  # ── gcp.script.projects.versions.list [dependent] ──
+  - discovery_id: gcp.script.projects.versions.list
+    # python: svc.projects().versions().list(**params).execute()
+    calls:
+      - action: projects.versions.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.versions }}'
+      item:
+        createTime: '{{ item.createTime }}'
+        description: '{{ item.description }}'
+        scriptId: '{{ item.scriptId }}'
+        versionNumber: '{{ item.versionNumber }}'
+    # required_params: ['scriptId']

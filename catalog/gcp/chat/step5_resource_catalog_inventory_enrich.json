@@ -1,0 +1,1719 @@
+{
+  "csp": "gcp",
+  "generated_at": "2026-02-19T14:43:24.868260+00:00",
+  "anchors": {
+    "fixed": [
+      "project_id",
+      "org_id",
+      "folder_id",
+      "location",
+      "zone",
+      "region"
+    ]
+  },
+  "services": {
+    "chat": {
+      "version": "v1",
+      "resources": {
+        "attachments": {
+          "resource_type": "attachments",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.chat.spaces.search",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/spaces:search"
+                },
+                "python_call": "svc.spaces().search(**params).execute()",
+                "produces": {
+                  "name": "spaces[].name",
+                  "accessSettings": "spaces[].accessSettings",
+                  "threaded": "spaces[].threaded",
+                  "externalUserAllowed": "spaces[].externalUserAllowed",
+                  "permissionSettings": "spaces[].permissionSettings",
+                  "spaceType": "spaces[].spaceType",
+                  "lastActiveTime": "spaces[].lastActiveTime",
+                  "type": "spaces[].type",
+                  "importMode": "spaces[].importMode",
+                  "singleUserBotDm": "spaces[].singleUserBotDm",
+                  "spaceHistoryState": "spaces[].spaceHistoryState",
+                  "spaceUri": "spaces[].spaceUri",
+                  "membershipCount": "spaces[].membershipCount",
+                  "spaceThreadingState": "spaces[].spaceThreadingState",
+                  "predefinedPermissionSettings": "spaces[].predefinedPermissionSettings",
+                  "importModeExpireTime": "spaces[].importModeExpireTime",
+                  "adminInstalled": "spaces[].adminInstalled",
+                  "customer": "spaces[].customer",
+                  "spaceDetails": "spaces[].spaceDetails",
+                  "displayName": "spaces[].displayName",
+                  "createTime": "spaces[].createTime",
+                  "totalSize": "totalSize"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.chat.spaces.messages.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/messages"
+                },
+                "python_call": "svc.spaces().messages().list(**params).execute()",
+                "produces": {
+                  "name": "messages[].name",
+                  "matchedUrl": "messages[].matchedUrl",
+                  "deleteTime": "messages[].deleteTime",
+                  "emojiReactionSummaries": "messages[].emojiReactionSummaries",
+                  "thread": "messages[].thread",
+                  "deletionMetadata": "messages[].deletionMetadata",
+                  "sender": "messages[].sender",
+                  "argumentText": "messages[].argumentText",
+                  "accessoryWidgets": "messages[].accessoryWidgets",
+                  "fallbackText": "messages[].fallbackText",
+                  "text": "messages[].text",
+                  "cards": "messages[].cards",
+                  "clientAssignedMessageId": "messages[].clientAssignedMessageId",
+                  "cardsV2": "messages[].cardsV2",
+                  "attachment": "messages[].attachment",
+                  "attachedGifs": "messages[].attachedGifs",
+                  "quotedMessageMetadata": "messages[].quotedMessageMetadata",
+                  "slashCommand": "messages[].slashCommand",
+                  "threadReply": "messages[].threadReply",
+                  "annotations": "messages[].annotations",
+                  "privateMessageViewer": "messages[].privateMessageViewer",
+                  "lastUpdateTime": "messages[].lastUpdateTime",
+                  "formattedText": "messages[].formattedText",
+                  "space": "messages[].space",
+                  "actionResponse": "messages[].actionResponse",
+                  "createTime": "messages[].createTime"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.chat.spaces.messages.attachments.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.spaces().messages().attachments().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.chat.spaces.messages.attachments.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 3,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.chat.spaces.search",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.spaces().search(**params).execute()",
+                      "path": "/v1/spaces:search",
+                      "required_params": {},
+                      "output_list_field": "spaces",
+                      "output_id_field": "name",
+                      "produces": {
+                        "spaceId": {
+                          "via_list_field": "spaces",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"spaces\"][], extract item[\"name\"] \u2192 pass as \"spaceId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: spaceId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.chat.spaces.messages.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.spaces().messages().list(**params).execute()",
+                      "path": "/v1/{+parent}/messages",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^spaces/[^/]+$",
+                          "description": "Required. The resource name of the space to list messages from. Format: `spaces/{space}`"
+                        }
+                      },
+                      "output_list_field": "messages",
+                      "output_id_field": "name",
+                      "produces": {
+                        "messageId": {
+                          "via_list_field": "messages",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"messages\"][], extract item[\"name\"] \u2192 pass as \"messageId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: messageId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.chat.spaces.messages.attachments.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.spaces().messages().attachments().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^spaces/[^/]+/messages/[^/]+/attachments/[^/]+$",
+                          "description": "Required. Resource name of the attachment, in the form `spaces/{space}/messages/{message}/attachments/{attachment}`."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "spaceId": {
+                            "from_step": 1,
+                            "from_op": "gcp.chat.spaces.search",
+                            "field": "name"
+                          },
+                          "messageId": {
+                            "from_step": 2,
+                            "from_op": "gcp.chat.spaces.messages.list",
+                            "field": "name"
+                          },
+                          "attachmentId": {
+                            "from_step": 2,
+                            "from_op": "gcp.chat.spaces.messages.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "customEmojis": {
+          "resource_type": "customEmojis",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.chat.customEmojis.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/customEmojis"
+                },
+                "python_call": "svc.customEmojis().list(**params).execute()",
+                "produces": {
+                  "name": "customEmojis[].name",
+                  "uid": "customEmojis[].uid",
+                  "temporaryImageUri": "customEmojis[].temporaryImageUri",
+                  "emojiName": "customEmojis[].emojiName",
+                  "payload": "customEmojis[].payload"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.chat.customEmojis.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.customEmojis().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.chat.customEmojis.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.chat.customEmojis.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.customEmojis().list(**params).execute()",
+                      "path": "/v1/customEmojis",
+                      "required_params": {},
+                      "output_list_field": "customEmojis",
+                      "output_id_field": "name",
+                      "produces": {
+                        "customEmojiId": {
+                          "via_list_field": "customEmojis",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"customEmojis\"][], extract item[\"name\"] \u2192 pass as \"customEmojiId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: customEmojiId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.chat.customEmojis.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.customEmojis().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^customEmojis/[^/]+$",
+                          "description": "Required. Resource name of the custom emoji. Format: `customEmojis/{customEmoji}` You can use the emoji name as an alias"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "customEmojiId": {
+                            "from_step": 1,
+                            "from_op": "gcp.chat.customEmojis.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "media": {
+          "resource_type": "media",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "media/{resourceName}",
+              "built_from_parts": [
+                "resourceName"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [
+              "resourceName"
+            ],
+            "part_sources": {
+              "resourceName": {
+                "op": "gcp.chat.spaces.search",
+                "field_path": "spaces[].name",
+                "transform": null
+              }
+            },
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.chat.spaces.search",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/spaces:search"
+                },
+                "python_call": "svc.spaces().search(**params).execute()",
+                "produces": {
+                  "name": "spaces[].name",
+                  "accessSettings": "spaces[].accessSettings",
+                  "threaded": "spaces[].threaded",
+                  "externalUserAllowed": "spaces[].externalUserAllowed",
+                  "permissionSettings": "spaces[].permissionSettings",
+                  "spaceType": "spaces[].spaceType",
+                  "lastActiveTime": "spaces[].lastActiveTime",
+                  "type": "spaces[].type",
+                  "importMode": "spaces[].importMode",
+                  "singleUserBotDm": "spaces[].singleUserBotDm",
+                  "spaceHistoryState": "spaces[].spaceHistoryState",
+                  "spaceUri": "spaces[].spaceUri",
+                  "membershipCount": "spaces[].membershipCount",
+                  "spaceThreadingState": "spaces[].spaceThreadingState",
+                  "predefinedPermissionSettings": "spaces[].predefinedPermissionSettings",
+                  "importModeExpireTime": "spaces[].importModeExpireTime",
+                  "adminInstalled": "spaces[].adminInstalled",
+                  "customer": "spaces[].customer",
+                  "spaceDetails": "spaces[].spaceDetails",
+                  "displayName": "spaces[].displayName",
+                  "createTime": "spaces[].createTime",
+                  "totalSize": "totalSize"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.chat.media.download",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/media/{+resourceName}"
+                },
+                "python_call": "svc.media().download(**params).execute()",
+                "required_params": {
+                  "resourceName": {
+                    "from_identifier": "resourceName"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.chat.media.download",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.chat.spaces.search",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.spaces().search(**params).execute()",
+                      "path": "/v1/spaces:search",
+                      "required_params": {},
+                      "output_list_field": "spaces",
+                      "output_id_field": "name",
+                      "produces": {
+                        "spaceId": {
+                          "via_list_field": "spaces",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"spaces\"][], extract item[\"name\"] \u2192 pass as \"spaceId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: spaceId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.chat.media.download",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.media().download(**params).execute()",
+                      "path": "/v1/media/{+resourceName}",
+                      "required_params": {
+                        "resourceName": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^.*$",
+                          "description": "Name of the media that is being downloaded. See ReadRequest.resource_name."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "resourceName": {
+                          "from_step": 1,
+                          "from_op": "gcp.chat.spaces.search",
+                          "field": "name"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        },
+        "members": {
+          "resource_type": "members",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.chat.spaces.search",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/spaces:search"
+                },
+                "python_call": "svc.spaces().search(**params).execute()",
+                "produces": {
+                  "name": "spaces[].name",
+                  "accessSettings": "spaces[].accessSettings",
+                  "threaded": "spaces[].threaded",
+                  "externalUserAllowed": "spaces[].externalUserAllowed",
+                  "permissionSettings": "spaces[].permissionSettings",
+                  "spaceType": "spaces[].spaceType",
+                  "lastActiveTime": "spaces[].lastActiveTime",
+                  "type": "spaces[].type",
+                  "importMode": "spaces[].importMode",
+                  "singleUserBotDm": "spaces[].singleUserBotDm",
+                  "spaceHistoryState": "spaces[].spaceHistoryState",
+                  "spaceUri": "spaces[].spaceUri",
+                  "membershipCount": "spaces[].membershipCount",
+                  "spaceThreadingState": "spaces[].spaceThreadingState",
+                  "predefinedPermissionSettings": "spaces[].predefinedPermissionSettings",
+                  "importModeExpireTime": "spaces[].importModeExpireTime",
+                  "adminInstalled": "spaces[].adminInstalled",
+                  "customer": "spaces[].customer",
+                  "spaceDetails": "spaces[].spaceDetails",
+                  "displayName": "spaces[].displayName",
+                  "createTime": "spaces[].createTime",
+                  "totalSize": "totalSize"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.chat.spaces.members.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/members"
+                },
+                "python_call": "svc.spaces().members().list(**params).execute()",
+                "produces": {
+                  "name": "memberships[].name",
+                  "createTime": "memberships[].createTime",
+                  "state": "memberships[].state",
+                  "deleteTime": "memberships[].deleteTime",
+                  "member": "memberships[].member",
+                  "role": "memberships[].role",
+                  "groupMember": "memberships[].groupMember"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.chat.spaces.members.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.spaces().members().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.chat.spaces.members.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 3,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.chat.spaces.search",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.spaces().search(**params).execute()",
+                      "path": "/v1/spaces:search",
+                      "required_params": {},
+                      "output_list_field": "spaces",
+                      "output_id_field": "name",
+                      "produces": {
+                        "spaceId": {
+                          "via_list_field": "spaces",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"spaces\"][], extract item[\"name\"] \u2192 pass as \"spaceId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: spaceId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.chat.spaces.members.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.spaces().members().list(**params).execute()",
+                      "path": "/v1/{+parent}/members",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^spaces/[^/]+$",
+                          "description": "Required. The resource name of the space for which to fetch a membership list. Format: spaces/{space}"
+                        }
+                      },
+                      "output_list_field": "memberships",
+                      "output_id_field": "name",
+                      "produces": {
+                        "memberId": {
+                          "via_list_field": "memberships",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"memberships\"][], extract item[\"name\"] \u2192 pass as \"memberId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: memberId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.chat.spaces.members.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.spaces().members().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^spaces/[^/]+/members/[^/]+$",
+                          "description": "Required. Resource name of the membership to retrieve. To get the app's own membership [by using user authentication](ht"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "spaceId": {
+                            "from_step": 1,
+                            "from_op": "gcp.chat.spaces.search",
+                            "field": "name"
+                          },
+                          "memberId": {
+                            "from_step": 2,
+                            "from_op": "gcp.chat.spaces.members.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "messages": {
+          "resource_type": "messages",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.chat.spaces.search",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/spaces:search"
+                },
+                "python_call": "svc.spaces().search(**params).execute()",
+                "produces": {
+                  "name": "spaces[].name",
+                  "accessSettings": "spaces[].accessSettings",
+                  "threaded": "spaces[].threaded",
+                  "externalUserAllowed": "spaces[].externalUserAllowed",
+                  "permissionSettings": "spaces[].permissionSettings",
+                  "spaceType": "spaces[].spaceType",
+                  "lastActiveTime": "spaces[].lastActiveTime",
+                  "type": "spaces[].type",
+                  "importMode": "spaces[].importMode",
+                  "singleUserBotDm": "spaces[].singleUserBotDm",
+                  "spaceHistoryState": "spaces[].spaceHistoryState",
+                  "spaceUri": "spaces[].spaceUri",
+                  "membershipCount": "spaces[].membershipCount",
+                  "spaceThreadingState": "spaces[].spaceThreadingState",
+                  "predefinedPermissionSettings": "spaces[].predefinedPermissionSettings",
+                  "importModeExpireTime": "spaces[].importModeExpireTime",
+                  "adminInstalled": "spaces[].adminInstalled",
+                  "customer": "spaces[].customer",
+                  "spaceDetails": "spaces[].spaceDetails",
+                  "displayName": "spaces[].displayName",
+                  "createTime": "spaces[].createTime",
+                  "totalSize": "totalSize"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.chat.spaces.messages.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/messages"
+                },
+                "python_call": "svc.spaces().messages().list(**params).execute()",
+                "produces": {
+                  "name": "messages[].name",
+                  "matchedUrl": "messages[].matchedUrl",
+                  "deleteTime": "messages[].deleteTime",
+                  "emojiReactionSummaries": "messages[].emojiReactionSummaries",
+                  "thread": "messages[].thread",
+                  "deletionMetadata": "messages[].deletionMetadata",
+                  "sender": "messages[].sender",
+                  "argumentText": "messages[].argumentText",
+                  "accessoryWidgets": "messages[].accessoryWidgets",
+                  "fallbackText": "messages[].fallbackText",
+                  "text": "messages[].text",
+                  "cards": "messages[].cards",
+                  "clientAssignedMessageId": "messages[].clientAssignedMessageId",
+                  "cardsV2": "messages[].cardsV2",
+                  "attachment": "messages[].attachment",
+                  "attachedGifs": "messages[].attachedGifs",
+                  "quotedMessageMetadata": "messages[].quotedMessageMetadata",
+                  "slashCommand": "messages[].slashCommand",
+                  "threadReply": "messages[].threadReply",
+                  "annotations": "messages[].annotations",
+                  "privateMessageViewer": "messages[].privateMessageViewer",
+                  "lastUpdateTime": "messages[].lastUpdateTime",
+                  "formattedText": "messages[].formattedText",
+                  "space": "messages[].space",
+                  "actionResponse": "messages[].actionResponse",
+                  "createTime": "messages[].createTime"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.chat.spaces.messages.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.spaces().messages().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.chat.spaces.messages.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 3,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.chat.spaces.search",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.spaces().search(**params).execute()",
+                      "path": "/v1/spaces:search",
+                      "required_params": {},
+                      "output_list_field": "spaces",
+                      "output_id_field": "name",
+                      "produces": {
+                        "spaceId": {
+                          "via_list_field": "spaces",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"spaces\"][], extract item[\"name\"] \u2192 pass as \"spaceId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: spaceId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.chat.spaces.messages.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.spaces().messages().list(**params).execute()",
+                      "path": "/v1/{+parent}/messages",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^spaces/[^/]+$",
+                          "description": "Required. The resource name of the space to list messages from. Format: `spaces/{space}`"
+                        }
+                      },
+                      "output_list_field": "messages",
+                      "output_id_field": "name",
+                      "produces": {
+                        "messageId": {
+                          "via_list_field": "messages",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"messages\"][], extract item[\"name\"] \u2192 pass as \"messageId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: messageId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.chat.spaces.messages.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.spaces().messages().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^spaces/[^/]+/messages/[^/]+$",
+                          "description": "Required. Resource name of the message. Format: `spaces/{space}/messages/{message}` If you've set a custom ID for your m"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "spaceId": {
+                            "from_step": 1,
+                            "from_op": "gcp.chat.spaces.search",
+                            "field": "name"
+                          },
+                          "messageId": {
+                            "from_step": 2,
+                            "from_op": "gcp.chat.spaces.messages.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "reactions": {
+          "resource_type": "reactions",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "",
+              "built_from_parts": [],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.chat.spaces.messages.reactions.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/reactions"
+                },
+                "python_call": "svc.spaces().messages().reactions().list(**params).execute()",
+                "produces": {
+                  "name": "reactions[].name",
+                  "user": "reactions[].user",
+                  "emoji": "reactions[].emoji"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": []
+          },
+          "confidence": 0.5,
+          "notes": "No enrich (get) ops found; inventory only."
+        },
+        "spaceEvents": {
+          "resource_type": "spaceEvents",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.chat.spaces.search",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/spaces:search"
+                },
+                "python_call": "svc.spaces().search(**params).execute()",
+                "produces": {
+                  "name": "spaces[].name",
+                  "accessSettings": "spaces[].accessSettings",
+                  "threaded": "spaces[].threaded",
+                  "externalUserAllowed": "spaces[].externalUserAllowed",
+                  "permissionSettings": "spaces[].permissionSettings",
+                  "spaceType": "spaces[].spaceType",
+                  "lastActiveTime": "spaces[].lastActiveTime",
+                  "type": "spaces[].type",
+                  "importMode": "spaces[].importMode",
+                  "singleUserBotDm": "spaces[].singleUserBotDm",
+                  "spaceHistoryState": "spaces[].spaceHistoryState",
+                  "spaceUri": "spaces[].spaceUri",
+                  "membershipCount": "spaces[].membershipCount",
+                  "spaceThreadingState": "spaces[].spaceThreadingState",
+                  "predefinedPermissionSettings": "spaces[].predefinedPermissionSettings",
+                  "importModeExpireTime": "spaces[].importModeExpireTime",
+                  "adminInstalled": "spaces[].adminInstalled",
+                  "customer": "spaces[].customer",
+                  "spaceDetails": "spaces[].spaceDetails",
+                  "displayName": "spaces[].displayName",
+                  "createTime": "spaces[].createTime",
+                  "totalSize": "totalSize"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.chat.spaces.spaceEvents.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/spaceEvents"
+                },
+                "python_call": "svc.spaces().spaceEvents().list(**params).execute()",
+                "produces": {
+                  "name": "spaceEvents[].name",
+                  "spaceBatchUpdatedEventData": "spaceEvents[].spaceBatchUpdatedEventData",
+                  "membershipUpdatedEventData": "spaceEvents[].membershipUpdatedEventData",
+                  "spaceUpdatedEventData": "spaceEvents[].spaceUpdatedEventData",
+                  "membershipBatchCreatedEventData": "spaceEvents[].membershipBatchCreatedEventData",
+                  "messageBatchUpdatedEventData": "spaceEvents[].messageBatchUpdatedEventData",
+                  "eventType": "spaceEvents[].eventType",
+                  "messageBatchCreatedEventData": "spaceEvents[].messageBatchCreatedEventData",
+                  "messageDeletedEventData": "spaceEvents[].messageDeletedEventData",
+                  "messageUpdatedEventData": "spaceEvents[].messageUpdatedEventData",
+                  "reactionBatchCreatedEventData": "spaceEvents[].reactionBatchCreatedEventData",
+                  "messageBatchDeletedEventData": "spaceEvents[].messageBatchDeletedEventData",
+                  "reactionDeletedEventData": "spaceEvents[].reactionDeletedEventData",
+                  "membershipBatchDeletedEventData": "spaceEvents[].membershipBatchDeletedEventData",
+                  "reactionBatchDeletedEventData": "spaceEvents[].reactionBatchDeletedEventData",
+                  "reactionCreatedEventData": "spaceEvents[].reactionCreatedEventData",
+                  "membershipBatchUpdatedEventData": "spaceEvents[].membershipBatchUpdatedEventData",
+                  "membershipCreatedEventData": "spaceEvents[].membershipCreatedEventData",
+                  "messageCreatedEventData": "spaceEvents[].messageCreatedEventData",
+                  "eventTime": "spaceEvents[].eventTime",
+                  "membershipDeletedEventData": "spaceEvents[].membershipDeletedEventData"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.chat.spaces.spaceEvents.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.spaces().spaceEvents().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.chat.spaces.spaceEvents.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 3,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.chat.spaces.search",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.spaces().search(**params).execute()",
+                      "path": "/v1/spaces:search",
+                      "required_params": {},
+                      "output_list_field": "spaces",
+                      "output_id_field": "name",
+                      "produces": {
+                        "spaceId": {
+                          "via_list_field": "spaces",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"spaces\"][], extract item[\"name\"] \u2192 pass as \"spaceId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: spaceId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.chat.spaces.spaceEvents.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.spaces().spaceEvents().list(**params).execute()",
+                      "path": "/v1/{+parent}/spaceEvents",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^spaces/[^/]+$",
+                          "description": "Required. Resource name of the [Google Chat space](https://developers.google.com/workspace/chat/api/reference/rest/v1/sp"
+                        }
+                      },
+                      "output_list_field": "spaceEvents",
+                      "output_id_field": "name",
+                      "produces": {
+                        "spaceEventId": {
+                          "via_list_field": "spaceEvents",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"spaceEvents\"][], extract item[\"name\"] \u2192 pass as \"spaceEventId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: spaceEventId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.chat.spaces.spaceEvents.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.spaces().spaceEvents().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^spaces/[^/]+/spaceEvents/[^/]+$",
+                          "description": "Required. The resource name of the space event. Format: `spaces/{space}/spaceEvents/{spaceEvent}`"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "spaceId": {
+                            "from_step": 1,
+                            "from_op": "gcp.chat.spaces.search",
+                            "field": "name"
+                          },
+                          "spaceEventId": {
+                            "from_step": 2,
+                            "from_op": "gcp.chat.spaces.spaceEvents.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "spaceNotificationSetting": {
+          "resource_type": "spaceNotificationSetting",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.chat.spaces.search",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/spaces:search"
+                },
+                "python_call": "svc.spaces().search(**params).execute()",
+                "produces": {
+                  "name": "spaces[].name",
+                  "accessSettings": "spaces[].accessSettings",
+                  "threaded": "spaces[].threaded",
+                  "externalUserAllowed": "spaces[].externalUserAllowed",
+                  "permissionSettings": "spaces[].permissionSettings",
+                  "spaceType": "spaces[].spaceType",
+                  "lastActiveTime": "spaces[].lastActiveTime",
+                  "type": "spaces[].type",
+                  "importMode": "spaces[].importMode",
+                  "singleUserBotDm": "spaces[].singleUserBotDm",
+                  "spaceHistoryState": "spaces[].spaceHistoryState",
+                  "spaceUri": "spaces[].spaceUri",
+                  "membershipCount": "spaces[].membershipCount",
+                  "spaceThreadingState": "spaces[].spaceThreadingState",
+                  "predefinedPermissionSettings": "spaces[].predefinedPermissionSettings",
+                  "importModeExpireTime": "spaces[].importModeExpireTime",
+                  "adminInstalled": "spaces[].adminInstalled",
+                  "customer": "spaces[].customer",
+                  "spaceDetails": "spaces[].spaceDetails",
+                  "displayName": "spaces[].displayName",
+                  "createTime": "spaces[].createTime",
+                  "totalSize": "totalSize"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.chat.users.spaces.spaceNotificationSetting.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.users().spaces().spaceNotificationSetting().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.chat.users.spaces.spaceNotificationSetting.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.chat.spaces.search",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.spaces().search(**params).execute()",
+                      "path": "/v1/spaces:search",
+                      "required_params": {},
+                      "output_list_field": "spaces",
+                      "output_id_field": "name",
+                      "produces": {
+                        "spaceId": {
+                          "via_list_field": "spaces",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"spaces\"][], extract item[\"name\"] \u2192 pass as \"spaceId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: spaceId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.chat.users.spaces.spaceNotificationSetting.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.users().spaces().spaceNotificationSetting().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^users/[^/]+/spaces/[^/]+/spaceNotificationSetting$",
+                          "description": "Required. Format: users/{user}/spaces/{space}/spaceNotificationSetting - `users/me/spaces/{space}/spaceNotificationSetti"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "userId": {
+                            "from_step": 1,
+                            "from_op": "gcp.chat.spaces.search",
+                            "field": "name"
+                          },
+                          "spaceId": {
+                            "from_step": 1,
+                            "from_op": "gcp.chat.spaces.search",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "spaces": {
+          "resource_type": "spaces",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "spaces:findDirectMessage",
+              "built_from_parts": [],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.chat.spaces.search",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/spaces:search"
+                },
+                "python_call": "svc.spaces().search(**params).execute()",
+                "produces": {
+                  "name": "spaces[].name",
+                  "accessSettings": "spaces[].accessSettings",
+                  "threaded": "spaces[].threaded",
+                  "externalUserAllowed": "spaces[].externalUserAllowed",
+                  "permissionSettings": "spaces[].permissionSettings",
+                  "spaceType": "spaces[].spaceType",
+                  "lastActiveTime": "spaces[].lastActiveTime",
+                  "type": "spaces[].type",
+                  "importMode": "spaces[].importMode",
+                  "singleUserBotDm": "spaces[].singleUserBotDm",
+                  "spaceHistoryState": "spaces[].spaceHistoryState",
+                  "spaceUri": "spaces[].spaceUri",
+                  "membershipCount": "spaces[].membershipCount",
+                  "spaceThreadingState": "spaces[].spaceThreadingState",
+                  "predefinedPermissionSettings": "spaces[].predefinedPermissionSettings",
+                  "importModeExpireTime": "spaces[].importModeExpireTime",
+                  "adminInstalled": "spaces[].adminInstalled",
+                  "customer": "spaces[].customer",
+                  "spaceDetails": "spaces[].spaceDetails",
+                  "displayName": "spaces[].displayName",
+                  "createTime": "spaces[].createTime",
+                  "totalSize": "totalSize"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.chat.spaces.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/spaces"
+                },
+                "python_call": "svc.spaces().list(**params).execute()",
+                "produces": {
+                  "name": "spaces[].name",
+                  "accessSettings": "spaces[].accessSettings",
+                  "threaded": "spaces[].threaded",
+                  "externalUserAllowed": "spaces[].externalUserAllowed",
+                  "permissionSettings": "spaces[].permissionSettings",
+                  "spaceType": "spaces[].spaceType",
+                  "lastActiveTime": "spaces[].lastActiveTime",
+                  "type": "spaces[].type",
+                  "importMode": "spaces[].importMode",
+                  "singleUserBotDm": "spaces[].singleUserBotDm",
+                  "spaceHistoryState": "spaces[].spaceHistoryState",
+                  "spaceUri": "spaces[].spaceUri",
+                  "membershipCount": "spaces[].membershipCount",
+                  "spaceThreadingState": "spaces[].spaceThreadingState",
+                  "predefinedPermissionSettings": "spaces[].predefinedPermissionSettings",
+                  "importModeExpireTime": "spaces[].importModeExpireTime",
+                  "adminInstalled": "spaces[].adminInstalled",
+                  "customer": "spaces[].customer",
+                  "spaceDetails": "spaces[].spaceDetails",
+                  "displayName": "spaces[].displayName",
+                  "createTime": "spaces[].createTime"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.chat.spaces.findDirectMessage",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/spaces:findDirectMessage"
+                },
+                "python_call": "svc.spaces().findDirectMessage(**params).execute()",
+                "required_params": {},
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.chat.spaces.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.spaces().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.chat.spaces.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.chat.spaces.search",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.spaces().search(**params).execute()",
+                      "path": "/v1/spaces:search",
+                      "required_params": {},
+                      "output_list_field": "spaces",
+                      "output_id_field": "name",
+                      "produces": {
+                        "spaceId": {
+                          "via_list_field": "spaces",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"spaces\"][], extract item[\"name\"] \u2192 pass as \"spaceId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: spaceId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.chat.spaces.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.spaces().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^spaces/[^/]+$",
+                          "description": "Required. Resource name of the space, in the form `spaces/{space}`. Format: `spaces/{space}`"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "spaceId": {
+                            "from_step": 1,
+                            "from_op": "gcp.chat.spaces.search",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.chat.users.spaces.getSpaceReadState",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.users().spaces().getSpaceReadState(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.chat.users.spaces.getSpaceReadState",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.chat.spaces.search",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.spaces().search(**params).execute()",
+                      "path": "/v1/spaces:search",
+                      "required_params": {},
+                      "output_list_field": "spaces",
+                      "output_id_field": "name",
+                      "produces": {
+                        "spaceId": {
+                          "via_list_field": "spaces",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"spaces\"][], extract item[\"name\"] \u2192 pass as \"spaceId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: spaceId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.chat.users.spaces.getSpaceReadState",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.users().spaces().getSpaceReadState(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^users/[^/]+/spaces/[^/]+/spaceReadState$",
+                          "description": "Required. Resource name of the space read state to retrieve. Only supports getting read state for the calling user. To r"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "userId": {
+                            "from_step": 1,
+                            "from_op": "gcp.chat.spaces.search",
+                            "field": "name"
+                          },
+                          "spaceId": {
+                            "from_step": 1,
+                            "from_op": "gcp.chat.spaces.search",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "threads": {
+          "resource_type": "threads",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.chat.spaces.search",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/spaces:search"
+                },
+                "python_call": "svc.spaces().search(**params).execute()",
+                "produces": {
+                  "name": "spaces[].name",
+                  "accessSettings": "spaces[].accessSettings",
+                  "threaded": "spaces[].threaded",
+                  "externalUserAllowed": "spaces[].externalUserAllowed",
+                  "permissionSettings": "spaces[].permissionSettings",
+                  "spaceType": "spaces[].spaceType",
+                  "lastActiveTime": "spaces[].lastActiveTime",
+                  "type": "spaces[].type",
+                  "importMode": "spaces[].importMode",
+                  "singleUserBotDm": "spaces[].singleUserBotDm",
+                  "spaceHistoryState": "spaces[].spaceHistoryState",
+                  "spaceUri": "spaces[].spaceUri",
+                  "membershipCount": "spaces[].membershipCount",
+                  "spaceThreadingState": "spaces[].spaceThreadingState",
+                  "predefinedPermissionSettings": "spaces[].predefinedPermissionSettings",
+                  "importModeExpireTime": "spaces[].importModeExpireTime",
+                  "adminInstalled": "spaces[].adminInstalled",
+                  "customer": "spaces[].customer",
+                  "spaceDetails": "spaces[].spaceDetails",
+                  "displayName": "spaces[].displayName",
+                  "createTime": "spaces[].createTime",
+                  "totalSize": "totalSize"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.chat.users.spaces.threads.getThreadReadState",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.users().spaces().threads().getThreadReadState(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.chat.users.spaces.threads.getThreadReadState",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.chat.spaces.search",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.spaces().search(**params).execute()",
+                      "path": "/v1/spaces:search",
+                      "required_params": {},
+                      "output_list_field": "spaces",
+                      "output_id_field": "name",
+                      "produces": {
+                        "spaceId": {
+                          "via_list_field": "spaces",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"spaces\"][], extract item[\"name\"] \u2192 pass as \"spaceId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: spaceId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.chat.users.spaces.threads.getThreadReadState",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.users().spaces().threads().getThreadReadState(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^users/[^/]+/spaces/[^/]+/threads/[^/]+/threadReadState$",
+                          "description": "Required. Resource name of the thread read state to retrieve. Only supports getting read state for the calling user. To "
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "userId": {
+                            "from_step": 1,
+                            "from_op": "gcp.chat.spaces.search",
+                            "field": "name"
+                          },
+                          "spaceId": {
+                            "from_step": 1,
+                            "from_op": "gcp.chat.spaces.search",
+                            "field": "name"
+                          },
+                          "threadId": {
+                            "from_step": 1,
+                            "from_op": "gcp.chat.spaces.search",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        }
+      }
+    }
+  }
+}

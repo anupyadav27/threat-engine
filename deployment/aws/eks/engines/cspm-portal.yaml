@@ -1,0 +1,245 @@
+# CSPM User Portal — Django backend + Next.js frontend
+# Backend  → port 8000, deployed as cspm-backend
+# Frontend → port 3000, deployed as cspm-frontend
+# Both are exposed via the existing nginx ingress under /cspm/* and /ui/*
+---
+# ────────────────────────────────────────────────────────────────
+# Django backend
+# ────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cspm-backend
+  namespace: threat-engine-engines
+  labels:
+    app: cspm-backend
+    tier: portal
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: cspm-backend
+  template:
+    metadata:
+      labels:
+        app: cspm-backend
+        tier: portal
+    spec:
+      serviceAccountName: engine-sa
+      initContainers:
+      - name: migrate
+        image: yadavanup84/cspm-django-backend:latest
+        imagePullPolicy: Always
+        command: ["python", "manage.py", "migrate", "--noinput"]
+        env:
+        - name: SECRET_KEY
+          value: "init-secret-key-for-migrate"
+        - name: DEBUG
+          value: "False"
+        - name: DB_NAME
+          value: "cspm"
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: threat-engine-db-config
+              key: DB_HOST
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_USER
+          value: "postgres"
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: ONBOARDING_DB_PASSWORD
+        - name: DB_SSLMODE
+          value: "require"
+      containers:
+      - name: cspm-backend
+        image: yadavanup84/cspm-django-backend:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        # ── Core ────────────────────────────────────────────────
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: cspm-portal-secret
+              key: SECRET_KEY
+              optional: true
+        - name: DEBUG
+          value: "False"
+        - name: ALLOWED_HOSTS
+          value: "*"
+        - name: FRONTEND_URL
+          value: "http://a248499a3e9da47248ad0adca7dac106-365a099e4a3b2214.elb.ap-south-1.amazonaws.com/ui"
+        # ── Database — use explicit DB_* vars (not DATABASE_URL) ──────
+        - name: DB_NAME
+          value: "cspm"
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: threat-engine-db-config
+              key: DB_HOST
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_USER
+          value: "postgres"
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: ONBOARDING_DB_PASSWORD
+        - name: DB_SSLMODE
+          value: "require"
+        # ── Engine URLs (all default to cluster-local) ───────────
+        - name: ONBOARDING_ENGINE_URL
+          value: "http://engine-onboarding.threat-engine-engines.svc.cluster.local"
+        - name: THREAT_ENGINE_URL
+          value: "http://engine-threat.threat-engine-engines.svc.cluster.local"
+        - name: COMPLIANCE_ENGINE_URL
+          value: "http://engine-compliance.threat-engine-engines.svc.cluster.local"
+        - name: INVENTORY_ENGINE_URL
+          value: "http://engine-inventory.threat-engine-engines.svc.cluster.local"
+        - name: IAM_ENGINE_URL
+          value: "http://engine-iam.threat-engine-engines.svc.cluster.local"
+        - name: DATASEC_ENGINE_URL
+          value: "http://engine-datasec.threat-engine-engines.svc.cluster.local"
+        - name: SECOPS_ENGINE_URL
+          value: "http://engine-secops.threat-engine-engines.svc.cluster.local"
+        - name: DISCOVERIES_ENGINE_URL
+          value: "http://engine-discoveries.threat-engine-engines.svc.cluster.local"
+        - name: CHECK_ENGINE_URL
+          value: "http://engine-check.threat-engine-engines.svc.cluster.local"
+        - name: API_GATEWAY_URL
+          value: "http://api-gateway.threat-engine-engines.svc.cluster.local"
+        # ── AWS ──────────────────────────────────────────────────
+        - name: AWS_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: platform-config
+              key: aws-region
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 15
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cspm-backend
+  namespace: threat-engine-engines
+  labels:
+    app: cspm-backend
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: cspm-backend
+---
+# ────────────────────────────────────────────────────────────────
+# Next.js frontend
+# ────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cspm-frontend
+  namespace: threat-engine-engines
+  labels:
+    app: cspm-frontend
+    tier: portal
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: cspm-frontend
+  template:
+    metadata:
+      labels:
+        app: cspm-frontend
+        tier: portal
+    spec:
+      serviceAccountName: engine-sa
+      containers:
+      - name: cspm-frontend
+        image: yadavanup84/cspm-frontend:v-std-cols
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000
+          name: http
+        env:
+        - name: HOSTNAME
+          value: "0.0.0.0"
+        - name: PORT
+          value: "3000"
+        - name: NODE_ENV
+          value: "production"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /ui
+            port: 3000
+          initialDelaySeconds: 20
+          periodSeconds: 15
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ui
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cspm-frontend
+  namespace: threat-engine-engines
+  labels:
+    app: cspm-frontend
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 3000
+    protocol: TCP
+    name: http
+  selector:
+    app: cspm-frontend

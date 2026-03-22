@@ -1,0 +1,62 @@
+# Discovery YAML — maintenance (Azure)
+# Generated: 2026-02-21T05:02:44Z
+# Actions use Azure Python SDK snake_case names (azure-mgmt-*)
+version: '1.0'
+provider: azure
+service: maintenance
+services:
+  client: maintenance
+  module: azure.mgmt.maintenance
+discovery:
+  # ── get_parent [dependent] ──
+  - discovery_id: azure.maintenance.get_parent
+    calls:
+      - action: get_parent
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        id: '{{ response.id }}'
+        location: '{{ response.location }}'
+        name: '{{ response.name }}'
+        type: '{{ response.type }}'
+        filter: '{{ response.filter }}'
+        maintenance_configuration_id: '{{ response.maintenance_configuration_id }}'
+        resource_id: '{{ response.resource_id }}'
+        system_data: '{{ response.system_data }}'
+    # required_params: ['provider_name', 'resource_parent_type', 'resource_parent_name', 'resource_type', 'resource_name', 'configuration_assignment_name']
+  # ── list [dependent] ──
+  - discovery_id: azure.maintenance.list
+    calls:
+      - action: list
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        status: '{{ item.status }}'
+        impact_duration_in_sec: '{{ item.impact_duration_in_sec }}'
+        impact_type: '{{ item.impact_type }}'
+        maintenance_scope: '{{ item.maintenance_scope }}'
+        not_before: '{{ item.not_before }}'
+        resource_id: '{{ item.resource_id }}'
+    # required_params: ['provider_name', 'resource_type', 'resource_name']
+  # ── list_parent [dependent] ──
+  - discovery_id: azure.maintenance.list_parent
+    calls:
+      - action: list_parent
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        status: '{{ item.status }}'
+        impact_duration_in_sec: '{{ item.impact_duration_in_sec }}'
+        impact_type: '{{ item.impact_type }}'
+        maintenance_scope: '{{ item.maintenance_scope }}'
+        not_before: '{{ item.not_before }}'
+        resource_id: '{{ item.resource_id }}'
+    # required_params: ['provider_name', 'resource_parent_type', 'resource_parent_name', 'resource_type', 'resource_name']

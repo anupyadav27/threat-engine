@@ -1,0 +1,440 @@
+{
+  "service": "gmailpostmastertools",
+  "version": "v1",
+  "csp": "gcp",
+  "title": "Gmail Postmaster Tools API",
+  "base_url": "https://gmailpostmastertools.googleapis.com/",
+  "stats": {
+    "total_ops": 4,
+    "read_list": 2,
+    "read_get": 2,
+    "write": 0,
+    "other": 0,
+    "independent": 2,
+    "dependent": 2
+  },
+  "operations": {
+    "gcp.gmailpostmastertools.domains.get": {
+      "op": "gcp.gmailpostmastertools.domains.get",
+      "service": "gmailpostmastertools",
+      "kind": "read_get",
+      "http": {
+        "verb": "GET",
+        "path": "/v1/{+name}"
+      },
+      "python_call": "svc.domains().get(**params).execute()",
+      "description": "Gets a specific domain registered by the client. Returns NOT_FOUND if the domain does not exist.",
+      "inputs": {
+        "required": [
+          {
+            "param": "name",
+            "type": "string",
+            "location": "path",
+            "template": "domains/{domainId}",
+            "slots": [
+              {
+                "slot": "domainId",
+                "source": "from_list_op",
+                "after_segment": "domains"
+              }
+            ],
+            "pattern": "^domains/[^/]+$",
+            "description": "The resource name of the domain. It should have the form `domains/{domain_name}`, where domain_name is the fully qualifi"
+          }
+        ],
+        "optional": []
+      },
+      "outputs": {
+        "response_schema": "Domain",
+        "list_field": null,
+        "id_field": null,
+        "id_is_full_resource_name": false,
+        "produces_fields": [
+          {
+            "path": "name",
+            "type": "string",
+            "is_id": true
+          },
+          {
+            "path": "createTime",
+            "type": "string",
+            "is_id": false
+          },
+          {
+            "path": "permission",
+            "type": "string",
+            "is_id": false
+          }
+        ]
+      },
+      "independent": false,
+      "dependency_hints": [
+        {
+          "param": "name",
+          "can_come_from": [
+            {
+              "kind": "known_format",
+              "template": "domains/{domainId}",
+              "slots": [
+                {
+                  "slot": "domainId",
+                  "source": "from_list_op",
+                  "after_segment": "domains"
+                }
+              ]
+            },
+            {
+              "kind": "from_list_op",
+              "op": "gcp.gmailpostmastertools.domains.list",
+              "match_tier": 1,
+              "match_confidence": "exact",
+              "list_field": "domains",
+              "id_field": "name",
+              "produces_slot": "domainId",
+              "note": "[tier 1/exact] call gcp.gmailpostmastertools.domains.list, iterate response[\"domains\"][], extract item[\"name\"] \u2192 fill {domainId}"
+            }
+          ]
+        }
+      ],
+      "scopes": [
+        "https://www.googleapis.com/auth/postmaster.readonly"
+      ],
+      "paginated": false
+    },
+    "gcp.gmailpostmastertools.domains.list": {
+      "op": "gcp.gmailpostmastertools.domains.list",
+      "service": "gmailpostmastertools",
+      "kind": "read_list",
+      "http": {
+        "verb": "GET",
+        "path": "/v1/domains"
+      },
+      "python_call": "svc.domains().list(**params).execute()",
+      "description": "Lists the domains that have been registered by the client. The order of domains in the response is unspecified and non-deterministic. Newly created domains will not necessarily be added to the end of ",
+      "inputs": {
+        "required": [],
+        "optional": [
+          "pageSize",
+          "pageToken"
+        ]
+      },
+      "outputs": {
+        "response_schema": "ListDomainsResponse",
+        "list_field": "domains",
+        "id_field": "name",
+        "id_is_full_resource_name": true,
+        "produces_fields": [
+          {
+            "path": "domains[].name",
+            "type": "string",
+            "is_id": true,
+            "note": "resource identity \u2014 use as name/parent param for .get()"
+          },
+          {
+            "path": "domains[].createTime",
+            "type": "string",
+            "is_id": false
+          },
+          {
+            "path": "domains[].permission",
+            "type": "string",
+            "is_id": false
+          }
+        ]
+      },
+      "independent": true,
+      "dependency_hints": [],
+      "scopes": [
+        "https://www.googleapis.com/auth/postmaster.readonly"
+      ],
+      "paginated": true
+    },
+    "gcp.gmailpostmastertools.domains.trafficStats.list": {
+      "op": "gcp.gmailpostmastertools.domains.trafficStats.list",
+      "service": "gmailpostmastertools",
+      "kind": "read_list",
+      "http": {
+        "verb": "GET",
+        "path": "/v1/{+parent}/trafficStats"
+      },
+      "python_call": "svc.domains().trafficStats().list(**params).execute()",
+      "description": "List traffic statistics for all available days. Returns PERMISSION_DENIED if user does not have permission to access TrafficStats for the domain.",
+      "inputs": {
+        "required": [
+          {
+            "param": "parent",
+            "type": "string",
+            "location": "path",
+            "template": "{parent}",
+            "slots": [
+              {
+                "slot": "parent",
+                "source": "always_available",
+                "after_segment": ""
+              }
+            ],
+            "pattern": "^domains/[^/]+$",
+            "description": "The resource name of the domain whose traffic statistics we'd like to list. It should have the form `domains/{domain_nam"
+          }
+        ],
+        "optional": [
+          "endDate.year",
+          "startDate.day",
+          "endDate.day",
+          "pageSize",
+          "startDate.month",
+          "startDate.year",
+          "pageToken",
+          "endDate.month"
+        ]
+      },
+      "outputs": {
+        "response_schema": "ListTrafficStatsResponse",
+        "list_field": "trafficStats",
+        "id_field": "name",
+        "id_is_full_resource_name": true,
+        "produces_fields": [
+          {
+            "path": "trafficStats[].name",
+            "type": "string",
+            "is_id": true,
+            "note": "resource identity \u2014 use as name/parent param for .get()"
+          },
+          {
+            "path": "trafficStats[].dmarcSuccessRatio",
+            "type": "string",
+            "is_id": false
+          },
+          {
+            "path": "trafficStats[].spammyFeedbackLoops",
+            "type": "string",
+            "is_id": false
+          },
+          {
+            "path": "trafficStats[].userReportedSpamRatioLowerBound",
+            "type": "string",
+            "is_id": false
+          },
+          {
+            "path": "trafficStats[].inboundEncryptionRatio",
+            "type": "string",
+            "is_id": false
+          },
+          {
+            "path": "trafficStats[].spfSuccessRatio",
+            "type": "string",
+            "is_id": false
+          },
+          {
+            "path": "trafficStats[].domainReputation",
+            "type": "string",
+            "is_id": false
+          },
+          {
+            "path": "trafficStats[].userReportedSpamRatioUpperBound",
+            "type": "string",
+            "is_id": false
+          },
+          {
+            "path": "trafficStats[].outboundEncryptionRatio",
+            "type": "string",
+            "is_id": false
+          },
+          {
+            "path": "trafficStats[].deliveryErrors",
+            "type": "string",
+            "is_id": false
+          },
+          {
+            "path": "trafficStats[].ipReputations",
+            "type": "string",
+            "is_id": false
+          },
+          {
+            "path": "trafficStats[].userReportedSpamRatio",
+            "type": "string",
+            "is_id": false
+          },
+          {
+            "path": "trafficStats[].dkimSuccessRatio",
+            "type": "string",
+            "is_id": false
+          }
+        ]
+      },
+      "independent": true,
+      "dependency_hints": [
+        {
+          "param": "parent",
+          "can_come_from": [
+            {
+              "kind": "always_available",
+              "param": "parent"
+            }
+          ]
+        }
+      ],
+      "scopes": [
+        "https://www.googleapis.com/auth/postmaster.readonly"
+      ],
+      "paginated": true
+    },
+    "gcp.gmailpostmastertools.domains.trafficStats.get": {
+      "op": "gcp.gmailpostmastertools.domains.trafficStats.get",
+      "service": "gmailpostmastertools",
+      "kind": "read_get",
+      "http": {
+        "verb": "GET",
+        "path": "/v1/{+name}"
+      },
+      "python_call": "svc.domains().trafficStats().get(**params).execute()",
+      "description": "Get traffic statistics for a domain on a specific date. Returns PERMISSION_DENIED if user does not have permission to access TrafficStats for the domain.",
+      "inputs": {
+        "required": [
+          {
+            "param": "name",
+            "type": "string",
+            "location": "path",
+            "template": "domains/{domainId}/trafficStats/{trafficStatId}",
+            "slots": [
+              {
+                "slot": "domainId",
+                "source": "from_list_op",
+                "after_segment": "domains"
+              },
+              {
+                "slot": "trafficStatId",
+                "source": "from_list_op",
+                "after_segment": "trafficStats"
+              }
+            ],
+            "pattern": "^domains/[^/]+/trafficStats/[^/]+$",
+            "description": "The resource name of the traffic statistics to get. E.g., domains/mymail.mydomain.com/trafficStats/20160807."
+          }
+        ],
+        "optional": []
+      },
+      "outputs": {
+        "response_schema": "TrafficStats",
+        "list_field": null,
+        "id_field": null,
+        "id_is_full_resource_name": false,
+        "produces_fields": [
+          {
+            "path": "dmarcSuccessRatio",
+            "type": "number",
+            "is_id": false
+          },
+          {
+            "path": "spammyFeedbackLoops",
+            "type": "array",
+            "is_id": false
+          },
+          {
+            "path": "userReportedSpamRatioLowerBound",
+            "type": "number",
+            "is_id": false
+          },
+          {
+            "path": "inboundEncryptionRatio",
+            "type": "number",
+            "is_id": false
+          },
+          {
+            "path": "name",
+            "type": "string",
+            "is_id": true
+          },
+          {
+            "path": "spfSuccessRatio",
+            "type": "number",
+            "is_id": false
+          },
+          {
+            "path": "domainReputation",
+            "type": "string",
+            "is_id": false
+          },
+          {
+            "path": "userReportedSpamRatioUpperBound",
+            "type": "number",
+            "is_id": false
+          },
+          {
+            "path": "outboundEncryptionRatio",
+            "type": "number",
+            "is_id": false
+          },
+          {
+            "path": "deliveryErrors",
+            "type": "array",
+            "is_id": false
+          },
+          {
+            "path": "ipReputations",
+            "type": "array",
+            "is_id": false
+          },
+          {
+            "path": "userReportedSpamRatio",
+            "type": "number",
+            "is_id": false
+          },
+          {
+            "path": "dkimSuccessRatio",
+            "type": "number",
+            "is_id": false
+          }
+        ]
+      },
+      "independent": false,
+      "dependency_hints": [
+        {
+          "param": "name",
+          "can_come_from": [
+            {
+              "kind": "known_format",
+              "template": "domains/{domainId}/trafficStats/{trafficStatId}",
+              "slots": [
+                {
+                  "slot": "domainId",
+                  "source": "from_list_op",
+                  "after_segment": "domains"
+                },
+                {
+                  "slot": "trafficStatId",
+                  "source": "from_list_op",
+                  "after_segment": "trafficStats"
+                }
+              ]
+            },
+            {
+              "kind": "from_list_op",
+              "op": "gcp.gmailpostmastertools.domains.list",
+              "match_tier": 1,
+              "match_confidence": "exact",
+              "list_field": "domains",
+              "id_field": "name",
+              "produces_slot": "domainId",
+              "note": "[tier 1/exact] call gcp.gmailpostmastertools.domains.list, iterate response[\"domains\"][], extract item[\"name\"] \u2192 fill {domainId}"
+            },
+            {
+              "kind": "from_list_op",
+              "op": "gcp.gmailpostmastertools.domains.trafficStats.list",
+              "match_tier": 1,
+              "match_confidence": "exact",
+              "list_field": "trafficStats",
+              "id_field": "name",
+              "produces_slot": "trafficStatId",
+              "note": "[tier 1/exact] call gcp.gmailpostmastertools.domains.trafficStats.list, iterate response[\"trafficStats\"][], extract item[\"name\"] \u2192 fill {trafficStatId}"
+            }
+          ]
+        }
+      ],
+      "scopes": [
+        "https://www.googleapis.com/auth/postmaster.readonly"
+      ],
+      "paginated": false
+    }
+  }
+}

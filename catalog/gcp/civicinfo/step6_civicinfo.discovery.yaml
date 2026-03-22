@@ -1,0 +1,95 @@
+# ============================================================
+# Discovery YAML — civicinfo (v2)
+# Generated: 2026-02-21T03:06:39Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 4 | independent: 4 | dependent: 0
+# ops with fields: 4/4 | dep ops with chain: 0/0
+# ============================================================
+version: '1.0'
+provider: gcp
+service: civicinfo
+
+services:
+  client: civicinfo
+  module: "googleapiclient.discovery.build('civicinfo', 'v2')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lookup OCDIDs and names for divisions related to an address.
+  # ── gcp.civicinfo.divisions.queryDivisionByAddress ──
+  - discovery_id: gcp.civicinfo.divisions.queryDivisionByAddress
+    # python: svc.divisions().queryDivisionByAddress(**params).execute()
+    calls:
+      - action: divisions.queryDivisionByAddress
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        divisions: '{{ response.divisions }}'
+        normalizedInput: '{{ response.normalizedInput }}'
+  # Searches for political divisions by their natural name or OCD ID.
+  # ── gcp.civicinfo.divisions.search ──
+  - discovery_id: gcp.civicinfo.divisions.search
+    # python: svc.divisions().search(**params).execute()
+    calls:
+      - action: divisions.search
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.divisions }}'
+      item:
+        aliases: '{{ item.aliases }}'
+        name: '{{ item.name }}'
+        ocdId: '{{ item.ocdId }}'
+  # List of available elections to query.
+  # ── gcp.civicinfo.elections.electionQuery ──
+  - discovery_id: gcp.civicinfo.elections.electionQuery
+    # python: svc.elections().electionQuery(**params).execute()
+    calls:
+      - action: elections.electionQuery
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        elections: '{{ response.elections }}'
+  # Looks up information relevant to a voter based on the voter's registered address.
+  # ── gcp.civicinfo.elections.voterInfoQuery ──
+  - discovery_id: gcp.civicinfo.elections.voterInfoQuery
+    # python: svc.elections().voterInfoQuery(**params).execute()
+    calls:
+      - action: elections.voterInfoQuery
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        contests: '{{ response.contests }}'
+        dropOffLocations: '{{ response.dropOffLocations }}'
+        earlyVoteSites: '{{ response.earlyVoteSites }}'
+        election: '{{ response.election }}'
+        mailOnly: '{{ response.mailOnly }}'
+        normalizedInput: '{{ response.normalizedInput }}'
+        otherElections: '{{ response.otherElections }}'
+        pollingLocations: '{{ response.pollingLocations }}'
+        precinctId: '{{ response.precinctId }}'
+        precincts: '{{ response.precincts }}'
+        state: '{{ response.state }}'

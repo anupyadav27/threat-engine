@@ -1,0 +1,538 @@
+# ============================================================
+# Discovery YAML — athena (AWS)
+# Generated: 2026-02-21T04:56:57Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: athena
+services:
+  client: athena
+  module: boto3.client
+discovery:
+  # ── ListApplicationDPUSizes ──
+  - discovery_id: aws.athena.list_application_dpu_sizes
+    calls:
+      - action: list_application_dpu_sizes
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ApplicationDPUSizes }}'
+      item:
+        ApplicationRuntimeId: '{{ item.ApplicationRuntimeId }}'
+        SupportedDPUSizes: '{{ item.SupportedDPUSizes }}'
+  # ── ListCapacityReservations ──
+  - discovery_id: aws.athena.list_capacity_reservations
+    calls:
+      - action: list_capacity_reservations
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.CapacityReservations }}'
+      item:
+        CreationTime: '{{ item.CreationTime }}'
+        Name: '{{ item.Name }}'
+        Status: '{{ item.Status }}'
+        AllocatedDpus: '{{ item.AllocatedDpus }}'
+        LastAllocation: '{{ item.LastAllocation }}'
+        LastSuccessfulAllocationTime: '{{ item.LastSuccessfulAllocationTime }}'
+        TargetDpus: '{{ item.TargetDpus }}'
+  # ── ListDataCatalogs ──
+  - discovery_id: aws.athena.list_data_catalogs
+    calls:
+      - action: list_data_catalogs
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.DataCatalogsSummary }}'
+      item:
+        Status: '{{ item.Status }}'
+        CatalogName: '{{ item.CatalogName }}'
+        ConnectionType: '{{ item.ConnectionType }}'
+        Error: '{{ item.Error }}'
+        Type: '{{ item.Type }}'
+  # ── ListEngineVersions ──
+  - discovery_id: aws.athena.list_engine_versions
+    calls:
+      - action: list_engine_versions
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.EngineVersions }}'
+      item:
+        EffectiveEngineVersion: '{{ item.EffectiveEngineVersion }}'
+        SelectedEngineVersion: '{{ item.SelectedEngineVersion }}'
+  # ── ListNamedQueries ──
+  - discovery_id: aws.athena.list_named_queries
+    calls:
+      - action: list_named_queries
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.NamedQueryIds }}'
+  # ── ListQueryExecutions ──
+  - discovery_id: aws.athena.list_query_executions
+    calls:
+      - action: list_query_executions
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.QueryExecutionIds }}'
+  # ── ListWorkGroups ──
+  - discovery_id: aws.athena.list_work_groups
+    calls:
+      - action: list_work_groups
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.WorkGroups }}'
+      item:
+        CreationTime: '{{ item.CreationTime }}'
+        Name: '{{ item.Name }}'
+        State: '{{ item.State }}'
+        Description: '{{ item.Description }}'
+        EngineVersion: '{{ item.EngineVersion }}'
+        IdentityCenterApplicationArn: '{{ item.IdentityCenterApplicationArn }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── GetCalculationExecution ──
+  - discovery_id: aws.athena.get_calculation_execution
+    calls:
+      - action: get_calculation_execution
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Status }}'
+      item:
+        State: '{{ item.State }}'
+        CompletionDateTime: '{{ item.CompletionDateTime }}'
+        Result: '{{ item.Result }}'
+        StateChangeReason: '{{ item.StateChangeReason }}'
+        SubmissionDateTime: '{{ item.SubmissionDateTime }}'
+  # ── GetCalculationExecutionCode ──
+  - discovery_id: aws.athena.get_calculation_execution_code
+    calls:
+      - action: get_calculation_execution_code
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        CodeBlock: '{{ response.CodeBlock }}'
+  # ── GetCalculationExecutionStatus ──
+  - discovery_id: aws.athena.get_calculation_execution_status
+    calls:
+      - action: get_calculation_execution_status
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Status }}'
+      item:
+        State: '{{ item.State }}'
+        CompletionDateTime: '{{ item.CompletionDateTime }}'
+        StateChangeReason: '{{ item.StateChangeReason }}'
+        SubmissionDateTime: '{{ item.SubmissionDateTime }}'
+  # ── GetCapacityAssignmentConfiguration ──
+  - discovery_id: aws.athena.get_capacity_assignment_configuration
+    for_each: aws.athena.list_capacity_reservations
+    calls:
+      - action: get_capacity_assignment_configuration
+        params:
+          CapacityReservationName: '{{ item.CapacityReservationName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.CapacityAssignmentConfiguration }}'
+      item:
+        CapacityAssignments: '{{ item.CapacityAssignments }}'
+        CapacityReservationName: '{{ item.CapacityReservationName }}'
+  # ── GetCapacityReservation ──
+  - discovery_id: aws.athena.get_capacity_reservation
+    for_each: aws.athena.list_capacity_reservations
+    calls:
+      - action: get_capacity_reservation
+        params:
+          Name: '{{ item.Name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.CapacityReservations }}'
+      item:
+        CreationTime: '{{ item.CreationTime }}'
+        Name: '{{ item.Name }}'
+        Status: '{{ item.Status }}'
+        AllocatedDpus: '{{ item.AllocatedDpus }}'
+        LastAllocation: '{{ item.LastAllocation }}'
+        LastSuccessfulAllocationTime: '{{ item.LastSuccessfulAllocationTime }}'
+        TargetDpus: '{{ item.TargetDpus }}'
+  # ── GetDataCatalog ──
+  - discovery_id: aws.athena.get_data_catalog
+    for_each: aws.athena.list_capacity_reservations
+    calls:
+      - action: get_data_catalog
+        params:
+          Name: '{{ item.Name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.DataCatalogsSummary }}'
+      item:
+        Name: '{{ item.Name }}'
+        Status: '{{ item.Status }}'
+        ConnectionType: '{{ item.ConnectionType }}'
+        Description: '{{ item.Description }}'
+        Error: '{{ item.Error }}'
+        Parameters: '{{ item.Parameters }}'
+        Type: '{{ item.Type }}'
+  # ── GetDatabase ──
+  - discovery_id: aws.athena.get_database
+    for_each: aws.athena.list_data_catalogs
+    calls:
+      - action: get_database
+        params:
+          CatalogName: '{{ item.CatalogName }}'
+          DatabaseName: '{{ item.DatabaseName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.WorkGroups }}'
+      item:
+        Name: '{{ item.Name }}'
+        Description: '{{ item.Description }}'
+        Parameters: '{{ item.Parameters }}'
+  # ── GetNamedQuery ──
+  - discovery_id: aws.athena.get_named_query
+    calls:
+      - action: get_named_query
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.NamedQuery }}'
+      item:
+        Name: '{{ item.Name }}'
+        Database: '{{ item.Database }}'
+        Description: '{{ item.Description }}'
+        NamedQueryId: '{{ item.NamedQueryId }}'
+        QueryString: '{{ item.QueryString }}'
+        WorkGroup: '{{ item.WorkGroup }}'
+  # ── GetNotebookMetadata ──
+  - discovery_id: aws.athena.get_notebook_metadata
+    calls:
+      - action: get_notebook_metadata
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.CapacityReservations }}'
+      item:
+        CreationTime: '{{ item.CreationTime }}'
+        LastModifiedTime: '{{ item.LastModifiedTime }}'
+        Name: '{{ item.Name }}'
+        NotebookId: '{{ item.NotebookId }}'
+        Type: '{{ item.Type }}'
+        WorkGroup: '{{ item.WorkGroup }}'
+  # ── GetPreparedStatement ──
+  - discovery_id: aws.athena.get_prepared_statement
+    calls:
+      - action: get_prepared_statement
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.WorkGroups }}'
+      item:
+        LastModifiedTime: '{{ item.LastModifiedTime }}'
+        Description: '{{ item.Description }}'
+        QueryStatement: '{{ item.QueryStatement }}'
+        StatementName: '{{ item.StatementName }}'
+        WorkGroupName: '{{ item.WorkGroupName }}'
+  # ── GetQueryExecution ──
+  - discovery_id: aws.athena.get_query_execution
+    calls:
+      - action: get_query_execution
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.WorkGroups }}'
+      item:
+        Status: '{{ item.Status }}'
+        EngineVersion: '{{ item.EngineVersion }}'
+        ExecutionParameters: '{{ item.ExecutionParameters }}'
+        ManagedQueryResultsConfiguration: '{{ item.ManagedQueryResultsConfiguration }}'
+        Query: '{{ item.Query }}'
+        QueryExecutionContext: '{{ item.QueryExecutionContext }}'
+        QueryExecutionId: '{{ item.QueryExecutionId }}'
+        QueryResultsS3AccessGrantsConfiguration: '{{ item.QueryResultsS3AccessGrantsConfiguration }}'
+        ResultConfiguration: '{{ item.ResultConfiguration }}'
+        ResultReuseConfiguration: '{{ item.ResultReuseConfiguration }}'
+        StatementType: '{{ item.StatementType }}'
+        Statistics: '{{ item.Statistics }}'
+        SubstatementType: '{{ item.SubstatementType }}'
+        WorkGroup: '{{ item.WorkGroup }}'
+  # ── GetQueryResults ──
+  - discovery_id: aws.athena.get_query_results
+    calls:
+      - action: get_query_results
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ResultSet }}'
+      item:
+        ResultSetMetadata: '{{ item.ResultSetMetadata }}'
+        Rows: '{{ item.Rows }}'
+  # ── GetQueryRuntimeStatistics ──
+  - discovery_id: aws.athena.get_query_runtime_statistics
+    calls:
+      - action: get_query_runtime_statistics
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.QueryRuntimeStatistics }}'
+      item:
+        OutputStage: '{{ item.OutputStage }}'
+        Rows: '{{ item.Rows }}'
+        Timeline: '{{ item.Timeline }}'
+  # ── GetResourceDashboard ──
+  - discovery_id: aws.athena.get_resource_dashboard
+    calls:
+      - action: get_resource_dashboard
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Url }}'
+      item:
+        Url: '{{ item.Url }}'
+  # ── GetSession ──
+  - discovery_id: aws.athena.get_session
+    calls:
+      - action: get_session
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.EngineConfiguration }}'
+      item:
+        AdditionalConfigs: '{{ item.AdditionalConfigs }}'
+        Classifications: '{{ item.Classifications }}'
+        CoordinatorDpuSize: '{{ item.CoordinatorDpuSize }}'
+        DefaultExecutorDpuSize: '{{ item.DefaultExecutorDpuSize }}'
+        MaxConcurrentDpus: '{{ item.MaxConcurrentDpus }}'
+        MonitoringConfiguration: '{{ item.MonitoringConfiguration }}'
+        SparkProperties: '{{ item.SparkProperties }}'
+  # ── GetSessionEndpoint ──
+  - discovery_id: aws.athena.get_session_endpoint
+    calls:
+      - action: get_session_endpoint
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        AuthToken: '{{ response.AuthToken }}'
+        AuthTokenExpirationTime: '{{ response.AuthTokenExpirationTime }}'
+        EndpointUrl: '{{ response.EndpointUrl }}'
+  # ── GetSessionStatus ──
+  - discovery_id: aws.athena.get_session_status
+    calls:
+      - action: get_session_status
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Status }}'
+      item:
+        State: '{{ item.State }}'
+        EndDateTime: '{{ item.EndDateTime }}'
+        IdleSinceDateTime: '{{ item.IdleSinceDateTime }}'
+        LastModifiedDateTime: '{{ item.LastModifiedDateTime }}'
+        StartDateTime: '{{ item.StartDateTime }}'
+        StateChangeReason: '{{ item.StateChangeReason }}'
+  # ── GetTableMetadata ──
+  - discovery_id: aws.athena.get_table_metadata
+    for_each: aws.athena.list_data_catalogs
+    calls:
+      - action: get_table_metadata
+        params:
+          CatalogName: '{{ item.CatalogName }}'
+          DatabaseName: '{{ item.DatabaseName }}'
+          TableName: '{{ item.TableName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.TableMetadata }}'
+      item:
+        CreateTime: '{{ item.CreateTime }}'
+        Name: '{{ item.Name }}'
+        Columns: '{{ item.Columns }}'
+        LastAccessTime: '{{ item.LastAccessTime }}'
+        Parameters: '{{ item.Parameters }}'
+        PartitionKeys: '{{ item.PartitionKeys }}'
+        TableType: '{{ item.TableType }}'
+  # ── GetWorkGroup ──
+  - discovery_id: aws.athena.get_work_group
+    calls:
+      - action: get_work_group
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.WorkGroup }}'
+      item:
+        CreationTime: '{{ item.CreationTime }}'
+        Name: '{{ item.Name }}'
+        State: '{{ item.State }}'
+        Configuration: '{{ item.Configuration }}'
+        Description: '{{ item.Description }}'
+        IdentityCenterApplicationArn: '{{ item.IdentityCenterApplicationArn }}'
+  # ── ListCalculationExecutions ──
+  - discovery_id: aws.athena.list_calculation_executions
+    calls:
+      - action: list_calculation_executions
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Calculations }}'
+      item:
+        Status: '{{ item.Status }}'
+        CalculationExecutionId: '{{ item.CalculationExecutionId }}'
+        Description: '{{ item.Description }}'
+        Result: '{{ item.Result }}'
+  # ── ListDatabases ──
+  - discovery_id: aws.athena.list_databases
+    for_each: aws.athena.list_data_catalogs
+    calls:
+      - action: list_databases
+        params:
+          CatalogName: '{{ item.CatalogName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.DatabaseList }}'
+      item:
+        Name: '{{ item.Name }}'
+        Description: '{{ item.Description }}'
+        Parameters: '{{ item.Parameters }}'
+  # ── ListExecutors ──
+  - discovery_id: aws.athena.list_executors
+    calls:
+      - action: list_executors
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ExecutorsSummary }}'
+      item:
+        ExecutorId: '{{ item.ExecutorId }}'
+        ExecutorSize: '{{ item.ExecutorSize }}'
+        ExecutorState: '{{ item.ExecutorState }}'
+        ExecutorType: '{{ item.ExecutorType }}'
+        StartDateTime: '{{ item.StartDateTime }}'
+        TerminationDateTime: '{{ item.TerminationDateTime }}'
+  # ── ListNotebookMetadata ──
+  - discovery_id: aws.athena.list_notebook_metadata
+    calls:
+      - action: list_notebook_metadata
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.NotebookMetadataList }}'
+      item:
+        CreationTime: '{{ item.CreationTime }}'
+        LastModifiedTime: '{{ item.LastModifiedTime }}'
+        Name: '{{ item.Name }}'
+        NotebookId: '{{ item.NotebookId }}'
+        Type: '{{ item.Type }}'
+        WorkGroup: '{{ item.WorkGroup }}'
+  # ── ListNotebookSessions ──
+  - discovery_id: aws.athena.list_notebook_sessions
+    calls:
+      - action: list_notebook_sessions
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.NotebookSessionsList }}'
+      item:
+        CreationTime: '{{ item.CreationTime }}'
+        SessionId: '{{ item.SessionId }}'
+  # ── ListPreparedStatements ──
+  - discovery_id: aws.athena.list_prepared_statements
+    calls:
+      - action: list_prepared_statements
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.PreparedStatements }}'
+      item:
+        LastModifiedTime: '{{ item.LastModifiedTime }}'
+        StatementName: '{{ item.StatementName }}'
+  # ── ListSessions ──
+  - discovery_id: aws.athena.list_sessions
+    calls:
+      - action: list_sessions
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Sessions }}'
+      item:
+        Status: '{{ item.Status }}'
+        Description: '{{ item.Description }}'
+        EngineVersion: '{{ item.EngineVersion }}'
+        NotebookVersion: '{{ item.NotebookVersion }}'
+        SessionId: '{{ item.SessionId }}'
+  # ── ListTableMetadata ──
+  - discovery_id: aws.athena.list_table_metadata
+    for_each: aws.athena.list_data_catalogs
+    calls:
+      - action: list_table_metadata
+        params:
+          CatalogName: '{{ item.CatalogName }}'
+          DatabaseName: '{{ item.DatabaseName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.TableMetadataList }}'
+      item:
+        CreateTime: '{{ item.CreateTime }}'
+        Name: '{{ item.Name }}'
+        Columns: '{{ item.Columns }}'
+        LastAccessTime: '{{ item.LastAccessTime }}'
+        Parameters: '{{ item.Parameters }}'
+        PartitionKeys: '{{ item.PartitionKeys }}'
+        TableType: '{{ item.TableType }}'
+  # ── ListTagsForResource ──
+  - discovery_id: aws.athena.list_tags_for_resource
+    calls:
+      - action: list_tags_for_resource
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Tags }}'
+      item:
+        Key: '{{ item.Key }}'
+        Value: '{{ item.Value }}'

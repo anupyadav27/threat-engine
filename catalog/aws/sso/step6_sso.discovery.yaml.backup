@@ -1,0 +1,44 @@
+version: '1.0'
+provider: aws
+service: sso
+services:
+  client: sso
+  module: boto3.client
+discovery:
+- discovery_id: aws.sso.getRoleCredentials
+  calls:
+  - action: getRoleCredentials
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.roleCredentials }}'
+    item:
+      accessKeyId: '{{ item.accessKeyId }}'
+      secretAccessKey: '{{ item.secretAccessKey }}'
+      sessionToken: '{{ item.sessionToken }}'
+      expiration: '{{ item.expiration }}'
+- discovery_id: aws.sso.listAccountRoles
+  calls:
+  - action: listAccountRoles
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.roleList }}'
+    item:
+      roleName: '{{ item.roleName }}'
+      accountId: '{{ item.accountId }}'
+- discovery_id: aws.sso.listAccounts
+  calls:
+  - action: listAccounts
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.accountList }}'
+    item:
+      accountId: '{{ item.accountId }}'
+      accountName: '{{ item.accountName }}'
+      emailAddress: '{{ item.emailAddress }}'
+checks: []

@@ -1,0 +1,90 @@
+# ============================================================
+# Discovery YAML — safebrowsing (v4)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 4 | independent: 2 | dependent: 2
+# ops with fields: 4/4 | dep ops with chain: 0/2
+# ============================================================
+version: '1.0'
+provider: gcp
+service: safebrowsing
+
+services:
+  client: safebrowsing
+  module: "googleapiclient.discovery.build('safebrowsing', 'v4')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Fetches the most recent threat list updates. A client can request updates for multiple lists at once
+  # ── gcp.safebrowsing.threatListUpdates.fetch ──
+  - discovery_id: gcp.safebrowsing.threatListUpdates.fetch
+    # python: svc.threatListUpdates().fetch(**params).execute()
+    calls:
+      - action: threatListUpdates.fetch
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        listUpdateResponses: '{{ response.listUpdateResponses }}'
+        minimumWaitDuration: '{{ response.minimumWaitDuration }}'
+  # Lists the Safe Browsing threat lists available for download.
+  # ── gcp.safebrowsing.threatLists.list ──
+  - discovery_id: gcp.safebrowsing.threatLists.list
+    # python: svc.threatLists().list(**params).execute()
+    calls:
+      - action: threatLists.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.threatLists }}'
+      item:
+        platformType: '{{ item.platformType }}'
+        threatEntryType: '{{ item.threatEntryType }}'
+        threatType: '{{ item.threatType }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── gcp.safebrowsing.encodedFullHashes.get [dependent] ──
+  - discovery_id: gcp.safebrowsing.encodedFullHashes.get
+    # python: svc.encodedFullHashes().get(**params).execute()
+    calls:
+      - action: encodedFullHashes.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        matches: '{{ response.matches }}'
+        minimumWaitDuration: '{{ response.minimumWaitDuration }}'
+        negativeCacheDuration: '{{ response.negativeCacheDuration }}'
+    # required_params: ['encodedRequest']
+  # ── gcp.safebrowsing.encodedUpdates.get [dependent] ──
+  - discovery_id: gcp.safebrowsing.encodedUpdates.get
+    # python: svc.encodedUpdates().get(**params).execute()
+    calls:
+      - action: encodedUpdates.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        listUpdateResponses: '{{ response.listUpdateResponses }}'
+        minimumWaitDuration: '{{ response.minimumWaitDuration }}'
+    # required_params: ['encodedRequest']

@@ -1,0 +1,139 @@
+# ============================================================
+# Discovery YAML — alertcenter (v1beta1)
+# Generated: 2026-02-21T03:06:38Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 5 | independent: 2 | dependent: 3
+# ops with fields: 5/5 | dep ops with chain: 3/3
+# ============================================================
+version: '1.0'
+provider: gcp
+service: alertcenter
+
+services:
+  client: alertcenter
+  module: "googleapiclient.discovery.build('alertcenter', 'v1beta1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists the alerts.
+  # ── gcp.alertcenter.alerts.list ──
+  - discovery_id: gcp.alertcenter.alerts.list
+    # python: svc.alerts().list(**params).execute()
+    calls:
+      - action: alerts.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.alerts }}'
+      item:
+        alertId: '{{ item.alertId }}'
+        createTime: '{{ item.createTime }}'
+        customerId: '{{ item.customerId }}'
+        data: '{{ item.data }}'
+        deleted: '{{ item.deleted }}'
+        endTime: '{{ item.endTime }}'
+        metadata: '{{ item.metadata }}'
+        securityInvestigationToolLink: '{{ item.securityInvestigationToolLink }}'
+        source: '{{ item.source }}'
+        startTime: '{{ item.startTime }}'
+        type: '{{ item.type }}'
+        updateTime: '{{ item.updateTime }}'
+  # Returns customer-level settings.
+  # ── gcp.alertcenter.v1beta1.getSettings ──
+  - discovery_id: gcp.alertcenter.v1beta1.getSettings
+    # python: svc.v1beta1().getSettings(**params).execute()
+    calls:
+      - action: v1beta1.getSettings
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        notifications: '{{ response.notifications }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Lists all the feedback for an alert. Attempting to list feedbacks for a non-existent alert returns `
+  # ── gcp.alertcenter.alerts.feedback.list [dependent] ──
+  - discovery_id: gcp.alertcenter.alerts.feedback.list
+    for_each: gcp.alertcenter.alerts.list
+    # python: svc.alerts().feedback().list(**params).execute()
+    calls:
+      - action: alerts.feedback.list
+        params:
+          alertId: '{{ item.startTime }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.feedback }}'
+      item:
+        alertId: '{{ item.alertId }}'
+        createTime: '{{ item.createTime }}'
+        customerId: '{{ item.customerId }}'
+        email: '{{ item.email }}'
+        feedbackId: '{{ item.feedbackId }}'
+        type: '{{ item.type }}'
+    # required_params: ['alertId']
+  # Gets the specified alert. Attempting to get a nonexistent alert returns `NOT_FOUND` error.
+  # ── gcp.alertcenter.alerts.get [dependent] ──
+  - discovery_id: gcp.alertcenter.alerts.get
+    for_each: gcp.alertcenter.alerts.list
+    # python: svc.alerts().get(**params).execute()
+    calls:
+      - action: alerts.get
+        params:
+          alertId: '{{ item.startTime }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        alertId: '{{ response.alertId }}'
+        createTime: '{{ response.createTime }}'
+        customerId: '{{ response.customerId }}'
+        data: '{{ response.data }}'
+        deleted: '{{ response.deleted }}'
+        endTime: '{{ response.endTime }}'
+        metadata: '{{ response.metadata }}'
+        securityInvestigationToolLink: '{{ response.securityInvestigationToolLink }}'
+        source: '{{ response.source }}'
+        startTime: '{{ response.startTime }}'
+        type: '{{ response.type }}'
+        updateTime: '{{ response.updateTime }}'
+    # required_params: ['alertId']
+  # Returns the metadata of an alert. Attempting to get metadata for a non-existent alert returns `NOT_F
+  # ── gcp.alertcenter.alerts.getMetadata [dependent] ──
+  - discovery_id: gcp.alertcenter.alerts.getMetadata
+    for_each: gcp.alertcenter.alerts.list
+    # python: svc.alerts().getMetadata(**params).execute()
+    calls:
+      - action: alerts.getMetadata
+        params:
+          alertId: '{{ item.startTime }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        alertId: '{{ response.alertId }}'
+        assignee: '{{ response.assignee }}'
+        customerId: '{{ response.customerId }}'
+        severity: '{{ response.severity }}'
+        status: '{{ response.status }}'
+        updateTime: '{{ response.updateTime }}'
+    # required_params: ['alertId']

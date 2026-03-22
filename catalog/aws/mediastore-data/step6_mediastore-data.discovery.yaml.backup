@@ -1,0 +1,41 @@
+version: '1.0'
+provider: aws
+service: mediastore-data
+services:
+  client: mediastore-data
+  module: boto3.client
+discovery:
+- discovery_id: aws.mediastore-data.listItems
+  calls:
+  - action: listItems
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Items }}'
+    item:
+      Name: '{{ item.Name }}'
+      Type: '{{ item.Type }}'
+      ETag: '{{ item.ETag }}'
+      LastModified: '{{ item.LastModified }}'
+      ContentType: '{{ item.ContentType }}'
+      ContentLength: '{{ item.ContentLength }}'
+- discovery_id: aws.mediastore-data.describeObject
+  calls:
+  - action: describeObject
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ETag }}'
+- discovery_id: aws.mediastore-data.getObject
+  calls:
+  - action: getObject
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Body }}'
+checks: []

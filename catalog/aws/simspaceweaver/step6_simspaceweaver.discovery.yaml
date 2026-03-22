@@ -1,0 +1,80 @@
+# ============================================================
+# Discovery YAML — simspaceweaver (AWS)
+# Generated: 2026-02-21T04:56:59Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: simspaceweaver
+services:
+  client: simspaceweaver
+  module: boto3.client
+discovery:
+  # ── ListSimulations ──
+  - discovery_id: aws.simspaceweaver.list_simulations
+    calls:
+      - action: list_simulations
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Simulations }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        CreationTime: '{{ item.CreationTime }}'
+        Name: '{{ item.Name }}'
+        Status: '{{ item.Status }}'
+        TargetStatus: '{{ item.TargetStatus }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── DescribeApp ──
+  - discovery_id: aws.simspaceweaver.describe_app
+    calls:
+      - action: describe_app
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.EndpointInfo }}'
+      item:
+        Address: '{{ item.Address }}'
+        Description: '{{ item.Description }}'
+        IngressPortMappings: '{{ item.IngressPortMappings }}'
+  # ── DescribeSimulation ──
+  - discovery_id: aws.simspaceweaver.describe_simulation
+    calls:
+      - action: describe_simulation
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.LiveSimulationState }}'
+      item:
+        Clocks: '{{ item.Clocks }}'
+        Domains: '{{ item.Domains }}'
+        Enabled: '{{ item.Enabled }}'
+  # ── ListApps ──
+  - discovery_id: aws.simspaceweaver.list_apps
+    calls:
+      - action: list_apps
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Apps }}'
+      item:
+        Name: '{{ item.Name }}'
+        Status: '{{ item.Status }}'
+        Description: '{{ item.Description }}'
+        Domain: '{{ item.Domain }}'
+        Simulation: '{{ item.Simulation }}'
+        TargetStatus: '{{ item.TargetStatus }}'
+  # ── ListTagsForResource ──
+  - discovery_id: aws.simspaceweaver.list_tags_for_resource
+    calls:
+      - action: list_tags_for_resource
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        Tags: '{{ response.Tags }}'

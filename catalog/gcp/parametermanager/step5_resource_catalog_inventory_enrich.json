@@ -1,0 +1,523 @@
+{
+  "csp": "gcp",
+  "generated_at": "2026-02-19T14:43:27.736792+00:00",
+  "anchors": {
+    "fixed": [
+      "project_id",
+      "org_id",
+      "folder_id",
+      "location",
+      "zone",
+      "region"
+    ]
+  },
+  "services": {
+    "parametermanager": {
+      "version": "v1",
+      "resources": {
+        "locations": {
+          "resource_type": "locations",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.parametermanager.projects.locations.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}/locations"
+                },
+                "python_call": "svc.projects().locations().list(**params).execute()",
+                "produces": {
+                  "name": "locations[].name",
+                  "labels": "locations[].labels",
+                  "metadata": "locations[].metadata",
+                  "displayName": "locations[].displayName",
+                  "locationId": "locations[].locationId"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.parametermanager.projects.locations.get",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "parameters": {
+          "resource_type": "parameters",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.parametermanager.projects.locations.parameters.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/parameters"
+                },
+                "python_call": "svc.projects().locations().parameters().list(**params).execute()",
+                "produces": {
+                  "name": "parameters[].name",
+                  "updateTime": "parameters[].updateTime",
+                  "format": "parameters[].format",
+                  "policyMember": "parameters[].policyMember",
+                  "kmsKey": "parameters[].kmsKey",
+                  "createTime": "parameters[].createTime",
+                  "labels": "parameters[].labels"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.parametermanager.projects.locations.parameters.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().parameters().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.parametermanager.projects.locations.parameters.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.parametermanager.projects.locations.parameters.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().parameters().list(**params).execute()",
+                      "path": "/v1/{+parent}/parameters",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. Parent value for ListParametersRequest in the format `projects/*/locations/*`."
+                        }
+                      },
+                      "output_list_field": "parameters",
+                      "output_id_field": "name",
+                      "produces": {
+                        "parameterId": {
+                          "via_list_field": "parameters",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"parameters\"][], extract item[\"name\"] \u2192 pass as \"parameterId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: parameterId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.parametermanager.projects.locations.parameters.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().parameters().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/parameters/[^/]+$",
+                          "description": "Required. Name of the resource in the format `projects/*/locations/*/parameters/*`."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "parameterId": {
+                            "from_step": 1,
+                            "from_op": "gcp.parametermanager.projects.locations.parameters.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "versions": {
+          "resource_type": "versions",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.parametermanager.projects.locations.parameters.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/parameters"
+                },
+                "python_call": "svc.projects().locations().parameters().list(**params).execute()",
+                "produces": {
+                  "name": "parameters[].name",
+                  "updateTime": "parameters[].updateTime",
+                  "format": "parameters[].format",
+                  "policyMember": "parameters[].policyMember",
+                  "kmsKey": "parameters[].kmsKey",
+                  "createTime": "parameters[].createTime",
+                  "labels": "parameters[].labels"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.parametermanager.projects.locations.parameters.versions.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/versions"
+                },
+                "python_call": "svc.projects().locations().parameters().versions().list(**params).execute()",
+                "produces": {
+                  "name": "parameterVersions[].name",
+                  "kmsKeyVersion": "parameterVersions[].kmsKeyVersion",
+                  "createTime": "parameterVersions[].createTime",
+                  "disabled": "parameterVersions[].disabled",
+                  "updateTime": "parameterVersions[].updateTime",
+                  "payload": "parameterVersions[].payload"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.parametermanager.projects.locations.parameters.versions.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().parameters().versions().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.parametermanager.projects.locations.parameters.versions.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 3,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.parametermanager.projects.locations.parameters.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().parameters().list(**params).execute()",
+                      "path": "/v1/{+parent}/parameters",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. Parent value for ListParametersRequest in the format `projects/*/locations/*`."
+                        }
+                      },
+                      "output_list_field": "parameters",
+                      "output_id_field": "name",
+                      "produces": {
+                        "parameterId": {
+                          "via_list_field": "parameters",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"parameters\"][], extract item[\"name\"] \u2192 pass as \"parameterId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: parameterId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.parametermanager.projects.locations.parameters.versions.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().parameters().versions().list(**params).execute()",
+                      "path": "/v1/{+parent}/versions",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/parameters/[^/]+$",
+                          "description": "Required. Parent value for ListParameterVersionsRequest in the format `projects/*/locations/*/parameters/*`."
+                        }
+                      },
+                      "output_list_field": "parameterVersions",
+                      "output_id_field": "name",
+                      "produces": {
+                        "versionId": {
+                          "via_list_field": "parameterVersions",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"parameterVersions\"][], extract item[\"name\"] \u2192 pass as \"versionId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: versionId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.parametermanager.projects.locations.parameters.versions.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().parameters().versions().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/parameters/[^/]+/versions/[^/]+$",
+                          "description": "Required. Name of the resource in the format `projects/*/locations/*/parameters/*/versions/*`."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "parameterId": {
+                            "from_step": 1,
+                            "from_op": "gcp.parametermanager.projects.locations.parameters.list",
+                            "field": "name"
+                          },
+                          "versionId": {
+                            "from_step": 2,
+                            "from_op": "gcp.parametermanager.projects.locations.parameters.versions.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.parametermanager.projects.locations.parameters.versions.render",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}:render"
+                },
+                "python_call": "svc.projects().locations().parameters().versions().render(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.parametermanager.projects.locations.parameters.versions.render",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 3,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.parametermanager.projects.locations.parameters.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().parameters().list(**params).execute()",
+                      "path": "/v1/{+parent}/parameters",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. Parent value for ListParametersRequest in the format `projects/*/locations/*`."
+                        }
+                      },
+                      "output_list_field": "parameters",
+                      "output_id_field": "name",
+                      "produces": {
+                        "parameterId": {
+                          "via_list_field": "parameters",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"parameters\"][], extract item[\"name\"] \u2192 pass as \"parameterId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: parameterId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.parametermanager.projects.locations.parameters.versions.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().parameters().versions().list(**params).execute()",
+                      "path": "/v1/{+parent}/versions",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/parameters/[^/]+$",
+                          "description": "Required. Parent value for ListParameterVersionsRequest in the format `projects/*/locations/*/parameters/*`."
+                        }
+                      },
+                      "output_list_field": "parameterVersions",
+                      "output_id_field": "name",
+                      "produces": {
+                        "versionId": {
+                          "via_list_field": "parameterVersions",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"parameterVersions\"][], extract item[\"name\"] \u2192 pass as \"versionId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: versionId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.parametermanager.projects.locations.parameters.versions.render",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().parameters().versions().render(**params).execute()",
+                      "path": "/v1/{+name}:render",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/parameters/[^/]+/versions/[^/]+$",
+                          "description": "Required. Name of the resource"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "parameterId": {
+                            "from_step": 1,
+                            "from_op": "gcp.parametermanager.projects.locations.parameters.list",
+                            "field": "name"
+                          },
+                          "versionId": {
+                            "from_step": 2,
+                            "from_op": "gcp.parametermanager.projects.locations.parameters.versions.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        }
+      }
+    }
+  }
+}

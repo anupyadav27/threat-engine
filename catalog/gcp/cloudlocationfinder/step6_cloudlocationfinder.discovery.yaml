@@ -1,0 +1,128 @@
+# ============================================================
+# Discovery YAML — cloudlocationfinder (v1)
+# Generated: 2026-02-21T03:06:39Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 5 | independent: 4 | dependent: 1
+# ops with fields: 5/5 | dep ops with chain: 1/1
+# ============================================================
+version: '1.0'
+provider: gcp
+service: cloudlocationfinder
+
+services:
+  client: cloudlocationfinder
+  module: "googleapiclient.discovery.build('cloudlocationfinder', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists cloud locations under a given project and location.
+  # ── gcp.cloudlocationfinder.projects.locations.cloudLocations.list ──
+  - discovery_id: gcp.cloudlocationfinder.projects.locations.cloudLocations.list
+    # python: svc.projects().locations().cloudLocations().list(**params).execute()
+    calls:
+      - action: projects.locations.cloudLocations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.cloudLocations }}'
+      item:
+        carbonFreeEnergyPercentage: '{{ item.carbonFreeEnergyPercentage }}'
+        cloudLocationType: '{{ item.cloudLocationType }}'
+        cloudProvider: '{{ item.cloudProvider }}'
+        containingCloudLocation: '{{ item.containingCloudLocation }}'
+        displayName: '{{ item.displayName }}'
+        name: '{{ item.name }}'
+        territoryCode: '{{ item.territoryCode }}'
+  # Searches for cloud locations from a given source location.
+  # ── gcp.cloudlocationfinder.projects.locations.cloudLocations.search ──
+  - discovery_id: gcp.cloudlocationfinder.projects.locations.cloudLocations.search
+    # python: svc.projects().locations().cloudLocations().search(**params).execute()
+    calls:
+      - action: projects.locations.cloudLocations.search
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.cloudLocations }}'
+      item:
+        carbonFreeEnergyPercentage: '{{ item.carbonFreeEnergyPercentage }}'
+        cloudLocationType: '{{ item.cloudLocationType }}'
+        cloudProvider: '{{ item.cloudProvider }}'
+        containingCloudLocation: '{{ item.containingCloudLocation }}'
+        displayName: '{{ item.displayName }}'
+        name: '{{ item.name }}'
+        territoryCode: '{{ item.territoryCode }}'
+  # Gets information about a location.
+  # ── gcp.cloudlocationfinder.projects.locations.get ──
+  - discovery_id: gcp.cloudlocationfinder.projects.locations.get
+    # python: svc.projects().locations().get(**params).execute()
+    calls:
+      - action: projects.locations.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        displayName: '{{ response.displayName }}'
+        labels: '{{ response.labels }}'
+        locationId: '{{ response.locationId }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+  # Lists information about the supported locations for this service. This method can be called in two w
+  # ── gcp.cloudlocationfinder.projects.locations.list ──
+  - discovery_id: gcp.cloudlocationfinder.projects.locations.list
+    # python: svc.projects().locations().list(**params).execute()
+    calls:
+      - action: projects.locations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.locations }}'
+      item:
+        displayName: '{{ item.displayName }}'
+        labels: '{{ item.labels }}'
+        locationId: '{{ item.locationId }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Retrieves a resource containing information about a cloud location.
+  # ── gcp.cloudlocationfinder.projects.locations.cloudLocations.get [dependent] ──
+  - discovery_id: gcp.cloudlocationfinder.projects.locations.cloudLocations.get
+    for_each: gcp.cloudlocationfinder.projects.locations.cloudLocations.search
+    # python: svc.projects().locations().cloudLocations().get(**params).execute()
+    calls:
+      - action: projects.locations.cloudLocations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        carbonFreeEnergyPercentage: '{{ response.carbonFreeEnergyPercentage }}'
+        cloudLocationType: '{{ response.cloudLocationType }}'
+        cloudProvider: '{{ response.cloudProvider }}'
+        containingCloudLocation: '{{ response.containingCloudLocation }}'
+        displayName: '{{ response.displayName }}'
+        name: '{{ response.name }}'
+        territoryCode: '{{ response.territoryCode }}'
+    # required_params: ['name']

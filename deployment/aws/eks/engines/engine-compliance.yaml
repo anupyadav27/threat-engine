@@ -25,7 +25,7 @@ spec:
       serviceAccountName: engine-sa
       containers:
       - name: engine-compliance
-        image: yadavanup84/threat-engine-compliance-engine:v2-db-reports
+        image: yadavanup84/threat-engine-compliance-engine:v-std-cols
         imagePullPolicy: Always
         ports:
         - containerPort: 8010
@@ -40,6 +40,69 @@ spec:
           value: /app
         - name: LOG_LEVEL
           value: "INFO"
+        # ── Scanner Job config ─────────────────────────────────────────────
+        - name: COMPLIANCE_SCANNER_IMAGE
+          value: "yadavanup84/threat-engine-compliance-engine:v-uid-fix"
+        - name: SCANNER_CPU_REQUEST
+          value: "250m"
+        - name: SCANNER_MEM_REQUEST
+          value: "1Gi"
+        - name: SCANNER_CPU_LIMIT
+          value: "500m"
+        - name: SCANNER_MEM_LIMIT
+          value: "2Gi"
+        - name: SCANNER_NAMESPACE
+          value: "threat-engine-engines"
+        - name: SCANNER_SERVICE_ACCOUNT
+          value: "engine-sa"
+        # ── Onboarding DB (for orchestration queries) ───────────────────────
+        - name: ONBOARDING_DB_HOST
+          value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+        - name: ONBOARDING_DB_PORT
+          value: "5432"
+        - name: ONBOARDING_DB_USER
+          value: "postgres"
+        - name: ONBOARDING_DB_NAME
+          value: "threat_engine_onboarding"
+        - name: ONBOARDING_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: ONBOARDING_DB_PASSWORD
+              optional: true
+        # ── OpenTelemetry ─────────────────────────────────────────────────
+        - name: OTEL_SERVICE_NAME
+          value: "engine-compliance"
+        - name: OTEL_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_ENABLED
+              optional: true
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_EXPORTER_OTLP_ENDPOINT
+              optional: true
+        - name: OTEL_EXPORTER_OTLP_INSECURE
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_EXPORTER_OTLP_INSECURE
+              optional: true
+        - name: OTEL_TRACES_SAMPLER
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_TRACES_SAMPLER
+              optional: true
+        - name: OTEL_PROPAGATORS
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_PROPAGATORS
+              optional: true
         - name: S3_BUCKET
           valueFrom:
             configMapKeyRef:
@@ -54,68 +117,27 @@ spec:
           value: "/output"
         - name: ENGINE_NAME
           value: "compliance"
-        volumeMounts:
-        - name: output
-          mountPath: /output
-        - name: input
-          mountPath: /input
         resources:
           requests:
-            memory: "256Mi"
-            cpu: "50m"
+            memory: "128Mi"
+            cpu: "100m"
           limits:
-            memory: "1536Mi"
-            cpu: "500m"
+            memory: "256Mi"
+            cpu: "250m"
         livenessProbe:
           httpGet:
-            path: /api/v1/health
+            path: /api/v1/health/live
             port: 8010
           initialDelaySeconds: 30
           periodSeconds: 10
           failureThreshold: 30
         readinessProbe:
           httpGet:
-            path: /api/v1/health
+            path: /api/v1/health/ready
             port: 8010
           initialDelaySeconds: 10
           periodSeconds: 5
           failureThreshold: 6
-
-      - name: s3-sync
-        image: amazon/aws-cli:latest
-        command: ["/bin/sh", "-c"]
-        args:
-          - |
-            while true; do
-              if [ -d "/output" ] && [ "$(ls -A /output 2>/dev/null)" ]; then
-                aws s3 sync /output "s3://${S3_BUCKET}/engine_output/${ENGINE_NAME}/" \
-                  --region ${AWS_REGION} --exclude "*.tmp" --exclude "*.lock" --delete 2>/dev/null
-              fi
-              sleep 30
-            done
-        env:
-        - name: S3_BUCKET
-          valueFrom:
-            configMapKeyRef:
-              name: s3-mount-config
-              key: s3-bucket
-        - name: AWS_REGION
-          valueFrom:
-            configMapKeyRef:
-              name: s3-mount-config
-              key: s3-region
-        - name: ENGINE_NAME
-          value: "compliance"
-        volumeMounts:
-        - name: output
-          mountPath: /output
-        resources:
-          requests:
-            memory: "64Mi"
-            cpu: "25m"
-          limits:
-            memory: "128Mi"
-            cpu: "100m"
 
       volumes:
       - name: output

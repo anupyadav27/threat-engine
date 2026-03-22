@@ -1,0 +1,76 @@
+version: '1.0'
+provider: oci
+service: security_attribute
+services:
+  client: security_attribute
+  module: oci.security_attribute
+discovery:
+- discovery_id: oci.security_attribute.get_security_attribute_work_request
+  calls:
+  - action: get_security_attribute_work_request
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.security_attribute.get_security_attribute_namespace
+  calls:
+  - action: get_security_attribute_namespace
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.security_attribute.get_security_attribute
+  calls:
+  - action: get_security_attribute
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.security_attribute.list_security_attributes
+  for_each: oci.security_attribute.get_security_attribute_work_request
+  calls:
+  - action: list_security_attributes
+    save_as: response
+    on_error: continue
+    params:
+      compartment_id: '{{ item.compartment_id }}'
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.security_attribute.list_security_attribute_namespaces
+  for_each: oci.security_attribute.get_security_attribute_work_request
+  calls:
+  - action: list_security_attribute_namespaces
+    save_as: response
+    on_error: continue
+    params:
+      compartment_id: '{{ item.compartment_id }}'
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.security_attribute.list_security_attribute_work_request_errors
+  for_each: oci.security_attribute.get_security_attribute_work_request
+  calls:
+  - action: list_security_attribute_work_request_errors
+    save_as: response
+    on_error: continue
+    params:
+      compartment_id: '{{ item.compartment_id }}'
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.security_attribute.list_security_attribute_work_request_logs
+  for_each: oci.security_attribute.get_security_attribute_work_request
+  calls:
+  - action: list_security_attribute_work_request_logs
+    save_as: response
+    on_error: continue
+    params:
+      compartment_id: '{{ item.compartment_id }}'
+  emit:
+    as: item
+    items_for: '{{ response }}'
+checks: []

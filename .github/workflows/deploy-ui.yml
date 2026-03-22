@@ -1,0 +1,162 @@
+name: Deploy CSPM UI to EKS
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'ui_samples/**'
+      - 'deployment/aws/eks/engines/cspm-portal*.yaml'
+  workflow_dispatch:
+    inputs:
+      skip_build:
+        description: 'Skip Docker build (redeploy existing :latest image)'
+        required: false
+        default: 'false'
+
+env:
+  AWS_REGION: ap-south-1
+  EKS_CLUSTER: vulnerability-eks-cluster
+  NAMESPACE: threat-engine-engines
+  FRONTEND_IMAGE: yadavanup84/threat-engine-ui
+
+# ─────────────────────────────────────────────────────────────────────────────
+jobs:
+  # ── Job 1: Build & push frontend image ───────────────────────────────────
+  build-frontend:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    if: github.event.inputs.skip_build != 'true'
+    outputs:
+      image_tag: ${{ steps.meta.outputs.sha_short }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set short SHA
+        id: meta
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./ui_samples
+          file: ./ui_samples/Dockerfile
+          push: true
+          tags: |
+            ${{ env.FRONTEND_IMAGE }}:latest
+            ${{ env.FRONTEND_IMAGE }}:${{ steps.meta.outputs.sha_short }}
+          build-args: |
+            NEXT_PUBLIC_API_BASE=http://${{ secrets.ELB_HOST }}/cspm
+            NEXT_PUBLIC_AUTH_URL=http://${{ secrets.ELB_HOST }}/cspm
+            NEXT_PUBLIC_TENANT_ID=${{ secrets.TENANT_ID }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ── Job 2: Deploy to EKS ─────────────────────────────────────────────────
+  deploy:
+    name: Deploy to EKS
+    runs-on: ubuntu-latest
+    needs: [ build-frontend ]
+    if: always() && (needs.build-frontend.result == 'success' || github.event.inputs.skip_build == 'true')
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig for EKS
+        run: |
+          aws eks update-kubeconfig \
+            --region ${{ env.AWS_REGION }} \
+            --name ${{ env.EKS_CLUSTER }}
+
+      - name: Apply Kubernetes manifests
+        run: |
+          kubectl apply \
+            -f deployment/aws/eks/engines/cspm-portal.yaml \
+            -n ${{ env.NAMESPACE }}
+          kubectl apply \
+            -f deployment/aws/eks/engines/cspm-portal-ingress.yaml \
+            -n ${{ env.NAMESPACE }}
+
+      - name: Rolling restart frontend (pull new :latest)
+        run: |
+          kubectl rollout restart deployment/cspm-frontend \
+            -n ${{ env.NAMESPACE }}
+
+      - name: Rolling restart backend (pull new :latest)
+        run: |
+          kubectl rollout restart deployment/cspm-backend \
+            -n ${{ env.NAMESPACE }}
+
+      - name: Wait for frontend rollout
+        run: |
+          kubectl rollout status deployment/cspm-frontend \
+            -n ${{ env.NAMESPACE }} \
+            --timeout=5m
+
+      - name: Wait for backend rollout
+        run: |
+          kubectl rollout status deployment/cspm-backend \
+            -n ${{ env.NAMESPACE }} \
+            --timeout=5m
+
+      - name: Smoke test endpoints
+        run: |
+          ELB=${{ secrets.ELB_HOST }}
+
+          # Django health check
+          echo "Testing Django /health..."
+          STATUS=$(curl -sf -o /dev/null -w "%{http_code}" \
+            --max-time 15 \
+            http://${ELB}/cspm/health || echo "000")
+          echo "  → HTTP ${STATUS}"
+          [ "${STATUS}" = "200" ] || { echo "❌ Django health check failed"; exit 1; }
+
+          # Next.js index
+          echo "Testing Next.js /ui..."
+          STATUS=$(curl -sf -o /dev/null -w "%{http_code}" \
+            --max-time 15 \
+            http://${ELB}/ui || echo "000")
+          echo "  → HTTP ${STATUS}"
+          [ "${STATUS}" = "200" ] || { echo "❌ Next.js health check failed"; exit 1; }
+
+          echo "✅ All smoke tests passed"
+
+      - name: Write deployment summary
+        if: always()
+        run: |
+          echo "## 🚀 CSPM Portal Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`$(git rev-parse --short HEAD)\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Time:** $(date -u '+%Y-%m-%d %H:%M UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** Production (EKS ap-south-1)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Pod Status" >> $GITHUB_STEP_SUMMARY
+          echo "| Pod | Ready | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          kubectl get pods -n ${{ env.NAMESPACE }} -l tier=portal \
+            --no-headers \
+            -o custom-columns='NAME:.metadata.name,READY:.status.containerStatuses[0].ready,STATUS:.status.phase' \
+            | awk '{print "| `"$1"` | "$2" | "$3" |"}' >> $GITHUB_STEP_SUMMARY || true
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Access URLs" >> $GITHUB_STEP_SUMMARY
+          echo "- **UI:** http://${{ secrets.ELB_HOST }}/ui" >> $GITHUB_STEP_SUMMARY
+          echo "- **API:** http://${{ secrets.ELB_HOST }}/cspm" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,61 @@
+version: '1.0'
+provider: aws
+service: freetier
+services:
+  client: freetier
+  module: boto3.client
+discovery:
+- discovery_id: aws.freetier.getAccountPlanState
+  calls:
+  - action: getAccountPlanState
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.accountPlanRemainingCredits }}'
+    item:
+      amount: '{{ item.amount }}'
+      unit: '{{ item.unit }}'
+- discovery_id: aws.freetier.getFreeTierUsage
+  calls:
+  - action: getFreeTierUsage
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.freeTierUsages }}'
+    item:
+      service: '{{ item.service }}'
+      operation: '{{ item.operation }}'
+      usageType: '{{ item.usageType }}'
+      region: '{{ item.region }}'
+      actualUsageAmount: '{{ item.actualUsageAmount }}'
+      forecastedUsageAmount: '{{ item.forecastedUsageAmount }}'
+      limit: '{{ item.limit }}'
+      unit: '{{ item.unit }}'
+      description: '{{ item.description }}'
+      freeTierType: '{{ item.freeTierType }}'
+- discovery_id: aws.freetier.listAccountActivities
+  calls:
+  - action: listAccountActivities
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.activities }}'
+    item:
+      activityId: '{{ item.activityId }}'
+      title: '{{ item.title }}'
+      reward: '{{ item.reward }}'
+      status: '{{ item.status }}'
+- discovery_id: aws.freetier.getAccountActivity
+  calls:
+  - action: getAccountActivity
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.reward }}'
+    item:
+      credit: '{{ item.credit }}'
+checks: []

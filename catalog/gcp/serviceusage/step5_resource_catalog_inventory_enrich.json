@@ -1,0 +1,297 @@
+{
+  "csp": "gcp",
+  "generated_at": "2026-02-19T14:43:28.113191+00:00",
+  "anchors": {
+    "fixed": [
+      "project_id",
+      "org_id",
+      "folder_id",
+      "location",
+      "zone",
+      "region"
+    ]
+  },
+  "services": {
+    "serviceusage": {
+      "version": "v1",
+      "resources": {
+        "operations": {
+          "resource_type": "operations",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.serviceusage.operations.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/operations"
+                },
+                "python_call": "svc.operations().list(**params).execute()",
+                "produces": {
+                  "name": "operations[].name",
+                  "error": "operations[].error",
+                  "metadata": "operations[].metadata",
+                  "done": "operations[].done",
+                  "response": "operations[].response"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.serviceusage.operations.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.operations().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.serviceusage.operations.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.serviceusage.operations.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.operations().list(**params).execute()",
+                      "path": "/v1/operations",
+                      "required_params": {},
+                      "output_list_field": "operations",
+                      "output_id_field": "name",
+                      "produces": {
+                        "operationId": {
+                          "via_list_field": "operations",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"operations\"][], extract item[\"name\"] \u2192 pass as \"operationId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: operationId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.serviceusage.operations.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.operations().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^operations/[^/]+$",
+                          "description": "The name of the operation resource."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "operationId": {
+                            "from_step": 1,
+                            "from_op": "gcp.serviceusage.operations.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "services": {
+          "resource_type": "services",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{parent}/services:batchGet",
+              "built_from_parts": [
+                "parent"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [
+              "parent"
+            ],
+            "part_sources": {
+              "parent": {
+                "op": "gcp.serviceusage.services.list",
+                "field_path": "services[].name",
+                "transform": null
+              }
+            },
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.serviceusage.services.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/services"
+                },
+                "python_call": "svc.services().list(**params).execute()",
+                "produces": {
+                  "name": "services[].name",
+                  "config": "services[].config",
+                  "parent": "services[].parent",
+                  "state": "services[].state"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.serviceusage.services.batchGet",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/services:batchGet"
+                },
+                "python_call": "svc.services().batchGet(**params).execute()",
+                "required_params": {
+                  "parent": {
+                    "from_identifier": "parent"
+                  }
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.serviceusage.services.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.services().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.serviceusage.services.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.serviceusage.services.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.services().list(**params).execute()",
+                      "path": "/v1/{+parent}/services",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^[^/]+/[^/]+$",
+                          "description": "Parent to search for services on. An example name would be: `projects/123` where `123` is the project number."
+                        }
+                      },
+                      "output_list_field": "services",
+                      "output_id_field": "name",
+                      "produces": {
+                        "serviceId": {
+                          "via_list_field": "services",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"services\"][], extract item[\"name\"] \u2192 pass as \"serviceId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: serviceId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.serviceusage.services.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.services().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^[^/]+/[^/]+/services/[^/]+$",
+                          "description": "Name of the consumer and service to get the `ConsumerState` for. An example name would be: `projects/123/services/servic"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "serviceId": {
+                            "from_step": 1,
+                            "from_op": "gcp.serviceusage.services.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        }
+      }
+    }
+  }
+}

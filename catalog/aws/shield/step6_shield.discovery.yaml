@@ -1,0 +1,211 @@
+# ============================================================
+# Discovery YAML — shield (AWS)
+# Generated: 2026-02-21T04:56:59Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: shield
+services:
+  client: shield
+  module: boto3.client
+discovery:
+  # ── DescribeAttackStatistics ──
+  - discovery_id: aws.shield.describe_attack_statistics
+    calls:
+      - action: describe_attack_statistics
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.DataItems }}'
+      item:
+        AttackCount: '{{ item.AttackCount }}'
+        AttackVolume: '{{ item.AttackVolume }}'
+        DataItems: '{{ item.DataItems }}'
+        TimeRange: '{{ item.TimeRange }}'
+  # ── DescribeDRTAccess ──
+  - discovery_id: aws.shield.describe_drt_access
+    calls:
+      - action: describe_drt_access
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.LogBucketList }}'
+      item:
+        RoleArn: '{{ item.RoleArn }}'
+        LogBucketList: '{{ item.LogBucketList }}'
+  # ── DescribeEmergencyContactSettings ──
+  - discovery_id: aws.shield.describe_emergency_contact_settings
+    calls:
+      - action: describe_emergency_contact_settings
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.EmergencyContactList }}'
+      item:
+        ContactNotes: '{{ item.ContactNotes }}'
+        EmailAddress: '{{ item.EmailAddress }}'
+        EmergencyContactList: '{{ item.EmergencyContactList }}'
+        PhoneNumber: '{{ item.PhoneNumber }}'
+  # ── DescribeProtection ──
+  - discovery_id: aws.shield.describe_protection
+    calls:
+      - action: describe_protection
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Protection }}'
+      item:
+        ResourceArn: '{{ item.ResourceArn }}'
+        Status: '{{ item.Status }}'
+        Enabled: '{{ item.Enabled }}'
+        Protection: '{{ item.Protection }}'
+        ProtectionArn: '{{ item.ProtectionArn }}'
+  # ── DescribeSubscription ──
+  - discovery_id: aws.shield.describe_subscription
+    calls:
+      - action: describe_subscription
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Subscription }}'
+      item:
+        AutoRenew: '{{ item.AutoRenew }}'
+        EndTime: '{{ item.EndTime }}'
+        Limits: '{{ item.Limits }}'
+        ProactiveEngagementStatus: '{{ item.ProactiveEngagementStatus }}'
+        StartTime: '{{ item.StartTime }}'
+        Subscription: '{{ item.Subscription }}'
+        SubscriptionArn: '{{ item.SubscriptionArn }}'
+        SubscriptionLimits: '{{ item.SubscriptionLimits }}'
+        TimeCommitmentInSeconds: '{{ item.TimeCommitmentInSeconds }}'
+  # ── GetSubscriptionState ──
+  - discovery_id: aws.shield.get_subscription_state
+    calls:
+      - action: get_subscription_state
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.SubscriptionState }}'
+      item:
+        SubscriptionState: '{{ item.SubscriptionState }}'
+  # ── ListAttacks ──
+  - discovery_id: aws.shield.list_attacks
+    calls:
+      - action: list_attacks
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.AttackSummaries }}'
+      item:
+        ResourceArn: '{{ item.ResourceArn }}'
+        Attack: '{{ item.Attack }}'
+        AttackId: '{{ item.AttackId }}'
+        AttackVectors: '{{ item.AttackVectors }}'
+        EndTime: '{{ item.EndTime }}'
+        StartTime: '{{ item.StartTime }}'
+  # ── ListProtectionGroups ──
+  - discovery_id: aws.shield.list_protection_groups
+    calls:
+      - action: list_protection_groups
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ProtectionGroups }}'
+      item:
+        Aggregation: '{{ item.Aggregation }}'
+        Members: '{{ item.Members }}'
+        Pattern: '{{ item.Pattern }}'
+        ProtectionGroupArn: '{{ item.ProtectionGroupArn }}'
+        ProtectionGroupId: '{{ item.ProtectionGroupId }}'
+        ResourceType: '{{ item.ResourceType }}'
+  # ── ListProtections ──
+  - discovery_id: aws.shield.list_protections
+    calls:
+      - action: list_protections
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Protections }}'
+      item:
+        Id: '{{ item.Id }}'
+        Name: '{{ item.Name }}'
+        ResourceArn: '{{ item.ResourceArn }}'
+        ApplicationLayerAutomaticResponseConfiguration: '{{ item.ApplicationLayerAutomaticResponseConfiguration }}'
+        HealthCheckIds: '{{ item.HealthCheckIds }}'
+        ProtectionArn: '{{ item.ProtectionArn }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── DescribeAttack ──
+  - discovery_id: aws.shield.describe_attack
+    for_each: aws.shield.list_attacks
+    calls:
+      - action: describe_attack
+        params:
+          AttackId: '{{ item.AttackId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.AttackSummaries }}'
+      item:
+        ResourceArn: '{{ item.ResourceArn }}'
+        Attack: '{{ item.Attack }}'
+        AttackCounters: '{{ item.AttackCounters }}'
+        AttackId: '{{ item.AttackId }}'
+        AttackProperties: '{{ item.AttackProperties }}'
+        EndTime: '{{ item.EndTime }}'
+        Mitigations: '{{ item.Mitigations }}'
+        StartTime: '{{ item.StartTime }}'
+        SubResources: '{{ item.SubResources }}'
+  # ── DescribeProtectionGroup ──
+  - discovery_id: aws.shield.describe_protection_group
+    for_each: aws.shield.list_protection_groups
+    calls:
+      - action: describe_protection_group
+        params:
+          ProtectionGroupId: '{{ item.ProtectionGroupId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ProtectionGroups }}'
+      item:
+        Aggregation: '{{ item.Aggregation }}'
+        Members: '{{ item.Members }}'
+        Pattern: '{{ item.Pattern }}'
+        ProtectionGroupArn: '{{ item.ProtectionGroupArn }}'
+        ProtectionGroupId: '{{ item.ProtectionGroupId }}'
+        ResourceType: '{{ item.ResourceType }}'
+  # ── ListResourcesInProtectionGroup ──
+  - discovery_id: aws.shield.list_resources_in_protection_group
+    calls:
+      - action: list_resources_in_protection_group
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ResourceArns }}'
+  # ── ListTagsForResource ──
+  - discovery_id: aws.shield.list_tags_for_resource
+    for_each: aws.shield.describe_protection
+    calls:
+      - action: list_tags_for_resource
+        params:
+          ResourceARN: '{{ item.ResourceARN }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Tags }}'
+      item:
+        Key: '{{ item.Key }}'
+        Value: '{{ item.Value }}'

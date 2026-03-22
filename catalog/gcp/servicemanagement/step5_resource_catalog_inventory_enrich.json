@@ -1,0 +1,892 @@
+{
+  "csp": "gcp",
+  "generated_at": "2026-02-19T14:43:28.092981+00:00",
+  "anchors": {
+    "fixed": [
+      "project_id",
+      "org_id",
+      "folder_id",
+      "location",
+      "zone",
+      "region"
+    ]
+  },
+  "services": {
+    "servicemanagement": {
+      "version": "v1",
+      "resources": {
+        "configs": {
+          "resource_type": "configs",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "tuple",
+            "full_identifier": {
+              "template": "services/{serviceName}/configs/{configId}",
+              "built_from_parts": [],
+              "notes": "Tuple identifier; anchor parts are user-provided."
+            },
+            "parts": [
+              "serviceName"
+            ],
+            "part_sources": {
+              "serviceName": {
+                "op": "gcp.servicemanagement.services.list",
+                "field_path": "services[].serviceName",
+                "transform": null
+              }
+            },
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.servicemanagement.services.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/services"
+                },
+                "python_call": "svc.services().list(**params).execute()",
+                "produces": {
+                  "serviceName": "services[].serviceName",
+                  "producerProjectId": "services[].producerProjectId"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.servicemanagement.services.configs.list",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/services/{serviceName}/configs"
+                },
+                "python_call": "svc.services().configs().list(**params).execute()",
+                "produces": {
+                  "name": "serviceConfigs[].name",
+                  "id": "serviceConfigs[].id",
+                  "systemParameters": "serviceConfigs[].systemParameters",
+                  "billing": "serviceConfigs[].billing",
+                  "documentation": "serviceConfigs[].documentation",
+                  "publishing": "serviceConfigs[].publishing",
+                  "quota": "serviceConfigs[].quota",
+                  "http": "serviceConfigs[].http",
+                  "aspects": "serviceConfigs[].aspects",
+                  "monitoredResources": "serviceConfigs[].monitoredResources",
+                  "customError": "serviceConfigs[].customError",
+                  "monitoring": "serviceConfigs[].monitoring",
+                  "endpoints": "serviceConfigs[].endpoints",
+                  "apis": "serviceConfigs[].apis",
+                  "backend": "serviceConfigs[].backend",
+                  "producerProjectId": "serviceConfigs[].producerProjectId",
+                  "configVersion": "serviceConfigs[].configVersion",
+                  "sourceInfo": "serviceConfigs[].sourceInfo",
+                  "control": "serviceConfigs[].control",
+                  "types": "serviceConfigs[].types",
+                  "context": "serviceConfigs[].context",
+                  "systemTypes": "serviceConfigs[].systemTypes",
+                  "logs": "serviceConfigs[].logs",
+                  "enums": "serviceConfigs[].enums",
+                  "logging": "serviceConfigs[].logging",
+                  "usage": "serviceConfigs[].usage",
+                  "authentication": "serviceConfigs[].authentication",
+                  "title": "serviceConfigs[].title",
+                  "metrics": "serviceConfigs[].metrics"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.servicemanagement.services.configs.list",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.servicemanagement.services.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.services().list(**params).execute()",
+                      "path": "/v1/services",
+                      "required_params": {},
+                      "output_list_field": "services",
+                      "output_id_field": "serviceName",
+                      "produces": {
+                        "serviceId": {
+                          "via_list_field": "services",
+                          "from_id_field": "serviceName",
+                          "note": "Iterate response[\"services\"][], extract item[\"serviceName\"] \u2192 pass as \"serviceId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: serviceId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.servicemanagement.services.configs.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.services().configs().list(**params).execute()",
+                      "path": "/v1/services/{serviceName}/configs",
+                      "required_params": {
+                        "serviceName": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Required. The name of the service. See the [overview](https://cloud.google.com/service-management/overview) for naming r"
+                        }
+                      },
+                      "output_list_field": "serviceConfigs",
+                      "output_id_field": "name",
+                      "produces": {
+                        "configId": {
+                          "via_list_field": "serviceConfigs",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"serviceConfigs\"][], extract item[\"name\"] \u2192 pass as \"configId\""
+                        }
+                      },
+                      "param_sources": {
+                        "serviceName": {
+                          "from_step": 1,
+                          "from_op": "gcp.servicemanagement.services.list",
+                          "field": "serviceName"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.servicemanagement.services.configs.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/services/{serviceName}/configs/{configId}"
+                },
+                "python_call": "svc.services().configs().get(**params).execute()",
+                "required_params": {
+                  "serviceName": {
+                    "from_identifier": "serviceName"
+                  },
+                  "configId": {
+                    "from_identifier": "gcp.servicemanagement.services.configs.list \u2192 serviceConfigs[].name"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.servicemanagement.services.configs.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 3,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.servicemanagement.services.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.services().list(**params).execute()",
+                      "path": "/v1/services",
+                      "required_params": {},
+                      "output_list_field": "services",
+                      "output_id_field": "serviceName",
+                      "produces": {
+                        "serviceId": {
+                          "via_list_field": "services",
+                          "from_id_field": "serviceName",
+                          "note": "Iterate response[\"services\"][], extract item[\"serviceName\"] \u2192 pass as \"serviceId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: serviceId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.servicemanagement.services.configs.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.services().configs().list(**params).execute()",
+                      "path": "/v1/services/{serviceName}/configs",
+                      "required_params": {
+                        "serviceName": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Required. The name of the service. See the [overview](https://cloud.google.com/service-management/overview) for naming r"
+                        }
+                      },
+                      "output_list_field": "serviceConfigs",
+                      "output_id_field": "name",
+                      "produces": {
+                        "configId": {
+                          "via_list_field": "serviceConfigs",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"serviceConfigs\"][], extract item[\"name\"] \u2192 pass as \"configId\""
+                        }
+                      },
+                      "param_sources": {
+                        "serviceName": {
+                          "from_step": 1,
+                          "from_op": "gcp.servicemanagement.services.list",
+                          "field": "serviceName"
+                        }
+                      },
+                      "purpose": "Provides: configId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.servicemanagement.services.configs.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.services().configs().get(**params).execute()",
+                      "path": "/v1/services/{serviceName}/configs/{configId}",
+                      "required_params": {
+                        "serviceName": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Required. The name of the service. See the [overview](https://cloud.google.com/service-management/overview) for naming r"
+                        },
+                        "configId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Required. The id of the service configuration resource. This field must be specified for the server to return all fields"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "serviceName": {
+                          "from_step": 1,
+                          "from_op": "gcp.servicemanagement.services.list",
+                          "field": "serviceName"
+                        },
+                        "configId": {
+                          "from_step": 2,
+                          "from_op": "gcp.servicemanagement.services.configs.list",
+                          "field": "name"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.8,
+          "notes": ""
+        },
+        "operations": {
+          "resource_type": "operations",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.servicemanagement.operations.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/operations"
+                },
+                "python_call": "svc.operations().list(**params).execute()",
+                "produces": {
+                  "name": "operations[].name",
+                  "response": "operations[].response",
+                  "metadata": "operations[].metadata",
+                  "error": "operations[].error",
+                  "done": "operations[].done"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.servicemanagement.operations.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.operations().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.servicemanagement.operations.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.servicemanagement.operations.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.operations().list(**params).execute()",
+                      "path": "/v1/operations",
+                      "required_params": {},
+                      "output_list_field": "operations",
+                      "output_id_field": "name",
+                      "produces": {
+                        "operationId": {
+                          "via_list_field": "operations",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"operations\"][], extract item[\"name\"] \u2192 pass as \"operationId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: operationId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.servicemanagement.operations.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.operations().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^operations/.*$",
+                          "description": "The name of the operation resource."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "operationId": {
+                            "from_step": 1,
+                            "from_op": "gcp.servicemanagement.operations.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "rollouts": {
+          "resource_type": "rollouts",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "constructed",
+            "full_identifier": {
+              "template": "rollouts/{url_encoded_serviceName}",
+              "built_from_parts": [
+                "services[].serviceName"
+              ],
+              "notes": ""
+            },
+            "parts": [
+              "serviceName"
+            ],
+            "part_sources": {
+              "serviceName": {
+                "op": "gcp.servicemanagement.services.list",
+                "field_path": "services[].serviceName",
+                "transform": null
+              }
+            },
+            "transforms": [
+              {
+                "from": "services[].serviceName",
+                "fn": "url_encode",
+                "to": "url_encoded_serviceName"
+              },
+              {
+                "from": "url_encoded_serviceName",
+                "fn": "prefix:rollouts/",
+                "to": "rolloutId"
+              },
+              {
+                "build": "full_id",
+                "template": "rollouts/{url_encoded_serviceName}"
+              }
+            ]
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.servicemanagement.services.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/services"
+                },
+                "python_call": "svc.services().list(**params).execute()",
+                "produces": {
+                  "serviceName": "services[].serviceName",
+                  "producerProjectId": "services[].producerProjectId"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.servicemanagement.services.rollouts.list",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/services/{serviceName}/rollouts"
+                },
+                "python_call": "svc.services().rollouts().list(**params).execute()",
+                "produces": {
+                  "createdBy": "rollouts[].createdBy",
+                  "rolloutId": "rollouts[].rolloutId",
+                  "serviceName": "rollouts[].serviceName",
+                  "trafficPercentStrategy": "rollouts[].trafficPercentStrategy",
+                  "status": "rollouts[].status",
+                  "deleteServiceStrategy": "rollouts[].deleteServiceStrategy",
+                  "createTime": "rollouts[].createTime"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.servicemanagement.services.rollouts.list",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.servicemanagement.services.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.services().list(**params).execute()",
+                      "path": "/v1/services",
+                      "required_params": {},
+                      "output_list_field": "services",
+                      "output_id_field": "serviceName",
+                      "produces": {
+                        "serviceId": {
+                          "via_list_field": "services",
+                          "from_id_field": "serviceName",
+                          "note": "Iterate response[\"services\"][], extract item[\"serviceName\"] \u2192 pass as \"serviceId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: serviceId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.servicemanagement.services.rollouts.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.services().rollouts().list(**params).execute()",
+                      "path": "/v1/services/{serviceName}/rollouts",
+                      "required_params": {
+                        "serviceName": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Required. The name of the service. See the [overview](https://cloud.google.com/service-management/overview) for naming r"
+                        }
+                      },
+                      "output_list_field": "rollouts",
+                      "output_id_field": "createdBy",
+                      "produces": {
+                        "rolloutId": {
+                          "via_list_field": "rollouts",
+                          "from_id_field": "createdBy",
+                          "note": "Iterate response[\"rollouts\"][], extract item[\"createdBy\"] \u2192 pass as \"rolloutId\""
+                        }
+                      },
+                      "param_sources": {
+                        "serviceName": {
+                          "from_step": 1,
+                          "from_op": "gcp.servicemanagement.services.list",
+                          "field": "serviceName"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.servicemanagement.services.rollouts.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/services/{serviceName}/rollouts/{rolloutId}"
+                },
+                "python_call": "svc.services().rollouts().get(**params).execute()",
+                "required_params": {
+                  "rolloutId": {
+                    "from_identifier": "transforms \u2192 rolloutId"
+                  },
+                  "serviceName": {
+                    "from_identifier": "serviceName"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.servicemanagement.services.rollouts.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 3,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.servicemanagement.services.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.services().list(**params).execute()",
+                      "path": "/v1/services",
+                      "required_params": {},
+                      "output_list_field": "services",
+                      "output_id_field": "serviceName",
+                      "produces": {
+                        "serviceId": {
+                          "via_list_field": "services",
+                          "from_id_field": "serviceName",
+                          "note": "Iterate response[\"services\"][], extract item[\"serviceName\"] \u2192 pass as \"serviceId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: serviceId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.servicemanagement.services.rollouts.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.services().rollouts().list(**params).execute()",
+                      "path": "/v1/services/{serviceName}/rollouts",
+                      "required_params": {
+                        "serviceName": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Required. The name of the service. See the [overview](https://cloud.google.com/service-management/overview) for naming r"
+                        }
+                      },
+                      "output_list_field": "rollouts",
+                      "output_id_field": "createdBy",
+                      "produces": {
+                        "rolloutId": {
+                          "via_list_field": "rollouts",
+                          "from_id_field": "createdBy",
+                          "note": "Iterate response[\"rollouts\"][], extract item[\"createdBy\"] \u2192 pass as \"rolloutId\""
+                        }
+                      },
+                      "param_sources": {
+                        "serviceName": {
+                          "from_step": 1,
+                          "from_op": "gcp.servicemanagement.services.list",
+                          "field": "serviceName"
+                        }
+                      },
+                      "purpose": "Provides: rolloutId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.servicemanagement.services.rollouts.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.services().rollouts().get(**params).execute()",
+                      "path": "/v1/services/{serviceName}/rollouts/{rolloutId}",
+                      "required_params": {
+                        "rolloutId": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Required. The id of the rollout resource."
+                        },
+                        "serviceName": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Required. The name of the service. See the [overview](https://cloud.google.com/service-management/overview) for naming r"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "rolloutId": {
+                          "from_step": 2,
+                          "from_op": "gcp.servicemanagement.services.rollouts.list",
+                          "field": "createdBy"
+                        },
+                        "serviceName": {
+                          "from_step": 1,
+                          "from_op": "gcp.servicemanagement.services.list",
+                          "field": "serviceName"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 1.0,
+          "notes": ""
+        },
+        "services": {
+          "resource_type": "services",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "tuple",
+            "full_identifier": {
+              "template": "services/{serviceName}",
+              "built_from_parts": [],
+              "notes": "Tuple identifier; anchor parts are user-provided."
+            },
+            "parts": [
+              "serviceName"
+            ],
+            "part_sources": {
+              "serviceName": {
+                "op": "gcp.servicemanagement.services.list",
+                "field_path": "services[].serviceName",
+                "transform": null
+              }
+            },
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.servicemanagement.services.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/services"
+                },
+                "python_call": "svc.services().list(**params).execute()",
+                "produces": {
+                  "serviceName": "services[].serviceName",
+                  "producerProjectId": "services[].producerProjectId"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.servicemanagement.services.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/services/{serviceName}"
+                },
+                "python_call": "svc.services().get(**params).execute()",
+                "required_params": {
+                  "serviceName": {
+                    "from_identifier": "serviceName"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.servicemanagement.services.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.servicemanagement.services.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.services().list(**params).execute()",
+                      "path": "/v1/services",
+                      "required_params": {},
+                      "output_list_field": "services",
+                      "output_id_field": "serviceName",
+                      "produces": {
+                        "serviceId": {
+                          "via_list_field": "services",
+                          "from_id_field": "serviceName",
+                          "note": "Iterate response[\"services\"][], extract item[\"serviceName\"] \u2192 pass as \"serviceId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: serviceId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.servicemanagement.services.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.services().get(**params).execute()",
+                      "path": "/v1/services/{serviceName}",
+                      "required_params": {
+                        "serviceName": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Required. The name of the service. See the `ServiceManager` overview for naming requirements. For example: `example.goog"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "serviceName": {
+                          "from_step": 1,
+                          "from_op": "gcp.servicemanagement.services.list",
+                          "field": "serviceName"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.servicemanagement.services.getConfig",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/services/{serviceName}/config"
+                },
+                "python_call": "svc.services().getConfig(**params).execute()",
+                "required_params": {
+                  "serviceName": {
+                    "from_identifier": "serviceName"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.servicemanagement.services.getConfig",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.servicemanagement.services.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.services().list(**params).execute()",
+                      "path": "/v1/services",
+                      "required_params": {},
+                      "output_list_field": "services",
+                      "output_id_field": "serviceName",
+                      "produces": {
+                        "serviceId": {
+                          "via_list_field": "services",
+                          "from_id_field": "serviceName",
+                          "note": "Iterate response[\"services\"][], extract item[\"serviceName\"] \u2192 pass as \"serviceId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: serviceId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.servicemanagement.services.getConfig",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.services().getConfig(**params).execute()",
+                      "path": "/v1/services/{serviceName}/config",
+                      "required_params": {
+                        "serviceName": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "",
+                          "description": "Required. The name of the service. See the [overview](https://cloud.google.com/service-management/overview) for naming r"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "serviceName": {
+                          "from_step": 1,
+                          "from_op": "gcp.servicemanagement.services.list",
+                          "field": "serviceName"
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.8,
+          "notes": ""
+        }
+      }
+    }
+  }
+}

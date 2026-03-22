@@ -1,0 +1,69 @@
+version: '1.0'
+provider: aws
+service: mwaa
+services:
+  client: mwaa
+  module: boto3.client
+discovery:
+- discovery_id: aws.mwaa.listEnvironments
+  calls:
+  - action: listEnvironments
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Environments }}'
+- discovery_id: aws.mwaa.getEnvironment
+  calls:
+  - action: getEnvironment
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Environment }}'
+    item:
+      Name: '{{ item.Name }}'
+      Status: '{{ item.Status }}'
+      Arn: '{{ item.Arn }}'
+      CreatedAt: '{{ item.CreatedAt }}'
+      WebserverUrl: '{{ item.WebserverUrl }}'
+      ExecutionRoleArn: '{{ item.ExecutionRoleArn }}'
+      ServiceRoleArn: '{{ item.ServiceRoleArn }}'
+      KmsKey: '{{ item.KmsKey }}'
+      AirflowVersion: '{{ item.AirflowVersion }}'
+      SourceBucketArn: '{{ item.SourceBucketArn }}'
+      DagS3Path: '{{ item.DagS3Path }}'
+      PluginsS3Path: '{{ item.PluginsS3Path }}'
+      PluginsS3ObjectVersion: '{{ item.PluginsS3ObjectVersion }}'
+      RequirementsS3Path: '{{ item.RequirementsS3Path }}'
+      RequirementsS3ObjectVersion: '{{ item.RequirementsS3ObjectVersion }}'
+      StartupScriptS3Path: '{{ item.StartupScriptS3Path }}'
+      StartupScriptS3ObjectVersion: '{{ item.StartupScriptS3ObjectVersion }}'
+      AirflowConfigurationOptions: '{{ item.AirflowConfigurationOptions }}'
+      EnvironmentClass: '{{ item.EnvironmentClass }}'
+      MaxWorkers: '{{ item.MaxWorkers }}'
+      NetworkConfiguration: '{{ item.NetworkConfiguration }}'
+      LoggingConfiguration: '{{ item.LoggingConfiguration }}'
+      LastUpdate: '{{ item.LastUpdate }}'
+      WeeklyMaintenanceWindowStart: '{{ item.WeeklyMaintenanceWindowStart }}'
+      Tags: '{{ item.Tags }}'
+      WebserverAccessMode: '{{ item.WebserverAccessMode }}'
+      MinWorkers: '{{ item.MinWorkers }}'
+      Schedulers: '{{ item.Schedulers }}'
+      WebserverVpcEndpointService: '{{ item.WebserverVpcEndpointService }}'
+      DatabaseVpcEndpointService: '{{ item.DatabaseVpcEndpointService }}'
+      CeleryExecutorQueue: '{{ item.CeleryExecutorQueue }}'
+      EndpointManagement: '{{ item.EndpointManagement }}'
+      MinWebservers: '{{ item.MinWebservers }}'
+      MaxWebservers: '{{ item.MaxWebservers }}'
+- discovery_id: aws.mwaa.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+checks: []

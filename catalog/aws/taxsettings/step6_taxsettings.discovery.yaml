@@ -1,0 +1,78 @@
+version: '1.0'
+provider: aws
+service: taxsettings
+services:
+  client: taxsettings
+  module: boto3.client
+discovery:
+- discovery_id: aws.taxsettings.get_tax_inheritance
+  calls:
+  - action: get_tax_inheritance
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.heritageStatus }}'
+    item:
+      heritageStatus: '{{ item.heritageStatus }}'
+- discovery_id: aws.taxsettings.get_tax_registration
+  calls:
+  - action: get_tax_registration
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.taxRegistration }}'
+    item:
+      additionalTaxInformation: '{{ item.additionalTaxInformation }}'
+      certifiedEmailId: '{{ item.certifiedEmailId }}'
+      legalAddress: '{{ item.legalAddress }}'
+      sector: '{{ item.sector }}'
+      taxDocumentMetadatas: '{{ item.taxDocumentMetadatas }}'
+- discovery_id: aws.taxsettings.list_supplemental_tax_registrations
+  calls:
+  - action: list_supplemental_tax_registrations
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.taxRegistrations }}'
+    item:
+      address: '{{ item.address }}'
+      authorityId: '{{ item.authorityId }}'
+      legalName: '{{ item.legalName }}'
+      registrationId: '{{ item.registrationId }}'
+      registrationType: '{{ item.registrationType }}'
+      status: '{{ item.status }}'
+- discovery_id: aws.taxsettings.list_tax_exemptions
+  calls:
+  - action: list_tax_exemptions
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      taxExemptionDetailsMap: '{{ response.taxExemptionDetailsMap }}'
+- discovery_id: aws.taxsettings.list_tax_registrations
+  calls:
+  - action: list_tax_registrations
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.accountDetails }}'
+    item:
+      accountId: '{{ item.accountId }}'
+      accountMetaData: '{{ item.accountMetaData }}'
+      taxInheritanceDetails: '{{ item.taxInheritanceDetails }}'
+      taxRegistration: '{{ item.taxRegistration }}'
+- discovery_id: aws.taxsettings.get_tax_registration_document
+  calls:
+  - action: get_tax_registration_document
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      destinationFilePath: '{{ response.destinationFilePath }}'
+      presignedS3Url: '{{ response.presignedS3Url }}'

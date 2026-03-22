@@ -1,0 +1,190 @@
+# ============================================================
+# Discovery YAML — signer (AWS)
+# Generated: 2026-02-21T04:56:59Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: signer
+services:
+  client: signer
+  module: boto3.client
+discovery:
+  # ── ListSigningJobs ──
+  - discovery_id: aws.signer.list_signing_jobs
+    calls:
+      - action: list_signing_jobs
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.jobs }}'
+      item:
+        action: '{{ item.action }}'
+        completedAt: '{{ item.completedAt }}'
+        createdAt: '{{ item.createdAt }}'
+        displayName: '{{ item.displayName }}'
+        encryptionAlgorithmOptions: '{{ item.encryptionAlgorithmOptions }}'
+        hashAlgorithmOptions: '{{ item.hashAlgorithmOptions }}'
+        isRevoked: '{{ item.isRevoked }}'
+        jobId: '{{ item.jobId }}'
+        jobInvoker: '{{ item.jobInvoker }}'
+        jobOwner: '{{ item.jobOwner }}'
+        overrides: '{{ item.overrides }}'
+        platformDisplayName: '{{ item.platformDisplayName }}'
+        platformId: '{{ item.platformId }}'
+        principal: '{{ item.principal }}'
+        profileName: '{{ item.profileName }}'
+        profileVersion: '{{ item.profileVersion }}'
+        requestedBy: '{{ item.requestedBy }}'
+        revocationEffectiveFrom: '{{ item.revocationEffectiveFrom }}'
+        revocationRecord: '{{ item.revocationRecord }}'
+        revokedAt: '{{ item.revokedAt }}'
+        revokedBy: '{{ item.revokedBy }}'
+        revokedEntities: '{{ item.revokedEntities }}'
+        s3: '{{ item.s3 }}'
+        signatureExpiresAt: '{{ item.signatureExpiresAt }}'
+        signedObject: '{{ item.signedObject }}'
+        signingMaterial: '{{ item.signingMaterial }}'
+        source: '{{ item.source }}'
+        status: '{{ item.status }}'
+        statusReason: '{{ item.statusReason }}'
+  # ── ListSigningPlatforms ──
+  - discovery_id: aws.signer.list_signing_platforms
+    calls:
+      - action: list_signing_platforms
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.platforms }}'
+      item:
+        Status: '{{ item.Status }}'
+        Enabled: '{{ item.Enabled }}'
+        category: '{{ item.category }}'
+        maxSizeInMB: '{{ item.maxSizeInMB }}'
+        partner: '{{ item.partner }}'
+        platformId: '{{ item.platformId }}'
+        revocationSupported: '{{ item.revocationSupported }}'
+        signingConfiguration: '{{ item.signingConfiguration }}'
+        signingImageFormat: '{{ item.signingImageFormat }}'
+        target: '{{ item.target }}'
+  # ── ListSigningProfiles ──
+  - discovery_id: aws.signer.list_signing_profiles
+    calls:
+      - action: list_signing_profiles
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.profiles }}'
+      item:
+        arn: '{{ item.arn }}'
+        platformDisplayName: '{{ item.platformDisplayName }}'
+        platformId: '{{ item.platformId }}'
+        profileName: '{{ item.profileName }}'
+        profileVersion: '{{ item.profileVersion }}'
+        profileVersionArn: '{{ item.profileVersionArn }}'
+        signatureValidityPeriod: '{{ item.signatureValidityPeriod }}'
+        signingMaterial: '{{ item.signingMaterial }}'
+        signingParameters: '{{ item.signingParameters }}'
+        status: '{{ item.status }}'
+        tags: '{{ item.tags }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── DescribeSigningJob ──
+  - discovery_id: aws.signer.describe_signing_job
+    for_each: aws.signer.list_signing_jobs
+    calls:
+      - action: describe_signing_job
+        params:
+          jobId: '{{ item.jobId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.jobs }}'
+      item:
+        completedAt: '{{ item.completedAt }}'
+        overrides: '{{ item.overrides }}'
+        requestedBy: '{{ item.requestedBy }}'
+        revocationRecord: '{{ item.revocationRecord }}'
+        s3: '{{ item.s3 }}'
+        statusReason: '{{ item.statusReason }}'
+  # ── GetRevocationStatus ──
+  - discovery_id: aws.signer.get_revocation_status
+    for_each: aws.signer.list_signing_jobs
+    calls:
+      - action: get_revocation_status
+        params:
+          signatureTimestamp: '{{ item.signatureTimestamp }}'
+          platformId: '{{ item.platformId }}'
+          profileVersionArn: '{{ item.profileVersionArn }}'
+          jobArn: '{{ item.jobArn }}'
+          certificateHashes: '{{ item.certificateHashes }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.revokedEntities }}'
+      item:
+        revokedEntities: '{{ item.revokedEntities }}'
+  # ── GetSigningPlatform ──
+  - discovery_id: aws.signer.get_signing_platform
+    for_each: aws.signer.list_signing_jobs
+    calls:
+      - action: get_signing_platform
+        params:
+          platformId: '{{ item.platformId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.signingConfiguration }}'
+      item:
+        encryptionAlgorithmOptions: '{{ item.encryptionAlgorithmOptions }}'
+        hashAlgorithmOptions: '{{ item.hashAlgorithmOptions }}'
+  # ── GetSigningProfile ──
+  - discovery_id: aws.signer.get_signing_profile
+    for_each: aws.signer.list_signing_jobs
+    calls:
+      - action: get_signing_profile
+        params:
+          profileName: '{{ item.profileName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.revocationRecord }}'
+      item:
+        revocationEffectiveFrom: '{{ item.revocationEffectiveFrom }}'
+        revokedAt: '{{ item.revokedAt }}'
+        revokedBy: '{{ item.revokedBy }}'
+  # ── ListProfilePermissions ──
+  - discovery_id: aws.signer.list_profile_permissions
+    for_each: aws.signer.list_signing_jobs
+    calls:
+      - action: list_profile_permissions
+        params:
+          profileName: '{{ item.profileName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.permissions }}'
+      item:
+        Statement: '{{ item.Statement }}'
+        Version: '{{ item.Version }}'
+        action: '{{ item.action }}'
+        principal: '{{ item.principal }}'
+        profileVersion: '{{ item.profileVersion }}'
+        statementId: '{{ item.statementId }}'
+  # ── ListTagsForResource ──
+  - discovery_id: aws.signer.list_tags_for_resource
+    calls:
+      - action: list_tags_for_resource
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        tags: '{{ response.tags }}'

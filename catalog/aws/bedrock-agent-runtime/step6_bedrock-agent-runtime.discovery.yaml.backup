@@ -1,0 +1,186 @@
+version: '1.0'
+provider: aws
+service: bedrock-agent-runtime
+services:
+  client: bedrock-agent-runtime
+  module: boto3.client
+discovery:
+- discovery_id: aws.bedrock-agent-runtime.listSessions
+  calls:
+  - action: listSessions
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.sessionSummaries }}'
+    item:
+      sessionId: '{{ item.sessionId }}'
+      sessionArn: '{{ item.sessionArn }}'
+      sessionStatus: '{{ item.sessionStatus }}'
+      createdAt: '{{ item.createdAt }}'
+      lastUpdatedAt: '{{ item.lastUpdatedAt }}'
+- discovery_id: aws.bedrock-agent-runtime.getAgentMemory
+  calls:
+  - action: getAgentMemory
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.memoryContents }}'
+    item:
+      sessionSummary: '{{ item.sessionSummary }}'
+- discovery_id: aws.bedrock-agent-runtime.getExecutionFlowSnapshot
+  calls:
+  - action: getExecutionFlowSnapshot
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.flowIdentifier }}'
+- discovery_id: aws.bedrock-agent-runtime.getFlowExecution
+  calls:
+  - action: getFlowExecution
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.errors }}'
+    item:
+      nodeName: '{{ item.nodeName }}'
+      error: '{{ item.error }}'
+      message: '{{ item.message }}'
+- discovery_id: aws.bedrock-agent-runtime.getInvocationStep
+  calls:
+  - action: getInvocationStep
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.invocationStep }}'
+    item:
+      sessionId: '{{ item.sessionId }}'
+      invocationId: '{{ item.invocationId }}'
+      invocationStepId: '{{ item.invocationStepId }}'
+      invocationStepTime: '{{ item.invocationStepTime }}'
+      payload: '{{ item.payload }}'
+- discovery_id: aws.bedrock-agent-runtime.getSession
+  calls:
+  - action: getSession
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.sessionId }}'
+- discovery_id: aws.bedrock-agent-runtime.listFlowExecutionEvents
+  calls:
+  - action: listFlowExecutionEvents
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.flowExecutionEvents }}'
+    item:
+      flowInputEvent: '{{ item.flowInputEvent }}'
+      flowOutputEvent: '{{ item.flowOutputEvent }}'
+      nodeInputEvent: '{{ item.nodeInputEvent }}'
+      nodeOutputEvent: '{{ item.nodeOutputEvent }}'
+      conditionResultEvent: '{{ item.conditionResultEvent }}'
+      nodeFailureEvent: '{{ item.nodeFailureEvent }}'
+      flowFailureEvent: '{{ item.flowFailureEvent }}'
+      nodeActionEvent: '{{ item.nodeActionEvent }}'
+      nodeDependencyEvent: '{{ item.nodeDependencyEvent }}'
+- discovery_id: aws.bedrock-agent-runtime.listFlowExecutions
+  calls:
+  - action: listFlowExecutions
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.flowExecutionSummaries }}'
+    item:
+      executionArn: '{{ item.executionArn }}'
+      flowAliasIdentifier: '{{ item.flowAliasIdentifier }}'
+      flowIdentifier: '{{ item.flowIdentifier }}'
+      flowVersion: '{{ item.flowVersion }}'
+      status: '{{ item.status }}'
+      createdAt: '{{ item.createdAt }}'
+      endedAt: '{{ item.endedAt }}'
+- discovery_id: aws.bedrock-agent-runtime.listInvocationSteps
+  calls:
+  - action: listInvocationSteps
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.invocationStepSummaries }}'
+    item:
+      sessionId: '{{ item.sessionId }}'
+      invocationId: '{{ item.invocationId }}'
+      invocationStepId: '{{ item.invocationStepId }}'
+      invocationStepTime: '{{ item.invocationStepTime }}'
+- discovery_id: aws.bedrock-agent-runtime.listInvocations
+  calls:
+  - action: listInvocations
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.invocationSummaries }}'
+    item:
+      sessionId: '{{ item.sessionId }}'
+      invocationId: '{{ item.invocationId }}'
+      createdAt: '{{ item.createdAt }}'
+- discovery_id: aws.bedrock-agent-runtime.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.tags }}'
+- discovery_id: aws.bedrock-agent-runtime.retrieve
+  calls:
+  - action: retrieve
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.retrievalResults }}'
+    item:
+      content: '{{ item.content }}'
+      location: '{{ item.location }}'
+      score: '{{ item.score }}'
+      metadata: '{{ item.metadata }}'
+- discovery_id: aws.bedrock-agent-runtime.retrieveAndGenerate
+  calls:
+  - action: retrieveAndGenerate
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.citations }}'
+    item:
+      generatedResponsePart: '{{ item.generatedResponsePart }}'
+      retrievedReferences: '{{ item.retrievedReferences }}'
+- discovery_id: aws.bedrock-agent-runtime.retrieveAndGenerateStream
+  calls:
+  - action: retrieveAndGenerateStream
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.stream }}'
+    item:
+      output: '{{ item.output }}'
+      citation: '{{ item.citation }}'
+      guardrail: '{{ item.guardrail }}'
+      internalServerException: '{{ item.internalServerException }}'
+      validationException: '{{ item.validationException }}'
+      resourceNotFoundException: '{{ item.resourceNotFoundException }}'
+      serviceQuotaExceededException: '{{ item.serviceQuotaExceededException }}'
+      throttlingException: '{{ item.throttlingException }}'
+      accessDeniedException: '{{ item.accessDeniedException }}'
+      conflictException: '{{ item.conflictException }}'
+      dependencyFailedException: '{{ item.dependencyFailedException }}'
+      badGatewayException: '{{ item.badGatewayException }}'
+checks: []

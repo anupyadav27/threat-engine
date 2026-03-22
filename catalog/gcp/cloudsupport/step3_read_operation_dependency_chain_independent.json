@@ -1,0 +1,570 @@
+{
+  "service": "cloudsupport",
+  "version": "v2",
+  "total_ops": 10,
+  "total_chains": 10,
+  "independent_ops": 6,
+  "dependent_ops": 4,
+  "chains": {
+    "gcp.cloudsupport.media.upload": {
+      "target_op": "gcp.cloudsupport.media.upload",
+      "kind": "other",
+      "independent": true,
+      "hop_distance": 0,
+      "chain_length": 1,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.cloudsupport.media.upload",
+          "kind": "other",
+          "independent": true,
+          "python_call": "svc.media().upload(**params).execute()",
+          "path": "/v2/{+parent}/attachments",
+          "required_params": {
+            "parent": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^[^/]+/[^/]+/cases/[^/]+$",
+              "description": "Required. The name of the case or Cloud resource to which the attachment should be attached."
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "parent": "always_available"
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [
+        "parent"
+      ],
+      "unresolved_params": []
+    },
+    "gcp.cloudsupport.media.download": {
+      "target_op": "gcp.cloudsupport.media.download",
+      "kind": "read_get",
+      "independent": false,
+      "hop_distance": 1,
+      "chain_length": 3,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.cloudsupport.cases.list",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.cases().list(**params).execute()",
+          "path": "/v2/{+parent}/cases",
+          "required_params": {
+            "parent": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^[^/]+/[^/]+$",
+              "description": "Required. The name of a parent to list cases under."
+            }
+          },
+          "output_list_field": "cases",
+          "output_id_field": "name",
+          "produces": {
+            "casId": {
+              "via_list_field": "cases",
+              "from_id_field": "name",
+              "note": "Iterate response[\"cases\"][], extract item[\"name\"] \u2192 pass as \"casId\""
+            }
+          },
+          "param_sources": {
+            "parent": "always_available"
+          },
+          "purpose": "Provides: casId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.cloudsupport.cases.attachments.list",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.cases().attachments().list(**params).execute()",
+          "path": "/v2/{+parent}/attachments",
+          "required_params": {
+            "parent": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^[^/]+/[^/]+/cases/[^/]+$",
+              "description": "Required. The name of the case for which attachments should be listed."
+            }
+          },
+          "output_list_field": "attachments",
+          "output_id_field": "name",
+          "produces": {
+            "attachmentId": {
+              "via_list_field": "attachments",
+              "from_id_field": "name",
+              "note": "Iterate response[\"attachments\"][], extract item[\"name\"] \u2192 pass as \"attachmentId\""
+            }
+          },
+          "param_sources": {
+            "parent": "always_available"
+          },
+          "purpose": "Provides: attachmentId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 3,
+          "op": "gcp.cloudsupport.media.download",
+          "kind": "read_get",
+          "independent": false,
+          "python_call": "svc.media().download(**params).execute()",
+          "path": "/v2/{+name}:download",
+          "required_params": {
+            "name": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^[^/]+/[^/]+/cases/[^/]+/attachments/[^/]+$",
+              "description": "The name of the file attachment to download."
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "name": {
+              "casId": {
+                "from_step": 1,
+                "from_op": "gcp.cloudsupport.cases.list",
+                "field": "name"
+              },
+              "attachmentId": {
+                "from_step": 2,
+                "from_op": "gcp.cloudsupport.cases.attachments.list",
+                "field": "name"
+              }
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.cloudsupport.cases.get": {
+      "target_op": "gcp.cloudsupport.cases.get",
+      "kind": "read_get",
+      "independent": false,
+      "hop_distance": 1,
+      "chain_length": 2,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.cloudsupport.cases.list",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.cases().list(**params).execute()",
+          "path": "/v2/{+parent}/cases",
+          "required_params": {
+            "parent": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^[^/]+/[^/]+$",
+              "description": "Required. The name of a parent to list cases under."
+            }
+          },
+          "output_list_field": "cases",
+          "output_id_field": "name",
+          "produces": {
+            "casId": {
+              "via_list_field": "cases",
+              "from_id_field": "name",
+              "note": "Iterate response[\"cases\"][], extract item[\"name\"] \u2192 pass as \"casId\""
+            }
+          },
+          "param_sources": {
+            "parent": "always_available"
+          },
+          "purpose": "Provides: casId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.cloudsupport.cases.get",
+          "kind": "read_get",
+          "independent": false,
+          "python_call": "svc.cases().get(**params).execute()",
+          "path": "/v2/{+name}",
+          "required_params": {
+            "name": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^[^/]+/[^/]+/cases/[^/]+$",
+              "description": "Required. The full name of a case to be retrieved."
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "name": {
+              "casId": {
+                "from_step": 1,
+                "from_op": "gcp.cloudsupport.cases.list",
+                "field": "name"
+              }
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.cloudsupport.cases.list": {
+      "target_op": "gcp.cloudsupport.cases.list",
+      "kind": "read_list",
+      "independent": true,
+      "hop_distance": 0,
+      "chain_length": 1,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.cloudsupport.cases.list",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.cases().list(**params).execute()",
+          "path": "/v2/{+parent}/cases",
+          "required_params": {
+            "parent": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^[^/]+/[^/]+$",
+              "description": "Required. The name of a parent to list cases under."
+            }
+          },
+          "output_list_field": "cases",
+          "output_id_field": "name",
+          "produces": {
+            "casId": {
+              "via_list_field": "cases",
+              "from_id_field": "name",
+              "note": "Iterate response[\"cases\"][], extract item[\"name\"] \u2192 pass as \"casId\""
+            }
+          },
+          "param_sources": {
+            "parent": "always_available"
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [
+        "parent"
+      ],
+      "unresolved_params": []
+    },
+    "gcp.cloudsupport.cases.search": {
+      "target_op": "gcp.cloudsupport.cases.search",
+      "kind": "read_list",
+      "independent": true,
+      "hop_distance": 0,
+      "chain_length": 1,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.cloudsupport.cases.search",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.cases().search(**params).execute()",
+          "path": "/v2/{+parent}/cases:search",
+          "required_params": {
+            "parent": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^[^/]+/[^/]+$",
+              "description": "The name of the parent resource to search for cases under."
+            }
+          },
+          "output_list_field": "cases",
+          "output_id_field": "name",
+          "produces": {
+            "casId": {
+              "via_list_field": "cases",
+              "from_id_field": "name",
+              "note": "Iterate response[\"cases\"][], extract item[\"name\"] \u2192 pass as \"casId\""
+            }
+          },
+          "param_sources": {
+            "parent": "always_available"
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [
+        "parent"
+      ],
+      "unresolved_params": []
+    },
+    "gcp.cloudsupport.cases.escalate": {
+      "target_op": "gcp.cloudsupport.cases.escalate",
+      "kind": "other",
+      "independent": false,
+      "hop_distance": 1,
+      "chain_length": 2,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.cloudsupport.cases.list",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.cases().list(**params).execute()",
+          "path": "/v2/{+parent}/cases",
+          "required_params": {
+            "parent": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^[^/]+/[^/]+$",
+              "description": "Required. The name of a parent to list cases under."
+            }
+          },
+          "output_list_field": "cases",
+          "output_id_field": "name",
+          "produces": {
+            "casId": {
+              "via_list_field": "cases",
+              "from_id_field": "name",
+              "note": "Iterate response[\"cases\"][], extract item[\"name\"] \u2192 pass as \"casId\""
+            }
+          },
+          "param_sources": {
+            "parent": "always_available"
+          },
+          "purpose": "Provides: casId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.cloudsupport.cases.escalate",
+          "kind": "other",
+          "independent": false,
+          "python_call": "svc.cases().escalate(**params).execute()",
+          "path": "/v2/{+name}:escalate",
+          "required_params": {
+            "name": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^[^/]+/[^/]+/cases/[^/]+$",
+              "description": "Required. The name of the case to be escalated."
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "name": {
+              "casId": {
+                "from_step": 1,
+                "from_op": "gcp.cloudsupport.cases.list",
+                "field": "name"
+              }
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.cloudsupport.cases.close": {
+      "target_op": "gcp.cloudsupport.cases.close",
+      "kind": "other",
+      "independent": false,
+      "hop_distance": 1,
+      "chain_length": 2,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.cloudsupport.cases.list",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.cases().list(**params).execute()",
+          "path": "/v2/{+parent}/cases",
+          "required_params": {
+            "parent": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^[^/]+/[^/]+$",
+              "description": "Required. The name of a parent to list cases under."
+            }
+          },
+          "output_list_field": "cases",
+          "output_id_field": "name",
+          "produces": {
+            "casId": {
+              "via_list_field": "cases",
+              "from_id_field": "name",
+              "note": "Iterate response[\"cases\"][], extract item[\"name\"] \u2192 pass as \"casId\""
+            }
+          },
+          "param_sources": {
+            "parent": "always_available"
+          },
+          "purpose": "Provides: casId",
+          "full_resource_name_template": ""
+        },
+        {
+          "step": 2,
+          "op": "gcp.cloudsupport.cases.close",
+          "kind": "other",
+          "independent": false,
+          "python_call": "svc.cases().close(**params).execute()",
+          "path": "/v2/{+name}:close",
+          "required_params": {
+            "name": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^[^/]+/[^/]+/cases/[^/]+$",
+              "description": "Required. The name of the case to close."
+            }
+          },
+          "output_list_field": null,
+          "output_id_field": null,
+          "produces": {},
+          "param_sources": {
+            "name": {
+              "casId": {
+                "from_step": 1,
+                "from_op": "gcp.cloudsupport.cases.list",
+                "field": "name"
+              }
+            }
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    },
+    "gcp.cloudsupport.cases.attachments.list": {
+      "target_op": "gcp.cloudsupport.cases.attachments.list",
+      "kind": "read_list",
+      "independent": true,
+      "hop_distance": 0,
+      "chain_length": 1,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.cloudsupport.cases.attachments.list",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.cases().attachments().list(**params).execute()",
+          "path": "/v2/{+parent}/attachments",
+          "required_params": {
+            "parent": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^[^/]+/[^/]+/cases/[^/]+$",
+              "description": "Required. The name of the case for which attachments should be listed."
+            }
+          },
+          "output_list_field": "attachments",
+          "output_id_field": "name",
+          "produces": {
+            "attachmentId": {
+              "via_list_field": "attachments",
+              "from_id_field": "name",
+              "note": "Iterate response[\"attachments\"][], extract item[\"name\"] \u2192 pass as \"attachmentId\""
+            }
+          },
+          "param_sources": {
+            "parent": "always_available"
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [
+        "parent"
+      ],
+      "unresolved_params": []
+    },
+    "gcp.cloudsupport.cases.comments.list": {
+      "target_op": "gcp.cloudsupport.cases.comments.list",
+      "kind": "read_list",
+      "independent": true,
+      "hop_distance": 0,
+      "chain_length": 1,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.cloudsupport.cases.comments.list",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.cases().comments().list(**params).execute()",
+          "path": "/v2/{+parent}/comments",
+          "required_params": {
+            "parent": {
+              "type": "string",
+              "location": "path",
+              "pattern": "^[^/]+/[^/]+/cases/[^/]+$",
+              "description": "Required. The name of the case for which to list comments."
+            }
+          },
+          "output_list_field": "comments",
+          "output_id_field": "name",
+          "produces": {
+            "commentId": {
+              "via_list_field": "comments",
+              "from_id_field": "name",
+              "note": "Iterate response[\"comments\"][], extract item[\"name\"] \u2192 pass as \"commentId\""
+            }
+          },
+          "param_sources": {
+            "parent": "always_available"
+          },
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [
+        "parent"
+      ],
+      "unresolved_params": []
+    },
+    "gcp.cloudsupport.caseClassifications.search": {
+      "target_op": "gcp.cloudsupport.caseClassifications.search",
+      "kind": "read_list",
+      "independent": true,
+      "hop_distance": 0,
+      "chain_length": 1,
+      "execution_steps": [
+        {
+          "step": 1,
+          "op": "gcp.cloudsupport.caseClassifications.search",
+          "kind": "read_list",
+          "independent": true,
+          "python_call": "svc.caseClassifications().search(**params).execute()",
+          "path": "/v2/caseClassifications:search",
+          "required_params": {},
+          "output_list_field": "caseClassifications",
+          "output_id_field": "id",
+          "produces": {
+            "caseClassificationId": {
+              "via_list_field": "caseClassifications",
+              "from_id_field": "id",
+              "note": "Iterate response[\"caseClassifications\"][], extract item[\"id\"] \u2192 pass as \"caseClassificationId\""
+            }
+          },
+          "param_sources": {},
+          "purpose": "Target operation",
+          "full_resource_name_template": ""
+        }
+      ],
+      "always_available_params": [],
+      "unresolved_params": []
+    }
+  }
+}

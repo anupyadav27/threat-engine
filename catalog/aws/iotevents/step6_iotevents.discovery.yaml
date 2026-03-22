@@ -1,0 +1,208 @@
+# ============================================================
+# Discovery YAML — iotevents (AWS)
+# Generated: 2026-02-21T04:56:58Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: iotevents
+services:
+  client: iotevents
+  module: boto3.client
+discovery:
+  # ── DescribeLoggingOptions ──
+  - discovery_id: aws.iotevents.describe_logging_options
+    calls:
+      - action: describe_logging_options
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.loggingOptions }}'
+      item:
+        detectorDebugOptions: '{{ item.detectorDebugOptions }}'
+        enabled: '{{ item.enabled }}'
+        level: '{{ item.level }}'
+        loggingOptions: '{{ item.loggingOptions }}'
+        roleArn: '{{ item.roleArn }}'
+  # ── ListAlarmModels ──
+  - discovery_id: aws.iotevents.list_alarm_models
+    calls:
+      - action: list_alarm_models
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.alarmModelSummaries }}'
+      item:
+        alarmModelDescription: '{{ item.alarmModelDescription }}'
+        alarmModelName: '{{ item.alarmModelName }}'
+        creationTime: '{{ item.creationTime }}'
+        severity: '{{ item.severity }}'
+  # ── ListDetectorModels ──
+  - discovery_id: aws.iotevents.list_detector_models
+    calls:
+      - action: list_detector_models
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.detectorModelSummaries }}'
+      item:
+        creationTime: '{{ item.creationTime }}'
+        detectorModelDescription: '{{ item.detectorModelDescription }}'
+        detectorModelName: '{{ item.detectorModelName }}'
+  # ── ListInputs ──
+  - discovery_id: aws.iotevents.list_inputs
+    calls:
+      - action: list_inputs
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.inputSummaries }}'
+      item:
+        creationTime: '{{ item.creationTime }}'
+        input: '{{ item.input }}'
+        inputArn: '{{ item.inputArn }}'
+        inputDescription: '{{ item.inputDescription }}'
+        inputName: '{{ item.inputName }}'
+        lastUpdateTime: '{{ item.lastUpdateTime }}'
+        status: '{{ item.status }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── DescribeAlarmModel ──
+  - discovery_id: aws.iotevents.describe_alarm_model
+    for_each: aws.iotevents.list_alarm_models
+    calls:
+      - action: describe_alarm_model
+        params:
+          alarmModelName: '{{ item.alarmModelName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.alarmModelSummaries }}'
+      item:
+        severity: '{{ item.severity }}'
+        simpleRule: '{{ item.simpleRule }}'
+  # ── DescribeDetectorModel ──
+  - discovery_id: aws.iotevents.describe_detector_model
+    for_each: aws.iotevents.list_detector_models
+    calls:
+      - action: describe_detector_model
+        params:
+          detectorModelName: '{{ item.detectorModelName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.detectorModel }}'
+      item:
+        detectorModelConfiguration: '{{ item.detectorModelConfiguration }}'
+        detectorModelDefinition: '{{ item.detectorModelDefinition }}'
+  # ── DescribeDetectorModelAnalysis ──
+  - discovery_id: aws.iotevents.describe_detector_model_analysis
+    calls:
+      - action: describe_detector_model_analysis
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        status: '{{ response.status }}'
+  # ── DescribeInput ──
+  - discovery_id: aws.iotevents.describe_input
+    for_each: aws.iotevents.list_inputs
+    calls:
+      - action: describe_input
+        params:
+          inputName: '{{ item.inputName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.inputSummaries }}'
+      item:
+        input: '{{ item.input }}'
+        inputConfiguration: '{{ item.inputConfiguration }}'
+        inputDefinition: '{{ item.inputDefinition }}'
+  # ── GetDetectorModelAnalysisResults ──
+  - discovery_id: aws.iotevents.get_detector_model_analysis_results
+    calls:
+      - action: get_detector_model_analysis_results
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.analysisResults }}'
+      item:
+        level: '{{ item.level }}'
+        locations: '{{ item.locations }}'
+        message: '{{ item.message }}'
+        type: '{{ item.type }}'
+  # ── ListAlarmModelVersions ──
+  - discovery_id: aws.iotevents.list_alarm_model_versions
+    for_each: aws.iotevents.list_alarm_models
+    calls:
+      - action: list_alarm_model_versions
+        params:
+          alarmModelName: '{{ item.alarmModelName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.alarmModelVersionSummaries }}'
+      item:
+        alarmModelArn: '{{ item.alarmModelArn }}'
+        alarmModelName: '{{ item.alarmModelName }}'
+        alarmModelVersion: '{{ item.alarmModelVersion }}'
+        creationTime: '{{ item.creationTime }}'
+        lastUpdateTime: '{{ item.lastUpdateTime }}'
+        roleArn: '{{ item.roleArn }}'
+        status: '{{ item.status }}'
+        statusMessage: '{{ item.statusMessage }}'
+  # ── ListDetectorModelVersions ──
+  - discovery_id: aws.iotevents.list_detector_model_versions
+    for_each: aws.iotevents.list_detector_models
+    calls:
+      - action: list_detector_model_versions
+        params:
+          detectorModelName: '{{ item.detectorModelName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.detectorModelVersionSummaries }}'
+      item:
+        creationTime: '{{ item.creationTime }}'
+        detectorModelArn: '{{ item.detectorModelArn }}'
+        detectorModelName: '{{ item.detectorModelName }}'
+        detectorModelVersion: '{{ item.detectorModelVersion }}'
+        evaluationMethod: '{{ item.evaluationMethod }}'
+        lastUpdateTime: '{{ item.lastUpdateTime }}'
+        roleArn: '{{ item.roleArn }}'
+        status: '{{ item.status }}'
+  # ── ListInputRoutings ──
+  - discovery_id: aws.iotevents.list_input_routings
+    calls:
+      - action: list_input_routings
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.routedResources }}'
+      item:
+        arn: '{{ item.arn }}'
+        name: '{{ item.name }}'
+  # ── ListTagsForResource ──
+  - discovery_id: aws.iotevents.list_tags_for_resource
+    calls:
+      - action: list_tags_for_resource
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.tags }}'
+      item:
+        key: '{{ item.key }}'
+        value: '{{ item.value }}'

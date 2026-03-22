@@ -1,0 +1,46 @@
+version: '1.0'
+provider: oci
+service: key_management
+services:
+  client: key_management
+  module: oci.key_management
+discovery:
+- discovery_id: oci.key_management.get_vault
+  calls:
+  - action: get_vault
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.key_management.get_vault_usage
+  calls:
+  - action: get_vault_usage
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.key_management.list_vault_replicas
+  for_each: oci.key_management.get_vault
+  calls:
+  - action: list_vault_replicas
+    save_as: response
+    on_error: continue
+    params:
+      compartment_id: '{{ item.compartment_id }}'
+  emit:
+    as: item
+    items_for: '{{ response }}'
+- discovery_id: oci.key_management.list_vaults
+  for_each: oci.key_management.get_vault
+  calls:
+  - action: list_vaults
+    save_as: response
+    on_error: continue
+    params:
+      compartment_id: '{{ item.compartment_id }}'
+  emit:
+    as: item
+    items_for: '{{ response }}'
+checks: []

@@ -1,0 +1,283 @@
+# ============================================================
+# Discovery YAML — finspace-data (AWS)
+# Generated: 2026-02-21T04:56:58Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: finspace-data
+services:
+  client: finspace-data
+  module: boto3.client
+discovery:
+  # ── GetWorkingLocation ──
+  - discovery_id: aws.finspace-data.get_working_location
+    calls:
+      - action: get_working_location
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.s3Uri }}'
+      item:
+        s3Bucket: '{{ item.s3Bucket }}'
+        s3Path: '{{ item.s3Path }}'
+        s3Uri: '{{ item.s3Uri }}'
+  # ── ListDatasets ──
+  - discovery_id: aws.finspace-data.list_datasets
+    calls:
+      - action: list_datasets
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.datasets }}'
+      item:
+        alias: '{{ item.alias }}'
+        createTime: '{{ item.createTime }}'
+        datasetArn: '{{ item.datasetArn }}'
+        datasetDescription: '{{ item.datasetDescription }}'
+        datasetId: '{{ item.datasetId }}'
+        datasetTitle: '{{ item.datasetTitle }}'
+        kind: '{{ item.kind }}'
+        lastModifiedTime: '{{ item.lastModifiedTime }}'
+        ownerInfo: '{{ item.ownerInfo }}'
+        schemaDefinition: '{{ item.schemaDefinition }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── GetChangeset ──
+  - discovery_id: aws.finspace-data.get_changeset
+    for_each: aws.finspace-data.list_datasets
+    calls:
+      - action: get_changeset
+        params:
+          datasetId: '{{ item.datasetId }}'
+          changesetId: '{{ item.changesetId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.errorInfo }}'
+      item:
+        errorCategory: '{{ item.errorCategory }}'
+        errorMessage: '{{ item.errorMessage }}'
+  # ── GetDataView ──
+  - discovery_id: aws.finspace-data.get_data_view
+    for_each: aws.finspace-data.list_datasets
+    calls:
+      - action: get_data_view
+        params:
+          dataViewId: '{{ item.dataViewId }}'
+          datasetId: '{{ item.datasetId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.partitionColumns }}'
+  # ── GetDataset ──
+  - discovery_id: aws.finspace-data.get_dataset
+    for_each: aws.finspace-data.list_datasets
+    calls:
+      - action: get_dataset
+        params:
+          datasetId: '{{ item.datasetId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.schemaDefinition }}'
+      item:
+        tabularSchemaConfig: '{{ item.tabularSchemaConfig }}'
+  # ── GetExternalDataViewAccessDetails ──
+  - discovery_id: aws.finspace-data.get_external_data_view_access_details
+    for_each: aws.finspace-data.list_datasets
+    calls:
+      - action: get_external_data_view_access_details
+        params:
+          dataViewId: '{{ item.dataViewId }}'
+          datasetId: '{{ item.datasetId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.credentials }}'
+      item:
+        accessKeyId: '{{ item.accessKeyId }}'
+        credentials: '{{ item.credentials }}'
+        expiration: '{{ item.expiration }}'
+        secretAccessKey: '{{ item.secretAccessKey }}'
+        sessionToken: '{{ item.sessionToken }}'
+  # ── GetPermissionGroup ──
+  - discovery_id: aws.finspace-data.get_permission_group
+    calls:
+      - action: get_permission_group
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.permissionGroup }}'
+      item:
+        applicationPermissions: '{{ item.applicationPermissions }}'
+        createTime: '{{ item.createTime }}'
+        description: '{{ item.description }}'
+        lastModifiedTime: '{{ item.lastModifiedTime }}'
+        membershipStatus: '{{ item.membershipStatus }}'
+        name: '{{ item.name }}'
+        permissionGroupId: '{{ item.permissionGroupId }}'
+  # ── GetProgrammaticAccessCredentials ──
+  - discovery_id: aws.finspace-data.get_programmatic_access_credentials
+    calls:
+      - action: get_programmatic_access_credentials
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.credentials }}'
+      item:
+        accessKeyId: '{{ item.accessKeyId }}'
+        secretAccessKey: '{{ item.secretAccessKey }}'
+        sessionToken: '{{ item.sessionToken }}'
+  # ── GetUser ──
+  - discovery_id: aws.finspace-data.get_user
+    calls:
+      - action: get_user
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        apiAccess: '{{ response.apiAccess }}'
+        apiAccessPrincipalArn: '{{ response.apiAccessPrincipalArn }}'
+        createTime: '{{ response.createTime }}'
+        emailAddress: '{{ response.emailAddress }}'
+        firstName: '{{ response.firstName }}'
+        lastDisabledTime: '{{ response.lastDisabledTime }}'
+        lastEnabledTime: '{{ response.lastEnabledTime }}'
+        lastLoginTime: '{{ response.lastLoginTime }}'
+        lastModifiedTime: '{{ response.lastModifiedTime }}'
+        lastName: '{{ response.lastName }}'
+        status: '{{ response.status }}'
+        type: '{{ response.type }}'
+        userId: '{{ response.userId }}'
+  # ── ListChangesets ──
+  - discovery_id: aws.finspace-data.list_changesets
+    for_each: aws.finspace-data.list_datasets
+    calls:
+      - action: list_changesets
+        params:
+          datasetId: '{{ item.datasetId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.changesets }}'
+      item:
+        activeFromTimestamp: '{{ item.activeFromTimestamp }}'
+        activeUntilTimestamp: '{{ item.activeUntilTimestamp }}'
+        changeType: '{{ item.changeType }}'
+        changesetArn: '{{ item.changesetArn }}'
+        changesetId: '{{ item.changesetId }}'
+        createTime: '{{ item.createTime }}'
+        datasetId: '{{ item.datasetId }}'
+        errorInfo: '{{ item.errorInfo }}'
+        formatParams: '{{ item.formatParams }}'
+        sourceParams: '{{ item.sourceParams }}'
+        status: '{{ item.status }}'
+        updatedByChangesetId: '{{ item.updatedByChangesetId }}'
+        updatesChangesetId: '{{ item.updatesChangesetId }}'
+  # ── ListDataViews ──
+  - discovery_id: aws.finspace-data.list_data_views
+    for_each: aws.finspace-data.list_datasets
+    calls:
+      - action: list_data_views
+        params:
+          datasetId: '{{ item.datasetId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.dataViews }}'
+      item:
+        asOfTimestamp: '{{ item.asOfTimestamp }}'
+        autoUpdate: '{{ item.autoUpdate }}'
+        createTime: '{{ item.createTime }}'
+        dataViewArn: '{{ item.dataViewArn }}'
+        dataViewId: '{{ item.dataViewId }}'
+        datasetId: '{{ item.datasetId }}'
+        destinationTypeProperties: '{{ item.destinationTypeProperties }}'
+        errorInfo: '{{ item.errorInfo }}'
+        lastModifiedTime: '{{ item.lastModifiedTime }}'
+        partitionColumns: '{{ item.partitionColumns }}'
+        sortColumns: '{{ item.sortColumns }}'
+        status: '{{ item.status }}'
+  # ── ListPermissionGroups ──
+  - discovery_id: aws.finspace-data.list_permission_groups
+    calls:
+      - action: list_permission_groups
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.permissionGroups }}'
+      item:
+        applicationPermissions: '{{ item.applicationPermissions }}'
+        createTime: '{{ item.createTime }}'
+        description: '{{ item.description }}'
+        lastModifiedTime: '{{ item.lastModifiedTime }}'
+        membershipStatus: '{{ item.membershipStatus }}'
+        name: '{{ item.name }}'
+        permissionGroupId: '{{ item.permissionGroupId }}'
+  # ── ListPermissionGroupsByUser ──
+  - discovery_id: aws.finspace-data.list_permission_groups_by_user
+    calls:
+      - action: list_permission_groups_by_user
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.permissionGroups }}'
+      item:
+        membershipStatus: '{{ item.membershipStatus }}'
+        name: '{{ item.name }}'
+        permissionGroupId: '{{ item.permissionGroupId }}'
+  # ── ListUsers ──
+  - discovery_id: aws.finspace-data.list_users
+    calls:
+      - action: list_users
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.users }}'
+      item:
+        apiAccess: '{{ item.apiAccess }}'
+        apiAccessPrincipalArn: '{{ item.apiAccessPrincipalArn }}'
+        createTime: '{{ item.createTime }}'
+        emailAddress: '{{ item.emailAddress }}'
+        firstName: '{{ item.firstName }}'
+        lastDisabledTime: '{{ item.lastDisabledTime }}'
+        lastEnabledTime: '{{ item.lastEnabledTime }}'
+        lastLoginTime: '{{ item.lastLoginTime }}'
+        lastModifiedTime: '{{ item.lastModifiedTime }}'
+        lastName: '{{ item.lastName }}'
+        status: '{{ item.status }}'
+        type: '{{ item.type }}'
+        userId: '{{ item.userId }}'
+  # ── ListUsersByPermissionGroup ──
+  - discovery_id: aws.finspace-data.list_users_by_permission_group
+    calls:
+      - action: list_users_by_permission_group
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.users }}'
+      item:
+        apiAccess: '{{ item.apiAccess }}'
+        apiAccessPrincipalArn: '{{ item.apiAccessPrincipalArn }}'
+        emailAddress: '{{ item.emailAddress }}'
+        firstName: '{{ item.firstName }}'
+        lastName: '{{ item.lastName }}'
+        membershipStatus: '{{ item.membershipStatus }}'
+        status: '{{ item.status }}'
+        type: '{{ item.type }}'
+        userId: '{{ item.userId }}'

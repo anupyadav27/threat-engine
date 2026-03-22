@@ -1,0 +1,762 @@
+{
+  "csp": "gcp",
+  "generated_at": "2026-02-19T14:43:26.490239+00:00",
+  "anchors": {
+    "fixed": [
+      "project_id",
+      "org_id",
+      "folder_id",
+      "location",
+      "zone",
+      "region"
+    ]
+  },
+  "services": {
+    "domains": {
+      "version": "v1",
+      "resources": {
+        "locations": {
+          "resource_type": "locations",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.domains.projects.locations.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}/locations"
+                },
+                "python_call": "svc.projects().locations().list(**params).execute()",
+                "produces": {
+                  "name": "locations[].name",
+                  "metadata": "locations[].metadata",
+                  "displayName": "locations[].displayName",
+                  "labels": "locations[].labels",
+                  "locationId": "locations[].locationId"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.domains.projects.locations.get",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "operations": {
+          "resource_type": "operations",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.domains.projects.locations.operations.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}/operations"
+                },
+                "python_call": "svc.projects().locations().operations().list(**params).execute()",
+                "produces": {
+                  "name": "operations[].name",
+                  "response": "operations[].response",
+                  "error": "operations[].error",
+                  "done": "operations[].done",
+                  "metadata": "operations[].metadata"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.domains.projects.locations.operations.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().operations().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.domains.projects.locations.operations.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.domains.projects.locations.operations.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().operations().list(**params).execute()",
+                      "path": "/v1/{+name}/operations",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "The name of the operation's parent resource."
+                        }
+                      },
+                      "output_list_field": "operations",
+                      "output_id_field": "name",
+                      "produces": {
+                        "operationId": {
+                          "via_list_field": "operations",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"operations\"][], extract item[\"name\"] \u2192 pass as \"operationId\""
+                        }
+                      },
+                      "param_sources": {
+                        "name": "always_available"
+                      },
+                      "purpose": "Provides: operationId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.domains.projects.locations.operations.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().operations().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/operations/[^/]+$",
+                          "description": "The name of the operation resource."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "operationId": {
+                            "from_step": 1,
+                            "from_op": "gcp.domains.projects.locations.operations.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "registrations": {
+          "resource_type": "registrations",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.domains.projects.locations.registrations.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/registrations"
+                },
+                "python_call": "svc.projects().locations().registrations().list(**params).execute()",
+                "produces": {
+                  "name": "registrations[].name",
+                  "issues": "registrations[].issues",
+                  "expireTime": "registrations[].expireTime",
+                  "pendingContactSettings": "registrations[].pendingContactSettings",
+                  "domainProperties": "registrations[].domainProperties",
+                  "state": "registrations[].state",
+                  "registerFailureReason": "registrations[].registerFailureReason",
+                  "labels": "registrations[].labels",
+                  "dnsSettings": "registrations[].dnsSettings",
+                  "transferFailureReason": "registrations[].transferFailureReason",
+                  "supportedPrivacy": "registrations[].supportedPrivacy",
+                  "createTime": "registrations[].createTime",
+                  "domainName": "registrations[].domainName",
+                  "managementSettings": "registrations[].managementSettings",
+                  "contactSettings": "registrations[].contactSettings"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.domains.projects.locations.registrations.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().registrations().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.domains.projects.locations.registrations.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.domains.projects.locations.registrations.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().registrations().list(**params).execute()",
+                      "path": "/v1/{+parent}/registrations",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. The project and location from which to list `Registration`s, specified in the format `projects/*/locations/*`."
+                        }
+                      },
+                      "output_list_field": "registrations",
+                      "output_id_field": "name",
+                      "produces": {
+                        "registrationId": {
+                          "via_list_field": "registrations",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"registrations\"][], extract item[\"name\"] \u2192 pass as \"registrationId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: registrationId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.domains.projects.locations.registrations.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().registrations().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/registrations/[^/]+$",
+                          "description": "Required. The name of the `Registration` to get, in the format `projects/*/locations/*/registrations/*`."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "registrationId": {
+                            "from_step": 1,
+                            "from_op": "gcp.domains.projects.locations.registrations.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.domains.projects.locations.registrations.getIamPolicy",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+resource}:getIamPolicy"
+                },
+                "python_call": "svc.projects().locations().registrations().getIamPolicy(**params).execute()",
+                "required_params": {
+                  "resource": {
+                    "from_identifier": "gcp.domains.projects.locations.registrations.list \u2192 registrations[].name"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.domains.projects.locations.registrations.getIamPolicy",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.domains.projects.locations.registrations.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().registrations().list(**params).execute()",
+                      "path": "/v1/{+parent}/registrations",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. The project and location from which to list `Registration`s, specified in the format `projects/*/locations/*`."
+                        }
+                      },
+                      "output_list_field": "registrations",
+                      "output_id_field": "name",
+                      "produces": {
+                        "registrationId": {
+                          "via_list_field": "registrations",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"registrations\"][], extract item[\"name\"] \u2192 pass as \"registrationId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: registrationId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.domains.projects.locations.registrations.getIamPolicy",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().registrations().getIamPolicy(**params).execute()",
+                      "path": "/v1/{+resource}:getIamPolicy",
+                      "required_params": {
+                        "resource": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/registrations/[^/]+$",
+                          "description": "REQUIRED: The resource for which the policy is being requested. See [Resource names](https://cloud.google.com/apis/desig"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "resource": {
+                          "registrationId": {
+                            "from_step": 1,
+                            "from_op": "gcp.domains.projects.locations.registrations.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.domains.projects.locations.registrations.retrieveAuthorizationCode",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+registration}:retrieveAuthorizationCode"
+                },
+                "python_call": "svc.projects().locations().registrations().retrieveAuthorizationCode(**params).execute()",
+                "required_params": {
+                  "registration": {
+                    "from_identifier": "gcp.domains.projects.locations.registrations.list \u2192 registrations[].name"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.domains.projects.locations.registrations.retrieveAuthorizationCode",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.domains.projects.locations.registrations.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().registrations().list(**params).execute()",
+                      "path": "/v1/{+parent}/registrations",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. The project and location from which to list `Registration`s, specified in the format `projects/*/locations/*`."
+                        }
+                      },
+                      "output_list_field": "registrations",
+                      "output_id_field": "name",
+                      "produces": {
+                        "registrationId": {
+                          "via_list_field": "registrations",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"registrations\"][], extract item[\"name\"] \u2192 pass as \"registrationId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: registrationId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.domains.projects.locations.registrations.retrieveAuthorizationCode",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().registrations().retrieveAuthorizationCode(**params).execute()",
+                      "path": "/v1/{+registration}:retrieveAuthorizationCode",
+                      "required_params": {
+                        "registration": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/registrations/[^/]+$",
+                          "description": "Required. The name of the `Registration` whose authorization code is being retrieved, in the format `projects/*/location"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "registration": {
+                          "registrationId": {
+                            "from_step": 1,
+                            "from_op": "gcp.domains.projects.locations.registrations.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.domains.projects.locations.registrations.retrieveGoogleDomainsDnsRecords",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+registration}:retrieveGoogleDomainsDnsRecords"
+                },
+                "python_call": "svc.projects().locations().registrations().retrieveGoogleDomainsDnsRecords(**params).execute()",
+                "required_params": {
+                  "registration": {
+                    "from_identifier": "gcp.domains.projects.locations.registrations.list \u2192 registrations[].name"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.domains.projects.locations.registrations.retrieveGoogleDomainsDnsRecords",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.domains.projects.locations.registrations.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().registrations().list(**params).execute()",
+                      "path": "/v1/{+parent}/registrations",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. The project and location from which to list `Registration`s, specified in the format `projects/*/locations/*`."
+                        }
+                      },
+                      "output_list_field": "registrations",
+                      "output_id_field": "name",
+                      "produces": {
+                        "registrationId": {
+                          "via_list_field": "registrations",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"registrations\"][], extract item[\"name\"] \u2192 pass as \"registrationId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: registrationId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.domains.projects.locations.registrations.retrieveGoogleDomainsDnsRecords",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().registrations().retrieveGoogleDomainsDnsRecords(**params).execute()",
+                      "path": "/v1/{+registration}:retrieveGoogleDomainsDnsRecords",
+                      "required_params": {
+                        "registration": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/registrations/[^/]+$",
+                          "description": "Required. The name of the `Registration` whose Google Domains DNS records details you are retrieving, in the format `pro"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "registration": {
+                          "registrationId": {
+                            "from_step": 1,
+                            "from_op": "gcp.domains.projects.locations.registrations.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.domains.projects.locations.registrations.retrieveGoogleDomainsForwardingConfig",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+registration}:retrieveGoogleDomainsForwardingConfig"
+                },
+                "python_call": "svc.projects().locations().registrations().retrieveGoogleDomainsForwardingConfig(**params).execute()",
+                "required_params": {
+                  "registration": {
+                    "from_identifier": "gcp.domains.projects.locations.registrations.list \u2192 registrations[].name"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.domains.projects.locations.registrations.retrieveGoogleDomainsForwardingConfig",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.domains.projects.locations.registrations.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().registrations().list(**params).execute()",
+                      "path": "/v1/{+parent}/registrations",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. The project and location from which to list `Registration`s, specified in the format `projects/*/locations/*`."
+                        }
+                      },
+                      "output_list_field": "registrations",
+                      "output_id_field": "name",
+                      "produces": {
+                        "registrationId": {
+                          "via_list_field": "registrations",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"registrations\"][], extract item[\"name\"] \u2192 pass as \"registrationId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: registrationId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.domains.projects.locations.registrations.retrieveGoogleDomainsForwardingConfig",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().registrations().retrieveGoogleDomainsForwardingConfig(**params).execute()",
+                      "path": "/v1/{+registration}:retrieveGoogleDomainsForwardingConfig",
+                      "required_params": {
+                        "registration": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/registrations/[^/]+$",
+                          "description": "Required. The name of the `Registration` whose Google Domains forwarding configuration details are being retrieved, in t"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "registration": {
+                          "registrationId": {
+                            "from_step": 1,
+                            "from_op": "gcp.domains.projects.locations.registrations.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.domains.projects.locations.registrations.retrieveImportableDomains",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+location}/registrations:retrieveImportableDomains"
+                },
+                "python_call": "svc.projects().locations().registrations().retrieveImportableDomains(**params).execute()",
+                "required_params": {
+                  "location": {
+                    "from_identifier": "location"
+                  }
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.domains.projects.locations.registrations.retrieveRegisterParameters",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+location}/registrations:retrieveRegisterParameters"
+                },
+                "python_call": "svc.projects().locations().registrations().retrieveRegisterParameters(**params).execute()",
+                "required_params": {
+                  "location": {
+                    "from_identifier": "location"
+                  }
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.domains.projects.locations.registrations.retrieveTransferParameters",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+location}/registrations:retrieveTransferParameters"
+                },
+                "python_call": "svc.projects().locations().registrations().retrieveTransferParameters(**params).execute()",
+                "required_params": {
+                  "location": {
+                    "from_identifier": "location"
+                  }
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.domains.projects.locations.registrations.searchDomains",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+location}/registrations:searchDomains"
+                },
+                "python_call": "svc.projects().locations().registrations().searchDomains(**params).execute()",
+                "required_params": {
+                  "location": {
+                    "from_identifier": "location"
+                  }
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        }
+      }
+    }
+  }
+}

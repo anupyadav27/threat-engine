@@ -1,0 +1,120 @@
+# ============================================================
+# Discovery YAML — forms (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 4 | independent: 0 | dependent: 4
+# ops with fields: 4/4 | dep ops with chain: 3/4
+# ============================================================
+version: '1.0'
+provider: gcp
+service: forms
+
+services:
+  client: forms
+  module: "googleapiclient.discovery.build('forms', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Get a form.
+  # ── gcp.forms.forms.get [dependent] ──
+  - discovery_id: gcp.forms.forms.get
+    for_each: gcp.forms.forms.responses.list
+    # python: svc.forms().get(**params).execute()
+    calls:
+      - action: forms.get
+        params:
+          formId: '{{ item.formId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        formId: '{{ response.formId }}'
+        info: '{{ response.info }}'
+        items: '{{ response.items }}'
+        linkedSheetId: '{{ response.linkedSheetId }}'
+        publishSettings: '{{ response.publishSettings }}'
+        responderUri: '{{ response.responderUri }}'
+        revisionId: '{{ response.revisionId }}'
+        settings: '{{ response.settings }}'
+    # required_params: ['formId']
+  # Get one response from the form.
+  # ── gcp.forms.forms.responses.get [dependent] ──
+  - discovery_id: gcp.forms.forms.responses.get
+    for_each: gcp.forms.forms.responses.list
+    # python: svc.forms().responses().get(**params).execute()
+    calls:
+      - action: forms.responses.get
+        params:
+          formId: '{{ item.formId }}'
+          responseId: '{{ item.formId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        answers: '{{ response.answers }}'
+        createTime: '{{ response.createTime }}'
+        formId: '{{ response.formId }}'
+        lastSubmittedTime: '{{ response.lastSubmittedTime }}'
+        respondentEmail: '{{ response.respondentEmail }}'
+        responseId: '{{ response.responseId }}'
+        totalScore: '{{ response.totalScore }}'
+    # required_params: ['formId', 'responseId']
+  # List a form's responses.
+  # ── gcp.forms.forms.responses.list [dependent] ──
+  - discovery_id: gcp.forms.forms.responses.list
+    # python: svc.forms().responses().list(**params).execute()
+    calls:
+      - action: forms.responses.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.responses }}'
+      item:
+        answers: '{{ item.answers }}'
+        createTime: '{{ item.createTime }}'
+        formId: '{{ item.formId }}'
+        lastSubmittedTime: '{{ item.lastSubmittedTime }}'
+        respondentEmail: '{{ item.respondentEmail }}'
+        responseId: '{{ item.responseId }}'
+        totalScore: '{{ item.totalScore }}'
+    # required_params: ['formId']
+  # Return a list of the watches owned by the invoking project. The maximum number of watches is two: Fo
+  # ── gcp.forms.forms.watches.list [dependent] ──
+  - discovery_id: gcp.forms.forms.watches.list
+    for_each: gcp.forms.forms.responses.list
+    # python: svc.forms().watches().list(**params).execute()
+    calls:
+      - action: forms.watches.list
+        params:
+          formId: '{{ item.formId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.watches }}'
+      item:
+        createTime: '{{ item.createTime }}'
+        errorType: '{{ item.errorType }}'
+        eventType: '{{ item.eventType }}'
+        expireTime: '{{ item.expireTime }}'
+        id: '{{ item.id }}'
+        state: '{{ item.state }}'
+        target: '{{ item.target }}'
+    # required_params: ['formId']

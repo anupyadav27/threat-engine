@@ -1,0 +1,1443 @@
+{
+  "csp": "gcp",
+  "generated_at": "2026-02-19T14:43:25.065082+00:00",
+  "anchors": {
+    "fixed": [
+      "project_id",
+      "org_id",
+      "folder_id",
+      "location",
+      "zone",
+      "region"
+    ]
+  },
+  "services": {
+    "cloudsearch": {
+      "version": "v1",
+      "resources": {
+        "datasources": {
+          "resource_type": "datasources",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "indexing/{name}/schema",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.cloudsearch.settings.datasources.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/settings/datasources"
+                },
+                "python_call": "svc.settings().datasources().list(**params).execute()",
+                "produces": {
+                  "name": "sources[].name",
+                  "displayName": "sources[].displayName",
+                  "shortName": "sources[].shortName",
+                  "indexingServiceAccounts": "sources[].indexingServiceAccounts",
+                  "disableServing": "sources[].disableServing",
+                  "disableModifications": "sources[].disableModifications",
+                  "itemsVisibility": "sources[].itemsVisibility",
+                  "returnThumbnailUrls": "sources[].returnThumbnailUrls",
+                  "operationIds": "sources[].operationIds"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.cloudsearch.indexing.datasources.getSchema",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/indexing/{+name}/schema"
+                },
+                "python_call": "svc.indexing().datasources().getSchema(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.cloudsearch.indexing.datasources.getSchema",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.cloudsearch.settings.datasources.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.settings().datasources().list(**params).execute()",
+                      "path": "/v1/settings/datasources",
+                      "required_params": {},
+                      "output_list_field": "sources",
+                      "output_id_field": "name",
+                      "produces": {
+                        "datasourceId": {
+                          "via_list_field": "sources",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"sources\"][], extract item[\"name\"] \u2192 pass as \"datasourceId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: datasourceId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.cloudsearch.indexing.datasources.getSchema",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.indexing().datasources().getSchema(**params).execute()",
+                      "path": "/v1/indexing/{+name}/schema",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^datasources/[^/]+$",
+                          "description": "The name of the data source to get Schema. Format: datasources/{source_id}"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "datasourceId": {
+                            "from_step": 1,
+                            "from_op": "gcp.cloudsearch.settings.datasources.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.cloudsearch.settings.datasources.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/settings/{+name}"
+                },
+                "python_call": "svc.settings().datasources().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.cloudsearch.settings.datasources.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.cloudsearch.settings.datasources.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.settings().datasources().list(**params).execute()",
+                      "path": "/v1/settings/datasources",
+                      "required_params": {},
+                      "output_list_field": "sources",
+                      "output_id_field": "name",
+                      "produces": {
+                        "datasourceId": {
+                          "via_list_field": "sources",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"sources\"][], extract item[\"name\"] \u2192 pass as \"datasourceId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: datasourceId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.cloudsearch.settings.datasources.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.settings().datasources().get(**params).execute()",
+                      "path": "/v1/settings/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^datasources/[^/]+$",
+                          "description": "The name of the datasource resource. Format: datasources/{source_id}."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "datasourceId": {
+                            "from_step": 1,
+                            "from_op": "gcp.cloudsearch.settings.datasources.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.cloudsearch.stats.index.datasources.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/stats/index/{+name}"
+                },
+                "python_call": "svc.stats().index().datasources().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.cloudsearch.stats.index.datasources.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.cloudsearch.settings.datasources.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.settings().datasources().list(**params).execute()",
+                      "path": "/v1/settings/datasources",
+                      "required_params": {},
+                      "output_list_field": "sources",
+                      "output_id_field": "name",
+                      "produces": {
+                        "datasourceId": {
+                          "via_list_field": "sources",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"sources\"][], extract item[\"name\"] \u2192 pass as \"datasourceId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: datasourceId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.cloudsearch.stats.index.datasources.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.stats().index().datasources().get(**params).execute()",
+                      "path": "/v1/stats/index/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^datasources/[^/]+$",
+                          "description": "The resource id of the data source to retrieve statistics for, in the following format: \"datasources/{source_id}\""
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "datasourceId": {
+                            "from_step": 1,
+                            "from_op": "gcp.cloudsearch.settings.datasources.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "items": {
+          "resource_type": "items",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "indexing/{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.cloudsearch.settings.datasources.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/settings/datasources"
+                },
+                "python_call": "svc.settings().datasources().list(**params).execute()",
+                "produces": {
+                  "name": "sources[].name",
+                  "displayName": "sources[].displayName",
+                  "shortName": "sources[].shortName",
+                  "indexingServiceAccounts": "sources[].indexingServiceAccounts",
+                  "disableServing": "sources[].disableServing",
+                  "disableModifications": "sources[].disableModifications",
+                  "itemsVisibility": "sources[].itemsVisibility",
+                  "returnThumbnailUrls": "sources[].returnThumbnailUrls",
+                  "operationIds": "sources[].operationIds"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.cloudsearch.debug.identitysources.items.listForunmappedidentity",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/debug/{+parent}/items:forunmappedidentity"
+                },
+                "python_call": "svc.debug().identitysources().items().listForunmappedidentity(**params).execute()",
+                "produces": {},
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.cloudsearch.indexing.datasources.items.list",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/indexing/{+name}/items"
+                },
+                "python_call": "svc.indexing().datasources().items().list(**params).execute()",
+                "produces": {
+                  "name": "items[].name",
+                  "acl": "items[].acl",
+                  "metadata": "items[].metadata",
+                  "structuredData": "items[].structuredData",
+                  "content": "items[].content",
+                  "version": "items[].version",
+                  "status": "items[].status",
+                  "queue": "items[].queue",
+                  "payload": "items[].payload",
+                  "itemType": "items[].itemType"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.cloudsearch.indexing.datasources.items.list",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.cloudsearch.settings.datasources.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.settings().datasources().list(**params).execute()",
+                      "path": "/v1/settings/datasources",
+                      "required_params": {},
+                      "output_list_field": "sources",
+                      "output_id_field": "name",
+                      "produces": {
+                        "datasourceId": {
+                          "via_list_field": "sources",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"sources\"][], extract item[\"name\"] \u2192 pass as \"datasourceId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: datasourceId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.cloudsearch.indexing.datasources.items.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.indexing().datasources().items().list(**params).execute()",
+                      "path": "/v1/indexing/{+name}/items",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^datasources/[^/]+$",
+                          "description": "The name of the Data Source to list Items. Format: datasources/{source_id}"
+                        }
+                      },
+                      "output_list_field": "items",
+                      "output_id_field": "name",
+                      "produces": {
+                        "itemId": {
+                          "via_list_field": "items",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"items\"][], extract item[\"name\"] \u2192 pass as \"itemId\""
+                        }
+                      },
+                      "param_sources": {
+                        "name": {
+                          "datasourceId": {
+                            "from_step": 1,
+                            "from_op": "gcp.cloudsearch.settings.datasources.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.cloudsearch.indexing.datasources.items.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/indexing/{+name}"
+                },
+                "python_call": "svc.indexing().datasources().items().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.cloudsearch.indexing.datasources.items.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 3,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.cloudsearch.settings.datasources.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.settings().datasources().list(**params).execute()",
+                      "path": "/v1/settings/datasources",
+                      "required_params": {},
+                      "output_list_field": "sources",
+                      "output_id_field": "name",
+                      "produces": {
+                        "datasourceId": {
+                          "via_list_field": "sources",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"sources\"][], extract item[\"name\"] \u2192 pass as \"datasourceId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: datasourceId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.cloudsearch.debug.identitysources.items.listForunmappedidentity",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.debug().identitysources().items().listForunmappedidentity(**params).execute()",
+                      "path": "/v1/debug/{+parent}/items:forunmappedidentity",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^identitysources/[^/]+$",
+                          "description": "The name of the identity source, in the following format: identitysources/{source_id}}"
+                        }
+                      },
+                      "output_list_field": "itemNames",
+                      "output_id_field": null,
+                      "produces": {
+                        "itemId": {
+                          "via_list_field": "itemNames",
+                          "from_id_field": null,
+                          "note": "Iterate response[\"itemNames\"][], extract item[\"None\"] \u2192 pass as \"itemId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: itemId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.cloudsearch.indexing.datasources.items.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.indexing().datasources().items().get(**params).execute()",
+                      "path": "/v1/indexing/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^datasources/[^/]+/items/[^/]+$",
+                          "description": "The name of the item to get info. Format: datasources/{source_id}/items/{item_id}"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "datasourceId": {
+                            "from_step": 1,
+                            "from_op": "gcp.cloudsearch.settings.datasources.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "lro": {
+          "resource_type": "lro",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "",
+              "built_from_parts": [],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.cloudsearch.operations.lro.list",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}/lro"
+                },
+                "python_call": "svc.operations().lro().list(**params).execute()",
+                "produces": {
+                  "name": "operations[].name",
+                  "metadata": "operations[].metadata",
+                  "done": "operations[].done",
+                  "error": "operations[].error",
+                  "response": "operations[].response"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.cloudsearch.operations.lro.list",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.cloudsearch.settings.searchapplications.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.settings().searchapplications().list(**params).execute()",
+                      "path": "/v1/settings/searchapplications",
+                      "required_params": {},
+                      "output_list_field": "searchApplications",
+                      "output_id_field": "name",
+                      "produces": {
+                        "searchapplicationId": {
+                          "via_list_field": "searchApplications",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"searchApplications\"][], extract item[\"name\"] \u2192 pass as \"searchapplicationId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: searchapplicationId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.cloudsearch.operations.lro.list",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.operations().lro().list(**params).execute()",
+                      "path": "/v1/{+name}/lro",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^operations/.*$",
+                          "description": "The name of the operation's parent resource."
+                        }
+                      },
+                      "output_list_field": "operations",
+                      "output_id_field": "name",
+                      "produces": {
+                        "lroId": {
+                          "via_list_field": "operations",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"operations\"][], extract item[\"name\"] \u2192 pass as \"lroId\""
+                        }
+                      },
+                      "param_sources": {
+                        "name": {
+                          "operationId": {
+                            "from_step": 1,
+                            "from_op": "gcp.cloudsearch.settings.searchapplications.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": []
+          },
+          "confidence": 0.5,
+          "notes": "No enrich (get) ops found; inventory only."
+        },
+        "operations": {
+          "resource_type": "operations",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.cloudsearch.settings.searchapplications.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/settings/searchapplications"
+                },
+                "python_call": "svc.settings().searchapplications().list(**params).execute()",
+                "produces": {
+                  "name": "searchApplications[].name",
+                  "displayName": "searchApplications[].displayName",
+                  "dataSourceRestrictions": "searchApplications[].dataSourceRestrictions",
+                  "sourceConfig": "searchApplications[].sourceConfig",
+                  "scoringConfig": "searchApplications[].scoringConfig",
+                  "defaultSortOptions": "searchApplications[].defaultSortOptions",
+                  "defaultFacetOptions": "searchApplications[].defaultFacetOptions",
+                  "returnResultThumbnailUrls": "searchApplications[].returnResultThumbnailUrls",
+                  "operationIds": "searchApplications[].operationIds",
+                  "enableAuditLog": "searchApplications[].enableAuditLog",
+                  "queryInterpretationConfig": "searchApplications[].queryInterpretationConfig"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.cloudsearch.operations.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.operations().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.cloudsearch.operations.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.cloudsearch.settings.searchapplications.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.settings().searchapplications().list(**params).execute()",
+                      "path": "/v1/settings/searchapplications",
+                      "required_params": {},
+                      "output_list_field": "searchApplications",
+                      "output_id_field": "name",
+                      "produces": {
+                        "searchapplicationId": {
+                          "via_list_field": "searchApplications",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"searchApplications\"][], extract item[\"name\"] \u2192 pass as \"searchapplicationId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: searchapplicationId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.cloudsearch.operations.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.operations().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^operations/.*$",
+                          "description": "The name of the operation resource."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "operationId": {
+                            "from_step": 1,
+                            "from_op": "gcp.cloudsearch.settings.searchapplications.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "query": {
+          "resource_type": "query",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "tuple",
+            "full_identifier": {
+              "template": "",
+              "built_from_parts": [],
+              "notes": "Tuple identifier; anchor parts are user-provided."
+            },
+            "parts": [
+              "url"
+            ],
+            "part_sources": {
+              "url": {
+                "op": "gcp.cloudsearch.query.search",
+                "field_path": "results[].url",
+                "transform": null
+              }
+            },
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.cloudsearch.query.search",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "POST",
+                  "path": "/v1/query/search"
+                },
+                "python_call": "svc.query().search(**params).execute()",
+                "produces": {
+                  "url": "results[].url",
+                  "title": "results[].title",
+                  "snippet": "results[].snippet",
+                  "metadata": "results[].metadata",
+                  "clusteredResults": "results[].clusteredResults",
+                  "debugInfo": "debugInfo",
+                  "queryInterpretation": "queryInterpretation",
+                  "hasMoreResults": "hasMoreResults",
+                  "resultCountEstimate": "resultCountEstimate",
+                  "resultCountExact": "resultCountExact",
+                  "errorInfo": "errorInfo",
+                  "resultCounts": "resultCounts"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": []
+          },
+          "confidence": 0.4,
+          "notes": "No enrich (get) ops found; inventory only."
+        },
+        "searchapplications": {
+          "resource_type": "searchapplications",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "settings/{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.cloudsearch.settings.searchapplications.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/settings/searchapplications"
+                },
+                "python_call": "svc.settings().searchapplications().list(**params).execute()",
+                "produces": {
+                  "name": "searchApplications[].name",
+                  "displayName": "searchApplications[].displayName",
+                  "dataSourceRestrictions": "searchApplications[].dataSourceRestrictions",
+                  "sourceConfig": "searchApplications[].sourceConfig",
+                  "scoringConfig": "searchApplications[].scoringConfig",
+                  "defaultSortOptions": "searchApplications[].defaultSortOptions",
+                  "defaultFacetOptions": "searchApplications[].defaultFacetOptions",
+                  "returnResultThumbnailUrls": "searchApplications[].returnResultThumbnailUrls",
+                  "operationIds": "searchApplications[].operationIds",
+                  "enableAuditLog": "searchApplications[].enableAuditLog",
+                  "queryInterpretationConfig": "searchApplications[].queryInterpretationConfig"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.cloudsearch.settings.searchapplications.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/settings/{+name}"
+                },
+                "python_call": "svc.settings().searchapplications().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.cloudsearch.settings.searchapplications.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.cloudsearch.settings.searchapplications.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.settings().searchapplications().list(**params).execute()",
+                      "path": "/v1/settings/searchapplications",
+                      "required_params": {},
+                      "output_list_field": "searchApplications",
+                      "output_id_field": "name",
+                      "produces": {
+                        "searchapplicationId": {
+                          "via_list_field": "searchApplications",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"searchApplications\"][], extract item[\"name\"] \u2192 pass as \"searchapplicationId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: searchapplicationId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.cloudsearch.settings.searchapplications.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.settings().searchapplications().get(**params).execute()",
+                      "path": "/v1/settings/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^searchapplications/[^/]+$",
+                          "description": "The name of the search application. Format: searchapplications/{application_id}."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "searchapplicationId": {
+                            "from_step": 1,
+                            "from_op": "gcp.cloudsearch.settings.searchapplications.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.cloudsearch.stats.query.searchapplications.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/stats/query/{+name}"
+                },
+                "python_call": "svc.stats().query().searchapplications().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.cloudsearch.stats.query.searchapplications.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.cloudsearch.settings.searchapplications.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.settings().searchapplications().list(**params).execute()",
+                      "path": "/v1/settings/searchapplications",
+                      "required_params": {},
+                      "output_list_field": "searchApplications",
+                      "output_id_field": "name",
+                      "produces": {
+                        "searchapplicationId": {
+                          "via_list_field": "searchApplications",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"searchApplications\"][], extract item[\"name\"] \u2192 pass as \"searchapplicationId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: searchapplicationId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.cloudsearch.stats.query.searchapplications.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.stats().query().searchapplications().get(**params).execute()",
+                      "path": "/v1/stats/query/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^searchapplications/[^/]+$",
+                          "description": "The resource id of the search application query stats, in the following format: searchapplications/{application_id}"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "searchapplicationId": {
+                            "from_step": 1,
+                            "from_op": "gcp.cloudsearch.settings.searchapplications.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.cloudsearch.stats.session.searchapplications.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/stats/session/{+name}"
+                },
+                "python_call": "svc.stats().session().searchapplications().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.cloudsearch.stats.session.searchapplications.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.cloudsearch.settings.searchapplications.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.settings().searchapplications().list(**params).execute()",
+                      "path": "/v1/settings/searchapplications",
+                      "required_params": {},
+                      "output_list_field": "searchApplications",
+                      "output_id_field": "name",
+                      "produces": {
+                        "searchapplicationId": {
+                          "via_list_field": "searchApplications",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"searchApplications\"][], extract item[\"name\"] \u2192 pass as \"searchapplicationId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: searchapplicationId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.cloudsearch.stats.session.searchapplications.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.stats().session().searchapplications().get(**params).execute()",
+                      "path": "/v1/stats/session/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^searchapplications/[^/]+$",
+                          "description": "The resource id of the search application session stats, in the following format: searchapplications/{application_id}"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "searchapplicationId": {
+                            "from_step": 1,
+                            "from_op": "gcp.cloudsearch.settings.searchapplications.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.cloudsearch.stats.user.searchapplications.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/stats/user/{+name}"
+                },
+                "python_call": "svc.stats().user().searchapplications().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.cloudsearch.stats.user.searchapplications.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.cloudsearch.settings.searchapplications.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.settings().searchapplications().list(**params).execute()",
+                      "path": "/v1/settings/searchapplications",
+                      "required_params": {},
+                      "output_list_field": "searchApplications",
+                      "output_id_field": "name",
+                      "produces": {
+                        "searchapplicationId": {
+                          "via_list_field": "searchApplications",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"searchApplications\"][], extract item[\"name\"] \u2192 pass as \"searchapplicationId\""
+                        }
+                      },
+                      "param_sources": {},
+                      "purpose": "Provides: searchapplicationId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.cloudsearch.stats.user.searchapplications.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.stats().user().searchapplications().get(**params).execute()",
+                      "path": "/v1/stats/user/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^searchapplications/[^/]+$",
+                          "description": "The resource id of the search application session stats, in the following format: searchapplications/{application_id}"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "searchapplicationId": {
+                            "from_step": 1,
+                            "from_op": "gcp.cloudsearch.settings.searchapplications.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "settings": {
+          "resource_type": "settings",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "tuple",
+            "full_identifier": {
+              "template": "settings/customer",
+              "built_from_parts": [],
+              "notes": "Tuple identifier; anchor parts are user-provided."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": []
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.cloudsearch.settings.getCustomer",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/settings/customer"
+                },
+                "python_call": "svc.settings().getCustomer(**params).execute()",
+                "required_params": {},
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "confidence": 0.4,
+          "notes": "No inventory (list) ops found; enrich only."
+        },
+        "sources": {
+          "resource_type": "sources",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "tuple",
+            "full_identifier": {
+              "template": "",
+              "built_from_parts": [],
+              "notes": "Tuple identifier; anchor parts are user-provided."
+            },
+            "parts": [
+              "source"
+            ],
+            "part_sources": {
+              "source": {
+                "op": "gcp.cloudsearch.query.sources.list",
+                "field_path": "sources[].source",
+                "transform": null
+              }
+            },
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.cloudsearch.query.sources.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/query/sources"
+                },
+                "python_call": "svc.query().sources().list(**params).execute()",
+                "produces": {
+                  "source": "sources[].source",
+                  "shortName": "sources[].shortName",
+                  "displayName": "sources[].displayName",
+                  "operators": "sources[].operators"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": []
+          },
+          "confidence": 0.4,
+          "notes": "No enrich (get) ops found; inventory only."
+        },
+        "stats": {
+          "resource_type": "stats",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "tuple",
+            "full_identifier": {
+              "template": "stats/index",
+              "built_from_parts": [],
+              "notes": "Tuple identifier; anchor parts are user-provided."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": []
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.cloudsearch.stats.getIndex",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/stats/index"
+                },
+                "python_call": "svc.stats().getIndex(**params).execute()",
+                "required_params": {},
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.cloudsearch.stats.getQuery",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/stats/query"
+                },
+                "python_call": "svc.stats().getQuery(**params).execute()",
+                "required_params": {},
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.cloudsearch.stats.getSearchapplication",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/stats/searchapplication"
+                },
+                "python_call": "svc.stats().getSearchapplication(**params).execute()",
+                "required_params": {},
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.cloudsearch.stats.getSession",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/stats/session"
+                },
+                "python_call": "svc.stats().getSession(**params).execute()",
+                "required_params": {},
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.cloudsearch.stats.getUser",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/stats/user"
+                },
+                "python_call": "svc.stats().getUser(**params).execute()",
+                "required_params": {},
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "confidence": 0.4,
+          "notes": "No inventory (list) ops found; enrich only."
+        },
+        "unmappedids": {
+          "resource_type": "unmappedids",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "tuple",
+            "full_identifier": {
+              "template": "",
+              "built_from_parts": [],
+              "notes": "Tuple identifier; anchor parts are user-provided."
+            },
+            "parts": [
+              "externalIdentity"
+            ],
+            "part_sources": {
+              "externalIdentity": {
+                "op": "gcp.cloudsearch.debug.datasources.items.unmappedids.list",
+                "field_path": "unmappedIdentities[].externalIdentity",
+                "transform": null
+              }
+            },
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.cloudsearch.debug.datasources.items.unmappedids.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/debug/{+parent}/unmappedids"
+                },
+                "python_call": "svc.debug().datasources().items().unmappedids().list(**params).execute()",
+                "produces": {
+                  "externalIdentity": "unmappedIdentities[].externalIdentity",
+                  "resolutionStatusCode": "unmappedIdentities[].resolutionStatusCode"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.cloudsearch.debug.identitysources.unmappedids.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/debug/{+parent}/unmappedids"
+                },
+                "python_call": "svc.debug().identitysources().unmappedids().list(**params).execute()",
+                "produces": {
+                  "externalIdentity": "unmappedIdentities[].externalIdentity",
+                  "resolutionStatusCode": "unmappedIdentities[].resolutionStatusCode"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": []
+          },
+          "confidence": 0.4,
+          "notes": "No enrich (get) ops found; inventory only."
+        }
+      }
+    }
+  }
+}

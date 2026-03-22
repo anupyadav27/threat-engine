@@ -1,0 +1,39 @@
+# Discovery YAML — selfhelp (Azure)
+# Generated: 2026-02-21T05:02:44Z
+# Actions use Azure Python SDK snake_case names (azure-mgmt-*)
+version: '1.0'
+provider: azure
+service: selfhelp
+services:
+  client: selfhelp
+  module: azure.mgmt.selfhelp
+discovery:
+  # ── list ──
+  - discovery_id: azure.selfhelp.list
+    calls:
+      - action: list
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        name: '{{ item.name }}'
+        action_type: '{{ item.action_type }}'
+        display: '{{ item.display }}'
+        is_data_action: '{{ item.is_data_action }}'
+        origin: '{{ item.origin }}'
+  # ── Dependent ops ──
+  # ── check_name_availability [dependent] ──
+  - discovery_id: azure.selfhelp.check_name_availability
+    calls:
+      - action: check_name_availability
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        message: '{{ response.message }}'
+        name_available: '{{ response.name_available }}'
+        reason: '{{ response.reason }}'
+    # required_params: ['scope']

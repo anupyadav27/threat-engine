@@ -1,0 +1,63 @@
+# ============================================================
+# Discovery YAML — oslogin (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 2 | independent: 0 | dependent: 2
+# ops with fields: 2/2 | dep ops with chain: 0/2
+# ============================================================
+version: '1.0'
+provider: gcp
+service: oslogin
+
+services:
+  client: oslogin
+  module: "googleapiclient.discovery.build('oslogin', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Retrieves the profile information used for logging in to a virtual machine on Google Compute Engine.
+  # ── gcp.oslogin.users.getLoginProfile [dependent] ──
+  - discovery_id: gcp.oslogin.users.getLoginProfile
+    # python: svc.users().getLoginProfile(**params).execute()
+    calls:
+      - action: users.getLoginProfile
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        name: '{{ response.name }}'
+        posixAccounts: '{{ response.posixAccounts }}'
+        sshPublicKeys: '{{ response.sshPublicKeys }}'
+    # required_params: ['name']
+  # Retrieves an SSH public key.
+  # ── gcp.oslogin.users.sshPublicKeys.get [dependent] ──
+  - discovery_id: gcp.oslogin.users.sshPublicKeys.get
+    # python: svc.users().sshPublicKeys().get(**params).execute()
+    calls:
+      - action: users.sshPublicKeys.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        expirationTimeUsec: '{{ response.expirationTimeUsec }}'
+        fingerprint: '{{ response.fingerprint }}'
+        key: '{{ response.key }}'
+        name: '{{ response.name }}'
+    # required_params: ['name']

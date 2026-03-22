@@ -1,0 +1,113 @@
+version: '1.0'
+provider: aws
+service: route53domains
+services:
+  client: route53domains
+  module: boto3.client
+discovery:
+- discovery_id: aws.route53domains.getContactReachabilityStatus
+  calls:
+  - action: getContactReachabilityStatus
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.domainName }}'
+- discovery_id: aws.route53domains.listDomains
+  calls:
+  - action: listDomains
+    save_as: response
+    on_error: continue
+    params:
+      MaxItems: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Domains }}'
+    item:
+      DomainName: '{{ item.DomainName }}'
+      AutoRenew: '{{ item.AutoRenew }}'
+      TransferLock: '{{ item.TransferLock }}'
+      Expiry: '{{ item.Expiry }}'
+- discovery_id: aws.route53domains.listOperations
+  calls:
+  - action: listOperations
+    save_as: response
+    on_error: continue
+    params:
+      MaxItems: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Operations }}'
+    item:
+      OperationId: '{{ item.OperationId }}'
+      Status: '{{ item.Status }}'
+      Type: '{{ item.Type }}'
+      SubmittedDate: '{{ item.SubmittedDate }}'
+      DomainName: '{{ item.DomainName }}'
+      Message: '{{ item.Message }}'
+      StatusFlag: '{{ item.StatusFlag }}'
+      LastUpdatedDate: '{{ item.LastUpdatedDate }}'
+- discovery_id: aws.route53domains.listPrices
+  calls:
+  - action: listPrices
+    save_as: response
+    on_error: continue
+    params:
+      MaxItems: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Prices }}'
+    item:
+      Name: '{{ item.Name }}'
+      RegistrationPrice: '{{ item.RegistrationPrice }}'
+      TransferPrice: '{{ item.TransferPrice }}'
+      RenewalPrice: '{{ item.RenewalPrice }}'
+      ChangeOwnershipPrice: '{{ item.ChangeOwnershipPrice }}'
+      RestorationPrice: '{{ item.RestorationPrice }}'
+- discovery_id: aws.route53domains.getDomainDetail
+  calls:
+  - action: getDomainDetail
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.StatusList }}'
+- discovery_id: aws.route53domains.getDomainSuggestions
+  calls:
+  - action: getDomainSuggestions
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.SuggestionsList }}'
+    item:
+      DomainName: '{{ item.DomainName }}'
+      Availability: '{{ item.Availability }}'
+- discovery_id: aws.route53domains.getOperationDetail
+  calls:
+  - action: getOperationDetail
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.OperationId }}'
+- discovery_id: aws.route53domains.listTagsForDomain
+  calls:
+  - action: listTagsForDomain
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.TagList }}'
+    item:
+      Key: '{{ item.Key }}'
+      Value: '{{ item.Value }}'
+- discovery_id: aws.route53domains.retrieveDomainAuthCode
+  calls:
+  - action: retrieveDomainAuthCode
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.AuthCode }}'
+checks: []

@@ -1,0 +1,205 @@
+# ============================================================
+# Discovery YAML — workflows (v1)
+# Generated: 2026-02-21T03:06:41Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 7 | independent: 4 | dependent: 3
+# ops with fields: 7/7 | dep ops with chain: 3/3
+# ============================================================
+version: '1.0'
+provider: gcp
+service: workflows
+
+services:
+  client: workflows
+  module: "googleapiclient.discovery.build('workflows', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Gets information about a location.
+  # ── gcp.workflows.projects.locations.get ──
+  - discovery_id: gcp.workflows.projects.locations.get
+    # python: svc.projects().locations().get(**params).execute()
+    calls:
+      - action: projects.locations.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        displayName: '{{ response.displayName }}'
+        labels: '{{ response.labels }}'
+        locationId: '{{ response.locationId }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+  # Lists information about the supported locations for this service. This method can be called in two w
+  # ── gcp.workflows.projects.locations.list ──
+  - discovery_id: gcp.workflows.projects.locations.list
+    # python: svc.projects().locations().list(**params).execute()
+    calls:
+      - action: projects.locations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.locations }}'
+      item:
+        displayName: '{{ item.displayName }}'
+        labels: '{{ item.labels }}'
+        locationId: '{{ item.locationId }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+  # Lists operations that match the specified filter in the request. If the server doesn't support this 
+  # ── gcp.workflows.projects.locations.operations.list ──
+  - discovery_id: gcp.workflows.projects.locations.operations.list
+    # python: svc.projects().locations().operations().list(**params).execute()
+    calls:
+      - action: projects.locations.operations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.operations }}'
+      item:
+        done: '{{ item.done }}'
+        error: '{{ item.error }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+        response: '{{ item.response }}'
+  # Lists workflows in a given project and location. The default order is not specified.
+  # ── gcp.workflows.projects.locations.workflows.list ──
+  - discovery_id: gcp.workflows.projects.locations.workflows.list
+    # python: svc.projects().locations().workflows().list(**params).execute()
+    calls:
+      - action: projects.locations.workflows.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.workflows }}'
+      item:
+        allKmsKeys: '{{ item.allKmsKeys }}'
+        allKmsKeysVersions: '{{ item.allKmsKeysVersions }}'
+        callLogLevel: '{{ item.callLogLevel }}'
+        createTime: '{{ item.createTime }}'
+        cryptoKeyName: '{{ item.cryptoKeyName }}'
+        cryptoKeyVersion: '{{ item.cryptoKeyVersion }}'
+        description: '{{ item.description }}'
+        executionHistoryLevel: '{{ item.executionHistoryLevel }}'
+        labels: '{{ item.labels }}'
+        name: '{{ item.name }}'
+        revisionCreateTime: '{{ item.revisionCreateTime }}'
+        revisionId: '{{ item.revisionId }}'
+        serviceAccount: '{{ item.serviceAccount }}'
+        sourceContents: '{{ item.sourceContents }}'
+        state: '{{ item.state }}'
+        stateError: '{{ item.stateError }}'
+        tags: '{{ item.tags }}'
+        updateTime: '{{ item.updateTime }}'
+        userEnvVars: '{{ item.userEnvVars }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.workflows.projects.locations.operations.get [dependent] ──
+  - discovery_id: gcp.workflows.projects.locations.operations.get
+    for_each: gcp.workflows.projects.locations.operations.list
+    # python: svc.projects().locations().operations().get(**params).execute()
+    calls:
+      - action: projects.locations.operations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']
+  # Gets details of a single workflow.
+  # ── gcp.workflows.projects.locations.workflows.get [dependent] ──
+  - discovery_id: gcp.workflows.projects.locations.workflows.get
+    for_each: gcp.workflows.projects.locations.workflows.list
+    # python: svc.projects().locations().workflows().get(**params).execute()
+    calls:
+      - action: projects.locations.workflows.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        allKmsKeys: '{{ response.allKmsKeys }}'
+        allKmsKeysVersions: '{{ response.allKmsKeysVersions }}'
+        callLogLevel: '{{ response.callLogLevel }}'
+        createTime: '{{ response.createTime }}'
+        cryptoKeyName: '{{ response.cryptoKeyName }}'
+        cryptoKeyVersion: '{{ response.cryptoKeyVersion }}'
+        description: '{{ response.description }}'
+        executionHistoryLevel: '{{ response.executionHistoryLevel }}'
+        labels: '{{ response.labels }}'
+        name: '{{ response.name }}'
+        revisionCreateTime: '{{ response.revisionCreateTime }}'
+        revisionId: '{{ response.revisionId }}'
+        serviceAccount: '{{ response.serviceAccount }}'
+        sourceContents: '{{ response.sourceContents }}'
+        state: '{{ response.state }}'
+        stateError: '{{ response.stateError }}'
+        tags: '{{ response.tags }}'
+        updateTime: '{{ response.updateTime }}'
+        userEnvVars: '{{ response.userEnvVars }}'
+    # required_params: ['name']
+  # Lists revisions for a given workflow.
+  # ── gcp.workflows.projects.locations.workflows.listRevisions [dependent] ──
+  - discovery_id: gcp.workflows.projects.locations.workflows.listRevisions
+    for_each: gcp.workflows.projects.locations.workflows.list
+    # python: svc.projects().locations().workflows().listRevisions(**params).execute()
+    calls:
+      - action: projects.locations.workflows.listRevisions
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.workflows }}'
+      item:
+        allKmsKeys: '{{ item.allKmsKeys }}'
+        allKmsKeysVersions: '{{ item.allKmsKeysVersions }}'
+        callLogLevel: '{{ item.callLogLevel }}'
+        createTime: '{{ item.createTime }}'
+        cryptoKeyName: '{{ item.cryptoKeyName }}'
+        cryptoKeyVersion: '{{ item.cryptoKeyVersion }}'
+        description: '{{ item.description }}'
+        executionHistoryLevel: '{{ item.executionHistoryLevel }}'
+        labels: '{{ item.labels }}'
+        name: '{{ item.name }}'
+        revisionCreateTime: '{{ item.revisionCreateTime }}'
+        revisionId: '{{ item.revisionId }}'
+        serviceAccount: '{{ item.serviceAccount }}'
+        sourceContents: '{{ item.sourceContents }}'
+        state: '{{ item.state }}'
+        stateError: '{{ item.stateError }}'
+        tags: '{{ item.tags }}'
+        updateTime: '{{ item.updateTime }}'
+        userEnvVars: '{{ item.userEnvVars }}'
+    # required_params: ['name']

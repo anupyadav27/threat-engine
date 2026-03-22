@@ -1,0 +1,124 @@
+# ============================================================
+# Discovery YAML — testing (v1)
+# Generated: 2026-02-21T03:06:41Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 4 | independent: 1 | dependent: 3
+# ops with fields: 4/4 | dep ops with chain: 1/3
+# ============================================================
+version: '1.0'
+provider: gcp
+service: testing
+
+services:
+  client: testing
+  module: "googleapiclient.discovery.build('testing', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # GET /v1/projects/{project_id}/deviceSessions Lists device Sessions owned by the project user.
+  # ── gcp.testing.projects.deviceSessions.list ──
+  - discovery_id: gcp.testing.projects.deviceSessions.list
+    # python: svc.projects().deviceSessions().list(**params).execute()
+    calls:
+      - action: projects.deviceSessions.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.deviceSessions }}'
+      item:
+        activeStartTime: '{{ item.activeStartTime }}'
+        androidDevice: '{{ item.androidDevice }}'
+        createTime: '{{ item.createTime }}'
+        displayName: '{{ item.displayName }}'
+        expireTime: '{{ item.expireTime }}'
+        inactivityTimeout: '{{ item.inactivityTimeout }}'
+        name: '{{ item.name }}'
+        state: '{{ item.state }}'
+        stateHistories: '{{ item.stateHistories }}'
+        ttl: '{{ item.ttl }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # GET /v1/projects/{project_id}/deviceSessions/{device_session_id} Return a DeviceSession, which docum
+  # ── gcp.testing.projects.deviceSessions.get [dependent] ──
+  - discovery_id: gcp.testing.projects.deviceSessions.get
+    for_each: gcp.testing.projects.deviceSessions.list
+    # python: svc.projects().deviceSessions().get(**params).execute()
+    calls:
+      - action: projects.deviceSessions.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        activeStartTime: '{{ response.activeStartTime }}'
+        androidDevice: '{{ response.androidDevice }}'
+        createTime: '{{ response.createTime }}'
+        displayName: '{{ response.displayName }}'
+        expireTime: '{{ response.expireTime }}'
+        inactivityTimeout: '{{ response.inactivityTimeout }}'
+        name: '{{ response.name }}'
+        state: '{{ response.state }}'
+        stateHistories: '{{ response.stateHistories }}'
+        ttl: '{{ response.ttl }}'
+    # required_params: ['name']
+  # Checks the status of a test matrix and the executions once they are created. The test matrix will co
+  # ── gcp.testing.projects.testMatrices.get [dependent] ──
+  - discovery_id: gcp.testing.projects.testMatrices.get
+    # python: svc.projects().testMatrices().get(**params).execute()
+    calls:
+      - action: projects.testMatrices.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        clientInfo: '{{ response.clientInfo }}'
+        environmentMatrix: '{{ response.environmentMatrix }}'
+        extendedInvalidMatrixDetails: '{{ response.extendedInvalidMatrixDetails }}'
+        failFast: '{{ response.failFast }}'
+        flakyTestAttempts: '{{ response.flakyTestAttempts }}'
+        invalidMatrixDetails: '{{ response.invalidMatrixDetails }}'
+        outcomeSummary: '{{ response.outcomeSummary }}'
+        projectId: '{{ response.projectId }}'
+        resultStorage: '{{ response.resultStorage }}'
+        state: '{{ response.state }}'
+        testExecutions: '{{ response.testExecutions }}'
+        testMatrixId: '{{ response.testMatrixId }}'
+        testSpecification: '{{ response.testSpecification }}'
+        timestamp: '{{ response.timestamp }}'
+    # required_params: ['testMatrixId', 'projectId']
+  # Gets the catalog of supported test environments. May return any of the following canonical error cod
+  # ── gcp.testing.testEnvironmentCatalog.get [dependent] ──
+  - discovery_id: gcp.testing.testEnvironmentCatalog.get
+    # python: svc.testEnvironmentCatalog().get(**params).execute()
+    calls:
+      - action: testEnvironmentCatalog.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        androidDeviceCatalog: '{{ response.androidDeviceCatalog }}'
+        deviceIpBlockCatalog: '{{ response.deviceIpBlockCatalog }}'
+        iosDeviceCatalog: '{{ response.iosDeviceCatalog }}'
+        networkConfigurationCatalog: '{{ response.networkConfigurationCatalog }}'
+        softwareCatalog: '{{ response.softwareCatalog }}'
+    # required_params: ['environmentType']

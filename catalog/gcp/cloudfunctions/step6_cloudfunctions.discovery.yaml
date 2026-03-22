@@ -1,0 +1,209 @@
+# ============================================================
+# Discovery YAML — cloudfunctions (v1)
+# Generated: 2026-02-21T03:06:39Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 6 | independent: 3 | dependent: 3
+# ops with fields: 6/6 | dep ops with chain: 3/3
+# ============================================================
+version: '1.0'
+provider: gcp
+service: cloudfunctions
+
+services:
+  client: cloudfunctions
+  module: "googleapiclient.discovery.build('cloudfunctions', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists operations that match the specified filter in the request. If the server doesn't support this 
+  # ── gcp.cloudfunctions.operations.list ──
+  - discovery_id: gcp.cloudfunctions.operations.list
+    # python: svc.operations().list(**params).execute()
+    calls:
+      - action: operations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.operations }}'
+      item:
+        done: '{{ item.done }}'
+        error: '{{ item.error }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+        response: '{{ item.response }}'
+  # Returns a list of functions that belong to the requested project.
+  # ── gcp.cloudfunctions.projects.locations.functions.list ──
+  - discovery_id: gcp.cloudfunctions.projects.locations.functions.list
+    # python: svc.projects().locations().functions().list(**params).execute()
+    calls:
+      - action: projects.locations.functions.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.functions }}'
+      item:
+        automaticUpdatePolicy: '{{ item.automaticUpdatePolicy }}'
+        availableMemoryMb: '{{ item.availableMemoryMb }}'
+        buildEnvironmentVariables: '{{ item.buildEnvironmentVariables }}'
+        buildId: '{{ item.buildId }}'
+        buildName: '{{ item.buildName }}'
+        buildServiceAccount: '{{ item.buildServiceAccount }}'
+        buildWorkerPool: '{{ item.buildWorkerPool }}'
+        description: '{{ item.description }}'
+        dockerRegistry: '{{ item.dockerRegistry }}'
+        dockerRepository: '{{ item.dockerRepository }}'
+        entryPoint: '{{ item.entryPoint }}'
+        environmentVariables: '{{ item.environmentVariables }}'
+        eventTrigger: '{{ item.eventTrigger }}'
+        httpsTrigger: '{{ item.httpsTrigger }}'
+        ingressSettings: '{{ item.ingressSettings }}'
+        kmsKeyName: '{{ item.kmsKeyName }}'
+        labels: '{{ item.labels }}'
+        maxInstances: '{{ item.maxInstances }}'
+        minInstances: '{{ item.minInstances }}'
+        name: '{{ item.name }}'
+        network: '{{ item.network }}'
+        onDeployUpdatePolicy: '{{ item.onDeployUpdatePolicy }}'
+        runtime: '{{ item.runtime }}'
+        satisfiesPzi: '{{ item.satisfiesPzi }}'
+        satisfiesPzs: '{{ item.satisfiesPzs }}'
+        secretEnvironmentVariables: '{{ item.secretEnvironmentVariables }}'
+        secretVolumes: '{{ item.secretVolumes }}'
+        serviceAccountEmail: '{{ item.serviceAccountEmail }}'
+        sourceArchiveUrl: '{{ item.sourceArchiveUrl }}'
+        sourceRepository: '{{ item.sourceRepository }}'
+        sourceToken: '{{ item.sourceToken }}'
+        sourceUploadUrl: '{{ item.sourceUploadUrl }}'
+        status: '{{ item.status }}'
+        timeout: '{{ item.timeout }}'
+        updateTime: '{{ item.updateTime }}'
+        versionId: '{{ item.versionId }}'
+        vpcConnector: '{{ item.vpcConnector }}'
+        vpcConnectorEgressSettings: '{{ item.vpcConnectorEgressSettings }}'
+  # Lists information about the supported locations for this service. This method can be called in two w
+  # ── gcp.cloudfunctions.projects.locations.list ──
+  - discovery_id: gcp.cloudfunctions.projects.locations.list
+    # python: svc.projects().locations().list(**params).execute()
+    calls:
+      - action: projects.locations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.locations }}'
+      item:
+        displayName: '{{ item.displayName }}'
+        labels: '{{ item.labels }}'
+        locationId: '{{ item.locationId }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.cloudfunctions.operations.get [dependent] ──
+  - discovery_id: gcp.cloudfunctions.operations.get
+    for_each: gcp.cloudfunctions.operations.list
+    # python: svc.operations().get(**params).execute()
+    calls:
+      - action: operations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']
+  # Returns a function with the given name from the requested project.
+  # ── gcp.cloudfunctions.projects.locations.functions.get [dependent] ──
+  - discovery_id: gcp.cloudfunctions.projects.locations.functions.get
+    for_each: gcp.cloudfunctions.projects.locations.functions.list
+    # python: svc.projects().locations().functions().get(**params).execute()
+    calls:
+      - action: projects.locations.functions.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        automaticUpdatePolicy: '{{ response.automaticUpdatePolicy }}'
+        availableMemoryMb: '{{ response.availableMemoryMb }}'
+        buildEnvironmentVariables: '{{ response.buildEnvironmentVariables }}'
+        buildId: '{{ response.buildId }}'
+        buildName: '{{ response.buildName }}'
+        buildServiceAccount: '{{ response.buildServiceAccount }}'
+        buildWorkerPool: '{{ response.buildWorkerPool }}'
+        description: '{{ response.description }}'
+        dockerRegistry: '{{ response.dockerRegistry }}'
+        dockerRepository: '{{ response.dockerRepository }}'
+        entryPoint: '{{ response.entryPoint }}'
+        environmentVariables: '{{ response.environmentVariables }}'
+        eventTrigger: '{{ response.eventTrigger }}'
+        httpsTrigger: '{{ response.httpsTrigger }}'
+        ingressSettings: '{{ response.ingressSettings }}'
+        kmsKeyName: '{{ response.kmsKeyName }}'
+        labels: '{{ response.labels }}'
+        maxInstances: '{{ response.maxInstances }}'
+        minInstances: '{{ response.minInstances }}'
+        name: '{{ response.name }}'
+        network: '{{ response.network }}'
+        onDeployUpdatePolicy: '{{ response.onDeployUpdatePolicy }}'
+        runtime: '{{ response.runtime }}'
+        satisfiesPzi: '{{ response.satisfiesPzi }}'
+        satisfiesPzs: '{{ response.satisfiesPzs }}'
+        secretEnvironmentVariables: '{{ response.secretEnvironmentVariables }}'
+        secretVolumes: '{{ response.secretVolumes }}'
+        serviceAccountEmail: '{{ response.serviceAccountEmail }}'
+        sourceArchiveUrl: '{{ response.sourceArchiveUrl }}'
+        sourceRepository: '{{ response.sourceRepository }}'
+        sourceToken: '{{ response.sourceToken }}'
+        sourceUploadUrl: '{{ response.sourceUploadUrl }}'
+        status: '{{ response.status }}'
+        timeout: '{{ response.timeout }}'
+        updateTime: '{{ response.updateTime }}'
+        versionId: '{{ response.versionId }}'
+        vpcConnector: '{{ response.vpcConnector }}'
+        vpcConnectorEgressSettings: '{{ response.vpcConnectorEgressSettings }}'
+    # required_params: ['name']
+  # Gets the IAM access control policy for a function. Returns an empty policy if the function exists an
+  # ── gcp.cloudfunctions.projects.locations.functions.getIamPolicy [dependent] ──
+  - discovery_id: gcp.cloudfunctions.projects.locations.functions.getIamPolicy
+    for_each: gcp.cloudfunctions.projects.locations.functions.list
+    # python: svc.projects().locations().functions().getIamPolicy(**params).execute()
+    calls:
+      - action: projects.locations.functions.getIamPolicy
+        params:
+          resource: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        auditConfigs: '{{ response.auditConfigs }}'
+        bindings: '{{ response.bindings }}'
+        version: '{{ response.version }}'
+    # required_params: ['resource']

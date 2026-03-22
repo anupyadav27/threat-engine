@@ -1,0 +1,41 @@
+# ============================================================
+# Discovery YAML — homegraph (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 1 | independent: 1 | dependent: 0
+# ops with fields: 0/1 | dep ops with chain: 0/0
+# ============================================================
+version: '1.0'
+provider: gcp
+service: homegraph
+
+services:
+  client: homegraph
+  module: "googleapiclient.discovery.build('homegraph', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Gets the current states in Home Graph for the given set of the third-party user's devices. The third
+  # ── gcp.homegraph.devices.query ──
+  - discovery_id: gcp.homegraph.devices.query
+    # python: svc.devices().query(**params).execute()
+    calls:
+      - action: devices.query
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.devices }}'

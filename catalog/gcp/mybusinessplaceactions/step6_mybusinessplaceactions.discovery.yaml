@@ -1,0 +1,90 @@
+# ============================================================
+# Discovery YAML — mybusinessplaceactions (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 3 | independent: 2 | dependent: 1
+# ops with fields: 3/3 | dep ops with chain: 1/1
+# ============================================================
+version: '1.0'
+provider: gcp
+service: mybusinessplaceactions
+
+services:
+  client: mybusinessplaceactions
+  module: "googleapiclient.discovery.build('mybusinessplaceactions', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists the place action links for the specified location.
+  # ── gcp.mybusinessplaceactions.locations.placeActionLinks.list ──
+  - discovery_id: gcp.mybusinessplaceactions.locations.placeActionLinks.list
+    # python: svc.locations().placeActionLinks().list(**params).execute()
+    calls:
+      - action: locations.placeActionLinks.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.placeActionLinks }}'
+      item:
+        createTime: '{{ item.createTime }}'
+        isEditable: '{{ item.isEditable }}'
+        isPreferred: '{{ item.isPreferred }}'
+        name: '{{ item.name }}'
+        placeActionType: '{{ item.placeActionType }}'
+        providerType: '{{ item.providerType }}'
+        updateTime: '{{ item.updateTime }}'
+        uri: '{{ item.uri }}'
+  # Returns the list of available place action types for a location or country.
+  # ── gcp.mybusinessplaceactions.placeActionTypeMetadata.list ──
+  - discovery_id: gcp.mybusinessplaceactions.placeActionTypeMetadata.list
+    # python: svc.placeActionTypeMetadata().list(**params).execute()
+    calls:
+      - action: placeActionTypeMetadata.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.placeActionTypeMetadata }}'
+      item:
+        displayName: '{{ item.displayName }}'
+        placeActionType: '{{ item.placeActionType }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets the specified place action link.
+  # ── gcp.mybusinessplaceactions.locations.placeActionLinks.get [dependent] ──
+  - discovery_id: gcp.mybusinessplaceactions.locations.placeActionLinks.get
+    for_each: gcp.mybusinessplaceactions.locations.placeActionLinks.list
+    # python: svc.locations().placeActionLinks().get(**params).execute()
+    calls:
+      - action: locations.placeActionLinks.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        createTime: '{{ response.createTime }}'
+        isEditable: '{{ response.isEditable }}'
+        isPreferred: '{{ response.isPreferred }}'
+        name: '{{ response.name }}'
+        placeActionType: '{{ response.placeActionType }}'
+        providerType: '{{ response.providerType }}'
+        updateTime: '{{ response.updateTime }}'
+        uri: '{{ response.uri }}'
+    # required_params: ['name']

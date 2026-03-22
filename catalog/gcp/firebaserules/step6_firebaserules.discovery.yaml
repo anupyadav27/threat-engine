@@ -1,0 +1,126 @@
+# ============================================================
+# Discovery YAML — firebaserules (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 5 | independent: 2 | dependent: 3
+# ops with fields: 5/5 | dep ops with chain: 3/3
+# ============================================================
+version: '1.0'
+provider: gcp
+service: firebaserules
+
+services:
+  client: firebaserules
+  module: "googleapiclient.discovery.build('firebaserules', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # List the `Release` values for a project. This list may optionally be filtered by `Release` name, `Ru
+  # ── gcp.firebaserules.projects.releases.list ──
+  - discovery_id: gcp.firebaserules.projects.releases.list
+    # python: svc.projects().releases().list(**params).execute()
+    calls:
+      - action: projects.releases.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.releases }}'
+      item:
+        createTime: '{{ item.createTime }}'
+        name: '{{ item.name }}'
+        rulesetName: '{{ item.rulesetName }}'
+        updateTime: '{{ item.updateTime }}'
+  # List `Ruleset` metadata only and optionally filter the results by `Ruleset` name. The full `Source` 
+  # ── gcp.firebaserules.projects.rulesets.list ──
+  - discovery_id: gcp.firebaserules.projects.rulesets.list
+    # python: svc.projects().rulesets().list(**params).execute()
+    calls:
+      - action: projects.rulesets.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.rulesets }}'
+      item:
+        attachmentPoint: '{{ item.attachmentPoint }}'
+        createTime: '{{ item.createTime }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+        source: '{{ item.source }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Get a `Release` by name.
+  # ── gcp.firebaserules.projects.releases.get [dependent] ──
+  - discovery_id: gcp.firebaserules.projects.releases.get
+    for_each: gcp.firebaserules.projects.releases.list
+    # python: svc.projects().releases().get(**params).execute()
+    calls:
+      - action: projects.releases.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        createTime: '{{ response.createTime }}'
+        name: '{{ response.name }}'
+        rulesetName: '{{ response.rulesetName }}'
+        updateTime: '{{ response.updateTime }}'
+    # required_params: ['name']
+  # Get the `Release` executable to use when enforcing rules.
+  # ── gcp.firebaserules.projects.releases.getExecutable [dependent] ──
+  - discovery_id: gcp.firebaserules.projects.releases.getExecutable
+    for_each: gcp.firebaserules.projects.releases.list
+    # python: svc.projects().releases().getExecutable(**params).execute()
+    calls:
+      - action: projects.releases.getExecutable
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        executable: '{{ response.executable }}'
+        executableVersion: '{{ response.executableVersion }}'
+        language: '{{ response.language }}'
+        rulesetName: '{{ response.rulesetName }}'
+        syncTime: '{{ response.syncTime }}'
+        updateTime: '{{ response.updateTime }}'
+    # required_params: ['name']
+  # Get a `Ruleset` by name including the full `Source` contents.
+  # ── gcp.firebaserules.projects.rulesets.get [dependent] ──
+  - discovery_id: gcp.firebaserules.projects.rulesets.get
+    for_each: gcp.firebaserules.projects.rulesets.list
+    # python: svc.projects().rulesets().get(**params).execute()
+    calls:
+      - action: projects.rulesets.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        attachmentPoint: '{{ response.attachmentPoint }}'
+        createTime: '{{ response.createTime }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        source: '{{ response.source }}'
+    # required_params: ['name']

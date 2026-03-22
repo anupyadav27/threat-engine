@@ -1,0 +1,223 @@
+# ============================================================
+# Discovery YAML — datalineage (v1)
+# Generated: 2026-02-21T03:06:39Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 11 | independent: 7 | dependent: 4
+# ops with fields: 11/11 | dep ops with chain: 4/4
+# ============================================================
+version: '1.0'
+provider: gcp
+service: datalineage
+
+services:
+  client: datalineage
+  module: "googleapiclient.discovery.build('datalineage', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Get the Config for a given resource.
+  # ── gcp.datalineage.folders.locations.config.get ──
+  - discovery_id: gcp.datalineage.folders.locations.config.get
+    # python: svc.folders().locations().config().get(**params).execute()
+    calls:
+      - action: folders.locations.config.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        ingestion: '{{ response.ingestion }}'
+        name: '{{ response.name }}'
+  # Get the Config for a given resource.
+  # ── gcp.datalineage.organizations.locations.config.get ──
+  - discovery_id: gcp.datalineage.organizations.locations.config.get
+    # python: svc.organizations().locations().config().get(**params).execute()
+    calls:
+      - action: organizations.locations.config.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        ingestion: '{{ response.ingestion }}'
+        name: '{{ response.name }}'
+  # Get the Config for a given resource.
+  # ── gcp.datalineage.projects.locations.config.get ──
+  - discovery_id: gcp.datalineage.projects.locations.config.get
+    # python: svc.projects().locations().config().get(**params).execute()
+    calls:
+      - action: projects.locations.config.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        ingestion: '{{ response.ingestion }}'
+        name: '{{ response.name }}'
+  # Lists operations that match the specified filter in the request. If the server doesn't support this 
+  # ── gcp.datalineage.projects.locations.operations.list ──
+  - discovery_id: gcp.datalineage.projects.locations.operations.list
+    # python: svc.projects().locations().operations().list(**params).execute()
+    calls:
+      - action: projects.locations.operations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.operations }}'
+      item:
+        done: '{{ item.done }}'
+        error: '{{ item.error }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+        response: '{{ item.response }}'
+  # List processes in the given project and location. List order is descending by insertion time.
+  # ── gcp.datalineage.projects.locations.processes.list ──
+  - discovery_id: gcp.datalineage.projects.locations.processes.list
+    # python: svc.projects().locations().processes().list(**params).execute()
+    calls:
+      - action: projects.locations.processes.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.processes }}'
+      item:
+        attributes: '{{ item.attributes }}'
+        displayName: '{{ item.displayName }}'
+        name: '{{ item.name }}'
+        origin: '{{ item.origin }}'
+  # Lists lineage events in the given project and location. The list order is not defined.
+  # ── gcp.datalineage.projects.locations.processes.runs.lineageEvents.list ──
+  - discovery_id: gcp.datalineage.projects.locations.processes.runs.lineageEvents.list
+    # python: svc.projects().locations().processes().runs().lineageEvents().list(**params).execute()
+    calls:
+      - action: projects.locations.processes.runs.lineageEvents.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.lineageEvents }}'
+      item:
+        endTime: '{{ item.endTime }}'
+        links: '{{ item.links }}'
+        name: '{{ item.name }}'
+        startTime: '{{ item.startTime }}'
+  # Lists runs in the given project and location. List order is descending by `start_time`.
+  # ── gcp.datalineage.projects.locations.processes.runs.list ──
+  - discovery_id: gcp.datalineage.projects.locations.processes.runs.list
+    # python: svc.projects().locations().processes().runs().list(**params).execute()
+    calls:
+      - action: projects.locations.processes.runs.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.runs }}'
+      item:
+        attributes: '{{ item.attributes }}'
+        displayName: '{{ item.displayName }}'
+        endTime: '{{ item.endTime }}'
+        name: '{{ item.name }}'
+        startTime: '{{ item.startTime }}'
+        state: '{{ item.state }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.datalineage.projects.locations.operations.get [dependent] ──
+  - discovery_id: gcp.datalineage.projects.locations.operations.get
+    for_each: gcp.datalineage.projects.locations.operations.list
+    # python: svc.projects().locations().operations().get(**params).execute()
+    calls:
+      - action: projects.locations.operations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']
+  # Gets the details of the specified process.
+  # ── gcp.datalineage.projects.locations.processes.get [dependent] ──
+  - discovery_id: gcp.datalineage.projects.locations.processes.get
+    for_each: gcp.datalineage.projects.locations.processes.list
+    # python: svc.projects().locations().processes().get(**params).execute()
+    calls:
+      - action: projects.locations.processes.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        attributes: '{{ response.attributes }}'
+        displayName: '{{ response.displayName }}'
+        name: '{{ response.name }}'
+        origin: '{{ response.origin }}'
+    # required_params: ['name']
+  # Gets the details of the specified run.
+  # ── gcp.datalineage.projects.locations.processes.runs.get [dependent] ──
+  - discovery_id: gcp.datalineage.projects.locations.processes.runs.get
+    for_each: gcp.datalineage.projects.locations.processes.runs.list
+    # python: svc.projects().locations().processes().runs().get(**params).execute()
+    calls:
+      - action: projects.locations.processes.runs.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        attributes: '{{ response.attributes }}'
+        displayName: '{{ response.displayName }}'
+        endTime: '{{ response.endTime }}'
+        name: '{{ response.name }}'
+        startTime: '{{ response.startTime }}'
+        state: '{{ response.state }}'
+    # required_params: ['name']
+  # Gets details of a specified lineage event.
+  # ── gcp.datalineage.projects.locations.processes.runs.lineageEvents.get [dependent] ──
+  - discovery_id: gcp.datalineage.projects.locations.processes.runs.lineageEvents.get
+    for_each: gcp.datalineage.projects.locations.processes.runs.lineageEvents.list
+    # python: svc.projects().locations().processes().runs().lineageEvents().get(**params).execute()
+    calls:
+      - action: projects.locations.processes.runs.lineageEvents.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        endTime: '{{ response.endTime }}'
+        links: '{{ response.links }}'
+        name: '{{ response.name }}'
+        startTime: '{{ response.startTime }}'
+    # required_params: ['name']

@@ -1,0 +1,105 @@
+version: '1.0'
+provider: aws
+service: backupsearch
+services:
+  client: backupsearch
+  module: boto3.client
+discovery:
+- discovery_id: aws.backupsearch.listSearchJobs
+  calls:
+  - action: listSearchJobs
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.SearchJobs }}'
+    item:
+      SearchJobIdentifier: '{{ item.SearchJobIdentifier }}'
+      SearchJobArn: '{{ item.SearchJobArn }}'
+      Name: '{{ item.Name }}'
+      Status: '{{ item.Status }}'
+      CreationTime: '{{ item.CreationTime }}'
+      CompletionTime: '{{ item.CompletionTime }}'
+      SearchScopeSummary: '{{ item.SearchScopeSummary }}'
+      StatusMessage: '{{ item.StatusMessage }}'
+- discovery_id: aws.backupsearch.listSearchResultExportJobs
+  calls:
+  - action: listSearchResultExportJobs
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ExportJobs }}'
+    item:
+      ExportJobIdentifier: '{{ item.ExportJobIdentifier }}'
+      ExportJobArn: '{{ item.ExportJobArn }}'
+      Status: '{{ item.Status }}'
+      CreationTime: '{{ item.CreationTime }}'
+      CompletionTime: '{{ item.CompletionTime }}'
+      StatusMessage: '{{ item.StatusMessage }}'
+      SearchJobArn: '{{ item.SearchJobArn }}'
+- discovery_id: aws.backupsearch.getSearchJob
+  calls:
+  - action: getSearchJob
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.SearchScopeSummary }}'
+    item:
+      TotalRecoveryPointsToScanCount: '{{ item.TotalRecoveryPointsToScanCount }}'
+      TotalItemsToScanCount: '{{ item.TotalItemsToScanCount }}'
+- discovery_id: aws.backupsearch.getSearchResultExportJob
+  calls:
+  - action: getSearchResultExportJob
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ExportSpecification }}'
+    item:
+      s3ExportSpecification: '{{ item.s3ExportSpecification }}'
+- discovery_id: aws.backupsearch.listSearchJobBackups
+  calls:
+  - action: listSearchJobBackups
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Results }}'
+    item:
+      Status: '{{ item.Status }}'
+      StatusMessage: '{{ item.StatusMessage }}'
+      ResourceType: '{{ item.ResourceType }}'
+      BackupResourceArn: '{{ item.BackupResourceArn }}'
+      SourceResourceArn: '{{ item.SourceResourceArn }}'
+      IndexCreationTime: '{{ item.IndexCreationTime }}'
+      BackupCreationTime: '{{ item.BackupCreationTime }}'
+- discovery_id: aws.backupsearch.listSearchJobResults
+  calls:
+  - action: listSearchJobResults
+    save_as: response
+    on_error: continue
+    params:
+      MaxResults: 1000
+  emit:
+    as: item
+    items_for: '{{ response.Results }}'
+    item:
+      S3ResultItem: '{{ item.S3ResultItem }}'
+      EBSResultItem: '{{ item.EBSResultItem }}'
+- discovery_id: aws.backupsearch.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+checks: []

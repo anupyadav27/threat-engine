@@ -1,0 +1,231 @@
+# ============================================================
+# Discovery YAML — firebaseappdistribution (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 10 | independent: 4 | dependent: 6
+# ops with fields: 10/10 | dep ops with chain: 5/6
+# ============================================================
+version: '1.0'
+provider: gcp
+service: firebaseappdistribution
+
+services:
+  client: firebaseappdistribution
+  module: "googleapiclient.discovery.build('firebaseappdistribution', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists feedback reports. By default, sorts by `createTime` in descending order.
+  # ── gcp.firebaseappdistribution.projects.apps.releases.feedbackReports.list ──
+  - discovery_id: gcp.firebaseappdistribution.projects.apps.releases.feedbackReports.list
+    # python: svc.projects().apps().releases().feedbackReports().list(**params).execute()
+    calls:
+      - action: projects.apps.releases.feedbackReports.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.feedbackReports }}'
+      item:
+        createTime: '{{ item.createTime }}'
+        firebaseConsoleUri: '{{ item.firebaseConsoleUri }}'
+        name: '{{ item.name }}'
+        screenshotUri: '{{ item.screenshotUri }}'
+        tester: '{{ item.tester }}'
+        text: '{{ item.text }}'
+  # Lists releases. By default, sorts by `createTime` in descending order.
+  # ── gcp.firebaseappdistribution.projects.apps.releases.list ──
+  - discovery_id: gcp.firebaseappdistribution.projects.apps.releases.list
+    # python: svc.projects().apps().releases().list(**params).execute()
+    calls:
+      - action: projects.apps.releases.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.releases }}'
+      item:
+        binaryDownloadUri: '{{ item.binaryDownloadUri }}'
+        buildVersion: '{{ item.buildVersion }}'
+        createTime: '{{ item.createTime }}'
+        displayVersion: '{{ item.displayVersion }}'
+        expireTime: '{{ item.expireTime }}'
+        firebaseConsoleUri: '{{ item.firebaseConsoleUri }}'
+        name: '{{ item.name }}'
+        releaseNotes: '{{ item.releaseNotes }}'
+        testingUri: '{{ item.testingUri }}'
+        updateTime: '{{ item.updateTime }}'
+  # List groups.
+  # ── gcp.firebaseappdistribution.projects.groups.list ──
+  - discovery_id: gcp.firebaseappdistribution.projects.groups.list
+    # python: svc.projects().groups().list(**params).execute()
+    calls:
+      - action: projects.groups.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.groups }}'
+      item:
+        displayName: '{{ item.displayName }}'
+        inviteLinkCount: '{{ item.inviteLinkCount }}'
+        name: '{{ item.name }}'
+        releaseCount: '{{ item.releaseCount }}'
+        testerCount: '{{ item.testerCount }}'
+  # Lists testers and their resource ids.
+  # ── gcp.firebaseappdistribution.projects.testers.list ──
+  - discovery_id: gcp.firebaseappdistribution.projects.testers.list
+    # python: svc.projects().testers().list(**params).execute()
+    calls:
+      - action: projects.testers.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.testers }}'
+      item:
+        displayName: '{{ item.displayName }}'
+        groups: '{{ item.groups }}'
+        lastActivityTime: '{{ item.lastActivityTime }}'
+        name: '{{ item.name }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets Android App Bundle (AAB) information for a Firebase app.
+  # ── gcp.firebaseappdistribution.projects.apps.getAabInfo [dependent] ──
+  - discovery_id: gcp.firebaseappdistribution.projects.apps.getAabInfo
+    # python: svc.projects().apps().getAabInfo(**params).execute()
+    calls:
+      - action: projects.apps.getAabInfo
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        integrationState: '{{ response.integrationState }}'
+        name: '{{ response.name }}'
+        testCertificate: '{{ response.testCertificate }}'
+    # required_params: ['name']
+  # Gets a feedback report.
+  # ── gcp.firebaseappdistribution.projects.apps.releases.feedbackReports.get [dependent] ──
+  - discovery_id: gcp.firebaseappdistribution.projects.apps.releases.feedbackReports.get
+    for_each: gcp.firebaseappdistribution.projects.apps.releases.feedbackReports.list
+    # python: svc.projects().apps().releases().feedbackReports().get(**params).execute()
+    calls:
+      - action: projects.apps.releases.feedbackReports.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        createTime: '{{ response.createTime }}'
+        firebaseConsoleUri: '{{ response.firebaseConsoleUri }}'
+        name: '{{ response.name }}'
+        screenshotUri: '{{ response.screenshotUri }}'
+        tester: '{{ response.tester }}'
+        text: '{{ response.text }}'
+    # required_params: ['name']
+  # Gets a release.
+  # ── gcp.firebaseappdistribution.projects.apps.releases.get [dependent] ──
+  - discovery_id: gcp.firebaseappdistribution.projects.apps.releases.get
+    for_each: gcp.firebaseappdistribution.projects.apps.releases.list
+    # python: svc.projects().apps().releases().get(**params).execute()
+    calls:
+      - action: projects.apps.releases.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        binaryDownloadUri: '{{ response.binaryDownloadUri }}'
+        buildVersion: '{{ response.buildVersion }}'
+        createTime: '{{ response.createTime }}'
+        displayVersion: '{{ response.displayVersion }}'
+        expireTime: '{{ response.expireTime }}'
+        firebaseConsoleUri: '{{ response.firebaseConsoleUri }}'
+        name: '{{ response.name }}'
+        releaseNotes: '{{ response.releaseNotes }}'
+        testingUri: '{{ response.testingUri }}'
+        updateTime: '{{ response.updateTime }}'
+    # required_params: ['name']
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.firebaseappdistribution.projects.apps.releases.operations.get [dependent] ──
+  - discovery_id: gcp.firebaseappdistribution.projects.apps.releases.operations.get
+    for_each: gcp.firebaseappdistribution.projects.apps.releases.operations.list
+    # python: svc.projects().apps().releases().operations().get(**params).execute()
+    calls:
+      - action: projects.apps.releases.operations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']
+  # Lists operations that match the specified filter in the request. If the server doesn't support this 
+  # ── gcp.firebaseappdistribution.projects.apps.releases.operations.list [dependent] ──
+  - discovery_id: gcp.firebaseappdistribution.projects.apps.releases.operations.list
+    for_each: gcp.firebaseappdistribution.projects.apps.releases.list
+    # python: svc.projects().apps().releases().operations().list(**params).execute()
+    calls:
+      - action: projects.apps.releases.operations.list
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.operations }}'
+      item:
+        done: '{{ item.done }}'
+        error: '{{ item.error }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+        response: '{{ item.response }}'
+    # required_params: ['name']
+  # Get a group.
+  # ── gcp.firebaseappdistribution.projects.groups.get [dependent] ──
+  - discovery_id: gcp.firebaseappdistribution.projects.groups.get
+    for_each: gcp.firebaseappdistribution.projects.groups.list
+    # python: svc.projects().groups().get(**params).execute()
+    calls:
+      - action: projects.groups.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        displayName: '{{ response.displayName }}'
+        inviteLinkCount: '{{ response.inviteLinkCount }}'
+        name: '{{ response.name }}'
+        releaseCount: '{{ response.releaseCount }}'
+        testerCount: '{{ response.testerCount }}'
+    # required_params: ['name']

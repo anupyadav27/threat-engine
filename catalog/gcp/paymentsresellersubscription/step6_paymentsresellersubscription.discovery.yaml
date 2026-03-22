@@ -1,0 +1,109 @@
+# ============================================================
+# Discovery YAML — paymentsresellersubscription (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 3 | independent: 2 | dependent: 1
+# ops with fields: 3/3 | dep ops with chain: 1/1
+# ============================================================
+version: '1.0'
+provider: gcp
+service: paymentsresellersubscription
+
+services:
+  client: paymentsresellersubscription
+  module: "googleapiclient.discovery.build('paymentsresellersubscription', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Currently, it doesn't support **YouTube** products. Retrieves the products that can be resold by the
+  # ── gcp.paymentsresellersubscription.partners.products.list ──
+  - discovery_id: gcp.paymentsresellersubscription.partners.products.list
+    # python: svc.partners().products().list(**params).execute()
+    calls:
+      - action: partners.products.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.products }}'
+      item:
+        bundleDetails: '{{ item.bundleDetails }}'
+        finiteBillingCycleDetails: '{{ item.finiteBillingCycleDetails }}'
+        name: '{{ item.name }}'
+        priceConfigs: '{{ item.priceConfigs }}'
+        productType: '{{ item.productType }}'
+        regionCodes: '{{ item.regionCodes }}'
+        subscriptionBillingCycleDuration: '{{ item.subscriptionBillingCycleDuration }}'
+        titles: '{{ item.titles }}'
+  # Currently, it doesn't support **YouTube** promotions. Retrieves the promotions, such as free trial, 
+  # ── gcp.paymentsresellersubscription.partners.promotions.list ──
+  - discovery_id: gcp.paymentsresellersubscription.partners.promotions.list
+    # python: svc.partners().promotions().list(**params).execute()
+    calls:
+      - action: partners.promotions.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.promotions }}'
+      item:
+        applicableProducts: '{{ item.applicableProducts }}'
+        endTime: '{{ item.endTime }}'
+        freeTrialDuration: '{{ item.freeTrialDuration }}'
+        introductoryPricingDetails: '{{ item.introductoryPricingDetails }}'
+        name: '{{ item.name }}'
+        promotionType: '{{ item.promotionType }}'
+        regionCodes: '{{ item.regionCodes }}'
+        startTime: '{{ item.startTime }}'
+        titles: '{{ item.titles }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets a subscription by id. It should be called directly by the partner using service accounts.
+  # ── gcp.paymentsresellersubscription.partners.subscriptions.get [dependent] ──
+  - discovery_id: gcp.paymentsresellersubscription.partners.subscriptions.get
+    for_each: gcp.paymentsresellersubscription.partners.products.list
+    # python: svc.partners().subscriptions().get(**params).execute()
+    calls:
+      - action: partners.subscriptions.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        cancellationDetails: '{{ response.cancellationDetails }}'
+        createTime: '{{ response.createTime }}'
+        cycleEndTime: '{{ response.cycleEndTime }}'
+        endUserEntitled: '{{ response.endUserEntitled }}'
+        freeTrialEndTime: '{{ response.freeTrialEndTime }}'
+        lineItems: '{{ response.lineItems }}'
+        migrationDetails: '{{ response.migrationDetails }}'
+        name: '{{ response.name }}'
+        partnerUserToken: '{{ response.partnerUserToken }}'
+        processingState: '{{ response.processingState }}'
+        products: '{{ response.products }}'
+        promotionSpecs: '{{ response.promotionSpecs }}'
+        promotions: '{{ response.promotions }}'
+        purchaseTime: '{{ response.purchaseTime }}'
+        redirectUri: '{{ response.redirectUri }}'
+        renewalTime: '{{ response.renewalTime }}'
+        serviceLocation: '{{ response.serviceLocation }}'
+        state: '{{ response.state }}'
+        updateTime: '{{ response.updateTime }}'
+        upgradeDowngradeDetails: '{{ response.upgradeDowngradeDetails }}'
+    # required_params: ['name']

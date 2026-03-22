@@ -1,0 +1,1375 @@
+# ============================================================
+# Discovery YAML — content (v2.1)
+# Generated: 2026-02-21T03:06:39Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 51 | independent: 4 | dependent: 47
+# ops with fields: 51/51 | dep ops with chain: 43/47
+# ============================================================
+version: '1.0'
+provider: gcp
+service: content
+
+services:
+  client: content
+  module: "googleapiclient.discovery.build('content', 'v2.1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Returns information about the authenticated user.
+  # ── gcp.content.accounts.authinfo ──
+  - discovery_id: gcp.content.accounts.authinfo
+    # python: svc.accounts().authinfo(**params).execute()
+    calls:
+      - action: accounts.authinfo
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accountIdentifiers: '{{ response.accountIdentifiers }}'
+  # Lists the labels assigned to an account.
+  # ── gcp.content.accounts.labels.list ──
+  - discovery_id: gcp.content.accounts.labels.list
+    # python: svc.accounts().labels().list(**params).execute()
+    calls:
+      - action: accounts.labels.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.labels }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        description: '{{ item.description }}'
+        labelId: '{{ item.labelId }}'
+        labelType: '{{ item.labelType }}'
+        name: '{{ item.name }}'
+  # Lists available return carriers in the merchant account.
+  # ── gcp.content.accounts.returncarrier.list ──
+  - discovery_id: gcp.content.accounts.returncarrier.list
+    # python: svc.accounts().returncarrier().list(**params).execute()
+    calls:
+      - action: accounts.returncarrier.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.returncarrier }}'
+      item:
+        carrierAccountId: '{{ item.carrierAccountId }}'
+        carrierAccountName: '{{ item.carrierAccountName }}'
+        carrierAccountNumber: '{{ item.carrierAccountNumber }}'
+        carrierCode: '{{ item.carrierCode }}'
+  # Retrieves the list of POS data providers that have active settings for the all eiligible countries.
+  # ── gcp.content.liasettings.listposdataproviders ──
+  - discovery_id: gcp.content.liasettings.listposdataproviders
+    # python: svc.liasettings().listposdataproviders(**params).execute()
+    calls:
+      - action: liasettings.listposdataproviders
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.liasettings }}'
+      item:
+        country: '{{ item.country }}'
+        posDataProviders: '{{ item.posDataProviders }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Retrieves a Merchant Center account.
+  # ── gcp.content.accounts.get [dependent] ──
+  - discovery_id: gcp.content.accounts.get
+    for_each: gcp.content.conversionsources.list
+    # python: svc.accounts().get(**params).execute()
+    calls:
+      - action: accounts.get
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accountManagement: '{{ response.accountManagement }}'
+        adsLinks: '{{ response.adsLinks }}'
+        adultContent: '{{ response.adultContent }}'
+        automaticImprovements: '{{ response.automaticImprovements }}'
+        automaticLabelIds: '{{ response.automaticLabelIds }}'
+        businessIdentity: '{{ response.businessIdentity }}'
+        businessInformation: '{{ response.businessInformation }}'
+        conversionSettings: '{{ response.conversionSettings }}'
+        cssId: '{{ response.cssId }}'
+        googleMyBusinessLink: '{{ response.googleMyBusinessLink }}'
+        id: '{{ response.id }}'
+        labelIds: '{{ response.labelIds }}'
+        name: '{{ response.name }}'
+        sellerId: '{{ response.sellerId }}'
+        users: '{{ response.users }}'
+        websiteUrl: '{{ response.websiteUrl }}'
+        youtubeChannelLinks: '{{ response.youtubeChannelLinks }}'
+    # required_params: ['merchantId', 'accountId']
+  # Lists the sub-accounts in your Merchant Center account.
+  # ── gcp.content.accounts.list [dependent] ──
+  - discovery_id: gcp.content.accounts.list
+    for_each: gcp.content.conversionsources.list
+    # python: svc.accounts().list(**params).execute()
+    calls:
+      - action: accounts.list
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.accounts }}'
+      item:
+        accountManagement: '{{ item.accountManagement }}'
+        adsLinks: '{{ item.adsLinks }}'
+        adultContent: '{{ item.adultContent }}'
+        automaticImprovements: '{{ item.automaticImprovements }}'
+        automaticLabelIds: '{{ item.automaticLabelIds }}'
+        businessIdentity: '{{ item.businessIdentity }}'
+        businessInformation: '{{ item.businessInformation }}'
+        conversionSettings: '{{ item.conversionSettings }}'
+        cssId: '{{ item.cssId }}'
+        googleMyBusinessLink: '{{ item.googleMyBusinessLink }}'
+        id: '{{ item.id }}'
+        labelIds: '{{ item.labelIds }}'
+        name: '{{ item.name }}'
+        sellerId: '{{ item.sellerId }}'
+        users: '{{ item.users }}'
+        websiteUrl: '{{ item.websiteUrl }}'
+        youtubeChannelLinks: '{{ item.youtubeChannelLinks }}'
+    # required_params: ['merchantId']
+  # Returns the list of accounts linked to your Merchant Center account.
+  # ── gcp.content.accounts.listlinks [dependent] ──
+  - discovery_id: gcp.content.accounts.listlinks
+    for_each: gcp.content.conversionsources.list
+    # python: svc.accounts().listlinks(**params).execute()
+    calls:
+      - action: accounts.listlinks
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.accounts }}'
+      item:
+        linkedAccountId: '{{ item.linkedAccountId }}'
+        services: '{{ item.services }}'
+    # required_params: ['merchantId', 'accountId']
+  # Retrieves the status of a Merchant Center account. No itemLevelIssues are returned for multi-client 
+  # ── gcp.content.accountstatuses.get [dependent] ──
+  - discovery_id: gcp.content.accountstatuses.get
+    for_each: gcp.content.conversionsources.list
+    # python: svc.accountstatuses().get(**params).execute()
+    calls:
+      - action: accountstatuses.get
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accountId: '{{ response.accountId }}'
+        accountLevelIssues: '{{ response.accountLevelIssues }}'
+        accountManagement: '{{ response.accountManagement }}'
+        products: '{{ response.products }}'
+        websiteClaimed: '{{ response.websiteClaimed }}'
+    # required_params: ['merchantId', 'accountId']
+  # Lists the statuses of the sub-accounts in your Merchant Center account.
+  # ── gcp.content.accountstatuses.list [dependent] ──
+  - discovery_id: gcp.content.accountstatuses.list
+    for_each: gcp.content.conversionsources.list
+    # python: svc.accountstatuses().list(**params).execute()
+    calls:
+      - action: accountstatuses.list
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.accountstatuses }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        accountLevelIssues: '{{ item.accountLevelIssues }}'
+        accountManagement: '{{ item.accountManagement }}'
+        products: '{{ item.products }}'
+        websiteClaimed: '{{ item.websiteClaimed }}'
+    # required_params: ['merchantId']
+  # Retrieves the tax settings of the account.
+  # ── gcp.content.accounttax.get [dependent] ──
+  - discovery_id: gcp.content.accounttax.get
+    for_each: gcp.content.conversionsources.list
+    # python: svc.accounttax().get(**params).execute()
+    calls:
+      - action: accounttax.get
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accountId: '{{ response.accountId }}'
+        rules: '{{ response.rules }}'
+    # required_params: ['merchantId', 'accountId']
+  # Lists the tax settings of the sub-accounts in your Merchant Center account.
+  # ── gcp.content.accounttax.list [dependent] ──
+  - discovery_id: gcp.content.accounttax.list
+    for_each: gcp.content.conversionsources.list
+    # python: svc.accounttax().list(**params).execute()
+    calls:
+      - action: accounttax.list
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.accounttax }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        rules: '{{ item.rules }}'
+    # required_params: ['merchantId']
+  # Retrieves a collection from your Merchant Center account.
+  # ── gcp.content.collections.get [dependent] ──
+  - discovery_id: gcp.content.collections.get
+    for_each: gcp.content.collections.list
+    # python: svc.collections().get(**params).execute()
+    calls:
+      - action: collections.get
+        params:
+          collectionId: '{{ item.id }}'
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        customLabel0: '{{ response.customLabel0 }}'
+        customLabel1: '{{ response.customLabel1 }}'
+        customLabel2: '{{ response.customLabel2 }}'
+        customLabel3: '{{ response.customLabel3 }}'
+        customLabel4: '{{ response.customLabel4 }}'
+        featuredProduct: '{{ response.featuredProduct }}'
+        headline: '{{ response.headline }}'
+        id: '{{ response.id }}'
+        imageLink: '{{ response.imageLink }}'
+        language: '{{ response.language }}'
+        link: '{{ response.link }}'
+        mobileLink: '{{ response.mobileLink }}'
+        productCountry: '{{ response.productCountry }}'
+    # required_params: ['merchantId', 'collectionId']
+  # Lists the collections in your Merchant Center account. The response might contain fewer items than s
+  # ── gcp.content.collections.list [dependent] ──
+  - discovery_id: gcp.content.collections.list
+    for_each: gcp.content.conversionsources.list
+    # python: svc.collections().list(**params).execute()
+    calls:
+      - action: collections.list
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.collections }}'
+      item:
+        customLabel0: '{{ item.customLabel0 }}'
+        customLabel1: '{{ item.customLabel1 }}'
+        customLabel2: '{{ item.customLabel2 }}'
+        customLabel3: '{{ item.customLabel3 }}'
+        customLabel4: '{{ item.customLabel4 }}'
+        featuredProduct: '{{ item.featuredProduct }}'
+        headline: '{{ item.headline }}'
+        id: '{{ item.id }}'
+        imageLink: '{{ item.imageLink }}'
+        language: '{{ item.language }}'
+        link: '{{ item.link }}'
+        mobileLink: '{{ item.mobileLink }}'
+        productCountry: '{{ item.productCountry }}'
+    # required_params: ['merchantId']
+  # Gets the status of a collection from your Merchant Center account.
+  # ── gcp.content.collectionstatuses.get [dependent] ──
+  - discovery_id: gcp.content.collectionstatuses.get
+    for_each: gcp.content.collections.list
+    # python: svc.collectionstatuses().get(**params).execute()
+    calls:
+      - action: collectionstatuses.get
+        params:
+          collectionId: '{{ item.id }}'
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        collectionLevelIssuses: '{{ response.collectionLevelIssuses }}'
+        creationDate: '{{ response.creationDate }}'
+        destinationStatuses: '{{ response.destinationStatuses }}'
+        id: '{{ response.id }}'
+        lastUpdateDate: '{{ response.lastUpdateDate }}'
+    # required_params: ['merchantId', 'collectionId']
+  # Lists the statuses of the collections in your Merchant Center account.
+  # ── gcp.content.collectionstatuses.list [dependent] ──
+  - discovery_id: gcp.content.collectionstatuses.list
+    for_each: gcp.content.conversionsources.list
+    # python: svc.collectionstatuses().list(**params).execute()
+    calls:
+      - action: collectionstatuses.list
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.collectionstatuses }}'
+      item:
+        collectionLevelIssuses: '{{ item.collectionLevelIssuses }}'
+        creationDate: '{{ item.creationDate }}'
+        destinationStatuses: '{{ item.destinationStatuses }}'
+        id: '{{ item.id }}'
+        lastUpdateDate: '{{ item.lastUpdateDate }}'
+    # required_params: ['merchantId']
+  # Fetches a conversion source.
+  # ── gcp.content.conversionsources.get [dependent] ──
+  - discovery_id: gcp.content.conversionsources.get
+    for_each: gcp.content.conversionsources.list
+    # python: svc.conversionsources().get(**params).execute()
+    calls:
+      - action: conversionsources.get
+        params:
+          conversionSourceId: '{{ item.conversionSourceId }}'
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        conversionSourceId: '{{ response.conversionSourceId }}'
+        expireTime: '{{ response.expireTime }}'
+        googleAnalyticsLink: '{{ response.googleAnalyticsLink }}'
+        merchantCenterDestination: '{{ response.merchantCenterDestination }}'
+        state: '{{ response.state }}'
+    # required_params: ['merchantId', 'conversionSourceId']
+  # Retrieves the list of conversion sources the caller has access to.
+  # ── gcp.content.conversionsources.list [dependent] ──
+  - discovery_id: gcp.content.conversionsources.list
+    # python: svc.conversionsources().list(**params).execute()
+    calls:
+      - action: conversionsources.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.conversionsources }}'
+      item:
+        conversionSourceId: '{{ item.conversionSourceId }}'
+        expireTime: '{{ item.expireTime }}'
+        googleAnalyticsLink: '{{ item.googleAnalyticsLink }}'
+        merchantCenterDestination: '{{ item.merchantCenterDestination }}'
+        state: '{{ item.state }}'
+    # required_params: ['merchantId']
+  # Retrieves a single CSS domain by ID.
+  # ── gcp.content.csses.get [dependent] ──
+  - discovery_id: gcp.content.csses.get
+    for_each: gcp.content.csses.list
+    # python: svc.csses().get(**params).execute()
+    calls:
+      - action: csses.get
+        params:
+          cssDomainId: '{{ item.cssDomainId }}'
+          cssGroupId: '{{ item.cssDomainId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        cssDomainId: '{{ response.cssDomainId }}'
+        cssGroupId: '{{ response.cssGroupId }}'
+        displayName: '{{ response.displayName }}'
+        fullName: '{{ response.fullName }}'
+        homepageUri: '{{ response.homepageUri }}'
+        labelIds: '{{ response.labelIds }}'
+    # required_params: ['cssGroupId', 'cssDomainId']
+  # Lists CSS domains affiliated with a CSS group.
+  # ── gcp.content.csses.list [dependent] ──
+  - discovery_id: gcp.content.csses.list
+    # python: svc.csses().list(**params).execute()
+    calls:
+      - action: csses.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.csses }}'
+      item:
+        cssDomainId: '{{ item.cssDomainId }}'
+        cssGroupId: '{{ item.cssGroupId }}'
+        displayName: '{{ item.displayName }}'
+        fullName: '{{ item.fullName }}'
+        homepageUri: '{{ item.homepageUri }}'
+        labelIds: '{{ item.labelIds }}'
+    # required_params: ['cssGroupId']
+  # Retrieves a datafeed configuration from your Merchant Center account.
+  # ── gcp.content.datafeeds.get [dependent] ──
+  - discovery_id: gcp.content.datafeeds.get
+    for_each: gcp.content.datafeeds.list
+    # python: svc.datafeeds().get(**params).execute()
+    calls:
+      - action: datafeeds.get
+        params:
+          datafeedId: '{{ item.name }}'
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        attributeLanguage: '{{ response.attributeLanguage }}'
+        contentType: '{{ response.contentType }}'
+        fetchSchedule: '{{ response.fetchSchedule }}'
+        fileName: '{{ response.fileName }}'
+        format: '{{ response.format }}'
+        id: '{{ response.id }}'
+        name: '{{ response.name }}'
+        targets: '{{ response.targets }}'
+    # required_params: ['merchantId', 'datafeedId']
+  # Lists the configurations for datafeeds in your Merchant Center account.
+  # ── gcp.content.datafeeds.list [dependent] ──
+  - discovery_id: gcp.content.datafeeds.list
+    for_each: gcp.content.conversionsources.list
+    # python: svc.datafeeds().list(**params).execute()
+    calls:
+      - action: datafeeds.list
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.datafeeds }}'
+      item:
+        attributeLanguage: '{{ item.attributeLanguage }}'
+        contentType: '{{ item.contentType }}'
+        fetchSchedule: '{{ item.fetchSchedule }}'
+        fileName: '{{ item.fileName }}'
+        format: '{{ item.format }}'
+        id: '{{ item.id }}'
+        name: '{{ item.name }}'
+        targets: '{{ item.targets }}'
+    # required_params: ['merchantId']
+  # Retrieves the status of a datafeed from your Merchant Center account.
+  # ── gcp.content.datafeedstatuses.get [dependent] ──
+  - discovery_id: gcp.content.datafeedstatuses.get
+    for_each: gcp.content.datafeeds.list
+    # python: svc.datafeedstatuses().get(**params).execute()
+    calls:
+      - action: datafeedstatuses.get
+        params:
+          datafeedId: '{{ item.name }}'
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        country: '{{ response.country }}'
+        datafeedId: '{{ response.datafeedId }}'
+        errors: '{{ response.errors }}'
+        feedLabel: '{{ response.feedLabel }}'
+        itemsTotal: '{{ response.itemsTotal }}'
+        itemsValid: '{{ response.itemsValid }}'
+        language: '{{ response.language }}'
+        lastUploadDate: '{{ response.lastUploadDate }}'
+        processingStatus: '{{ response.processingStatus }}'
+    # required_params: ['merchantId', 'datafeedId']
+  # Lists the statuses of the datafeeds in your Merchant Center account.
+  # ── gcp.content.datafeedstatuses.list [dependent] ──
+  - discovery_id: gcp.content.datafeedstatuses.list
+    for_each: gcp.content.conversionsources.list
+    # python: svc.datafeedstatuses().list(**params).execute()
+    calls:
+      - action: datafeedstatuses.list
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.datafeedstatuses }}'
+      item:
+        country: '{{ item.country }}'
+        datafeedId: '{{ item.datafeedId }}'
+        errors: '{{ item.errors }}'
+        feedLabel: '{{ item.feedLabel }}'
+        itemsTotal: '{{ item.itemsTotal }}'
+        itemsValid: '{{ item.itemsValid }}'
+        language: '{{ item.language }}'
+        lastUploadDate: '{{ item.lastUploadDate }}'
+        processingStatus: '{{ item.processingStatus }}'
+    # required_params: ['merchantId']
+  # Gets Checkout settings for the given merchant. This includes information about review state, enrollm
+  # ── gcp.content.freelistingsprogram.checkoutsettings.get [dependent] ──
+  - discovery_id: gcp.content.freelistingsprogram.checkoutsettings.get
+    for_each: gcp.content.conversionsources.list
+    # python: svc.freelistingsprogram().checkoutsettings().get(**params).execute()
+    calls:
+      - action: freelistingsprogram.checkoutsettings.get
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        effectiveEnrollmentState: '{{ response.effectiveEnrollmentState }}'
+        effectiveReviewState: '{{ response.effectiveReviewState }}'
+        effectiveUriSettings: '{{ response.effectiveUriSettings }}'
+        enrollmentState: '{{ response.enrollmentState }}'
+        merchantId: '{{ response.merchantId }}'
+        reviewState: '{{ response.reviewState }}'
+        uriSettings: '{{ response.uriSettings }}'
+    # required_params: ['merchantId']
+  # Retrieves the status and review eligibility for the free listing program. Returns errors and warning
+  # ── gcp.content.freelistingsprogram.get [dependent] ──
+  - discovery_id: gcp.content.freelistingsprogram.get
+    for_each: gcp.content.conversionsources.list
+    # python: svc.freelistingsprogram().get(**params).execute()
+    calls:
+      - action: freelistingsprogram.get
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        globalState: '{{ response.globalState }}'
+        regionStatuses: '{{ response.regionStatuses }}'
+    # required_params: ['merchantId']
+  # Retrieves the LIA settings of the account.
+  # ── gcp.content.liasettings.get [dependent] ──
+  - discovery_id: gcp.content.liasettings.get
+    for_each: gcp.content.conversionsources.list
+    # python: svc.liasettings().get(**params).execute()
+    calls:
+      - action: liasettings.get
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accountId: '{{ response.accountId }}'
+        countrySettings: '{{ response.countrySettings }}'
+    # required_params: ['merchantId', 'accountId']
+  # Retrieves the list of accessible Business Profiles.
+  # ── gcp.content.liasettings.getaccessiblegmbaccounts [dependent] ──
+  - discovery_id: gcp.content.liasettings.getaccessiblegmbaccounts
+    for_each: gcp.content.conversionsources.list
+    # python: svc.liasettings().getaccessiblegmbaccounts(**params).execute()
+    calls:
+      - action: liasettings.getaccessiblegmbaccounts
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accountId: '{{ response.accountId }}'
+        gmbAccounts: '{{ response.gmbAccounts }}'
+    # required_params: ['merchantId', 'accountId']
+  # Lists the LIA settings of the sub-accounts in your Merchant Center account.
+  # ── gcp.content.liasettings.list [dependent] ──
+  - discovery_id: gcp.content.liasettings.list
+    for_each: gcp.content.conversionsources.list
+    # python: svc.liasettings().list(**params).execute()
+    calls:
+      - action: liasettings.list
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.liasettings }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        countrySettings: '{{ item.countrySettings }}'
+    # required_params: ['merchantId']
+  # Retrieves information about the given store.
+  # ── gcp.content.pos.get [dependent] ──
+  - discovery_id: gcp.content.pos.get
+    # python: svc.pos().get(**params).execute()
+    calls:
+      - action: pos.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        gcidCategory: '{{ response.gcidCategory }}'
+        matchingStatus: '{{ response.matchingStatus }}'
+        matchingStatusHint: '{{ response.matchingStatusHint }}'
+        phoneNumber: '{{ response.phoneNumber }}'
+        placeId: '{{ response.placeId }}'
+        storeAddress: '{{ response.storeAddress }}'
+        storeCode: '{{ response.storeCode }}'
+        storeName: '{{ response.storeName }}'
+        websiteUrl: '{{ response.websiteUrl }}'
+    # required_params: ['merchantId', 'targetMerchantId', 'storeCode']
+  # Lists the stores of the target merchant.
+  # ── gcp.content.pos.list [dependent] ──
+  - discovery_id: gcp.content.pos.list
+    # python: svc.pos().list(**params).execute()
+    calls:
+      - action: pos.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.pos }}'
+      item:
+        gcidCategory: '{{ item.gcidCategory }}'
+        matchingStatus: '{{ item.matchingStatus }}'
+        matchingStatusHint: '{{ item.matchingStatusHint }}'
+        phoneNumber: '{{ item.phoneNumber }}'
+        placeId: '{{ item.placeId }}'
+        storeAddress: '{{ item.storeAddress }}'
+        storeCode: '{{ item.storeCode }}'
+        storeName: '{{ item.storeName }}'
+        websiteUrl: '{{ item.websiteUrl }}'
+    # required_params: ['merchantId', 'targetMerchantId']
+  # Gets `productDeliveryTime` by `productId`.
+  # ── gcp.content.productdeliverytime.get [dependent] ──
+  - discovery_id: gcp.content.productdeliverytime.get
+    for_each: gcp.content.products.list
+    # python: svc.productdeliverytime().get(**params).execute()
+    calls:
+      - action: productdeliverytime.get
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+          productId: '{{ item.id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        areaDeliveryTimes: '{{ response.areaDeliveryTimes }}'
+        productId: '{{ response.productId }}'
+    # required_params: ['merchantId', 'productId']
+  # Retrieves a product from your Merchant Center account.
+  # ── gcp.content.products.get [dependent] ──
+  - discovery_id: gcp.content.products.get
+    for_each: gcp.content.products.list
+    # python: svc.products().get(**params).execute()
+    calls:
+      - action: products.get
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+          productId: '{{ item.id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        additionalImageLinks: '{{ response.additionalImageLinks }}'
+        additionalSizeType: '{{ response.additionalSizeType }}'
+        adsGrouping: '{{ response.adsGrouping }}'
+        adsLabels: '{{ response.adsLabels }}'
+        adsRedirect: '{{ response.adsRedirect }}'
+        adult: '{{ response.adult }}'
+        ageGroup: '{{ response.ageGroup }}'
+        autoPricingMinPrice: '{{ response.autoPricingMinPrice }}'
+        availability: '{{ response.availability }}'
+        availabilityDate: '{{ response.availabilityDate }}'
+        brand: '{{ response.brand }}'
+        canonicalLink: '{{ response.canonicalLink }}'
+        certifications: '{{ response.certifications }}'
+        channel: '{{ response.channel }}'
+        cloudExportAdditionalProperties: '{{ response.cloudExportAdditionalProperties }}'
+        color: '{{ response.color }}'
+        condition: '{{ response.condition }}'
+        contentLanguage: '{{ response.contentLanguage }}'
+        costOfGoodsSold: '{{ response.costOfGoodsSold }}'
+        customAttributes: '{{ response.customAttributes }}'
+        customLabel0: '{{ response.customLabel0 }}'
+        customLabel1: '{{ response.customLabel1 }}'
+        customLabel2: '{{ response.customLabel2 }}'
+        customLabel3: '{{ response.customLabel3 }}'
+        customLabel4: '{{ response.customLabel4 }}'
+        description: '{{ response.description }}'
+        disclosureDate: '{{ response.disclosureDate }}'
+        displayAdsId: '{{ response.displayAdsId }}'
+        displayAdsLink: '{{ response.displayAdsLink }}'
+        displayAdsSimilarIds: '{{ response.displayAdsSimilarIds }}'
+        displayAdsTitle: '{{ response.displayAdsTitle }}'
+        displayAdsValue: '{{ response.displayAdsValue }}'
+        energyEfficiencyClass: '{{ response.energyEfficiencyClass }}'
+        excludedDestinations: '{{ response.excludedDestinations }}'
+        expirationDate: '{{ response.expirationDate }}'
+        externalSellerId: '{{ response.externalSellerId }}'
+        feedLabel: '{{ response.feedLabel }}'
+        freeShippingThreshold: '{{ response.freeShippingThreshold }}'
+        gender: '{{ response.gender }}'
+        googleProductCategory: '{{ response.googleProductCategory }}'
+        gtin: '{{ response.gtin }}'
+        id: '{{ response.id }}'
+        identifierExists: '{{ response.identifierExists }}'
+        imageLink: '{{ response.imageLink }}'
+        includedDestinations: '{{ response.includedDestinations }}'
+        installment: '{{ response.installment }}'
+        isBundle: '{{ response.isBundle }}'
+        itemGroupId: '{{ response.itemGroupId }}'
+        lifestyleImageLinks: '{{ response.lifestyleImageLinks }}'
+        link: '{{ response.link }}'
+        linkTemplate: '{{ response.linkTemplate }}'
+        loyaltyProgram: '{{ response.loyaltyProgram }}'
+        loyaltyPrograms: '{{ response.loyaltyPrograms }}'
+        material: '{{ response.material }}'
+        maxEnergyEfficiencyClass: '{{ response.maxEnergyEfficiencyClass }}'
+        maxHandlingTime: '{{ response.maxHandlingTime }}'
+        maximumRetailPrice: '{{ response.maximumRetailPrice }}'
+        minEnergyEfficiencyClass: '{{ response.minEnergyEfficiencyClass }}'
+        minHandlingTime: '{{ response.minHandlingTime }}'
+        mobileLink: '{{ response.mobileLink }}'
+        mobileLinkTemplate: '{{ response.mobileLinkTemplate }}'
+        mpn: '{{ response.mpn }}'
+        multipack: '{{ response.multipack }}'
+        offerId: '{{ response.offerId }}'
+        pattern: '{{ response.pattern }}'
+        pause: '{{ response.pause }}'
+        pickupMethod: '{{ response.pickupMethod }}'
+        pickupSla: '{{ response.pickupSla }}'
+        price: '{{ response.price }}'
+        productDetails: '{{ response.productDetails }}'
+        productHeight: '{{ response.productHeight }}'
+        productHighlights: '{{ response.productHighlights }}'
+        productLength: '{{ response.productLength }}'
+        productTypes: '{{ response.productTypes }}'
+        productWeight: '{{ response.productWeight }}'
+        productWidth: '{{ response.productWidth }}'
+        promotionIds: '{{ response.promotionIds }}'
+        salePrice: '{{ response.salePrice }}'
+        salePriceEffectiveDate: '{{ response.salePriceEffectiveDate }}'
+        sellOnGoogleQuantity: '{{ response.sellOnGoogleQuantity }}'
+        shipping: '{{ response.shipping }}'
+        shippingHeight: '{{ response.shippingHeight }}'
+        shippingLabel: '{{ response.shippingLabel }}'
+        shippingLength: '{{ response.shippingLength }}'
+        shippingWeight: '{{ response.shippingWeight }}'
+        shippingWidth: '{{ response.shippingWidth }}'
+        shoppingAdsExcludedCountries: '{{ response.shoppingAdsExcludedCountries }}'
+        sizeSystem: '{{ response.sizeSystem }}'
+        sizeType: '{{ response.sizeType }}'
+        sizes: '{{ response.sizes }}'
+        source: '{{ response.source }}'
+        structuredDescription: '{{ response.structuredDescription }}'
+        structuredTitle: '{{ response.structuredTitle }}'
+        subscriptionCost: '{{ response.subscriptionCost }}'
+        sustainabilityIncentives: '{{ response.sustainabilityIncentives }}'
+        targetCountry: '{{ response.targetCountry }}'
+        taxCategory: '{{ response.taxCategory }}'
+        taxes: '{{ response.taxes }}'
+        title: '{{ response.title }}'
+        transitTimeLabel: '{{ response.transitTimeLabel }}'
+        unitPricingBaseMeasure: '{{ response.unitPricingBaseMeasure }}'
+        unitPricingMeasure: '{{ response.unitPricingMeasure }}'
+        virtualModelLink: '{{ response.virtualModelLink }}'
+    # required_params: ['merchantId', 'productId']
+  # Lists the products in your Merchant Center account. The response might contain fewer items than spec
+  # ── gcp.content.products.list [dependent] ──
+  - discovery_id: gcp.content.products.list
+    for_each: gcp.content.conversionsources.list
+    # python: svc.products().list(**params).execute()
+    calls:
+      - action: products.list
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.products }}'
+      item:
+        additionalImageLinks: '{{ item.additionalImageLinks }}'
+        additionalSizeType: '{{ item.additionalSizeType }}'
+        adsGrouping: '{{ item.adsGrouping }}'
+        adsLabels: '{{ item.adsLabels }}'
+        adsRedirect: '{{ item.adsRedirect }}'
+        adult: '{{ item.adult }}'
+        ageGroup: '{{ item.ageGroup }}'
+        autoPricingMinPrice: '{{ item.autoPricingMinPrice }}'
+        availability: '{{ item.availability }}'
+        availabilityDate: '{{ item.availabilityDate }}'
+        brand: '{{ item.brand }}'
+        canonicalLink: '{{ item.canonicalLink }}'
+        certifications: '{{ item.certifications }}'
+        channel: '{{ item.channel }}'
+        cloudExportAdditionalProperties: '{{ item.cloudExportAdditionalProperties }}'
+        color: '{{ item.color }}'
+        condition: '{{ item.condition }}'
+        contentLanguage: '{{ item.contentLanguage }}'
+        costOfGoodsSold: '{{ item.costOfGoodsSold }}'
+        customAttributes: '{{ item.customAttributes }}'
+        customLabel0: '{{ item.customLabel0 }}'
+        customLabel1: '{{ item.customLabel1 }}'
+        customLabel2: '{{ item.customLabel2 }}'
+        customLabel3: '{{ item.customLabel3 }}'
+        customLabel4: '{{ item.customLabel4 }}'
+        description: '{{ item.description }}'
+        disclosureDate: '{{ item.disclosureDate }}'
+        displayAdsId: '{{ item.displayAdsId }}'
+        displayAdsLink: '{{ item.displayAdsLink }}'
+        displayAdsSimilarIds: '{{ item.displayAdsSimilarIds }}'
+        displayAdsTitle: '{{ item.displayAdsTitle }}'
+        displayAdsValue: '{{ item.displayAdsValue }}'
+        energyEfficiencyClass: '{{ item.energyEfficiencyClass }}'
+        excludedDestinations: '{{ item.excludedDestinations }}'
+        expirationDate: '{{ item.expirationDate }}'
+        externalSellerId: '{{ item.externalSellerId }}'
+        feedLabel: '{{ item.feedLabel }}'
+        freeShippingThreshold: '{{ item.freeShippingThreshold }}'
+        gender: '{{ item.gender }}'
+        googleProductCategory: '{{ item.googleProductCategory }}'
+        gtin: '{{ item.gtin }}'
+        id: '{{ item.id }}'
+        identifierExists: '{{ item.identifierExists }}'
+        imageLink: '{{ item.imageLink }}'
+        includedDestinations: '{{ item.includedDestinations }}'
+        installment: '{{ item.installment }}'
+        isBundle: '{{ item.isBundle }}'
+        itemGroupId: '{{ item.itemGroupId }}'
+        lifestyleImageLinks: '{{ item.lifestyleImageLinks }}'
+        link: '{{ item.link }}'
+        linkTemplate: '{{ item.linkTemplate }}'
+        loyaltyProgram: '{{ item.loyaltyProgram }}'
+        loyaltyPrograms: '{{ item.loyaltyPrograms }}'
+        material: '{{ item.material }}'
+        maxEnergyEfficiencyClass: '{{ item.maxEnergyEfficiencyClass }}'
+        maxHandlingTime: '{{ item.maxHandlingTime }}'
+        maximumRetailPrice: '{{ item.maximumRetailPrice }}'
+        minEnergyEfficiencyClass: '{{ item.minEnergyEfficiencyClass }}'
+        minHandlingTime: '{{ item.minHandlingTime }}'
+        mobileLink: '{{ item.mobileLink }}'
+        mobileLinkTemplate: '{{ item.mobileLinkTemplate }}'
+        mpn: '{{ item.mpn }}'
+        multipack: '{{ item.multipack }}'
+        offerId: '{{ item.offerId }}'
+        pattern: '{{ item.pattern }}'
+        pause: '{{ item.pause }}'
+        pickupMethod: '{{ item.pickupMethod }}'
+        pickupSla: '{{ item.pickupSla }}'
+        price: '{{ item.price }}'
+        productDetails: '{{ item.productDetails }}'
+        productHeight: '{{ item.productHeight }}'
+        productHighlights: '{{ item.productHighlights }}'
+        productLength: '{{ item.productLength }}'
+        productTypes: '{{ item.productTypes }}'
+        productWeight: '{{ item.productWeight }}'
+        productWidth: '{{ item.productWidth }}'
+        promotionIds: '{{ item.promotionIds }}'
+        salePrice: '{{ item.salePrice }}'
+        salePriceEffectiveDate: '{{ item.salePriceEffectiveDate }}'
+        sellOnGoogleQuantity: '{{ item.sellOnGoogleQuantity }}'
+        shipping: '{{ item.shipping }}'
+        shippingHeight: '{{ item.shippingHeight }}'
+        shippingLabel: '{{ item.shippingLabel }}'
+        shippingLength: '{{ item.shippingLength }}'
+        shippingWeight: '{{ item.shippingWeight }}'
+        shippingWidth: '{{ item.shippingWidth }}'
+        shoppingAdsExcludedCountries: '{{ item.shoppingAdsExcludedCountries }}'
+        sizeSystem: '{{ item.sizeSystem }}'
+        sizeType: '{{ item.sizeType }}'
+        sizes: '{{ item.sizes }}'
+        source: '{{ item.source }}'
+        structuredDescription: '{{ item.structuredDescription }}'
+        structuredTitle: '{{ item.structuredTitle }}'
+        subscriptionCost: '{{ item.subscriptionCost }}'
+        sustainabilityIncentives: '{{ item.sustainabilityIncentives }}'
+        targetCountry: '{{ item.targetCountry }}'
+        taxCategory: '{{ item.taxCategory }}'
+        taxes: '{{ item.taxes }}'
+        title: '{{ item.title }}'
+        transitTimeLabel: '{{ item.transitTimeLabel }}'
+        unitPricingBaseMeasure: '{{ item.unitPricingBaseMeasure }}'
+        unitPricingMeasure: '{{ item.unitPricingMeasure }}'
+        virtualModelLink: '{{ item.virtualModelLink }}'
+    # required_params: ['merchantId']
+  # Gets the status of a product from your Merchant Center account.
+  # ── gcp.content.productstatuses.get [dependent] ──
+  - discovery_id: gcp.content.productstatuses.get
+    for_each: gcp.content.products.list
+    # python: svc.productstatuses().get(**params).execute()
+    calls:
+      - action: productstatuses.get
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+          productId: '{{ item.id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        creationDate: '{{ response.creationDate }}'
+        destinationStatuses: '{{ response.destinationStatuses }}'
+        googleExpirationDate: '{{ response.googleExpirationDate }}'
+        itemLevelIssues: '{{ response.itemLevelIssues }}'
+        lastUpdateDate: '{{ response.lastUpdateDate }}'
+        link: '{{ response.link }}'
+        productId: '{{ response.productId }}'
+        title: '{{ response.title }}'
+    # required_params: ['merchantId', 'productId']
+  # Lists the statuses of the products in your Merchant Center account.
+  # ── gcp.content.productstatuses.list [dependent] ──
+  - discovery_id: gcp.content.productstatuses.list
+    for_each: gcp.content.conversionsources.list
+    # python: svc.productstatuses().list(**params).execute()
+    calls:
+      - action: productstatuses.list
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.productstatuses }}'
+      item:
+        creationDate: '{{ item.creationDate }}'
+        destinationStatuses: '{{ item.destinationStatuses }}'
+        googleExpirationDate: '{{ item.googleExpirationDate }}'
+        itemLevelIssues: '{{ item.itemLevelIssues }}'
+        lastUpdateDate: '{{ item.lastUpdateDate }}'
+        link: '{{ item.link }}'
+        productId: '{{ item.productId }}'
+        title: '{{ item.title }}'
+    # required_params: ['merchantId']
+  # Retrieves a promotion from your Merchant Center account.
+  # ── gcp.content.promotions.get [dependent] ──
+  - discovery_id: gcp.content.promotions.get
+    for_each: gcp.content.accounts.list
+    # python: svc.promotions().get(**params).execute()
+    calls:
+      - action: promotions.get
+        params:
+          id: '{{ item.name }}'
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        brand: '{{ response.brand }}'
+        brandExclusion: '{{ response.brandExclusion }}'
+        contentLanguage: '{{ response.contentLanguage }}'
+        couponValueType: '{{ response.couponValueType }}'
+        customRedemptionRestriction: '{{ response.customRedemptionRestriction }}'
+        freeGiftDescription: '{{ response.freeGiftDescription }}'
+        freeGiftItemId: '{{ response.freeGiftItemId }}'
+        freeGiftValue: '{{ response.freeGiftValue }}'
+        genericRedemptionCode: '{{ response.genericRedemptionCode }}'
+        getThisQuantityDiscounted: '{{ response.getThisQuantityDiscounted }}'
+        id: '{{ response.id }}'
+        itemGroupId: '{{ response.itemGroupId }}'
+        itemGroupIdExclusion: '{{ response.itemGroupIdExclusion }}'
+        itemId: '{{ response.itemId }}'
+        itemIdExclusion: '{{ response.itemIdExclusion }}'
+        limitQuantity: '{{ response.limitQuantity }}'
+        limitValue: '{{ response.limitValue }}'
+        longTitle: '{{ response.longTitle }}'
+        maxDiscountAmount: '{{ response.maxDiscountAmount }}'
+        minimumPurchaseAmount: '{{ response.minimumPurchaseAmount }}'
+        minimumPurchaseQuantity: '{{ response.minimumPurchaseQuantity }}'
+        moneyBudget: '{{ response.moneyBudget }}'
+        moneyOffAmount: '{{ response.moneyOffAmount }}'
+        offerType: '{{ response.offerType }}'
+        orderLimit: '{{ response.orderLimit }}'
+        percentOff: '{{ response.percentOff }}'
+        productApplicability: '{{ response.productApplicability }}'
+        productType: '{{ response.productType }}'
+        productTypeExclusion: '{{ response.productTypeExclusion }}'
+        promotionDestinationIds: '{{ response.promotionDestinationIds }}'
+        promotionDisplayDates: '{{ response.promotionDisplayDates }}'
+        promotionDisplayTimePeriod: '{{ response.promotionDisplayTimePeriod }}'
+        promotionEffectiveDates: '{{ response.promotionEffectiveDates }}'
+        promotionEffectiveTimePeriod: '{{ response.promotionEffectiveTimePeriod }}'
+        promotionId: '{{ response.promotionId }}'
+        promotionStatus: '{{ response.promotionStatus }}'
+        promotionUrl: '{{ response.promotionUrl }}'
+        redemptionChannel: '{{ response.redemptionChannel }}'
+        redemptionRestriction: '{{ response.redemptionRestriction }}'
+        shippingServiceNames: '{{ response.shippingServiceNames }}'
+        storeApplicability: '{{ response.storeApplicability }}'
+        storeCode: '{{ response.storeCode }}'
+        storeCodeExclusion: '{{ response.storeCodeExclusion }}'
+        targetCountry: '{{ response.targetCountry }}'
+    # required_params: ['merchantId', 'id']
+  # List all promotions from your Merchant Center account.
+  # ── gcp.content.promotions.list [dependent] ──
+  - discovery_id: gcp.content.promotions.list
+    for_each: gcp.content.conversionsources.list
+    # python: svc.promotions().list(**params).execute()
+    calls:
+      - action: promotions.list
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.promotions }}'
+      item:
+        brand: '{{ item.brand }}'
+        brandExclusion: '{{ item.brandExclusion }}'
+        contentLanguage: '{{ item.contentLanguage }}'
+        couponValueType: '{{ item.couponValueType }}'
+        customRedemptionRestriction: '{{ item.customRedemptionRestriction }}'
+        freeGiftDescription: '{{ item.freeGiftDescription }}'
+        freeGiftItemId: '{{ item.freeGiftItemId }}'
+        freeGiftValue: '{{ item.freeGiftValue }}'
+        genericRedemptionCode: '{{ item.genericRedemptionCode }}'
+        getThisQuantityDiscounted: '{{ item.getThisQuantityDiscounted }}'
+        id: '{{ item.id }}'
+        itemGroupId: '{{ item.itemGroupId }}'
+        itemGroupIdExclusion: '{{ item.itemGroupIdExclusion }}'
+        itemId: '{{ item.itemId }}'
+        itemIdExclusion: '{{ item.itemIdExclusion }}'
+        limitQuantity: '{{ item.limitQuantity }}'
+        limitValue: '{{ item.limitValue }}'
+        longTitle: '{{ item.longTitle }}'
+        maxDiscountAmount: '{{ item.maxDiscountAmount }}'
+        minimumPurchaseAmount: '{{ item.minimumPurchaseAmount }}'
+        minimumPurchaseQuantity: '{{ item.minimumPurchaseQuantity }}'
+        moneyBudget: '{{ item.moneyBudget }}'
+        moneyOffAmount: '{{ item.moneyOffAmount }}'
+        offerType: '{{ item.offerType }}'
+        orderLimit: '{{ item.orderLimit }}'
+        percentOff: '{{ item.percentOff }}'
+        productApplicability: '{{ item.productApplicability }}'
+        productType: '{{ item.productType }}'
+        productTypeExclusion: '{{ item.productTypeExclusion }}'
+        promotionDestinationIds: '{{ item.promotionDestinationIds }}'
+        promotionDisplayDates: '{{ item.promotionDisplayDates }}'
+        promotionDisplayTimePeriod: '{{ item.promotionDisplayTimePeriod }}'
+        promotionEffectiveDates: '{{ item.promotionEffectiveDates }}'
+        promotionEffectiveTimePeriod: '{{ item.promotionEffectiveTimePeriod }}'
+        promotionId: '{{ item.promotionId }}'
+        promotionStatus: '{{ item.promotionStatus }}'
+        promotionUrl: '{{ item.promotionUrl }}'
+        redemptionChannel: '{{ item.redemptionChannel }}'
+        redemptionRestriction: '{{ item.redemptionRestriction }}'
+        shippingServiceNames: '{{ item.shippingServiceNames }}'
+        storeApplicability: '{{ item.storeApplicability }}'
+        storeCode: '{{ item.storeCode }}'
+        storeCodeExclusion: '{{ item.storeCodeExclusion }}'
+        targetCountry: '{{ item.targetCountry }}'
+    # required_params: ['merchantId']
+  # Retrieves a Merchant Center account's pubsub notification settings.
+  # ── gcp.content.pubsubnotificationsettings.get [dependent] ──
+  - discovery_id: gcp.content.pubsubnotificationsettings.get
+    for_each: gcp.content.conversionsources.list
+    # python: svc.pubsubnotificationsettings().get(**params).execute()
+    calls:
+      - action: pubsubnotificationsettings.get
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        cloudTopicName: '{{ response.cloudTopicName }}'
+        registeredEvents: '{{ response.registeredEvents }}'
+    # required_params: ['merchantId']
+  # Lists the daily call quota and usage per method for your Merchant Center account.
+  # ── gcp.content.quotas.list [dependent] ──
+  - discovery_id: gcp.content.quotas.list
+    for_each: gcp.content.conversionsources.list
+    # python: svc.quotas().list(**params).execute()
+    calls:
+      - action: quotas.list
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.quotas }}'
+      item:
+        method: '{{ item.method }}'
+        quotaLimit: '{{ item.quotaLimit }}'
+        quotaMinuteLimit: '{{ item.quotaMinuteLimit }}'
+        quotaUsage: '{{ item.quotaUsage }}'
+    # required_params: ['merchantId']
+  # Generates recommendations for a merchant.
+  # ── gcp.content.recommendations.generate [dependent] ──
+  - discovery_id: gcp.content.recommendations.generate
+    for_each: gcp.content.conversionsources.list
+    # python: svc.recommendations().generate(**params).execute()
+    calls:
+      - action: recommendations.generate
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        recommendations: '{{ response.recommendations }}'
+        responseToken: '{{ response.responseToken }}'
+    # required_params: ['merchantId']
+  # Retrieves a region defined in your Merchant Center account.
+  # ── gcp.content.regions.get [dependent] ──
+  - discovery_id: gcp.content.regions.get
+    for_each: gcp.content.regions.list
+    # python: svc.regions().get(**params).execute()
+    calls:
+      - action: regions.get
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+          regionId: '{{ item.regionId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        displayName: '{{ response.displayName }}'
+        geotargetArea: '{{ response.geotargetArea }}'
+        merchantId: '{{ response.merchantId }}'
+        postalCodeArea: '{{ response.postalCodeArea }}'
+        regionId: '{{ response.regionId }}'
+        regionalInventoryEligible: '{{ response.regionalInventoryEligible }}'
+        shippingEligible: '{{ response.shippingEligible }}'
+    # required_params: ['merchantId', 'regionId']
+  # Lists the regions in your Merchant Center account.
+  # ── gcp.content.regions.list [dependent] ──
+  - discovery_id: gcp.content.regions.list
+    for_each: gcp.content.conversionsources.list
+    # python: svc.regions().list(**params).execute()
+    calls:
+      - action: regions.list
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.regions }}'
+      item:
+        displayName: '{{ item.displayName }}'
+        geotargetArea: '{{ item.geotargetArea }}'
+        merchantId: '{{ item.merchantId }}'
+        postalCodeArea: '{{ item.postalCodeArea }}'
+        regionId: '{{ item.regionId }}'
+        regionalInventoryEligible: '{{ item.regionalInventoryEligible }}'
+        shippingEligible: '{{ item.shippingEligible }}'
+    # required_params: ['merchantId']
+  # Retrieves merchant performance metrics matching the search query and optionally segmented by selecte
+  # ── gcp.content.reports.search [dependent] ──
+  - discovery_id: gcp.content.reports.search
+    for_each: gcp.content.conversionsources.list
+    # python: svc.reports().search(**params).execute()
+    calls:
+      - action: reports.search
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.reports }}'
+      item:
+        bestSellers: '{{ item.bestSellers }}'
+        brand: '{{ item.brand }}'
+        competitiveVisibility: '{{ item.competitiveVisibility }}'
+        metrics: '{{ item.metrics }}'
+        priceCompetitiveness: '{{ item.priceCompetitiveness }}'
+        priceInsights: '{{ item.priceInsights }}'
+        productCluster: '{{ item.productCluster }}'
+        productView: '{{ item.productView }}'
+        segments: '{{ item.segments }}'
+        topicTrends: '{{ item.topicTrends }}'
+    # required_params: ['merchantId']
+  # Gets an existing return policy.
+  # ── gcp.content.returnpolicyonline.get [dependent] ──
+  - discovery_id: gcp.content.returnpolicyonline.get
+    for_each: gcp.content.returnpolicyonline.list
+    # python: svc.returnpolicyonline().get(**params).execute()
+    calls:
+      - action: returnpolicyonline.get
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+          returnPolicyId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        countries: '{{ response.countries }}'
+        itemConditions: '{{ response.itemConditions }}'
+        label: '{{ response.label }}'
+        name: '{{ response.name }}'
+        policy: '{{ response.policy }}'
+        restockingFee: '{{ response.restockingFee }}'
+        returnMethods: '{{ response.returnMethods }}'
+        returnPolicyId: '{{ response.returnPolicyId }}'
+        returnPolicyUri: '{{ response.returnPolicyUri }}'
+        returnReasonCategoryInfo: '{{ response.returnReasonCategoryInfo }}'
+    # required_params: ['merchantId', 'returnPolicyId']
+  # Lists all existing return policies.
+  # ── gcp.content.returnpolicyonline.list [dependent] ──
+  - discovery_id: gcp.content.returnpolicyonline.list
+    for_each: gcp.content.conversionsources.list
+    # python: svc.returnpolicyonline().list(**params).execute()
+    calls:
+      - action: returnpolicyonline.list
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.returnpolicyonline }}'
+      item:
+        countries: '{{ item.countries }}'
+        itemConditions: '{{ item.itemConditions }}'
+        label: '{{ item.label }}'
+        name: '{{ item.name }}'
+        policy: '{{ item.policy }}'
+        restockingFee: '{{ item.restockingFee }}'
+        returnMethods: '{{ item.returnMethods }}'
+        returnPolicyId: '{{ item.returnPolicyId }}'
+        returnPolicyUri: '{{ item.returnPolicyUri }}'
+        returnReasonCategoryInfo: '{{ item.returnReasonCategoryInfo }}'
+    # required_params: ['merchantId']
+  # Retrieves the shipping settings of the account.
+  # ── gcp.content.shippingsettings.get [dependent] ──
+  - discovery_id: gcp.content.shippingsettings.get
+    for_each: gcp.content.conversionsources.list
+    # python: svc.shippingsettings().get(**params).execute()
+    calls:
+      - action: shippingsettings.get
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accountId: '{{ response.accountId }}'
+        postalCodeGroups: '{{ response.postalCodeGroups }}'
+        services: '{{ response.services }}'
+        warehouses: '{{ response.warehouses }}'
+    # required_params: ['merchantId', 'accountId']
+  # Retrieves supported carriers and carrier services for an account.
+  # ── gcp.content.shippingsettings.getsupportedcarriers [dependent] ──
+  - discovery_id: gcp.content.shippingsettings.getsupportedcarriers
+    for_each: gcp.content.conversionsources.list
+    # python: svc.shippingsettings().getsupportedcarriers(**params).execute()
+    calls:
+      - action: shippingsettings.getsupportedcarriers
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        carriers: '{{ response.carriers }}'
+    # required_params: ['merchantId']
+  # Retrieves supported holidays for an account.
+  # ── gcp.content.shippingsettings.getsupportedholidays [dependent] ──
+  - discovery_id: gcp.content.shippingsettings.getsupportedholidays
+    for_each: gcp.content.conversionsources.list
+    # python: svc.shippingsettings().getsupportedholidays(**params).execute()
+    calls:
+      - action: shippingsettings.getsupportedholidays
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        holidays: '{{ response.holidays }}'
+    # required_params: ['merchantId']
+  # Retrieves supported pickup services for an account.
+  # ── gcp.content.shippingsettings.getsupportedpickupservices [dependent] ──
+  - discovery_id: gcp.content.shippingsettings.getsupportedpickupservices
+    for_each: gcp.content.conversionsources.list
+    # python: svc.shippingsettings().getsupportedpickupservices(**params).execute()
+    calls:
+      - action: shippingsettings.getsupportedpickupservices
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        pickupServices: '{{ response.pickupServices }}'
+    # required_params: ['merchantId']
+  # Lists the shipping settings of the sub-accounts in your Merchant Center account.
+  # ── gcp.content.shippingsettings.list [dependent] ──
+  - discovery_id: gcp.content.shippingsettings.list
+    for_each: gcp.content.conversionsources.list
+    # python: svc.shippingsettings().list(**params).execute()
+    calls:
+      - action: shippingsettings.list
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.shippingsettings }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        postalCodeGroups: '{{ item.postalCodeGroups }}'
+        services: '{{ item.services }}'
+        warehouses: '{{ item.warehouses }}'
+    # required_params: ['merchantId']
+  # Retrieves the status and review eligibility for the Shopping Ads program. Returns errors and warning
+  # ── gcp.content.shoppingadsprogram.get [dependent] ──
+  - discovery_id: gcp.content.shoppingadsprogram.get
+    for_each: gcp.content.conversionsources.list
+    # python: svc.shoppingadsprogram().get(**params).execute()
+    calls:
+      - action: shoppingadsprogram.get
+        params:
+          merchantId: '{{ item.conversionSourceId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        globalState: '{{ response.globalState }}'
+        regionStatuses: '{{ response.regionStatuses }}'
+    # required_params: ['merchantId']

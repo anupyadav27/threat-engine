@@ -1,0 +1,644 @@
+# ============================================================
+# Discovery YAML — appengine (v1)
+# Generated: 2026-02-21T03:06:38Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 24 | independent: 0 | dependent: 24
+# ops with fields: 24/24 | dep ops with chain: 18/24
+# ============================================================
+version: '1.0'
+provider: gcp
+service: appengine
+
+services:
+  client: appengine
+  module: "googleapiclient.discovery.build('appengine', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets the specified SSL certificate.
+  # ── gcp.appengine.apps.authorizedCertificates.get [dependent] ──
+  - discovery_id: gcp.appengine.apps.authorizedCertificates.get
+    for_each: gcp.appengine.projects.locations.applications.authorizedCertificates.list
+    # python: svc.apps().authorizedCertificates().get(**params).execute()
+    calls:
+      - action: apps.authorizedCertificates.get
+        params:
+          appsId: '{{ item.name }}'
+          authorizedCertificatesId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        certificateRawData: '{{ response.certificateRawData }}'
+        displayName: '{{ response.displayName }}'
+        domainMappingsCount: '{{ response.domainMappingsCount }}'
+        domainNames: '{{ response.domainNames }}'
+        expireTime: '{{ response.expireTime }}'
+        id: '{{ response.id }}'
+        managedCertificate: '{{ response.managedCertificate }}'
+        name: '{{ response.name }}'
+        visibleDomainMappings: '{{ response.visibleDomainMappings }}'
+    # required_params: ['authorizedCertificatesId', 'appsId']
+  # Lists all SSL certificates the user is authorized to administer.
+  # ── gcp.appengine.apps.authorizedCertificates.list [dependent] ──
+  - discovery_id: gcp.appengine.apps.authorizedCertificates.list
+    for_each: gcp.appengine.apps.listRuntimes
+    # python: svc.apps().authorizedCertificates().list(**params).execute()
+    calls:
+      - action: apps.authorizedCertificates.list
+        params:
+          appsId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.authorizedCertificates }}'
+      item:
+        certificateRawData: '{{ item.certificateRawData }}'
+        displayName: '{{ item.displayName }}'
+        domainMappingsCount: '{{ item.domainMappingsCount }}'
+        domainNames: '{{ item.domainNames }}'
+        expireTime: '{{ item.expireTime }}'
+        id: '{{ item.id }}'
+        managedCertificate: '{{ item.managedCertificate }}'
+        name: '{{ item.name }}'
+        visibleDomainMappings: '{{ item.visibleDomainMappings }}'
+    # required_params: ['appsId']
+  # Lists all domains the user is authorized to administer.
+  # ── gcp.appengine.apps.authorizedDomains.list [dependent] ──
+  - discovery_id: gcp.appengine.apps.authorizedDomains.list
+    for_each: gcp.appengine.apps.listRuntimes
+    # python: svc.apps().authorizedDomains().list(**params).execute()
+    calls:
+      - action: apps.authorizedDomains.list
+        params:
+          appsId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.authorizedDomains }}'
+      item:
+        id: '{{ item.id }}'
+        name: '{{ item.name }}'
+    # required_params: ['appsId']
+  # Gets the specified domain mapping.
+  # ── gcp.appengine.apps.domainMappings.get [dependent] ──
+  - discovery_id: gcp.appengine.apps.domainMappings.get
+    for_each: gcp.appengine.projects.locations.applications.domainMappings.list
+    # python: svc.apps().domainMappings().get(**params).execute()
+    calls:
+      - action: apps.domainMappings.get
+        params:
+          appsId: '{{ item.name }}'
+          domainMappingsId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        id: '{{ response.id }}'
+        name: '{{ response.name }}'
+        resourceRecords: '{{ response.resourceRecords }}'
+        sslSettings: '{{ response.sslSettings }}'
+    # required_params: ['domainMappingsId', 'appsId']
+  # Lists the domain mappings on an application.
+  # ── gcp.appengine.apps.domainMappings.list [dependent] ──
+  - discovery_id: gcp.appengine.apps.domainMappings.list
+    for_each: gcp.appengine.apps.listRuntimes
+    # python: svc.apps().domainMappings().list(**params).execute()
+    calls:
+      - action: apps.domainMappings.list
+        params:
+          appsId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.domainMappings }}'
+      item:
+        id: '{{ item.id }}'
+        name: '{{ item.name }}'
+        resourceRecords: '{{ item.resourceRecords }}'
+        sslSettings: '{{ item.sslSettings }}'
+    # required_params: ['appsId']
+  # Gets the specified firewall rule.
+  # ── gcp.appengine.apps.firewall.ingressRules.get [dependent] ──
+  - discovery_id: gcp.appengine.apps.firewall.ingressRules.get
+    for_each: gcp.appengine.apps.firewall.ingressRules.list
+    # python: svc.apps().firewall().ingressRules().get(**params).execute()
+    calls:
+      - action: apps.firewall.ingressRules.get
+        params:
+          appsId: '{{ item.name }}'
+          ingressRulesId: '{{ item.description }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        action: '{{ response.action }}'
+        description: '{{ response.description }}'
+        priority: '{{ response.priority }}'
+        sourceRange: '{{ response.sourceRange }}'
+    # required_params: ['appsId', 'ingressRulesId']
+  # Lists the firewall rules of an application.
+  # ── gcp.appengine.apps.firewall.ingressRules.list [dependent] ──
+  - discovery_id: gcp.appengine.apps.firewall.ingressRules.list
+    for_each: gcp.appengine.apps.listRuntimes
+    # python: svc.apps().firewall().ingressRules().list(**params).execute()
+    calls:
+      - action: apps.firewall.ingressRules.list
+        params:
+          appsId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ingressRules }}'
+      item:
+        action: '{{ item.action }}'
+        description: '{{ item.description }}'
+        priority: '{{ item.priority }}'
+        sourceRange: '{{ item.sourceRange }}'
+    # required_params: ['appsId']
+  # Gets information about an application.
+  # ── gcp.appengine.apps.get [dependent] ──
+  - discovery_id: gcp.appengine.apps.get
+    for_each: gcp.appengine.apps.listRuntimes
+    # python: svc.apps().get(**params).execute()
+    calls:
+      - action: apps.get
+        params:
+          appsId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        authDomain: '{{ response.authDomain }}'
+        codeBucket: '{{ response.codeBucket }}'
+        databaseType: '{{ response.databaseType }}'
+        defaultBucket: '{{ response.defaultBucket }}'
+        defaultCookieExpiration: '{{ response.defaultCookieExpiration }}'
+        defaultHostname: '{{ response.defaultHostname }}'
+        dispatchRules: '{{ response.dispatchRules }}'
+        featureSettings: '{{ response.featureSettings }}'
+        gcrDomain: '{{ response.gcrDomain }}'
+        generatedCustomerMetadata: '{{ response.generatedCustomerMetadata }}'
+        iap: '{{ response.iap }}'
+        id: '{{ response.id }}'
+        locationId: '{{ response.locationId }}'
+        name: '{{ response.name }}'
+        serviceAccount: '{{ response.serviceAccount }}'
+        servingStatus: '{{ response.servingStatus }}'
+        sslPolicy: '{{ response.sslPolicy }}'
+    # required_params: ['appsId']
+  # Lists all the available runtimes for the application.
+  # ── gcp.appengine.apps.listRuntimes [dependent] ──
+  - discovery_id: gcp.appengine.apps.listRuntimes
+    # python: svc.apps().listRuntimes(**params).execute()
+    calls:
+      - action: apps.listRuntimes
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.apps }}'
+      item:
+        decommissionedDate: '{{ item.decommissionedDate }}'
+        deprecationDate: '{{ item.deprecationDate }}'
+        displayName: '{{ item.displayName }}'
+        endOfSupportDate: '{{ item.endOfSupportDate }}'
+        environment: '{{ item.environment }}'
+        name: '{{ item.name }}'
+        stage: '{{ item.stage }}'
+        supportedOperatingSystems: '{{ item.supportedOperatingSystems }}'
+    # required_params: ['appsId']
+  # Gets information about a location.
+  # ── gcp.appengine.apps.locations.get [dependent] ──
+  - discovery_id: gcp.appengine.apps.locations.get
+    for_each: gcp.appengine.apps.locations.list
+    # python: svc.apps().locations().get(**params).execute()
+    calls:
+      - action: apps.locations.get
+        params:
+          appsId: '{{ item.name }}'
+          locationsId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        displayName: '{{ response.displayName }}'
+        labels: '{{ response.labels }}'
+        locationId: '{{ response.locationId }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+    # required_params: ['locationsId', 'appsId']
+  # Lists information about the supported locations for this service. This method can be called in two w
+  # ── gcp.appengine.apps.locations.list [dependent] ──
+  - discovery_id: gcp.appengine.apps.locations.list
+    for_each: gcp.appengine.apps.listRuntimes
+    # python: svc.apps().locations().list(**params).execute()
+    calls:
+      - action: apps.locations.list
+        params:
+          appsId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.locations }}'
+      item:
+        displayName: '{{ item.displayName }}'
+        labels: '{{ item.labels }}'
+        locationId: '{{ item.locationId }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+    # required_params: ['appsId']
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.appengine.apps.operations.get [dependent] ──
+  - discovery_id: gcp.appengine.apps.operations.get
+    for_each: gcp.appengine.apps.operations.list
+    # python: svc.apps().operations().get(**params).execute()
+    calls:
+      - action: apps.operations.get
+        params:
+          appsId: '{{ item.name }}'
+          operationsId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['operationsId', 'appsId']
+  # Lists operations that match the specified filter in the request. If the server doesn't support this 
+  # ── gcp.appengine.apps.operations.list [dependent] ──
+  - discovery_id: gcp.appengine.apps.operations.list
+    for_each: gcp.appengine.apps.listRuntimes
+    # python: svc.apps().operations().list(**params).execute()
+    calls:
+      - action: apps.operations.list
+        params:
+          appsId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.operations }}'
+      item:
+        done: '{{ item.done }}'
+        error: '{{ item.error }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+        response: '{{ item.response }}'
+    # required_params: ['appsId']
+  # Gets the current configuration of the specified service.
+  # ── gcp.appengine.apps.services.get [dependent] ──
+  - discovery_id: gcp.appengine.apps.services.get
+    for_each: gcp.appengine.apps.services.list
+    # python: svc.apps().services().get(**params).execute()
+    calls:
+      - action: apps.services.get
+        params:
+          appsId: '{{ item.name }}'
+          servicesId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        generatedCustomerMetadata: '{{ response.generatedCustomerMetadata }}'
+        id: '{{ response.id }}'
+        labels: '{{ response.labels }}'
+        name: '{{ response.name }}'
+        networkSettings: '{{ response.networkSettings }}'
+        split: '{{ response.split }}'
+    # required_params: ['servicesId', 'appsId']
+  # Lists all the services in the application.
+  # ── gcp.appengine.apps.services.list [dependent] ──
+  - discovery_id: gcp.appengine.apps.services.list
+    for_each: gcp.appengine.apps.listRuntimes
+    # python: svc.apps().services().list(**params).execute()
+    calls:
+      - action: apps.services.list
+        params:
+          appsId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.services }}'
+      item:
+        generatedCustomerMetadata: '{{ item.generatedCustomerMetadata }}'
+        id: '{{ item.id }}'
+        labels: '{{ item.labels }}'
+        name: '{{ item.name }}'
+        networkSettings: '{{ item.networkSettings }}'
+        split: '{{ item.split }}'
+    # required_params: ['appsId']
+  # Gets the specified Version resource. By default, only a BASIC_VIEW will be returned. Specify the FUL
+  # ── gcp.appengine.apps.services.versions.get [dependent] ──
+  - discovery_id: gcp.appengine.apps.services.versions.get
+    for_each: gcp.appengine.apps.services.versions.list
+    # python: svc.apps().services().versions().get(**params).execute()
+    calls:
+      - action: apps.services.versions.get
+        params:
+          appsId: '{{ item.name }}'
+          servicesId: '{{ item.name }}'
+          versionsId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        apiConfig: '{{ response.apiConfig }}'
+        appEngineApis: '{{ response.appEngineApis }}'
+        automaticScaling: '{{ response.automaticScaling }}'
+        basicScaling: '{{ response.basicScaling }}'
+        betaSettings: '{{ response.betaSettings }}'
+        buildEnvVariables: '{{ response.buildEnvVariables }}'
+        createTime: '{{ response.createTime }}'
+        createdBy: '{{ response.createdBy }}'
+        defaultExpiration: '{{ response.defaultExpiration }}'
+        deployment: '{{ response.deployment }}'
+        diskUsageBytes: '{{ response.diskUsageBytes }}'
+        endpointsApiService: '{{ response.endpointsApiService }}'
+        entrypoint: '{{ response.entrypoint }}'
+        env: '{{ response.env }}'
+        envVariables: '{{ response.envVariables }}'
+        errorHandlers: '{{ response.errorHandlers }}'
+        flexibleRuntimeSettings: '{{ response.flexibleRuntimeSettings }}'
+        generatedCustomerMetadata: '{{ response.generatedCustomerMetadata }}'
+        handlers: '{{ response.handlers }}'
+        healthCheck: '{{ response.healthCheck }}'
+        id: '{{ response.id }}'
+        inboundServices: '{{ response.inboundServices }}'
+        instanceClass: '{{ response.instanceClass }}'
+        libraries: '{{ response.libraries }}'
+        livenessCheck: '{{ response.livenessCheck }}'
+        manualScaling: '{{ response.manualScaling }}'
+        name: '{{ response.name }}'
+        network: '{{ response.network }}'
+        nobuildFilesRegex: '{{ response.nobuildFilesRegex }}'
+        readinessCheck: '{{ response.readinessCheck }}'
+        resources: '{{ response.resources }}'
+        runtime: '{{ response.runtime }}'
+        runtimeApiVersion: '{{ response.runtimeApiVersion }}'
+        runtimeChannel: '{{ response.runtimeChannel }}'
+        runtimeMainExecutablePath: '{{ response.runtimeMainExecutablePath }}'
+        serviceAccount: '{{ response.serviceAccount }}'
+        servingStatus: '{{ response.servingStatus }}'
+        threadsafe: '{{ response.threadsafe }}'
+        versionUrl: '{{ response.versionUrl }}'
+        vm: '{{ response.vm }}'
+        vpcAccessConnector: '{{ response.vpcAccessConnector }}'
+        zones: '{{ response.zones }}'
+    # required_params: ['versionsId', 'servicesId', 'appsId']
+  # Gets instance information.
+  # ── gcp.appengine.apps.services.versions.instances.get [dependent] ──
+  - discovery_id: gcp.appengine.apps.services.versions.instances.get
+    for_each: gcp.appengine.apps.services.versions.instances.list
+    # python: svc.apps().services().versions().instances().get(**params).execute()
+    calls:
+      - action: apps.services.versions.instances.get
+        params:
+          appsId: '{{ item.name }}'
+          instancesId: '{{ item.name }}'
+          servicesId: '{{ item.name }}'
+          versionsId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        appEngineRelease: '{{ response.appEngineRelease }}'
+        availability: '{{ response.availability }}'
+        averageLatency: '{{ response.averageLatency }}'
+        errors: '{{ response.errors }}'
+        id: '{{ response.id }}'
+        memoryUsage: '{{ response.memoryUsage }}'
+        name: '{{ response.name }}'
+        qps: '{{ response.qps }}'
+        requests: '{{ response.requests }}'
+        startTime: '{{ response.startTime }}'
+        vmDebugEnabled: '{{ response.vmDebugEnabled }}'
+        vmId: '{{ response.vmId }}'
+        vmIp: '{{ response.vmIp }}'
+        vmLiveness: '{{ response.vmLiveness }}'
+        vmName: '{{ response.vmName }}'
+        vmStatus: '{{ response.vmStatus }}'
+        vmZoneName: '{{ response.vmZoneName }}'
+    # required_params: ['instancesId', 'servicesId', 'versionsId', 'appsId']
+  # Lists the instances of a version.Tip: To aggregate details about instances over time, see the Stackd
+  # ── gcp.appengine.apps.services.versions.instances.list [dependent] ──
+  - discovery_id: gcp.appengine.apps.services.versions.instances.list
+    for_each: gcp.appengine.apps.services.versions.list
+    # python: svc.apps().services().versions().instances().list(**params).execute()
+    calls:
+      - action: apps.services.versions.instances.list
+        params:
+          appsId: '{{ item.name }}'
+          servicesId: '{{ item.name }}'
+          versionsId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.instances }}'
+      item:
+        appEngineRelease: '{{ item.appEngineRelease }}'
+        availability: '{{ item.availability }}'
+        averageLatency: '{{ item.averageLatency }}'
+        errors: '{{ item.errors }}'
+        id: '{{ item.id }}'
+        memoryUsage: '{{ item.memoryUsage }}'
+        name: '{{ item.name }}'
+        qps: '{{ item.qps }}'
+        requests: '{{ item.requests }}'
+        startTime: '{{ item.startTime }}'
+        vmDebugEnabled: '{{ item.vmDebugEnabled }}'
+        vmId: '{{ item.vmId }}'
+        vmIp: '{{ item.vmIp }}'
+        vmLiveness: '{{ item.vmLiveness }}'
+        vmName: '{{ item.vmName }}'
+        vmStatus: '{{ item.vmStatus }}'
+        vmZoneName: '{{ item.vmZoneName }}'
+    # required_params: ['versionsId', 'servicesId', 'appsId']
+  # Lists the versions of a service.
+  # ── gcp.appengine.apps.services.versions.list [dependent] ──
+  - discovery_id: gcp.appengine.apps.services.versions.list
+    for_each: gcp.appengine.apps.services.list
+    # python: svc.apps().services().versions().list(**params).execute()
+    calls:
+      - action: apps.services.versions.list
+        params:
+          appsId: '{{ item.name }}'
+          servicesId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.versions }}'
+      item:
+        apiConfig: '{{ item.apiConfig }}'
+        appEngineApis: '{{ item.appEngineApis }}'
+        automaticScaling: '{{ item.automaticScaling }}'
+        basicScaling: '{{ item.basicScaling }}'
+        betaSettings: '{{ item.betaSettings }}'
+        buildEnvVariables: '{{ item.buildEnvVariables }}'
+        createTime: '{{ item.createTime }}'
+        createdBy: '{{ item.createdBy }}'
+        defaultExpiration: '{{ item.defaultExpiration }}'
+        deployment: '{{ item.deployment }}'
+        diskUsageBytes: '{{ item.diskUsageBytes }}'
+        endpointsApiService: '{{ item.endpointsApiService }}'
+        entrypoint: '{{ item.entrypoint }}'
+        env: '{{ item.env }}'
+        envVariables: '{{ item.envVariables }}'
+        errorHandlers: '{{ item.errorHandlers }}'
+        flexibleRuntimeSettings: '{{ item.flexibleRuntimeSettings }}'
+        generatedCustomerMetadata: '{{ item.generatedCustomerMetadata }}'
+        handlers: '{{ item.handlers }}'
+        healthCheck: '{{ item.healthCheck }}'
+        id: '{{ item.id }}'
+        inboundServices: '{{ item.inboundServices }}'
+        instanceClass: '{{ item.instanceClass }}'
+        libraries: '{{ item.libraries }}'
+        livenessCheck: '{{ item.livenessCheck }}'
+        manualScaling: '{{ item.manualScaling }}'
+        name: '{{ item.name }}'
+        network: '{{ item.network }}'
+        nobuildFilesRegex: '{{ item.nobuildFilesRegex }}'
+        readinessCheck: '{{ item.readinessCheck }}'
+        resources: '{{ item.resources }}'
+        runtime: '{{ item.runtime }}'
+        runtimeApiVersion: '{{ item.runtimeApiVersion }}'
+        runtimeChannel: '{{ item.runtimeChannel }}'
+        runtimeMainExecutablePath: '{{ item.runtimeMainExecutablePath }}'
+        serviceAccount: '{{ item.serviceAccount }}'
+        servingStatus: '{{ item.servingStatus }}'
+        threadsafe: '{{ item.threadsafe }}'
+        versionUrl: '{{ item.versionUrl }}'
+        vm: '{{ item.vm }}'
+        vpcAccessConnector: '{{ item.vpcAccessConnector }}'
+        zones: '{{ item.zones }}'
+    # required_params: ['servicesId', 'appsId']
+  # Gets the specified SSL certificate.
+  # ── gcp.appengine.projects.locations.applications.authorizedCertificates.get [dependent] ──
+  - discovery_id: gcp.appengine.projects.locations.applications.authorizedCertificates.get
+    # python: svc.projects().locations().applications().authorizedCertificates().get(**params).execute()
+    calls:
+      - action: projects.locations.applications.authorizedCertificates.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        certificateRawData: '{{ response.certificateRawData }}'
+        displayName: '{{ response.displayName }}'
+        domainMappingsCount: '{{ response.domainMappingsCount }}'
+        domainNames: '{{ response.domainNames }}'
+        expireTime: '{{ response.expireTime }}'
+        id: '{{ response.id }}'
+        managedCertificate: '{{ response.managedCertificate }}'
+        name: '{{ response.name }}'
+        visibleDomainMappings: '{{ response.visibleDomainMappings }}'
+    # required_params: ['applicationsId', 'projectsId', 'locationsId', 'authorizedCertificatesId']
+  # Lists all SSL certificates the user is authorized to administer.
+  # ── gcp.appengine.projects.locations.applications.authorizedCertificates.list [dependent] ──
+  - discovery_id: gcp.appengine.projects.locations.applications.authorizedCertificates.list
+    # python: svc.projects().locations().applications().authorizedCertificates().list(**params).execute()
+    calls:
+      - action: projects.locations.applications.authorizedCertificates.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.authorizedCertificates }}'
+      item:
+        certificateRawData: '{{ item.certificateRawData }}'
+        displayName: '{{ item.displayName }}'
+        domainMappingsCount: '{{ item.domainMappingsCount }}'
+        domainNames: '{{ item.domainNames }}'
+        expireTime: '{{ item.expireTime }}'
+        id: '{{ item.id }}'
+        managedCertificate: '{{ item.managedCertificate }}'
+        name: '{{ item.name }}'
+        visibleDomainMappings: '{{ item.visibleDomainMappings }}'
+    # required_params: ['projectsId', 'locationsId', 'applicationsId']
+  # Lists all domains the user is authorized to administer.
+  # ── gcp.appengine.projects.locations.applications.authorizedDomains.list [dependent] ──
+  - discovery_id: gcp.appengine.projects.locations.applications.authorizedDomains.list
+    # python: svc.projects().locations().applications().authorizedDomains().list(**params).execute()
+    calls:
+      - action: projects.locations.applications.authorizedDomains.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.authorizedDomains }}'
+      item:
+        id: '{{ item.id }}'
+        name: '{{ item.name }}'
+    # required_params: ['locationsId', 'applicationsId', 'projectsId']
+  # Gets the specified domain mapping.
+  # ── gcp.appengine.projects.locations.applications.domainMappings.get [dependent] ──
+  - discovery_id: gcp.appengine.projects.locations.applications.domainMappings.get
+    # python: svc.projects().locations().applications().domainMappings().get(**params).execute()
+    calls:
+      - action: projects.locations.applications.domainMappings.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        id: '{{ response.id }}'
+        name: '{{ response.name }}'
+        resourceRecords: '{{ response.resourceRecords }}'
+        sslSettings: '{{ response.sslSettings }}'
+    # required_params: ['projectsId', 'applicationsId', 'locationsId', 'domainMappingsId']
+  # Lists the domain mappings on an application.
+  # ── gcp.appengine.projects.locations.applications.domainMappings.list [dependent] ──
+  - discovery_id: gcp.appengine.projects.locations.applications.domainMappings.list
+    # python: svc.projects().locations().applications().domainMappings().list(**params).execute()
+    calls:
+      - action: projects.locations.applications.domainMappings.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.domainMappings }}'
+      item:
+        id: '{{ item.id }}'
+        name: '{{ item.name }}'
+        resourceRecords: '{{ item.resourceRecords }}'
+        sslSettings: '{{ item.sslSettings }}'
+    # required_params: ['applicationsId', 'projectsId', 'locationsId']

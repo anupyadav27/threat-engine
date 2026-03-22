@@ -1,0 +1,79 @@
+# ============================================================
+# Discovery YAML — freetier (AWS)
+# Generated: 2026-02-21T04:56:58Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: freetier
+services:
+  client: freetier
+  module: boto3.client
+discovery:
+  # ── GetAccountPlanState ──
+  - discovery_id: aws.freetier.get_account_plan_state
+    calls:
+      - action: get_account_plan_state
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.accountId }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        accountPlanExpirationDate: '{{ item.accountPlanExpirationDate }}'
+        accountPlanRemainingCredits: '{{ item.accountPlanRemainingCredits }}'
+        accountPlanStatus: '{{ item.accountPlanStatus }}'
+        accountPlanType: '{{ item.accountPlanType }}'
+        amount: '{{ item.amount }}'
+        unit: '{{ item.unit }}'
+  # ── GetFreeTierUsage ──
+  - discovery_id: aws.freetier.get_free_tier_usage
+    calls:
+      - action: get_free_tier_usage
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.freeTierUsages }}'
+      item:
+        actualUsageAmount: '{{ item.actualUsageAmount }}'
+        description: '{{ item.description }}'
+        forecastedUsageAmount: '{{ item.forecastedUsageAmount }}'
+        freeTierType: '{{ item.freeTierType }}'
+        freeTierUsages: '{{ item.freeTierUsages }}'
+        limit: '{{ item.limit }}'
+        operation: '{{ item.operation }}'
+        region: '{{ item.region }}'
+        service: '{{ item.service }}'
+        unit: '{{ item.unit }}'
+        usageType: '{{ item.usageType }}'
+  # ── ListAccountActivities ──
+  - discovery_id: aws.freetier.list_account_activities
+    calls:
+      - action: list_account_activities
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.activities }}'
+      item:
+        activityId: '{{ item.activityId }}'
+        reward: '{{ item.reward }}'
+        status: '{{ item.status }}'
+        title: '{{ item.title }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── GetAccountActivity ──
+  - discovery_id: aws.freetier.get_account_activity
+    for_each: aws.freetier.list_account_activities
+    calls:
+      - action: get_account_activity
+        params:
+          activityId: '{{ item.activityId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.reward }}'
+      item:
+        credit: '{{ item.credit }}'

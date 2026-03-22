@@ -1,0 +1,51 @@
+version: '1.0'
+provider: aws
+service: dlm
+services:
+  client: dlm
+  module: boto3.client
+discovery:
+- discovery_id: aws.dlm.getLifecyclePolicies
+  calls:
+  - action: getLifecyclePolicies
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Policies }}'
+    item:
+      PolicyId: '{{ item.PolicyId }}'
+      Description: '{{ item.Description }}'
+      State: '{{ item.State }}'
+      Tags: '{{ item.Tags }}'
+      PolicyType: '{{ item.PolicyType }}'
+      DefaultPolicy: '{{ item.DefaultPolicy }}'
+- discovery_id: aws.dlm.getLifecyclePolicy
+  calls:
+  - action: getLifecyclePolicy
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Policy }}'
+    item:
+      PolicyId: '{{ item.PolicyId }}'
+      Description: '{{ item.Description }}'
+      State: '{{ item.State }}'
+      StatusMessage: '{{ item.StatusMessage }}'
+      ExecutionRoleArn: '{{ item.ExecutionRoleArn }}'
+      DateCreated: '{{ item.DateCreated }}'
+      DateModified: '{{ item.DateModified }}'
+      PolicyDetails: '{{ item.PolicyDetails }}'
+      Tags: '{{ item.Tags }}'
+      PolicyArn: '{{ item.PolicyArn }}'
+      DefaultPolicy: '{{ item.DefaultPolicy }}'
+- discovery_id: aws.dlm.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+checks: []

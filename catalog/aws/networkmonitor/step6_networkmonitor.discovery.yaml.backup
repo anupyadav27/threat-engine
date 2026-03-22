@@ -1,0 +1,60 @@
+version: '1.0'
+provider: aws
+service: networkmonitor
+services:
+  client: networkmonitor
+  module: boto3.client
+discovery:
+- discovery_id: aws.networkmonitor.listMonitors
+  calls:
+  - action: listMonitors
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.monitors }}'
+    item:
+      monitorArn: '{{ item.monitorArn }}'
+      monitorName: '{{ item.monitorName }}'
+      state: '{{ item.state }}'
+      aggregationPeriod: '{{ item.aggregationPeriod }}'
+      tags: '{{ item.tags }}'
+- discovery_id: aws.networkmonitor.getMonitor
+  calls:
+  - action: getMonitor
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.probes }}'
+    item:
+      probeId: '{{ item.probeId }}'
+      probeArn: '{{ item.probeArn }}'
+      sourceArn: '{{ item.sourceArn }}'
+      destination: '{{ item.destination }}'
+      destinationPort: '{{ item.destinationPort }}'
+      protocol: '{{ item.protocol }}'
+      packetSize: '{{ item.packetSize }}'
+      addressFamily: '{{ item.addressFamily }}'
+      vpcId: '{{ item.vpcId }}'
+      state: '{{ item.state }}'
+      createdAt: '{{ item.createdAt }}'
+      modifiedAt: '{{ item.modifiedAt }}'
+      tags: '{{ item.tags }}'
+- discovery_id: aws.networkmonitor.getProbe
+  calls:
+  - action: getProbe
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.probeId }}'
+- discovery_id: aws.networkmonitor.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.tags }}'
+checks: []

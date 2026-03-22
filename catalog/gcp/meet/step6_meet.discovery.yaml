@@ -1,0 +1,279 @@
+# ============================================================
+# Discovery YAML — meet (v2)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 13 | independent: 6 | dependent: 7
+# ops with fields: 13/13 | dep ops with chain: 7/7
+# ============================================================
+version: '1.0'
+provider: gcp
+service: meet
+
+services:
+  client: meet
+  module: "googleapiclient.discovery.build('meet', 'v2')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists the conference records. By default, ordered by start time and in descending order.
+  # ── gcp.meet.conferenceRecords.list ──
+  - discovery_id: gcp.meet.conferenceRecords.list
+    # python: svc.conferenceRecords().list(**params).execute()
+    calls:
+      - action: conferenceRecords.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.conferenceRecords }}'
+      item:
+        endTime: '{{ item.endTime }}'
+        expireTime: '{{ item.expireTime }}'
+        name: '{{ item.name }}'
+        space: '{{ item.space }}'
+        startTime: '{{ item.startTime }}'
+  # Lists the participants in a conference record. By default, ordered by join time and in descending or
+  # ── gcp.meet.conferenceRecords.participants.list ──
+  - discovery_id: gcp.meet.conferenceRecords.participants.list
+    # python: svc.conferenceRecords().participants().list(**params).execute()
+    calls:
+      - action: conferenceRecords.participants.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.participants }}'
+      item:
+        anonymousUser: '{{ item.anonymousUser }}'
+        earliestStartTime: '{{ item.earliestStartTime }}'
+        latestEndTime: '{{ item.latestEndTime }}'
+        name: '{{ item.name }}'
+        phoneUser: '{{ item.phoneUser }}'
+        signedinUser: '{{ item.signedinUser }}'
+  # Lists the participant sessions of a participant in a conference record. By default, ordered by join 
+  # ── gcp.meet.conferenceRecords.participants.participantSessions.list ──
+  - discovery_id: gcp.meet.conferenceRecords.participants.participantSessions.list
+    # python: svc.conferenceRecords().participants().participantSessions().list(**params).execute()
+    calls:
+      - action: conferenceRecords.participants.participantSessions.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.participantSessions }}'
+      item:
+        endTime: '{{ item.endTime }}'
+        name: '{{ item.name }}'
+        startTime: '{{ item.startTime }}'
+  # Lists the recording resources from the conference record. By default, ordered by start time and in a
+  # ── gcp.meet.conferenceRecords.recordings.list ──
+  - discovery_id: gcp.meet.conferenceRecords.recordings.list
+    # python: svc.conferenceRecords().recordings().list(**params).execute()
+    calls:
+      - action: conferenceRecords.recordings.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.recordings }}'
+      item:
+        driveDestination: '{{ item.driveDestination }}'
+        endTime: '{{ item.endTime }}'
+        name: '{{ item.name }}'
+        startTime: '{{ item.startTime }}'
+        state: '{{ item.state }}'
+  # Lists the structured transcript entries per transcript. By default, ordered by start time and in asc
+  # ── gcp.meet.conferenceRecords.transcripts.entries.list ──
+  - discovery_id: gcp.meet.conferenceRecords.transcripts.entries.list
+    # python: svc.conferenceRecords().transcripts().entries().list(**params).execute()
+    calls:
+      - action: conferenceRecords.transcripts.entries.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.entries }}'
+      item:
+        endTime: '{{ item.endTime }}'
+        languageCode: '{{ item.languageCode }}'
+        name: '{{ item.name }}'
+        participant: '{{ item.participant }}'
+        startTime: '{{ item.startTime }}'
+        text: '{{ item.text }}'
+  # Lists the set of transcripts from the conference record. By default, ordered by start time and in as
+  # ── gcp.meet.conferenceRecords.transcripts.list ──
+  - discovery_id: gcp.meet.conferenceRecords.transcripts.list
+    # python: svc.conferenceRecords().transcripts().list(**params).execute()
+    calls:
+      - action: conferenceRecords.transcripts.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.transcripts }}'
+      item:
+        docsDestination: '{{ item.docsDestination }}'
+        endTime: '{{ item.endTime }}'
+        name: '{{ item.name }}'
+        startTime: '{{ item.startTime }}'
+        state: '{{ item.state }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets a conference record by conference ID.
+  # ── gcp.meet.conferenceRecords.get [dependent] ──
+  - discovery_id: gcp.meet.conferenceRecords.get
+    for_each: gcp.meet.conferenceRecords.list
+    # python: svc.conferenceRecords().get(**params).execute()
+    calls:
+      - action: conferenceRecords.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        endTime: '{{ response.endTime }}'
+        expireTime: '{{ response.expireTime }}'
+        name: '{{ response.name }}'
+        space: '{{ response.space }}'
+        startTime: '{{ response.startTime }}'
+    # required_params: ['name']
+  # Gets a participant by participant ID.
+  # ── gcp.meet.conferenceRecords.participants.get [dependent] ──
+  - discovery_id: gcp.meet.conferenceRecords.participants.get
+    for_each: gcp.meet.conferenceRecords.participants.list
+    # python: svc.conferenceRecords().participants().get(**params).execute()
+    calls:
+      - action: conferenceRecords.participants.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        anonymousUser: '{{ response.anonymousUser }}'
+        earliestStartTime: '{{ response.earliestStartTime }}'
+        latestEndTime: '{{ response.latestEndTime }}'
+        name: '{{ response.name }}'
+        phoneUser: '{{ response.phoneUser }}'
+        signedinUser: '{{ response.signedinUser }}'
+    # required_params: ['name']
+  # Gets a participant session by participant session ID.
+  # ── gcp.meet.conferenceRecords.participants.participantSessions.get [dependent] ──
+  - discovery_id: gcp.meet.conferenceRecords.participants.participantSessions.get
+    for_each: gcp.meet.conferenceRecords.participants.participantSessions.list
+    # python: svc.conferenceRecords().participants().participantSessions().get(**params).execute()
+    calls:
+      - action: conferenceRecords.participants.participantSessions.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        endTime: '{{ response.endTime }}'
+        name: '{{ response.name }}'
+        startTime: '{{ response.startTime }}'
+    # required_params: ['name']
+  # Gets a recording by recording ID.
+  # ── gcp.meet.conferenceRecords.recordings.get [dependent] ──
+  - discovery_id: gcp.meet.conferenceRecords.recordings.get
+    for_each: gcp.meet.conferenceRecords.recordings.list
+    # python: svc.conferenceRecords().recordings().get(**params).execute()
+    calls:
+      - action: conferenceRecords.recordings.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        driveDestination: '{{ response.driveDestination }}'
+        endTime: '{{ response.endTime }}'
+        name: '{{ response.name }}'
+        startTime: '{{ response.startTime }}'
+        state: '{{ response.state }}'
+    # required_params: ['name']
+  # Gets a `TranscriptEntry` resource by entry ID. Note: The transcript entries returned by the Google M
+  # ── gcp.meet.conferenceRecords.transcripts.entries.get [dependent] ──
+  - discovery_id: gcp.meet.conferenceRecords.transcripts.entries.get
+    for_each: gcp.meet.conferenceRecords.transcripts.entries.list
+    # python: svc.conferenceRecords().transcripts().entries().get(**params).execute()
+    calls:
+      - action: conferenceRecords.transcripts.entries.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        endTime: '{{ response.endTime }}'
+        languageCode: '{{ response.languageCode }}'
+        name: '{{ response.name }}'
+        participant: '{{ response.participant }}'
+        startTime: '{{ response.startTime }}'
+        text: '{{ response.text }}'
+    # required_params: ['name']
+  # Gets a transcript by transcript ID.
+  # ── gcp.meet.conferenceRecords.transcripts.get [dependent] ──
+  - discovery_id: gcp.meet.conferenceRecords.transcripts.get
+    for_each: gcp.meet.conferenceRecords.transcripts.list
+    # python: svc.conferenceRecords().transcripts().get(**params).execute()
+    calls:
+      - action: conferenceRecords.transcripts.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        docsDestination: '{{ response.docsDestination }}'
+        endTime: '{{ response.endTime }}'
+        name: '{{ response.name }}'
+        startTime: '{{ response.startTime }}'
+        state: '{{ response.state }}'
+    # required_params: ['name']
+  # Gets details about a meeting space. For an example, see [Get a meeting space](https://developers.goo
+  # ── gcp.meet.spaces.get [dependent] ──
+  - discovery_id: gcp.meet.spaces.get
+    for_each: gcp.meet.conferenceRecords.list
+    # python: svc.spaces().get(**params).execute()
+    calls:
+      - action: spaces.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        activeConference: '{{ response.activeConference }}'
+        config: '{{ response.config }}'
+        meetingCode: '{{ response.meetingCode }}'
+        meetingUri: '{{ response.meetingUri }}'
+        name: '{{ response.name }}'
+    # required_params: ['name']

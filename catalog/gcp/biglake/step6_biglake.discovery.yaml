@@ -1,0 +1,207 @@
+# ============================================================
+# Discovery YAML — biglake (v1)
+# Generated: 2026-02-21T03:06:38Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 9 | independent: 3 | dependent: 6
+# ops with fields: 9/9 | dep ops with chain: 6/6
+# ============================================================
+version: '1.0'
+provider: gcp
+service: biglake
+
+services:
+  client: biglake
+  module: "googleapiclient.discovery.build('biglake', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # List all databases in a specified catalog.
+  # ── gcp.biglake.projects.locations.catalogs.databases.list ──
+  - discovery_id: gcp.biglake.projects.locations.catalogs.databases.list
+    # python: svc.projects().locations().catalogs().databases().list(**params).execute()
+    calls:
+      - action: projects.locations.catalogs.databases.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.databases }}'
+      item:
+        createTime: '{{ item.createTime }}'
+        deleteTime: '{{ item.deleteTime }}'
+        expireTime: '{{ item.expireTime }}'
+        hiveOptions: '{{ item.hiveOptions }}'
+        name: '{{ item.name }}'
+        type: '{{ item.type }}'
+        updateTime: '{{ item.updateTime }}'
+  # List all tables in a specified database.
+  # ── gcp.biglake.projects.locations.catalogs.databases.tables.list ──
+  - discovery_id: gcp.biglake.projects.locations.catalogs.databases.tables.list
+    # python: svc.projects().locations().catalogs().databases().tables().list(**params).execute()
+    calls:
+      - action: projects.locations.catalogs.databases.tables.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.tables }}'
+      item:
+        createTime: '{{ item.createTime }}'
+        deleteTime: '{{ item.deleteTime }}'
+        expireTime: '{{ item.expireTime }}'
+        hiveOptions: '{{ item.hiveOptions }}'
+        name: '{{ item.name }}'
+        type: '{{ item.type }}'
+        updateTime: '{{ item.updateTime }}'
+  # List all catalogs in a specified project.
+  # ── gcp.biglake.projects.locations.catalogs.list ──
+  - discovery_id: gcp.biglake.projects.locations.catalogs.list
+    # python: svc.projects().locations().catalogs().list(**params).execute()
+    calls:
+      - action: projects.locations.catalogs.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.catalogs }}'
+      item:
+        createTime: '{{ item.createTime }}'
+        deleteTime: '{{ item.deleteTime }}'
+        expireTime: '{{ item.expireTime }}'
+        name: '{{ item.name }}'
+        updateTime: '{{ item.updateTime }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets the IAM policy for the specified Catalog.
+  # ── gcp.biglake.projects.catalogs.getIamPolicy [dependent] ──
+  - discovery_id: gcp.biglake.projects.catalogs.getIamPolicy
+    for_each: gcp.biglake.projects.locations.catalogs.list
+    # python: svc.projects().catalogs().getIamPolicy(**params).execute()
+    calls:
+      - action: projects.catalogs.getIamPolicy
+        params:
+          resource: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        auditConfigs: '{{ response.auditConfigs }}'
+        bindings: '{{ response.bindings }}'
+        version: '{{ response.version }}'
+    # required_params: ['resource']
+  # Gets the IAM policy for the specified Catalog.
+  # ── gcp.biglake.projects.catalogs.namespaces.getIamPolicy [dependent] ──
+  - discovery_id: gcp.biglake.projects.catalogs.namespaces.getIamPolicy
+    for_each: gcp.biglake.projects.locations.catalogs.list
+    # python: svc.projects().catalogs().namespaces().getIamPolicy(**params).execute()
+    calls:
+      - action: projects.catalogs.namespaces.getIamPolicy
+        params:
+          resource: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        auditConfigs: '{{ response.auditConfigs }}'
+        bindings: '{{ response.bindings }}'
+        version: '{{ response.version }}'
+    # required_params: ['resource']
+  # Gets the IAM policy for the specified Catalog.
+  # ── gcp.biglake.projects.catalogs.namespaces.tables.getIamPolicy [dependent] ──
+  - discovery_id: gcp.biglake.projects.catalogs.namespaces.tables.getIamPolicy
+    for_each: gcp.biglake.projects.locations.catalogs.databases.tables.list
+    # python: svc.projects().catalogs().namespaces().tables().getIamPolicy(**params).execute()
+    calls:
+      - action: projects.catalogs.namespaces.tables.getIamPolicy
+        params:
+          resource: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        auditConfigs: '{{ response.auditConfigs }}'
+        bindings: '{{ response.bindings }}'
+        version: '{{ response.version }}'
+    # required_params: ['resource']
+  # Gets the database specified by the resource name.
+  # ── gcp.biglake.projects.locations.catalogs.databases.get [dependent] ──
+  - discovery_id: gcp.biglake.projects.locations.catalogs.databases.get
+    for_each: gcp.biglake.projects.locations.catalogs.databases.list
+    # python: svc.projects().locations().catalogs().databases().get(**params).execute()
+    calls:
+      - action: projects.locations.catalogs.databases.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        createTime: '{{ response.createTime }}'
+        deleteTime: '{{ response.deleteTime }}'
+        expireTime: '{{ response.expireTime }}'
+        hiveOptions: '{{ response.hiveOptions }}'
+        name: '{{ response.name }}'
+        type: '{{ response.type }}'
+        updateTime: '{{ response.updateTime }}'
+    # required_params: ['name']
+  # Gets the table specified by the resource name.
+  # ── gcp.biglake.projects.locations.catalogs.databases.tables.get [dependent] ──
+  - discovery_id: gcp.biglake.projects.locations.catalogs.databases.tables.get
+    for_each: gcp.biglake.projects.locations.catalogs.databases.tables.list
+    # python: svc.projects().locations().catalogs().databases().tables().get(**params).execute()
+    calls:
+      - action: projects.locations.catalogs.databases.tables.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        createTime: '{{ response.createTime }}'
+        deleteTime: '{{ response.deleteTime }}'
+        expireTime: '{{ response.expireTime }}'
+        hiveOptions: '{{ response.hiveOptions }}'
+        name: '{{ response.name }}'
+        type: '{{ response.type }}'
+        updateTime: '{{ response.updateTime }}'
+    # required_params: ['name']
+  # Gets the catalog specified by the resource name.
+  # ── gcp.biglake.projects.locations.catalogs.get [dependent] ──
+  - discovery_id: gcp.biglake.projects.locations.catalogs.get
+    for_each: gcp.biglake.projects.locations.catalogs.list
+    # python: svc.projects().locations().catalogs().get(**params).execute()
+    calls:
+      - action: projects.locations.catalogs.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        createTime: '{{ response.createTime }}'
+        deleteTime: '{{ response.deleteTime }}'
+        expireTime: '{{ response.expireTime }}'
+        name: '{{ response.name }}'
+        updateTime: '{{ response.updateTime }}'
+    # required_params: ['name']

@@ -1,0 +1,105 @@
+# ============================================================
+# Discovery YAML — admin (datatransfer_v1)
+# Generated: 2026-02-21T03:06:38Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 4 | independent: 2 | dependent: 2
+# ops with fields: 4/4 | dep ops with chain: 2/2
+# ============================================================
+version: '1.0'
+provider: gcp
+service: admin
+
+services:
+  client: admin
+  module: "googleapiclient.discovery.build('admin', 'datatransfer_v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists the applications available for data transfer for a customer.
+  # ── gcp.admin.applications.list ──
+  - discovery_id: gcp.admin.applications.list
+    # python: svc.applications().list(**params).execute()
+    calls:
+      - action: applications.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.applications }}'
+      item:
+        id: '{{ item.id }}'
+        name: '{{ item.name }}'
+        transferParams: '{{ item.transferParams }}'
+  # Lists the transfers for a customer by source user, destination user, or status.
+  # ── gcp.admin.transfers.list ──
+  - discovery_id: gcp.admin.transfers.list
+    # python: svc.transfers().list(**params).execute()
+    calls:
+      - action: transfers.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.transfers }}'
+      item:
+        applicationDataTransfers: '{{ item.applicationDataTransfers }}'
+        id: '{{ item.id }}'
+        newOwnerUserId: '{{ item.newOwnerUserId }}'
+        oldOwnerUserId: '{{ item.oldOwnerUserId }}'
+        overallTransferStatusCode: '{{ item.overallTransferStatusCode }}'
+        requestTime: '{{ item.requestTime }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Retrieves information about an application for the given application ID.
+  # ── gcp.admin.applications.get [dependent] ──
+  - discovery_id: gcp.admin.applications.get
+    for_each: gcp.admin.applications.list
+    # python: svc.applications().get(**params).execute()
+    calls:
+      - action: applications.get
+        params:
+          applicationId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        id: '{{ response.id }}'
+        name: '{{ response.name }}'
+        transferParams: '{{ response.transferParams }}'
+    # required_params: ['applicationId']
+  # Retrieves a data transfer request by its resource ID.
+  # ── gcp.admin.transfers.get [dependent] ──
+  - discovery_id: gcp.admin.transfers.get
+    for_each: gcp.admin.transfers.list
+    # python: svc.transfers().get(**params).execute()
+    calls:
+      - action: transfers.get
+        params:
+          dataTransferId: '{{ item.id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        applicationDataTransfers: '{{ response.applicationDataTransfers }}'
+        id: '{{ response.id }}'
+        newOwnerUserId: '{{ response.newOwnerUserId }}'
+        oldOwnerUserId: '{{ response.oldOwnerUserId }}'
+        overallTransferStatusCode: '{{ response.overallTransferStatusCode }}'
+        requestTime: '{{ response.requestTime }}'
+    # required_params: ['dataTransferId']

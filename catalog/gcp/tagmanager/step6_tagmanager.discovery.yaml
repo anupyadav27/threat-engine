@@ -1,0 +1,546 @@
+# ============================================================
+# Discovery YAML — tagmanager (v1)
+# Generated: 2026-02-21T03:06:41Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 19 | independent: 4 | dependent: 15
+# ops with fields: 19/19 | dep ops with chain: 15/15
+# ============================================================
+version: '1.0'
+provider: gcp
+service: tagmanager
+
+services:
+  client: tagmanager
+  module: "googleapiclient.discovery.build('tagmanager', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists all Containers that belongs to a GTM Account.
+  # ── gcp.tagmanager.accounts.containers.list ──
+  - discovery_id: gcp.tagmanager.accounts.containers.list
+    # python: svc.accounts().containers().list(**params).execute()
+    calls:
+      - action: accounts.containers.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.containers }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        containerId: '{{ item.containerId }}'
+        domainName: '{{ item.domainName }}'
+        enabledBuiltInVariable: '{{ item.enabledBuiltInVariable }}'
+        fingerprint: '{{ item.fingerprint }}'
+        name: '{{ item.name }}'
+        notes: '{{ item.notes }}'
+        publicId: '{{ item.publicId }}'
+        timeZoneCountryId: '{{ item.timeZoneCountryId }}'
+        timeZoneId: '{{ item.timeZoneId }}'
+        usageContext: '{{ item.usageContext }}'
+  # Gets a GTM Account.
+  # ── gcp.tagmanager.accounts.get ──
+  - discovery_id: gcp.tagmanager.accounts.get
+    # python: svc.accounts().get(**params).execute()
+    calls:
+      - action: accounts.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accountId: '{{ response.accountId }}'
+        fingerprint: '{{ response.fingerprint }}'
+        name: '{{ response.name }}'
+        shareData: '{{ response.shareData }}'
+  # Lists all GTM Accounts that a user has access to.
+  # ── gcp.tagmanager.accounts.list ──
+  - discovery_id: gcp.tagmanager.accounts.list
+    # python: svc.accounts().list(**params).execute()
+    calls:
+      - action: accounts.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.accounts }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        fingerprint: '{{ item.fingerprint }}'
+        name: '{{ item.name }}'
+        shareData: '{{ item.shareData }}'
+  # List all users that have access to the account along with Account and Container Permissions granted 
+  # ── gcp.tagmanager.accounts.permissions.list ──
+  - discovery_id: gcp.tagmanager.accounts.permissions.list
+    # python: svc.accounts().permissions().list(**params).execute()
+    calls:
+      - action: accounts.permissions.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.permissions }}'
+      item:
+        accountAccess: '{{ item.accountAccess }}'
+        accountId: '{{ item.accountId }}'
+        containerAccess: '{{ item.containerAccess }}'
+        emailAddress: '{{ item.emailAddress }}'
+        permissionId: '{{ item.permissionId }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets a GTM Environment.
+  # ── gcp.tagmanager.accounts.containers.environments.get [dependent] ──
+  - discovery_id: gcp.tagmanager.accounts.containers.environments.get
+    for_each: gcp.tagmanager.accounts.containers.environments.list
+    # python: svc.accounts().containers().environments().get(**params).execute()
+    calls:
+      - action: accounts.containers.environments.get
+        params:
+          containerId: '{{ item.name }}'
+          environmentId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accountId: '{{ response.accountId }}'
+        authorizationCode: '{{ response.authorizationCode }}'
+        authorizationTimestampMs: '{{ response.authorizationTimestampMs }}'
+        containerId: '{{ response.containerId }}'
+        containerVersionId: '{{ response.containerVersionId }}'
+        description: '{{ response.description }}'
+        enableDebug: '{{ response.enableDebug }}'
+        environmentId: '{{ response.environmentId }}'
+        fingerprint: '{{ response.fingerprint }}'
+        name: '{{ response.name }}'
+        type: '{{ response.type }}'
+        url: '{{ response.url }}'
+    # required_params: ['environmentId', 'containerId', 'accountId']
+  # Lists all GTM Environments of a GTM Container.
+  # ── gcp.tagmanager.accounts.containers.environments.list [dependent] ──
+  - discovery_id: gcp.tagmanager.accounts.containers.environments.list
+    for_each: gcp.tagmanager.accounts.containers.list
+    # python: svc.accounts().containers().environments().list(**params).execute()
+    calls:
+      - action: accounts.containers.environments.list
+        params:
+          containerId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.environments }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        authorizationCode: '{{ item.authorizationCode }}'
+        authorizationTimestampMs: '{{ item.authorizationTimestampMs }}'
+        containerId: '{{ item.containerId }}'
+        containerVersionId: '{{ item.containerVersionId }}'
+        description: '{{ item.description }}'
+        enableDebug: '{{ item.enableDebug }}'
+        environmentId: '{{ item.environmentId }}'
+        fingerprint: '{{ item.fingerprint }}'
+        name: '{{ item.name }}'
+        type: '{{ item.type }}'
+        url: '{{ item.url }}'
+    # required_params: ['accountId', 'containerId']
+  # List all entities in a GTM Folder.
+  # ── gcp.tagmanager.accounts.containers.folders.entities.list [dependent] ──
+  - discovery_id: gcp.tagmanager.accounts.containers.folders.entities.list
+    for_each: gcp.tagmanager.accounts.containers.list
+    # python: svc.accounts().containers().folders().entities().list(**params).execute()
+    calls:
+      - action: accounts.containers.folders.entities.list
+        params:
+          containerId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.entities }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        containerId: '{{ item.containerId }}'
+        disablingTriggerId: '{{ item.disablingTriggerId }}'
+        enablingTriggerId: '{{ item.enablingTriggerId }}'
+        fingerprint: '{{ item.fingerprint }}'
+        name: '{{ item.name }}'
+        notes: '{{ item.notes }}'
+        parameter: '{{ item.parameter }}'
+        parentFolderId: '{{ item.parentFolderId }}'
+        scheduleEndMs: '{{ item.scheduleEndMs }}'
+        scheduleStartMs: '{{ item.scheduleStartMs }}'
+        type: '{{ item.type }}'
+        variableId: '{{ item.variableId }}'
+    # required_params: ['accountId', 'folderId', 'containerId']
+  # Gets a GTM Folder.
+  # ── gcp.tagmanager.accounts.containers.folders.get [dependent] ──
+  - discovery_id: gcp.tagmanager.accounts.containers.folders.get
+    for_each: gcp.tagmanager.accounts.containers.list
+    # python: svc.accounts().containers().folders().get(**params).execute()
+    calls:
+      - action: accounts.containers.folders.get
+        params:
+          containerId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accountId: '{{ response.accountId }}'
+        containerId: '{{ response.containerId }}'
+        fingerprint: '{{ response.fingerprint }}'
+        folderId: '{{ response.folderId }}'
+        name: '{{ response.name }}'
+    # required_params: ['containerId', 'folderId', 'accountId']
+  # Lists all GTM Folders of a Container.
+  # ── gcp.tagmanager.accounts.containers.folders.list [dependent] ──
+  - discovery_id: gcp.tagmanager.accounts.containers.folders.list
+    for_each: gcp.tagmanager.accounts.containers.list
+    # python: svc.accounts().containers().folders().list(**params).execute()
+    calls:
+      - action: accounts.containers.folders.list
+        params:
+          containerId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.folders }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        containerId: '{{ item.containerId }}'
+        fingerprint: '{{ item.fingerprint }}'
+        folderId: '{{ item.folderId }}'
+        name: '{{ item.name }}'
+    # required_params: ['containerId', 'accountId']
+  # Gets a Container.
+  # ── gcp.tagmanager.accounts.containers.get [dependent] ──
+  - discovery_id: gcp.tagmanager.accounts.containers.get
+    for_each: gcp.tagmanager.accounts.containers.list
+    # python: svc.accounts().containers().get(**params).execute()
+    calls:
+      - action: accounts.containers.get
+        params:
+          containerId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accountId: '{{ response.accountId }}'
+        containerId: '{{ response.containerId }}'
+        domainName: '{{ response.domainName }}'
+        enabledBuiltInVariable: '{{ response.enabledBuiltInVariable }}'
+        fingerprint: '{{ response.fingerprint }}'
+        name: '{{ response.name }}'
+        notes: '{{ response.notes }}'
+        publicId: '{{ response.publicId }}'
+        timeZoneCountryId: '{{ response.timeZoneCountryId }}'
+        timeZoneId: '{{ response.timeZoneId }}'
+        usageContext: '{{ response.usageContext }}'
+    # required_params: ['accountId', 'containerId']
+  # Gets a GTM Tag.
+  # ── gcp.tagmanager.accounts.containers.tags.get [dependent] ──
+  - discovery_id: gcp.tagmanager.accounts.containers.tags.get
+    for_each: gcp.tagmanager.accounts.containers.tags.list
+    # python: svc.accounts().containers().tags().get(**params).execute()
+    calls:
+      - action: accounts.containers.tags.get
+        params:
+          containerId: '{{ item.name }}'
+          tagId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accountId: '{{ response.accountId }}'
+        blockingTriggerId: '{{ response.blockingTriggerId }}'
+        containerId: '{{ response.containerId }}'
+        fingerprint: '{{ response.fingerprint }}'
+        firingTriggerId: '{{ response.firingTriggerId }}'
+        liveOnly: '{{ response.liveOnly }}'
+        name: '{{ response.name }}'
+        notes: '{{ response.notes }}'
+        parameter: '{{ response.parameter }}'
+        parentFolderId: '{{ response.parentFolderId }}'
+        paused: '{{ response.paused }}'
+        priority: '{{ response.priority }}'
+        scheduleEndMs: '{{ response.scheduleEndMs }}'
+        scheduleStartMs: '{{ response.scheduleStartMs }}'
+        setupTag: '{{ response.setupTag }}'
+        tagFiringOption: '{{ response.tagFiringOption }}'
+        tagId: '{{ response.tagId }}'
+        teardownTag: '{{ response.teardownTag }}'
+        type: '{{ response.type }}'
+    # required_params: ['containerId', 'accountId', 'tagId']
+  # Lists all GTM Tags of a Container.
+  # ── gcp.tagmanager.accounts.containers.tags.list [dependent] ──
+  - discovery_id: gcp.tagmanager.accounts.containers.tags.list
+    for_each: gcp.tagmanager.accounts.containers.list
+    # python: svc.accounts().containers().tags().list(**params).execute()
+    calls:
+      - action: accounts.containers.tags.list
+        params:
+          containerId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.tags }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        blockingTriggerId: '{{ item.blockingTriggerId }}'
+        containerId: '{{ item.containerId }}'
+        fingerprint: '{{ item.fingerprint }}'
+        firingTriggerId: '{{ item.firingTriggerId }}'
+        liveOnly: '{{ item.liveOnly }}'
+        name: '{{ item.name }}'
+        notes: '{{ item.notes }}'
+        parameter: '{{ item.parameter }}'
+        parentFolderId: '{{ item.parentFolderId }}'
+        paused: '{{ item.paused }}'
+        priority: '{{ item.priority }}'
+        scheduleEndMs: '{{ item.scheduleEndMs }}'
+        scheduleStartMs: '{{ item.scheduleStartMs }}'
+        setupTag: '{{ item.setupTag }}'
+        tagFiringOption: '{{ item.tagFiringOption }}'
+        tagId: '{{ item.tagId }}'
+        teardownTag: '{{ item.teardownTag }}'
+        type: '{{ item.type }}'
+    # required_params: ['containerId', 'accountId']
+  # Gets a GTM Trigger.
+  # ── gcp.tagmanager.accounts.containers.triggers.get [dependent] ──
+  - discovery_id: gcp.tagmanager.accounts.containers.triggers.get
+    for_each: gcp.tagmanager.accounts.containers.triggers.list
+    # python: svc.accounts().containers().triggers().get(**params).execute()
+    calls:
+      - action: accounts.containers.triggers.get
+        params:
+          containerId: '{{ item.name }}'
+          triggerId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accountId: '{{ response.accountId }}'
+        autoEventFilter: '{{ response.autoEventFilter }}'
+        checkValidation: '{{ response.checkValidation }}'
+        containerId: '{{ response.containerId }}'
+        continuousTimeMinMilliseconds: '{{ response.continuousTimeMinMilliseconds }}'
+        customEventFilter: '{{ response.customEventFilter }}'
+        eventName: '{{ response.eventName }}'
+        filter: '{{ response.filter }}'
+        fingerprint: '{{ response.fingerprint }}'
+        horizontalScrollPercentageList: '{{ response.horizontalScrollPercentageList }}'
+        interval: '{{ response.interval }}'
+        intervalSeconds: '{{ response.intervalSeconds }}'
+        limit: '{{ response.limit }}'
+        maxTimerLengthSeconds: '{{ response.maxTimerLengthSeconds }}'
+        name: '{{ response.name }}'
+        parameter: '{{ response.parameter }}'
+        parentFolderId: '{{ response.parentFolderId }}'
+        selector: '{{ response.selector }}'
+        totalTimeMinMilliseconds: '{{ response.totalTimeMinMilliseconds }}'
+        triggerId: '{{ response.triggerId }}'
+        type: '{{ response.type }}'
+        uniqueTriggerId: '{{ response.uniqueTriggerId }}'
+        verticalScrollPercentageList: '{{ response.verticalScrollPercentageList }}'
+        visibilitySelector: '{{ response.visibilitySelector }}'
+        visiblePercentageMax: '{{ response.visiblePercentageMax }}'
+        visiblePercentageMin: '{{ response.visiblePercentageMin }}'
+        waitForTags: '{{ response.waitForTags }}'
+        waitForTagsTimeout: '{{ response.waitForTagsTimeout }}'
+    # required_params: ['accountId', 'triggerId', 'containerId']
+  # Lists all GTM Triggers of a Container.
+  # ── gcp.tagmanager.accounts.containers.triggers.list [dependent] ──
+  - discovery_id: gcp.tagmanager.accounts.containers.triggers.list
+    for_each: gcp.tagmanager.accounts.containers.list
+    # python: svc.accounts().containers().triggers().list(**params).execute()
+    calls:
+      - action: accounts.containers.triggers.list
+        params:
+          containerId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.triggers }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        autoEventFilter: '{{ item.autoEventFilter }}'
+        checkValidation: '{{ item.checkValidation }}'
+        containerId: '{{ item.containerId }}'
+        continuousTimeMinMilliseconds: '{{ item.continuousTimeMinMilliseconds }}'
+        customEventFilter: '{{ item.customEventFilter }}'
+        eventName: '{{ item.eventName }}'
+        filter: '{{ item.filter }}'
+        fingerprint: '{{ item.fingerprint }}'
+        horizontalScrollPercentageList: '{{ item.horizontalScrollPercentageList }}'
+        interval: '{{ item.interval }}'
+        intervalSeconds: '{{ item.intervalSeconds }}'
+        limit: '{{ item.limit }}'
+        maxTimerLengthSeconds: '{{ item.maxTimerLengthSeconds }}'
+        name: '{{ item.name }}'
+        parameter: '{{ item.parameter }}'
+        parentFolderId: '{{ item.parentFolderId }}'
+        selector: '{{ item.selector }}'
+        totalTimeMinMilliseconds: '{{ item.totalTimeMinMilliseconds }}'
+        triggerId: '{{ item.triggerId }}'
+        type: '{{ item.type }}'
+        uniqueTriggerId: '{{ item.uniqueTriggerId }}'
+        verticalScrollPercentageList: '{{ item.verticalScrollPercentageList }}'
+        visibilitySelector: '{{ item.visibilitySelector }}'
+        visiblePercentageMax: '{{ item.visiblePercentageMax }}'
+        visiblePercentageMin: '{{ item.visiblePercentageMin }}'
+        waitForTags: '{{ item.waitForTags }}'
+        waitForTagsTimeout: '{{ item.waitForTagsTimeout }}'
+    # required_params: ['accountId', 'containerId']
+  # Gets a GTM Variable.
+  # ── gcp.tagmanager.accounts.containers.variables.get [dependent] ──
+  - discovery_id: gcp.tagmanager.accounts.containers.variables.get
+    for_each: gcp.tagmanager.accounts.containers.variables.list
+    # python: svc.accounts().containers().variables().get(**params).execute()
+    calls:
+      - action: accounts.containers.variables.get
+        params:
+          containerId: '{{ item.name }}'
+          variableId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accountId: '{{ response.accountId }}'
+        containerId: '{{ response.containerId }}'
+        disablingTriggerId: '{{ response.disablingTriggerId }}'
+        enablingTriggerId: '{{ response.enablingTriggerId }}'
+        fingerprint: '{{ response.fingerprint }}'
+        name: '{{ response.name }}'
+        notes: '{{ response.notes }}'
+        parameter: '{{ response.parameter }}'
+        parentFolderId: '{{ response.parentFolderId }}'
+        scheduleEndMs: '{{ response.scheduleEndMs }}'
+        scheduleStartMs: '{{ response.scheduleStartMs }}'
+        type: '{{ response.type }}'
+        variableId: '{{ response.variableId }}'
+    # required_params: ['containerId', 'variableId', 'accountId']
+  # Lists all GTM Variables of a Container.
+  # ── gcp.tagmanager.accounts.containers.variables.list [dependent] ──
+  - discovery_id: gcp.tagmanager.accounts.containers.variables.list
+    for_each: gcp.tagmanager.accounts.containers.list
+    # python: svc.accounts().containers().variables().list(**params).execute()
+    calls:
+      - action: accounts.containers.variables.list
+        params:
+          containerId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.variables }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        containerId: '{{ item.containerId }}'
+        disablingTriggerId: '{{ item.disablingTriggerId }}'
+        enablingTriggerId: '{{ item.enablingTriggerId }}'
+        fingerprint: '{{ item.fingerprint }}'
+        name: '{{ item.name }}'
+        notes: '{{ item.notes }}'
+        parameter: '{{ item.parameter }}'
+        parentFolderId: '{{ item.parentFolderId }}'
+        scheduleEndMs: '{{ item.scheduleEndMs }}'
+        scheduleStartMs: '{{ item.scheduleStartMs }}'
+        type: '{{ item.type }}'
+        variableId: '{{ item.variableId }}'
+    # required_params: ['containerId', 'accountId']
+  # Gets a Container Version.
+  # ── gcp.tagmanager.accounts.containers.versions.get [dependent] ──
+  - discovery_id: gcp.tagmanager.accounts.containers.versions.get
+    for_each: gcp.tagmanager.accounts.containers.versions.list
+    # python: svc.accounts().containers().versions().get(**params).execute()
+    calls:
+      - action: accounts.containers.versions.get
+        params:
+          containerId: '{{ item.name }}'
+          containerVersionId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accountId: '{{ response.accountId }}'
+        container: '{{ response.container }}'
+        containerId: '{{ response.containerId }}'
+        containerVersionId: '{{ response.containerVersionId }}'
+        deleted: '{{ response.deleted }}'
+        fingerprint: '{{ response.fingerprint }}'
+        folder: '{{ response.folder }}'
+        name: '{{ response.name }}'
+        notes: '{{ response.notes }}'
+        tag: '{{ response.tag }}'
+        trigger: '{{ response.trigger }}'
+        variable: '{{ response.variable }}'
+    # required_params: ['accountId', 'containerVersionId', 'containerId']
+  # Lists all Container Versions of a GTM Container.
+  # ── gcp.tagmanager.accounts.containers.versions.list [dependent] ──
+  - discovery_id: gcp.tagmanager.accounts.containers.versions.list
+    for_each: gcp.tagmanager.accounts.containers.list
+    # python: svc.accounts().containers().versions().list(**params).execute()
+    calls:
+      - action: accounts.containers.versions.list
+        params:
+          containerId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.versions }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        containerId: '{{ item.containerId }}'
+        containerVersionId: '{{ item.containerVersionId }}'
+        deleted: '{{ item.deleted }}'
+        name: '{{ item.name }}'
+        numTags: '{{ item.numTags }}'
+        numTriggers: '{{ item.numTriggers }}'
+        numVariables: '{{ item.numVariables }}'
+    # required_params: ['containerId', 'accountId']
+  # Gets a user's Account & Container Permissions.
+  # ── gcp.tagmanager.accounts.permissions.get [dependent] ──
+  - discovery_id: gcp.tagmanager.accounts.permissions.get
+    for_each: gcp.tagmanager.accounts.permissions.list
+    # python: svc.accounts().permissions().get(**params).execute()
+    calls:
+      - action: accounts.permissions.get
+        params:
+          permissionId: '{{ item.permissionId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accountAccess: '{{ response.accountAccess }}'
+        accountId: '{{ response.accountId }}'
+        containerAccess: '{{ response.containerAccess }}'
+        emailAddress: '{{ response.emailAddress }}'
+        permissionId: '{{ response.permissionId }}'
+    # required_params: ['accountId', 'permissionId']

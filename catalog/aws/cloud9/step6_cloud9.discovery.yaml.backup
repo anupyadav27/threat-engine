@@ -1,0 +1,67 @@
+version: '1.0'
+provider: aws
+service: cloud9
+services:
+  client: cloud9
+  module: boto3.client
+discovery:
+- discovery_id: aws.cloud9.describeEnvironmentMemberships
+  calls:
+  - action: describeEnvironmentMemberships
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.memberships }}'
+    item:
+      permissions: '{{ item.permissions }}'
+      userId: '{{ item.userId }}'
+      userArn: '{{ item.userArn }}'
+      environmentId: '{{ item.environmentId }}'
+      lastAccess: '{{ item.lastAccess }}'
+- discovery_id: aws.cloud9.listEnvironments
+  calls:
+  - action: listEnvironments
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.environmentIds }}'
+- discovery_id: aws.cloud9.describeEnvironmentStatus
+  calls:
+  - action: describeEnvironmentStatus
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.status }}'
+- discovery_id: aws.cloud9.describeEnvironments
+  calls:
+  - action: describeEnvironments
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.environments }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      description: '{{ item.description }}'
+      type: '{{ item.type }}'
+      connectionType: '{{ item.connectionType }}'
+      arn: '{{ item.arn }}'
+      ownerArn: '{{ item.ownerArn }}'
+      lifecycle: '{{ item.lifecycle }}'
+      managedCredentialsStatus: '{{ item.managedCredentialsStatus }}'
+- discovery_id: aws.cloud9.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+    item:
+      Key: '{{ item.Key }}'
+      Value: '{{ item.Value }}'
+checks: []

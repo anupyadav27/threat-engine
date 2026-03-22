@@ -1,0 +1,44 @@
+# ============================================================
+# Discovery YAML — mybusinessnotifications (v1)
+# Generated: 2026-02-21T03:06:40Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 1 | independent: 1 | dependent: 0
+# ops with fields: 1/1 | dep ops with chain: 0/0
+# ============================================================
+version: '1.0'
+provider: gcp
+service: mybusinessnotifications
+
+services:
+  client: mybusinessnotifications
+  module: "googleapiclient.discovery.build('mybusinessnotifications', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Returns the pubsub notification settings for the account.
+  # ── gcp.mybusinessnotifications.accounts.getNotificationSetting ──
+  - discovery_id: gcp.mybusinessnotifications.accounts.getNotificationSetting
+    # python: svc.accounts().getNotificationSetting(**params).execute()
+    calls:
+      - action: accounts.getNotificationSetting
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        name: '{{ response.name }}'
+        notificationTypes: '{{ response.notificationTypes }}'
+        pubsubTopic: '{{ response.pubsubTopic }}'

@@ -1,0 +1,135 @@
+# ============================================================
+# Discovery YAML — smartdevicemanagement (v1)
+# Generated: 2026-02-21T03:06:41Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 6 | independent: 3 | dependent: 3
+# ops with fields: 6/6 | dep ops with chain: 3/3
+# ============================================================
+version: '1.0'
+provider: gcp
+service: smartdevicemanagement
+
+services:
+  client: smartdevicemanagement
+  module: "googleapiclient.discovery.build('smartdevicemanagement', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists devices managed by the enterprise.
+  # ── gcp.smartdevicemanagement.enterprises.devices.list ──
+  - discovery_id: gcp.smartdevicemanagement.enterprises.devices.list
+    # python: svc.enterprises().devices().list(**params).execute()
+    calls:
+      - action: enterprises.devices.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.devices }}'
+      item:
+        ghpName: '{{ item.ghpName }}'
+        name: '{{ item.name }}'
+        parentRelations: '{{ item.parentRelations }}'
+        traits: '{{ item.traits }}'
+        type: '{{ item.type }}'
+  # Lists structures managed by the enterprise.
+  # ── gcp.smartdevicemanagement.enterprises.structures.list ──
+  - discovery_id: gcp.smartdevicemanagement.enterprises.structures.list
+    # python: svc.enterprises().structures().list(**params).execute()
+    calls:
+      - action: enterprises.structures.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.structures }}'
+      item:
+        ghpName: '{{ item.ghpName }}'
+        name: '{{ item.name }}'
+        traits: '{{ item.traits }}'
+  # Lists rooms managed by the enterprise.
+  # ── gcp.smartdevicemanagement.enterprises.structures.rooms.list ──
+  - discovery_id: gcp.smartdevicemanagement.enterprises.structures.rooms.list
+    # python: svc.enterprises().structures().rooms().list(**params).execute()
+    calls:
+      - action: enterprises.structures.rooms.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.rooms }}'
+      item:
+        name: '{{ item.name }}'
+        traits: '{{ item.traits }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets a device managed by the enterprise.
+  # ── gcp.smartdevicemanagement.enterprises.devices.get [dependent] ──
+  - discovery_id: gcp.smartdevicemanagement.enterprises.devices.get
+    for_each: gcp.smartdevicemanagement.enterprises.devices.list
+    # python: svc.enterprises().devices().get(**params).execute()
+    calls:
+      - action: enterprises.devices.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        ghpName: '{{ response.ghpName }}'
+        name: '{{ response.name }}'
+        parentRelations: '{{ response.parentRelations }}'
+        traits: '{{ response.traits }}'
+        type: '{{ response.type }}'
+    # required_params: ['name']
+  # Gets a structure managed by the enterprise.
+  # ── gcp.smartdevicemanagement.enterprises.structures.get [dependent] ──
+  - discovery_id: gcp.smartdevicemanagement.enterprises.structures.get
+    for_each: gcp.smartdevicemanagement.enterprises.structures.list
+    # python: svc.enterprises().structures().get(**params).execute()
+    calls:
+      - action: enterprises.structures.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        ghpName: '{{ response.ghpName }}'
+        name: '{{ response.name }}'
+        traits: '{{ response.traits }}'
+    # required_params: ['name']
+  # Gets a room managed by the enterprise.
+  # ── gcp.smartdevicemanagement.enterprises.structures.rooms.get [dependent] ──
+  - discovery_id: gcp.smartdevicemanagement.enterprises.structures.rooms.get
+    for_each: gcp.smartdevicemanagement.enterprises.structures.rooms.list
+    # python: svc.enterprises().structures().rooms().get(**params).execute()
+    calls:
+      - action: enterprises.structures.rooms.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        name: '{{ response.name }}'
+        traits: '{{ response.traits }}'
+    # required_params: ['name']

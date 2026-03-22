@@ -104,17 +104,34 @@ All routes go through: /gateway/...
 └─────────────────────────────────────────────────────────────┘
 ```
 
-| Component | API | Method | Request | Response |
-|-----------|-----|--------|---------|----------|
-| Account List | `/gateway/api/v1/onboarding/accounts` | GET | `?tenant_id=...&provider_type=...` | `{accounts: [...]}` |
-| Onboard Wizard Step 1 | `/gateway/api/v1/onboarding/{provider}/auth-methods` | GET | — | `{provider, methods: [{method, display_name, recommended}]}` |
-| Onboard Wizard Step 2 | `/gateway/api/v1/onboarding/{provider}/init` | POST | `{tenant_id, account_name, auth_method}` | `{onboarding_id, account_id, external_id}` |
-| AWS CFN Template | `/gateway/api/v1/onboarding/aws/cloudformation-template` | GET | `?external_id=...` | `{template, external_id}` |
-| Onboard Wizard Step 3 | `/gateway/api/v1/onboarding/{provider}/validate` | POST | `{account_id, auth_method, credentials}` | `{success, message, account_number}` |
-| Account Health | `/gateway/api/v1/onboarding/accounts/{id}/health` | GET | — | `{health_status, credentials_valid, ...}` |
-| Account Stats | `/gateway/api/v1/onboarding/accounts/{id}/statistics` | GET | — | `{total_scans, success_rate, ...}` |
-| Re-validate | `/gateway/api/v1/accounts/{id}/credentials/validate` | GET | — | `{success, message}` |
-| Delete Account | `/gateway/api/v1/onboarding/accounts/{id}` | DELETE | — | `{status}` |
+**3-step onboarding flow:**
+
+| Step | Component | API | Method | Request Body | Response |
+|------|-----------|-----|--------|--------------|----------|
+| — | Account List | `/onboarding/api/v1/cloud-accounts` | GET | `?tenant_id=...&provider=...&status=...` | `{accounts:[...], count:N}` |
+| 1 | Register Account | `/onboarding/api/v1/cloud-accounts` | POST | `{account_id, tenant_id, account_name, provider, regions:[]}` | created account object |
+| 2 | Store & Validate Credentials | `/onboarding/api/v1/accounts/{id}/credentials` | POST | `{credential_type, credentials:{...}}` — see per-CSP shapes below | `{status:"stored", account_id}` or `400` |
+| 3 | Activate + Schedule | `/onboarding/api/v1/cloud-accounts/{id}/validate` | POST | `{cron_expression, include_regions:[], engines_requested:[]}` | full updated account |
+| — | Account Status | `/onboarding/api/v1/cloud-accounts/{id}/status` | GET | — | `{account_status, onboarding_status, credential_validation_status, schedule_enabled, ...}` |
+| — | Re-validate Credentials | `/onboarding/api/v1/cloud-accounts/{id}/validate-credentials` | POST | — (no body) | `{success, status, message, validated_at}` |
+| — | Update Config | `/onboarding/api/v1/cloud-accounts/{id}` | PATCH | any subset of account fields | updated account |
+| — | Delete Account | `/onboarding/api/v1/cloud-accounts/{id}` | DELETE | — | `{message}` |
+| — | Remove Credentials | `/onboarding/api/v1/accounts/{id}/credentials` | DELETE | — | `{status:"deleted"}` |
+
+**Credential body shapes per CSP (Step 2):**
+
+| CSP | `credential_type` | `credentials` object fields |
+|-----|-------------------|-----------------------------|
+| AWS Access Key | `aws_access_key` | `aws_access_key_id`, `aws_secret_access_key` |
+| AWS IAM Role | `aws_iam_role` | `role_arn`, `external_id`, `account_number` |
+| Azure | `azure_service_principal` | `client_id`, `client_secret`, `tenant_id`, `subscription_id` |
+| GCP | `gcp_service_account` | `service_account_json` (full JSON object) |
+| IBM | `ibm_api_key` | `api_key` |
+| OCI | `oci_user_principal` | `user_ocid`, `tenancy_ocid`, `fingerprint`, `private_key` (PEM string), `region` |
+| AliCloud | `alicloud_access_key` | `access_key_id`, `access_key_secret` |
+
+> Credentials are validated **live** before storage. A `400` with `{message, errors:[]}` means the CSP rejected them.
+> On success, `cloud_accounts.credential_validation_status` is set to `"valid"` automatically.
 
 ### 2c. Schedules Page
 **Route**: `/onboarding/schedules`
@@ -384,6 +401,78 @@ All routes go through: /gateway/...
 | Add Intel | `/gateway/api/v1/intel/feed` | POST | `{tenant_id, source, intel_type, severity, threat_data}` |
 | Correlate | `/gateway/api/v1/intel/correlate` | GET | `tenant_id` |
 
+### 5h. MITRE ATT&CK Matrix
+**Route**: `/threats/mitre`
+
+Visual heat map showing which MITRE ATT&CK tactics and techniques have active findings. This is the single most-used view by threat analysts in enterprise CSPM platforms — it shows _where in the kill chain_ the cloud environment is exposed.
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│  MITRE ATT&CK Coverage     [Account ▾]  [Scan ▾]  [Severity ▾]   │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                    │
+│  TACTIC         │ Init.Access │ Execution │ Persist. │ Priv.Esc   │
+│─────────────────┼─────────────┼───────────┼──────────┼────────────│
+│  T1530 Cloud Stor│  ████ 14   │           │          │            │
+│  T1190 Pub.Facing│  ██ 6      │           │          │            │
+│  T1078 Valid Acct│             │           │  ███ 9   │  ██ 4     │
+│  T1548 Abuse Elev│             │           │          │  ██████22 │
+│  T1552 Unsecure  │             │           │  ████ 11 │            │
+│  T1580 Cloud Infra│            │  ██ 5     │          │            │
+│                                                                    │
+│  TACTIC         │ Cred.Access │ Discovery │ Lat.Move │ Impact     │
+│─────────────────┼─────────────┼───────────┼──────────┼────────────│
+│  T1552 Unsecure  │  ████ 11   │           │          │            │
+│  T1087 Account   │             │  ████ 12  │          │            │
+│  T1567 Exfil     │             │           │          │  ██ 3     │
+│                                                                    │
+│  Color: ░ 0  ▒ 1–3  ▓ 4–9  █ 10+                                 │
+│  [Click any cell → filtered Threat List for that technique]        │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+> **Security Expert Note**: Focus remediation on T1548 (Privilege Escalation, 22 findings) and T1530/T1190 (Initial Access, 20 total). These are your highest-risk kill-chain entry points.
+
+| Component | API | Method | Params |
+|-----------|-----|--------|--------|
+| Technique Breakdown | `/gateway/api/v1/threat/analytics/patterns` | GET | `tenant_id, scan_run_id, limit=50` |
+| Filter by Technique | `/gateway/api/v1/threat/threats` | GET | `tenant_id, scan_run_id, category={mitre_technique}` |
+| Severity Distribution | `/gateway/api/v1/threat/analytics/distribution` | GET | `tenant_id, scan_run_id` |
+
+### 5i. Internet Exposure & Toxic Combinations
+**Route**: `/threats/exposure`
+
+Dedicated attack surface view for the two highest-risk posture signals: resources directly reachable from the internet, and dangerous coinciding misconfigurations.
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│  Attack Surface                                                    │
+├──────────────────────────────┬─────────────────────────────────────┤
+│  Internet-Exposed Resources  │  Toxic Combinations                │
+│                              │                                    │
+│  ┌────────────────────────┐  │  ┌─────────────────────────────┐  │
+│  │ 23 resources exposed   │  │  │ ⚠ 8 toxic combos found     │  │
+│  │ to internet            │  │  │                             │  │
+│  │                        │  │  │ Public + Unencrypted (4)    │  │
+│  │  EC2 Instances:  11    │  │  │  └─ S3: 3  RDS: 1         │  │
+│  │  S3 Buckets:      6    │  │  │                             │  │
+│  │  RDS Endpoints:   3    │  │  │ No-MFA + Admin Role (3)     │  │
+│  │  ELB/APIs:        3    │  │  │  └─ IAM Users: 3          │  │
+│  │                        │  │  │                             │  │
+│  │  [Click → Threat List] │  │  │ Public + No Logging (1)     │  │
+│  └────────────────────────┘  │  └─────────────────────────────┘  │
+│                              │                                    │
+│  [View all exposed →]        │  [View all combos →]               │
+└──────────────────────────────┴─────────────────────────────────────┘
+```
+
+| Component | API | Method | Params |
+|-----------|-----|--------|--------|
+| Internet-Exposed Resources | `/gateway/api/v1/graph/internet-exposed` | GET | `tenant_id` |
+| Toxic Combinations | `/gateway/api/v1/graph/toxic-combinations` | GET | `tenant_id, min_threats` |
+| Attack Paths | `/gateway/api/v1/graph/attack-paths` | GET | `tenant_id, max_hops, min_severity` |
+| Blast Radius (per resource) | `/gateway/api/v1/graph/blast-radius/{resource_uid}` | GET | `tenant_id, max_hops` |
+
 ---
 
 ## 6. COMPLIANCE
@@ -456,49 +545,428 @@ All routes go through: /gateway/...
 
 ## 7. IAM SECURITY
 
-### 7a. IAM Findings
-**Route**: `/iam/findings`
+> **CSPM Expert Context**: The IAM engine evaluates **6 security modules** across 825 findings from your AWS account. IAM misconfigurations are the #1 initial access vector in cloud breaches. Every page below maps to a specific `module=` filter on the findings endpoint.
+>
+> Modules: `least_privilege` · `policy_analysis` · `mfa` · `role_management` · `password_policy` · `access_control`
+
+### 7a. IAM Overview
+**Route**: `/iam`
+
+Executive posture scorecard showing the risk signal from each of the 6 IAM modules, plus per-account risk scores.
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  IAM Security Findings   [Module ▾] [Status ▾] [Search]    │
-├─────────────────────────────────────────────────────────────┤
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │ Module          │ Finding Count │ Critical │ High    │   │
-│  │─────────────────┼───────────────┼──────────┼─────────│   │
-│  │ Privilege Escal. │ 12           │ 3        │ 9       │   │
-│  │ Over-Permission  │ 45           │ 0        │ 15      │   │
-│  │ Credential Mgmt  │ 8            │ 2        │ 6       │   │
-│  └──────────────────────────────────────────────────────┘   │
-│                                                             │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │ All Findings (table, filterable, sortable)           │   │
-│  └──────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────┐
+│  IAM Security Posture    [Account ▾]  [Scan ▾]  [Run IAM Scan]    │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                    │
+│  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────┐      │
+│  │ Total      │ │ Critical   │ │ High       │ │ IAM Score  │      │
+│  │ Findings   │ │   18       │ │   312      │ │   42/100   │      │
+│  │   825      │ │            │ │            │ │ (POOR)     │      │
+│  └────────────┘ └────────────┘ └────────────┘ └────────────┘      │
+│                                                                    │
+│  Module Scorecard                                                  │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │ Module            │ Findings │ Critical │ Risk Level │ Trend │  │
+│  │───────────────────┼──────────┼──────────┼────────────┼───────│  │
+│  │ Least Privilege   │  312     │    5     │ ████ HIGH  │  ↑   │  │
+│  │ Policy Analysis   │  198     │    8     │ ████ HIGH  │  →   │  │
+│  │ MFA               │   87     │    3     │ ███ MEDIUM │  ↓   │  │
+│  │ Role Management   │  142     │    2     │ ███ MEDIUM │  →   │  │
+│  │ Password Policy   │   24     │    0     │ ██ LOW     │  ↓   │  │
+│  │ Access Control    │   62     │    0     │ ██ LOW     │  →   │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                    │
+│  [Least Privilege →]  [Policy Analysis →]  [MFA →]  [Roles →]     │
+└────────────────────────────────────────────────────────────────────┘
 ```
 
 | Component | API | Method | Params |
 |-----------|-----|--------|--------|
-| Scan (generate) | `/gateway/api/v1/iam-security/scan` | POST | `{csp, scan_id, tenant_id}` |
-| Findings | `/gateway/api/v1/iam-security/findings` | GET | `csp, scan_id, tenant_id, module, status, account_id` |
-| Modules | `/gateway/api/v1/iam-security/modules` | GET | — |
+| Module List & Counts | `/iam/api/v1/iam-security/modules` | GET | — |
+| All Findings (summary) | `/iam/api/v1/iam-security/findings` | GET | `csp=aws&scan_id=latest&tenant_id=T` |
+| Per-Account Posture | `/iam/api/v1/iam-security/accounts/{account_id}` | GET | `csp=aws&scan_id=latest` |
+| Trigger Scan | `/iam/api/v1/iam-security/scan` | POST | `{csp, scan_id, tenant_id}` |
+
+---
+
+### 7b. Least Privilege & Policy Analysis
+**Route**: `/iam/least-privilege`
+
+The two most critical IAM modules. `least_privilege` finds entities that have more permissions than they use. `policy_analysis` finds structurally risky policies (wildcards, `*` on actions/resources, admin access).
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│  Least Privilege & Policy Risk   [Severity ▾] [Service ▾]        │
+├──────────────────────────────────┬─────────────────────────────────┤
+│  Overprivileged Entities (312)   │  Policy Risk Signals (198)     │
+│                                  │                                │
+│  [Search role/user name...]      │  [Search policy name...]       │
+│                                  │                                │
+│  ┌────────────────────────────┐  │  ┌─────────────────────────┐  │
+│  │ Entity      │Excess │ Sev  │  │  │ Signal        │Count    │  │
+│  │─────────────┼───────┼──────│  │  │───────────────┼─────────│  │
+│  │ LambdaExecR │ s3:*  │ HIGH │  │  │ Action *      │  89     │  │
+│  │ EC2InstanceP│iam:*  │ CRIT │  │  │ Resource *    │  67     │  │
+│  │ DevOpsRole  │ ec2:* │ HIGH │  │  │ Admin access  │  24     │  │
+│  │ BackupLambda│ rds:* │ MED  │  │  │ Cross-account │  18     │  │
+│  │ ... (312 more)             │  │  └─────────────────────────┘  │
+│  └────────────────────────────┘  │                                │
+│                                  │  [Click row → Rule Detail]    │
+│  [Click row → Resource Detail]   │                                │
+└──────────────────────────────────┴─────────────────────────────────┘
+```
+
+> **Fix Priority**: Start with `iam:*` and `s3:*` on compute roles — these allow privilege escalation and data exfiltration respectively.
+
+| Component | API | Method | Params |
+|-----------|-----|--------|--------|
+| Least Privilege Findings | `/iam/api/v1/iam-security/findings` | GET | `module=least_privilege&csp=aws&scan_id=latest&tenant_id=T` |
+| Policy Analysis Findings | `/iam/api/v1/iam-security/findings` | GET | `module=policy_analysis&csp=aws&scan_id=latest&tenant_id=T` |
+| Rule Detail | `/iam/api/v1/iam-security/rules/{rule_id}` | GET | — |
+| Resource IAM Context | `/iam/api/v1/iam-security/resources/{resource_uid}` | GET | `csp=aws&scan_id=latest` |
+| Filter by Service | `/iam/api/v1/iam-security/services/{service}` | GET | `csp=aws&scan_id=latest` |
+
+---
+
+### 7c. MFA & Credential Health
+**Route**: `/iam/mfa`
+
+MFA adoption rate and stale/exposed credential detection. The two password-related modules in one view: `mfa` (multi-factor enforcement) and `password_policy` (account-level policy strength).
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│  MFA & Credential Health                                          │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                    │
+│  ┌──────────────────────────┐  ┌──────────────────────────────┐   │
+│  │  MFA Adoption Rate       │  │  Password Policy Score       │   │
+│  │                          │  │                              │   │
+│  │  [Donut Chart]           │  │  Min Length:     ✓  12 chars │   │
+│  │  ████████░░  72%         │  │  Complexity:     ✓  Required │   │
+│  │                          │  │  Max Age:        ✗  Not set  │   │
+│  │  MFA On:  21 users       │  │  Reuse Prev:     ✓  24 prev  │   │
+│  │  MFA Off:  8 users       │  │  Account Score:  68/100      │   │
+│  └──────────────────────────┘  └──────────────────────────────┘   │
+│                                                                    │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │  Findings Table: MFA & Password Policy                       │  │
+│  │                                                              │  │
+│  │  Finding                    │ Severity │ Resource    │ Status│  │
+│  │  ─────────────────────────  │ ──────── │ ──────────  │ ──── │  │
+│  │  Root account no MFA        │ CRITICAL │ account     │ open  │  │
+│  │  Console user no MFA: dev1  │ HIGH     │ iam/user    │ open  │  │
+│  │  Access key age > 90 days   │ HIGH     │ iam/user    │ open  │  │
+│  │  Password policy: no expiry │ MEDIUM   │ account     │ open  │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+> **Critical**: Root account without MFA is a CRITICAL finding — highest priority fix regardless of other scores.
+
+| Component | API | Method | Params |
+|-----------|-----|--------|--------|
+| MFA Findings | `/iam/api/v1/iam-security/findings` | GET | `module=mfa&csp=aws&scan_id=latest&tenant_id=T` |
+| Password Policy Findings | `/iam/api/v1/iam-security/findings` | GET | `module=password_policy&csp=aws&scan_id=latest&tenant_id=T` |
+| Rule Detail | `/iam/api/v1/iam-security/rules/{rule_id}` | GET | — |
+
+---
+
+### 7d. Role & Access Management
+**Route**: `/iam/roles`
+
+IAM role hygiene and access control effectiveness. `role_management` covers unused roles, overly trusted cross-account trust relationships, and permissive assume-role policies. `access_control` covers SCPs, permission boundaries, and resource-based policy exposure.
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│  Role & Access Management    [Account ▾]  [Service ▾]            │
+├──────────────────────────────────┬─────────────────────────────────┤
+│  Role Hygiene (142 findings)     │  Access Control (62 findings)  │
+│                                  │                                │
+│  ┌────────────────────────────┐  │  ┌─────────────────────────┐  │
+│  │ Issue           │ Count    │  │  │ Issue          │Count   │  │
+│  │─────────────────┼──────────│  │  │────────────────┼────────│  │
+│  │ Unused roles    │  47      │  │  │ No SCP on OU   │  12    │  │
+│  │ Cross-acct trust│  23      │  │  │ No perm bound  │  31    │  │
+│  │ Wildcard trust  │   8      │  │  │ Public policy  │  11    │  │
+│  │ Stale roles     │  64      │  │  │ No resource tag│   8    │  │
+│  └────────────────────────────┘  │  └─────────────────────────┘  │
+│                                  │                                │
+│  Role Trust Graph                │                                │
+│  ┌────────────────────────────┐  │                                │
+│  │  [AccountA] ──→ [RoleX]   │  │                                │
+│  │       └──→ [RoleY] ──→ [R]│  │  [Click any row for detail]   │
+│  └────────────────────────────┘  │                                │
+└──────────────────────────────────┴─────────────────────────────────┘
+```
+
+| Component | API | Method | Params |
+|-----------|-----|--------|--------|
+| Role Management Findings | `/iam/api/v1/iam-security/findings` | GET | `module=role_management&csp=aws&scan_id=latest&tenant_id=T` |
+| Access Control Findings | `/iam/api/v1/iam-security/findings` | GET | `module=access_control&csp=aws&scan_id=latest&tenant_id=T` |
+| Per-Account IAM Posture | `/iam/api/v1/iam-security/accounts/{account_id}` | GET | `csp=aws&scan_id=latest` |
+| Rule Pattern Reference | `/iam/api/v1/iam-security/rule-ids` | GET | — |
+
+---
+
+### 7e. Per-Resource IAM Findings
+**Route**: `/iam/resource/:resource_uid`
+
+Accessed from the Inventory Asset Detail page via deep link. Shows all IAM findings associated with a specific cloud resource.
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│  IAM Findings for: arn:aws:iam::588989875114:role/EC2-Prod-Role   │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                    │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │ Rule                     │ Module          │ Severity │Status │  │
+│  │  ─────────────────────── │ ──────────────  │ ──────── │ ──── │  │
+│  │  ec2:* allows all actions│ least_privilege │ HIGH     │ open  │  │
+│  │  No permission boundary  │ access_control  │ MEDIUM   │ open  │  │
+│  │  Role unused 90+ days    │ role_management │ LOW      │ open  │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                    │
+│  [← Back to Inventory]  [View Full IAM Posture →]                 │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+| Component | API | Method | Params |
+|-----------|-----|--------|--------|
+| Resource IAM Findings | `/iam/api/v1/iam-security/resources/{resource_uid}` | GET | `csp=aws&scan_id=latest` |
+| Service IAM Posture | `/iam/api/v1/iam-security/services/{service}` | GET | `csp=aws&scan_id=latest` |
 
 ---
 
 ## 8. DATA SECURITY
 
-### 8a. Data Catalog
-**Route**: `/datasec/catalog`
+> **CSPM Expert Context**: The DataSec engine analyses 21 data stores across S3, RDS, DynamoDB and other storage services. It performs 4 types of analysis (classification, lineage, residency, activity) and maps findings to GDPR, HIPAA, and PCI-DSS. Data exposure is the #1 consequence of cloud misconfiguration — these pages tell you _what data is at risk and why_.
+
+### 8a. Data Risk Overview
+**Route**: `/datasec`
+
+Executive summary across all data security sub-modules. Designed for a CISO-level "data risk at a glance" view.
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│  Data Security Overview     [Account ▾]  [Scan ▾]                │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                    │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────┐  │
+│  │ Data     │ │ Sensitive│ │ Exposed  │ │Unencrypt.│ │Residcy │  │
+│  │ Stores   │ │ Stores   │ │ Publicly │ │ At Rest  │ │Violatn │  │
+│  │   21     │ │    9     │ │    4     │ │    6     │ │   3    │  │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └────────┘  │
+│                                                                    │
+│  ┌────────────────────────────┐  ┌──────────────────────────────┐  │
+│  │  Data Risk by Service      │  │  Compliance Coverage         │  │
+│  │  [Treemap]                 │  │  GDPR:  ████████░░  82%      │  │
+│  │  S3 (12 stores, 4 exposed) │  │  HIPAA: ██████░░░░  61%      │  │
+│  │  RDS (6 stores, 2 issues)  │  │  PCI:   █████████░  90%      │  │
+│  │  DynamoDB (3 stores)       │  │                              │  │
+│  └────────────────────────────┘  └──────────────────────────────┘  │
+│                                                                    │
+│  [Data Catalog →]  [Classification →]  [Residency →]  [Activity→] │
+└────────────────────────────────────────────────────────────────────┘
+```
 
 | Component | API | Method | Params |
 |-----------|-----|--------|--------|
-| Catalog | `/gateway/api/v1/data-security/catalog` | GET | `csp, scan_id, account_id, service, region` |
-| Classification | `/gateway/api/v1/data-security/classification` | GET | `csp, scan_id, tenant_id, account_id` |
-| Lineage | `/gateway/api/v1/data-security/lineage` | GET | `csp, scan_id, tenant_id` |
-| Residency | `/gateway/api/v1/data-security/residency` | GET | `csp, scan_id, tenant_id, allowed_regions` |
-| Activity | `/gateway/api/v1/data-security/activity` | GET | `csp, scan_id, days_back` |
-| Findings | `/gateway/api/v1/data-security/findings` | GET | `csp, scan_id, tenant_id, module, status` |
-| Compliance | `/gateway/api/v1/data-security/compliance` | GET | `csp, scan_id, tenant_id, framework` |
+| Data Stores (catalog summary) | `/datasec/api/v1/data-security/catalog` | GET | `csp=aws&scan_id=latest&tenant_id=T` |
+| Classification Summary | `/datasec/api/v1/data-security/classification` | GET | `csp=aws&scan_id=latest&tenant_id=T` |
+| Data Compliance Status | `/datasec/api/v1/data-security/compliance` | GET | `csp=aws&scan_id=latest&tenant_id=T` |
+| All DataSec Findings | `/datasec/api/v1/data-security/findings` | GET | `csp=aws&scan_id=latest&tenant_id=T` |
+| Module List | `/datasec/api/v1/data-security/modules` | GET | — |
+
+---
+
+### 8b. Data Catalog
+**Route**: `/datasec/catalog`
+
+Full inventory of all data stores discovered, with sensitivity level, encryption status, access exposure, and region.
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│  Data Catalog (21 Stores)   [Service ▾] [Region ▾] [Sensitivity▾]│
+├────────────────────────────────────────────────────────────────────┤
+│                                                                    │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │ Store                  │Service│Region  │Sensitivity│Access  │  │
+│  │────────────────────────┼───────┼────────┼───────────┼────────│  │
+│  │ prod-data-lake         │ S3    │us-east-1│ 🔴 HIGH  │ Public │  │
+│  │ customer-pii-backup    │ S3    │ap-south-1│🔴 HIGH  │Private │  │
+│  │ analytics-staging      │ S3    │us-east-1│ 🟡 MED  │Private │  │
+│  │ prod-db-main           │ RDS   │ap-south-1│🔴 HIGH  │Private │  │
+│  │ orders-dynamo          │DynamoDB│us-east-1│🟡 MED  │Private │  │
+│  │ logs-archive           │ S3    │us-east-1│ 🟢 LOW  │Private │  │
+│  │ ... (15 more stores)   │       │        │           │        │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                    │
+│  [Click row → Protection & Governance Detail]                     │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+| Component | API | Method | Params |
+|-----------|-----|--------|--------|
+| Data Store List | `/datasec/api/v1/data-security/catalog` | GET | `csp=aws&scan_id=latest&account_id=A&service=s3&region=R` |
+| Protection Detail | `/datasec/api/v1/data-security/protection/{resource_id}` | GET | `csp=aws&scan_id=latest` |
+| Access Governance | `/datasec/api/v1/data-security/governance/{resource_id}` | GET | `csp=aws&scan_id=latest` |
+| Per-Service Summary | `/datasec/api/v1/data-security/services/{service}` | GET | `csp=aws&scan_id=latest` |
+| Per-Account Summary | `/datasec/api/v1/data-security/accounts/{account_id}` | GET | `csp=aws&scan_id=latest` |
+
+---
+
+### 8c. Data Classification
+**Route**: `/datasec/classification`
+
+Which data stores contain PII, PHI, or PCI data? This view drives GDPR/HIPAA reporting — security teams use it to prioritize which stores need the strongest controls.
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│  Data Classification (Sensitive Data Detection)   [Account ▾]    │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                    │
+│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐              │
+│  │ PII Stores   │ │ PHI Stores   │ │ PCI Stores   │              │
+│  │    6         │ │    2         │ │    3         │              │
+│  │ (personal    │ │ (health      │ │ (payment     │              │
+│  │  identifiers)│ │  records)    │ │  card data)  │              │
+│  └──────────────┘ └──────────────┘ └──────────────┘              │
+│                                                                    │
+│  Classification Heat Map (stores × data type)                     │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │ Store               │ PII │ PHI │ PCI │ Encrypted │ At Risk  │  │
+│  │─────────────────────┼─────┼─────┼─────┼───────────┼──────── │  │
+│  │ prod-data-lake      │  ✓  │     │  ✓  │     ✗     │ 🔴 YES  │  │
+│  │ customer-pii-backup │  ✓  │  ✓  │     │     ✓     │ 🟡 NO   │  │
+│  │ prod-db-main        │  ✓  │     │  ✓  │     ✓     │ 🟢 NO   │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                    │
+│  [Click row → Protection Detail for that store]                   │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+> **GDPR Note**: Any PII store that is publicly accessible or unencrypted is a GDPR Article 32 violation. Remediate `prod-data-lake` first.
+
+| Component | API | Method | Params |
+|-----------|-----|--------|--------|
+| Classification Results | `/datasec/api/v1/data-security/classification` | GET | `csp=aws&scan_id=latest&tenant_id=T&account_id=A` |
+| Findings for Data Type | `/datasec/api/v1/data-security/findings` | GET | `module=data_classification&csp=aws&scan_id=latest` |
+| Protection Status | `/datasec/api/v1/data-security/protection/{resource_id}` | GET | `csp=aws&scan_id=latest` |
+| Rule Detail | `/datasec/api/v1/data-security/rules/{rule_id}` | GET | — |
+
+---
+
+### 8d. Data Residency & Compliance
+**Route**: `/datasec/residency`
+
+Where is your data physically stored, and does it comply with geographic data sovereignty requirements? Critical for GDPR (EU data must stay in EU), India DPDP (Indian data must stay in India), and other regulations.
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│  Data Residency     [Allowed Regions: ap-south-1, eu-west-1 ▾]   │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                    │
+│  [World Map — dots at each AWS region, colored by compliance]     │
+│                                                                    │
+│  ● ap-south-1  (Mumbai)    — 8 stores  ✓ Allowed                 │
+│  ● us-east-1   (N.Virginia)— 11 stores ⚠ VIOLATION (3 PII stores)│
+│  ● eu-west-2   (London)    — 2 stores  ✓ Allowed                 │
+│  ● ap-southeast-1 (Singapore)— 1 store ⚠ VIOLATION (1 PII store) │
+│                                                                    │
+│  Violations                                                        │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │ Store               │ Region       │ Data Type │ Framework  │  │
+│  │─────────────────────┼──────────────┼───────────┼────────────│  │
+│  │ customer-pii-backup │ us-east-1    │ PII       │ GDPR Art.44│  │
+│  │ analytics-staging   │ us-east-1    │ PII       │ GDPR Art.44│  │
+│  │ logs-pii            │ ap-southeast-1│ PII      │ IN-DPDP    │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                    │
+│  Framework Compliance Status                                       │
+│  GDPR:  2 violations   HIPAA: 0 violations   PCI: 1 violation     │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+| Component | API | Method | Params |
+|-----------|-----|--------|--------|
+| Residency Violations | `/datasec/api/v1/data-security/residency` | GET | `csp=aws&scan_id=latest&tenant_id=T&allowed_regions=ap-south-1,eu-west-1` |
+| Data Compliance Status | `/datasec/api/v1/data-security/compliance` | GET | `csp=aws&scan_id=latest&tenant_id=T&framework=GDPR` |
+| Findings (residency module) | `/datasec/api/v1/data-security/findings` | GET | `module=data_residency&csp=aws&scan_id=latest` |
+
+---
+
+### 8e. Data Lineage
+**Route**: `/datasec/lineage`
+
+Flow diagram showing how data moves between services — from ingestion through storage to consumers. Used to understand blast radius: "if this bucket is compromised, what downstream systems are affected?"
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│  Data Lineage     [Source ▾]  [Depth: 3]  [Apply]                │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                    │
+│  ┌─────────────────────────────────────────────────────────────┐  │
+│  │                                                             │  │
+│  │  [Kinesis] ──→ [S3: prod-data-lake] ──→ [Glue ETL]        │  │
+│  │                        │                     │             │  │
+│  │                        │              [Athena Queries]     │  │
+│  │                        │                     │             │  │
+│  │                   [Lambda]            [QuickSight]        │  │
+│  │                        │                                   │  │
+│  │                   [DynamoDB]                               │  │
+│  │                                                             │  │
+│  │  (Force-directed graph, click node = show findings)        │  │
+│  └─────────────────────────────────────────────────────────────┘  │
+│                                                                    │
+│  ⚠ prod-data-lake has PII data — 4 downstream consumers          │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+| Component | API | Method | Params |
+|-----------|-----|--------|--------|
+| Lineage Graph Data | `/datasec/api/v1/data-security/lineage` | GET | `csp=aws&scan_id=latest&tenant_id=T` |
+| Protection per Node | `/datasec/api/v1/data-security/protection/{resource_id}` | GET | `csp=aws&scan_id=latest` |
+| Governance per Node | `/datasec/api/v1/data-security/governance/{resource_id}` | GET | `csp=aws&scan_id=latest` |
+
+---
+
+### 8f. Data Activity & Anomalies
+**Route**: `/datasec/activity`
+
+Time-series access patterns for data stores over the past N days, with anomaly detection. Unusual spikes in read/list operations can indicate data exfiltration in progress.
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│  Data Activity Monitor     [Days Back: 30 ▾]  [Store ▾]          │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                    │
+│  Access Operations (last 30 days)                                 │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │  [Line chart: GET/LIST/PUT ops per day, annotated anomalies] │  │
+│  │  300 ─                                ⚠ spike               │  │
+│  │  200 ─       ────────────────────────/──────────────────     │  │
+│  │  100 ─ ────/                                                  │  │
+│  │    0 ─ Feb 4  Feb 10  Feb 16  Feb 22  Feb 28  Mar 6         │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                    │
+│  Anomalies Detected                                                │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │ Store          │ Date     │ Op Type│ Baseline │ Actual │ △   │  │
+│  │────────────────┼──────────┼────────┼──────────┼────────┼──── │  │
+│  │ prod-data-lake │ Mar 4    │ GET    │  50/day  │ 289/day│ 5x  │  │
+│  │ analytics-stg  │ Feb 28   │ LIST   │  10/day  │  87/day│ 8x  │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+> **Security Analyst Note**: A 5× spike in GET operations on a PII bucket is a potential data exfiltration indicator. Cross-reference with CloudTrail logs for the IP address and user identity.
+
+| Component | API | Method | Params |
+|-----------|-----|--------|--------|
+| Activity Time-Series | `/datasec/api/v1/data-security/activity` | GET | `csp=aws&scan_id=latest&days_back=30` |
+| Findings (activity module) | `/datasec/api/v1/data-security/findings` | GET | `module=data_activity&csp=aws&scan_id=latest` |
+| Per-Store Activity | `/datasec/api/v1/data-security/accounts/{account_id}` | GET | `csp=aws&scan_id=latest` |
 
 ---
 

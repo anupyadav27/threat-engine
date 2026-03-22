@@ -1,0 +1,749 @@
+# ============================================================
+# Discovery YAML — androidenterprise (v1)
+# Generated: 2026-02-21T03:06:38Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 34 | independent: 0 | dependent: 34
+# ops with fields: 34/34 | dep ops with chain: 25/34
+# ============================================================
+version: '1.0'
+provider: gcp
+service: androidenterprise
+
+services:
+  client: androidenterprise
+  module: "googleapiclient.discovery.build('androidenterprise', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Retrieves the details of a device.
+  # ── gcp.androidenterprise.devices.get [dependent] ──
+  - discovery_id: gcp.androidenterprise.devices.get
+    for_each: gcp.androidenterprise.devices.list
+    # python: svc.devices().get(**params).execute()
+    calls:
+      - action: devices.get
+        params:
+          deviceId: '{{ item.androidId }}'
+          enterpriseId: '{{ item.name }}'
+          userId: '{{ item.kind }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        androidId: '{{ response.androidId }}'
+        device: '{{ response.device }}'
+        latestBuildFingerprint: '{{ response.latestBuildFingerprint }}'
+        maker: '{{ response.maker }}'
+        managementType: '{{ response.managementType }}'
+        model: '{{ response.model }}'
+        policy: '{{ response.policy }}'
+        product: '{{ response.product }}'
+        report: '{{ response.report }}'
+        retailBrand: '{{ response.retailBrand }}'
+        sdkVersion: '{{ response.sdkVersion }}'
+    # required_params: ['enterpriseId', 'userId', 'deviceId']
+  # Retrieves whether a device's access to Google services is enabled or disabled. The device state take
+  # ── gcp.androidenterprise.devices.getState [dependent] ──
+  - discovery_id: gcp.androidenterprise.devices.getState
+    for_each: gcp.androidenterprise.devices.list
+    # python: svc.devices().getState(**params).execute()
+    calls:
+      - action: devices.getState
+        params:
+          deviceId: '{{ item.androidId }}'
+          enterpriseId: '{{ item.name }}'
+          userId: '{{ item.kind }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accountState: '{{ response.accountState }}'
+    # required_params: ['enterpriseId', 'userId', 'deviceId']
+  # Retrieves the IDs of all of a user's devices.
+  # ── gcp.androidenterprise.devices.list [dependent] ──
+  - discovery_id: gcp.androidenterprise.devices.list
+    for_each: gcp.androidenterprise.managedconfigurationsforuser.list
+    # python: svc.devices().list(**params).execute()
+    calls:
+      - action: devices.list
+        params:
+          enterpriseId: '{{ item.name }}'
+          userId: '{{ item.kind }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.devices }}'
+      item:
+        androidId: '{{ item.androidId }}'
+        device: '{{ item.device }}'
+        latestBuildFingerprint: '{{ item.latestBuildFingerprint }}'
+        maker: '{{ item.maker }}'
+        managementType: '{{ item.managementType }}'
+        model: '{{ item.model }}'
+        policy: '{{ item.policy }}'
+        product: '{{ item.product }}'
+        report: '{{ item.report }}'
+        retailBrand: '{{ item.retailBrand }}'
+        sdkVersion: '{{ item.sdkVersion }}'
+    # required_params: ['enterpriseId', 'userId']
+  # Retrieves the name and domain of an enterprise.
+  # ── gcp.androidenterprise.enterprises.get [dependent] ──
+  - discovery_id: gcp.androidenterprise.enterprises.get
+    for_each: gcp.androidenterprise.enterprises.list
+    # python: svc.enterprises().get(**params).execute()
+    calls:
+      - action: enterprises.get
+        params:
+          enterpriseId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        administrator: '{{ response.administrator }}'
+        enterpriseType: '{{ response.enterpriseType }}'
+        googleAuthenticationSettings: '{{ response.googleAuthenticationSettings }}'
+        id: '{{ response.id }}'
+        managedGoogleDomainType: '{{ response.managedGoogleDomainType }}'
+        name: '{{ response.name }}'
+        primaryDomain: '{{ response.primaryDomain }}'
+    # required_params: ['enterpriseId']
+  # Returns a service account and credentials. The service account can be bound to the enterprise by cal
+  # ── gcp.androidenterprise.enterprises.getServiceAccount [dependent] ──
+  - discovery_id: gcp.androidenterprise.enterprises.getServiceAccount
+    for_each: gcp.androidenterprise.enterprises.list
+    # python: svc.enterprises().getServiceAccount(**params).execute()
+    calls:
+      - action: enterprises.getServiceAccount
+        params:
+          enterpriseId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        key: '{{ response.key }}'
+        name: '{{ response.name }}'
+    # required_params: ['enterpriseId']
+  # Returns the store layout for the enterprise. If the store layout has not been set, returns "basic" a
+  # ── gcp.androidenterprise.enterprises.getStoreLayout [dependent] ──
+  - discovery_id: gcp.androidenterprise.enterprises.getStoreLayout
+    for_each: gcp.androidenterprise.enterprises.list
+    # python: svc.enterprises().getStoreLayout(**params).execute()
+    calls:
+      - action: enterprises.getStoreLayout
+        params:
+          enterpriseId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        homepageId: '{{ response.homepageId }}'
+        storeLayoutType: '{{ response.storeLayoutType }}'
+    # required_params: ['enterpriseId']
+  # Looks up an enterprise by domain name. This is only supported for enterprises created via the Google
+  # ── gcp.androidenterprise.enterprises.list [dependent] ──
+  - discovery_id: gcp.androidenterprise.enterprises.list
+    # python: svc.enterprises().list(**params).execute()
+    calls:
+      - action: enterprises.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.enterprises }}'
+      item:
+        administrator: '{{ item.administrator }}'
+        enterpriseType: '{{ item.enterpriseType }}'
+        googleAuthenticationSettings: '{{ item.googleAuthenticationSettings }}'
+        id: '{{ item.id }}'
+        managedGoogleDomainType: '{{ item.managedGoogleDomainType }}'
+        name: '{{ item.name }}'
+        primaryDomain: '{{ item.primaryDomain }}'
+    # required_params: ['domain']
+  # Retrieves details of an entitlement. **Note:** This item has been deprecated. New integrations canno
+  # ── gcp.androidenterprise.entitlements.get [dependent] ──
+  - discovery_id: gcp.androidenterprise.entitlements.get
+    for_each: gcp.androidenterprise.entitlements.list
+    # python: svc.entitlements().get(**params).execute()
+    calls:
+      - action: entitlements.get
+        params:
+          enterpriseId: '{{ item.name }}'
+          entitlementId: '{{ item.productId }}'
+          userId: '{{ item.kind }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        productId: '{{ response.productId }}'
+        reason: '{{ response.reason }}'
+    # required_params: ['enterpriseId', 'userId', 'entitlementId']
+  # Lists all entitlements for the specified user. Only the ID is set. **Note:** This item has been depr
+  # ── gcp.androidenterprise.entitlements.list [dependent] ──
+  - discovery_id: gcp.androidenterprise.entitlements.list
+    for_each: gcp.androidenterprise.managedconfigurationsforuser.list
+    # python: svc.entitlements().list(**params).execute()
+    calls:
+      - action: entitlements.list
+        params:
+          enterpriseId: '{{ item.name }}'
+          userId: '{{ item.kind }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.entitlements }}'
+      item:
+        productId: '{{ item.productId }}'
+        reason: '{{ item.reason }}'
+    # required_params: ['enterpriseId', 'userId']
+  # Retrieves details of an enterprise's group license for a product. **Note:** This item has been depre
+  # ── gcp.androidenterprise.grouplicenses.get [dependent] ──
+  - discovery_id: gcp.androidenterprise.grouplicenses.get
+    # python: svc.grouplicenses().get(**params).execute()
+    calls:
+      - action: grouplicenses.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        acquisitionKind: '{{ response.acquisitionKind }}'
+        approval: '{{ response.approval }}'
+        numProvisioned: '{{ response.numProvisioned }}'
+        numPurchased: '{{ response.numPurchased }}'
+        permissions: '{{ response.permissions }}'
+        productId: '{{ response.productId }}'
+    # required_params: ['enterpriseId', 'groupLicenseId']
+  # Retrieves IDs of all products for which the enterprise has a group license. **Note:** This item has 
+  # ── gcp.androidenterprise.grouplicenses.list [dependent] ──
+  - discovery_id: gcp.androidenterprise.grouplicenses.list
+    for_each: gcp.androidenterprise.enterprises.list
+    # python: svc.grouplicenses().list(**params).execute()
+    calls:
+      - action: grouplicenses.list
+        params:
+          enterpriseId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.grouplicenses }}'
+      item:
+        acquisitionKind: '{{ item.acquisitionKind }}'
+        approval: '{{ item.approval }}'
+        numProvisioned: '{{ item.numProvisioned }}'
+        numPurchased: '{{ item.numPurchased }}'
+        permissions: '{{ item.permissions }}'
+        productId: '{{ item.productId }}'
+    # required_params: ['enterpriseId']
+  # Retrieves the IDs of the users who have been granted entitlements under the license. **Note:** This 
+  # ── gcp.androidenterprise.grouplicenseusers.list [dependent] ──
+  - discovery_id: gcp.androidenterprise.grouplicenseusers.list
+    # python: svc.grouplicenseusers().list(**params).execute()
+    calls:
+      - action: grouplicenseusers.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.grouplicenseusers }}'
+      item:
+        accountIdentifier: '{{ item.accountIdentifier }}'
+        accountType: '{{ item.accountType }}'
+        displayName: '{{ item.displayName }}'
+        id: '{{ item.id }}'
+        managementType: '{{ item.managementType }}'
+        primaryEmail: '{{ item.primaryEmail }}'
+    # required_params: ['enterpriseId', 'groupLicenseId']
+  # Retrieves details of an installation of an app on a device.
+  # ── gcp.androidenterprise.installs.get [dependent] ──
+  - discovery_id: gcp.androidenterprise.installs.get
+    for_each: gcp.androidenterprise.installs.list
+    # python: svc.installs().get(**params).execute()
+    calls:
+      - action: installs.get
+        params:
+          deviceId: '{{ item.androidId }}'
+          enterpriseId: '{{ item.name }}'
+          installId: '{{ item.productId }}'
+          userId: '{{ item.kind }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        installState: '{{ response.installState }}'
+        productId: '{{ response.productId }}'
+        versionCode: '{{ response.versionCode }}'
+    # required_params: ['enterpriseId', 'userId', 'deviceId', 'installId']
+  # Retrieves the details of all apps installed on the specified device.
+  # ── gcp.androidenterprise.installs.list [dependent] ──
+  - discovery_id: gcp.androidenterprise.installs.list
+    for_each: gcp.androidenterprise.devices.list
+    # python: svc.installs().list(**params).execute()
+    calls:
+      - action: installs.list
+        params:
+          deviceId: '{{ item.androidId }}'
+          enterpriseId: '{{ item.name }}'
+          userId: '{{ item.kind }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.installs }}'
+      item:
+        installState: '{{ item.installState }}'
+        productId: '{{ item.productId }}'
+        versionCode: '{{ item.versionCode }}'
+    # required_params: ['enterpriseId', 'userId', 'deviceId']
+  # Retrieves details of a per-device managed configuration.
+  # ── gcp.androidenterprise.managedconfigurationsfordevice.get [dependent] ──
+  - discovery_id: gcp.androidenterprise.managedconfigurationsfordevice.get
+    # python: svc.managedconfigurationsfordevice().get(**params).execute()
+    calls:
+      - action: managedconfigurationsfordevice.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        configurationVariables: '{{ response.configurationVariables }}'
+        managedProperty: '{{ response.managedProperty }}'
+        productId: '{{ response.productId }}'
+    # required_params: ['enterpriseId', 'userId', 'deviceId', 'managedConfigurationForDeviceId']
+  # Lists all the per-device managed configurations for the specified device. Only the ID is set.
+  # ── gcp.androidenterprise.managedconfigurationsfordevice.list [dependent] ──
+  - discovery_id: gcp.androidenterprise.managedconfigurationsfordevice.list
+    for_each: gcp.androidenterprise.devices.list
+    # python: svc.managedconfigurationsfordevice().list(**params).execute()
+    calls:
+      - action: managedconfigurationsfordevice.list
+        params:
+          deviceId: '{{ item.androidId }}'
+          enterpriseId: '{{ item.name }}'
+          userId: '{{ item.kind }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.managedconfigurationsfordevice }}'
+      item:
+        configurationVariables: '{{ item.configurationVariables }}'
+        managedProperty: '{{ item.managedProperty }}'
+        productId: '{{ item.productId }}'
+    # required_params: ['enterpriseId', 'userId', 'deviceId']
+  # Retrieves details of a per-user managed configuration for an app for the specified user.
+  # ── gcp.androidenterprise.managedconfigurationsforuser.get [dependent] ──
+  - discovery_id: gcp.androidenterprise.managedconfigurationsforuser.get
+    # python: svc.managedconfigurationsforuser().get(**params).execute()
+    calls:
+      - action: managedconfigurationsforuser.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        configurationVariables: '{{ response.configurationVariables }}'
+        managedProperty: '{{ response.managedProperty }}'
+        productId: '{{ response.productId }}'
+    # required_params: ['enterpriseId', 'userId', 'managedConfigurationForUserId']
+  # Lists all the per-user managed configurations for the specified user. Only the ID is set.
+  # ── gcp.androidenterprise.managedconfigurationsforuser.list [dependent] ──
+  - discovery_id: gcp.androidenterprise.managedconfigurationsforuser.list
+    # python: svc.managedconfigurationsforuser().list(**params).execute()
+    calls:
+      - action: managedconfigurationsforuser.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.managedconfigurationsforuser }}'
+      item:
+        configurationVariables: '{{ item.configurationVariables }}'
+        managedProperty: '{{ item.managedProperty }}'
+        productId: '{{ item.productId }}'
+    # required_params: ['enterpriseId', 'userId']
+  # Lists all the managed configurations settings for the specified app.
+  # ── gcp.androidenterprise.managedconfigurationssettings.list [dependent] ──
+  - discovery_id: gcp.androidenterprise.managedconfigurationssettings.list
+    for_each: gcp.androidenterprise.products.list
+    # python: svc.managedconfigurationssettings().list(**params).execute()
+    calls:
+      - action: managedconfigurationssettings.list
+        params:
+          enterpriseId: '{{ item.name }}'
+          productId: '{{ item.productId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.managedconfigurationssettings }}'
+      item:
+        lastUpdatedTimestampMillis: '{{ item.lastUpdatedTimestampMillis }}'
+        mcmId: '{{ item.mcmId }}'
+        name: '{{ item.name }}'
+    # required_params: ['enterpriseId', 'productId']
+  # Retrieves details of an Android app permission for display to an enterprise admin.
+  # ── gcp.androidenterprise.permissions.get [dependent] ──
+  - discovery_id: gcp.androidenterprise.permissions.get
+    for_each: gcp.androidenterprise.grouplicenses.list
+    # python: svc.permissions().get(**params).execute()
+    calls:
+      - action: permissions.get
+        params:
+          permissionId: '{{ item.productId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        description: '{{ response.description }}'
+        name: '{{ response.name }}'
+        permissionId: '{{ response.permissionId }}'
+    # required_params: ['permissionId']
+  # Retrieves details of a product for display to an enterprise admin.
+  # ── gcp.androidenterprise.products.get [dependent] ──
+  - discovery_id: gcp.androidenterprise.products.get
+    for_each: gcp.androidenterprise.products.list
+    # python: svc.products().get(**params).execute()
+    calls:
+      - action: products.get
+        params:
+          enterpriseId: '{{ item.name }}'
+          productId: '{{ item.productId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        appRestrictionsSchema: '{{ response.appRestrictionsSchema }}'
+        appTracks: '{{ response.appTracks }}'
+        appVersion: '{{ response.appVersion }}'
+        authorName: '{{ response.authorName }}'
+        availableCountries: '{{ response.availableCountries }}'
+        availableTracks: '{{ response.availableTracks }}'
+        category: '{{ response.category }}'
+        contentRating: '{{ response.contentRating }}'
+        description: '{{ response.description }}'
+        detailsUrl: '{{ response.detailsUrl }}'
+        distributionChannel: '{{ response.distributionChannel }}'
+        features: '{{ response.features }}'
+        fullDescription: '{{ response.fullDescription }}'
+        iconUrl: '{{ response.iconUrl }}'
+        lastUpdatedTimestampMillis: '{{ response.lastUpdatedTimestampMillis }}'
+        minAndroidSdkVersion: '{{ response.minAndroidSdkVersion }}'
+        permissions: '{{ response.permissions }}'
+        productId: '{{ response.productId }}'
+        productPricing: '{{ response.productPricing }}'
+        recentChanges: '{{ response.recentChanges }}'
+        requiresContainerApp: '{{ response.requiresContainerApp }}'
+        screenshotUrls: '{{ response.screenshotUrls }}'
+        signingCertificate: '{{ response.signingCertificate }}'
+        smallIconUrl: '{{ response.smallIconUrl }}'
+        title: '{{ response.title }}'
+        workDetailsUrl: '{{ response.workDetailsUrl }}'
+    # required_params: ['enterpriseId', 'productId']
+  # Retrieves the schema that defines the configurable properties for this product. All products have a 
+  # ── gcp.androidenterprise.products.getAppRestrictionsSchema [dependent] ──
+  - discovery_id: gcp.androidenterprise.products.getAppRestrictionsSchema
+    for_each: gcp.androidenterprise.products.list
+    # python: svc.products().getAppRestrictionsSchema(**params).execute()
+    calls:
+      - action: products.getAppRestrictionsSchema
+        params:
+          enterpriseId: '{{ item.name }}'
+          productId: '{{ item.productId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        restrictions: '{{ response.restrictions }}'
+    # required_params: ['enterpriseId', 'productId']
+  # Retrieves the Android app permissions required by this app.
+  # ── gcp.androidenterprise.products.getPermissions [dependent] ──
+  - discovery_id: gcp.androidenterprise.products.getPermissions
+    for_each: gcp.androidenterprise.products.list
+    # python: svc.products().getPermissions(**params).execute()
+    calls:
+      - action: products.getPermissions
+        params:
+          enterpriseId: '{{ item.name }}'
+          productId: '{{ item.productId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        permission: '{{ response.permission }}'
+        productId: '{{ response.productId }}'
+    # required_params: ['enterpriseId', 'productId']
+  # Finds approved products that match a query, or all approved products if there is no query. **Note:**
+  # ── gcp.androidenterprise.products.list [dependent] ──
+  - discovery_id: gcp.androidenterprise.products.list
+    for_each: gcp.androidenterprise.enterprises.list
+    # python: svc.products().list(**params).execute()
+    calls:
+      - action: products.list
+        params:
+          enterpriseId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.products }}'
+      item:
+        appRestrictionsSchema: '{{ item.appRestrictionsSchema }}'
+        appTracks: '{{ item.appTracks }}'
+        appVersion: '{{ item.appVersion }}'
+        authorName: '{{ item.authorName }}'
+        availableCountries: '{{ item.availableCountries }}'
+        availableTracks: '{{ item.availableTracks }}'
+        category: '{{ item.category }}'
+        contentRating: '{{ item.contentRating }}'
+        description: '{{ item.description }}'
+        detailsUrl: '{{ item.detailsUrl }}'
+        distributionChannel: '{{ item.distributionChannel }}'
+        features: '{{ item.features }}'
+        fullDescription: '{{ item.fullDescription }}'
+        iconUrl: '{{ item.iconUrl }}'
+        lastUpdatedTimestampMillis: '{{ item.lastUpdatedTimestampMillis }}'
+        minAndroidSdkVersion: '{{ item.minAndroidSdkVersion }}'
+        permissions: '{{ item.permissions }}'
+        productId: '{{ item.productId }}'
+        productPricing: '{{ item.productPricing }}'
+        recentChanges: '{{ item.recentChanges }}'
+        requiresContainerApp: '{{ item.requiresContainerApp }}'
+        screenshotUrls: '{{ item.screenshotUrls }}'
+        signingCertificate: '{{ item.signingCertificate }}'
+        smallIconUrl: '{{ item.smallIconUrl }}'
+        title: '{{ item.title }}'
+        workDetailsUrl: '{{ item.workDetailsUrl }}'
+    # required_params: ['enterpriseId']
+  # Lists all active credentials for the service account associated with this enterprise. Only the ID an
+  # ── gcp.androidenterprise.serviceaccountkeys.list [dependent] ──
+  - discovery_id: gcp.androidenterprise.serviceaccountkeys.list
+    for_each: gcp.androidenterprise.enterprises.list
+    # python: svc.serviceaccountkeys().list(**params).execute()
+    calls:
+      - action: serviceaccountkeys.list
+        params:
+          enterpriseId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.serviceaccountkeys }}'
+      item:
+        data: '{{ item.data }}'
+        id: '{{ item.id }}'
+        publicData: '{{ item.publicData }}'
+        type: '{{ item.type }}'
+    # required_params: ['enterpriseId']
+  # Retrieves details of a cluster.
+  # ── gcp.androidenterprise.storelayoutclusters.get [dependent] ──
+  - discovery_id: gcp.androidenterprise.storelayoutclusters.get
+    # python: svc.storelayoutclusters().get(**params).execute()
+    calls:
+      - action: storelayoutclusters.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        id: '{{ response.id }}'
+        name: '{{ response.name }}'
+        orderInPage: '{{ response.orderInPage }}'
+        productId: '{{ response.productId }}'
+    # required_params: ['enterpriseId', 'pageId', 'clusterId']
+  # Retrieves the details of all clusters on the specified page.
+  # ── gcp.androidenterprise.storelayoutclusters.list [dependent] ──
+  - discovery_id: gcp.androidenterprise.storelayoutclusters.list
+    # python: svc.storelayoutclusters().list(**params).execute()
+    calls:
+      - action: storelayoutclusters.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.storelayoutclusters }}'
+      item:
+        id: '{{ item.id }}'
+        name: '{{ item.name }}'
+        orderInPage: '{{ item.orderInPage }}'
+        productId: '{{ item.productId }}'
+    # required_params: ['enterpriseId', 'pageId']
+  # Retrieves details of a store page.
+  # ── gcp.androidenterprise.storelayoutpages.get [dependent] ──
+  - discovery_id: gcp.androidenterprise.storelayoutpages.get
+    for_each: gcp.androidenterprise.storelayoutclusters.list
+    # python: svc.storelayoutpages().get(**params).execute()
+    calls:
+      - action: storelayoutpages.get
+        params:
+          enterpriseId: '{{ item.name }}'
+          pageId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        id: '{{ response.id }}'
+        link: '{{ response.link }}'
+        name: '{{ response.name }}'
+    # required_params: ['enterpriseId', 'pageId']
+  # Retrieves the details of all pages in the store.
+  # ── gcp.androidenterprise.storelayoutpages.list [dependent] ──
+  - discovery_id: gcp.androidenterprise.storelayoutpages.list
+    for_each: gcp.androidenterprise.enterprises.list
+    # python: svc.storelayoutpages().list(**params).execute()
+    calls:
+      - action: storelayoutpages.list
+        params:
+          enterpriseId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.storelayoutpages }}'
+      item:
+        id: '{{ item.id }}'
+        link: '{{ item.link }}'
+        name: '{{ item.name }}'
+    # required_params: ['enterpriseId']
+  # Retrieves a user's details.
+  # ── gcp.androidenterprise.users.get [dependent] ──
+  - discovery_id: gcp.androidenterprise.users.get
+    for_each: gcp.androidenterprise.managedconfigurationsforuser.list
+    # python: svc.users().get(**params).execute()
+    calls:
+      - action: users.get
+        params:
+          enterpriseId: '{{ item.name }}'
+          userId: '{{ item.kind }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accountIdentifier: '{{ response.accountIdentifier }}'
+        accountType: '{{ response.accountType }}'
+        displayName: '{{ response.displayName }}'
+        id: '{{ response.id }}'
+        managementType: '{{ response.managementType }}'
+        primaryEmail: '{{ response.primaryEmail }}'
+    # required_params: ['enterpriseId', 'userId']
+  # Retrieves the set of products a user is entitled to access. **Note:** This item has been deprecated.
+  # ── gcp.androidenterprise.users.getAvailableProductSet [dependent] ──
+  - discovery_id: gcp.androidenterprise.users.getAvailableProductSet
+    for_each: gcp.androidenterprise.managedconfigurationsforuser.list
+    # python: svc.users().getAvailableProductSet(**params).execute()
+    calls:
+      - action: users.getAvailableProductSet
+        params:
+          enterpriseId: '{{ item.name }}'
+          userId: '{{ item.kind }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        productId: '{{ response.productId }}'
+        productSetBehavior: '{{ response.productSetBehavior }}'
+        productVisibility: '{{ response.productVisibility }}'
+    # required_params: ['enterpriseId', 'userId']
+  # Looks up a user by primary email address. This is only supported for Google-managed users. Lookup of
+  # ── gcp.androidenterprise.users.list [dependent] ──
+  - discovery_id: gcp.androidenterprise.users.list
+    # python: svc.users().list(**params).execute()
+    calls:
+      - action: users.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.users }}'
+      item:
+        accountIdentifier: '{{ item.accountIdentifier }}'
+        accountType: '{{ item.accountType }}'
+        displayName: '{{ item.displayName }}'
+        id: '{{ item.id }}'
+        managementType: '{{ item.managementType }}'
+        primaryEmail: '{{ item.primaryEmail }}'
+    # required_params: ['enterpriseId', 'email']
+  # Gets an existing web app.
+  # ── gcp.androidenterprise.webapps.get [dependent] ──
+  - discovery_id: gcp.androidenterprise.webapps.get
+    for_each: gcp.androidenterprise.webapps.list
+    # python: svc.webapps().get(**params).execute()
+    calls:
+      - action: webapps.get
+        params:
+          enterpriseId: '{{ item.name }}'
+          webAppId: '{{ item.webAppId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        displayMode: '{{ response.displayMode }}'
+        icons: '{{ response.icons }}'
+        isPublished: '{{ response.isPublished }}'
+        startUrl: '{{ response.startUrl }}'
+        title: '{{ response.title }}'
+        versionCode: '{{ response.versionCode }}'
+        webAppId: '{{ response.webAppId }}'
+    # required_params: ['enterpriseId', 'webAppId']
+  # Retrieves the details of all web apps for a given enterprise.
+  # ── gcp.androidenterprise.webapps.list [dependent] ──
+  - discovery_id: gcp.androidenterprise.webapps.list
+    for_each: gcp.androidenterprise.enterprises.list
+    # python: svc.webapps().list(**params).execute()
+    calls:
+      - action: webapps.list
+        params:
+          enterpriseId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.webapps }}'
+      item:
+        displayMode: '{{ item.displayMode }}'
+        icons: '{{ item.icons }}'
+        isPublished: '{{ item.isPublished }}'
+        startUrl: '{{ item.startUrl }}'
+        title: '{{ item.title }}'
+        versionCode: '{{ item.versionCode }}'
+        webAppId: '{{ item.webAppId }}'
+    # required_params: ['enterpriseId']

@@ -1,0 +1,508 @@
+{
+  "service": "libraryagent",
+  "version": "v1",
+  "csp": "gcp",
+  "title": "Library Agent API",
+  "base_url": "https://libraryagent.googleapis.com/",
+  "total_operations": 6,
+  "operations": {
+    "gcp.libraryagent.shelves.get": {
+      "op": "gcp.libraryagent.shelves.get",
+      "service": "libraryagent",
+      "kind": "read_get",
+      "http": {
+        "verb": "GET",
+        "path": "/v1/{+name}"
+      },
+      "python_call": "svc.shelves().get(**params).execute()",
+      "description": "Gets a shelf. Returns NOT_FOUND if the shelf does not exist.",
+      "inputs": {
+        "required": [
+          {
+            "param": "name",
+            "type": "string",
+            "location": "path",
+            "template": "shelves/{shelveId}",
+            "slots": [
+              {
+                "slot": "shelveId",
+                "source": "from_list_op",
+                "after_segment": "shelves"
+              }
+            ],
+            "pattern": "^shelves/[^/]+$",
+            "description": "Required. The name of the shelf to retrieve."
+          }
+        ],
+        "optional": []
+      },
+      "outputs": {
+        "response_schema": "GoogleExampleLibraryagentV1Shelf",
+        "list_field": null,
+        "id_field": null,
+        "id_is_full_resource_name": false,
+        "produces_fields": [
+          {
+            "path": "name",
+            "type": "string",
+            "is_id": true
+          },
+          {
+            "path": "theme",
+            "type": "string",
+            "is_id": false
+          }
+        ]
+      },
+      "independent": false,
+      "dependency_hints": [
+        {
+          "param": "name",
+          "can_come_from": [
+            {
+              "kind": "known_format",
+              "template": "shelves/{shelveId}",
+              "slots": [
+                {
+                  "slot": "shelveId",
+                  "source": "from_list_op",
+                  "after_segment": "shelves"
+                }
+              ]
+            },
+            {
+              "kind": "from_list_op",
+              "op": "gcp.libraryagent.shelves.list",
+              "match_tier": 1,
+              "match_confidence": "exact",
+              "list_field": "shelves",
+              "id_field": "name",
+              "produces_slot": "shelveId",
+              "note": "[tier 1/exact] call gcp.libraryagent.shelves.list, iterate response[\"shelves\"][], extract item[\"name\"] \u2192 fill {shelveId}"
+            }
+          ]
+        }
+      ],
+      "scopes": [
+        "https://www.googleapis.com/auth/cloud-platform"
+      ],
+      "paginated": false
+    },
+    "gcp.libraryagent.shelves.list": {
+      "op": "gcp.libraryagent.shelves.list",
+      "service": "libraryagent",
+      "kind": "read_list",
+      "http": {
+        "verb": "GET",
+        "path": "/v1/shelves"
+      },
+      "python_call": "svc.shelves().list(**params).execute()",
+      "description": "Lists shelves. The order is unspecified but deterministic. Newly created shelves will not necessarily be added to the end of this list.",
+      "inputs": {
+        "required": [],
+        "optional": [
+          "pageToken",
+          "pageSize"
+        ]
+      },
+      "outputs": {
+        "response_schema": "GoogleExampleLibraryagentV1ListShelvesResponse",
+        "list_field": "shelves",
+        "id_field": "name",
+        "id_is_full_resource_name": true,
+        "produces_fields": [
+          {
+            "path": "shelves[].name",
+            "type": "string",
+            "is_id": true,
+            "note": "resource identity \u2014 use as name/parent param for .get()"
+          },
+          {
+            "path": "shelves[].theme",
+            "type": "string",
+            "is_id": false
+          }
+        ]
+      },
+      "independent": true,
+      "dependency_hints": [],
+      "scopes": [
+        "https://www.googleapis.com/auth/cloud-platform"
+      ],
+      "paginated": true
+    },
+    "gcp.libraryagent.shelves.books.return": {
+      "op": "gcp.libraryagent.shelves.books.return",
+      "service": "libraryagent",
+      "kind": "other",
+      "http": {
+        "verb": "POST",
+        "path": "/v1/{+name}:return"
+      },
+      "python_call": "svc.shelves().books().return(**params).execute()",
+      "description": "Return a book to the library. Returns the book if it is returned to the library successfully. Returns error if the book does not belong to the library or the users didn't borrow before.",
+      "inputs": {
+        "required": [
+          {
+            "param": "name",
+            "type": "string",
+            "location": "path",
+            "template": "shelves/{shelveId}/books/{bookId}",
+            "slots": [
+              {
+                "slot": "shelveId",
+                "source": "from_list_op",
+                "after_segment": "shelves"
+              },
+              {
+                "slot": "bookId",
+                "source": "from_list_op",
+                "after_segment": "books"
+              }
+            ],
+            "pattern": "^shelves/[^/]+/books/[^/]+$",
+            "description": "Required. The name of the book to return."
+          }
+        ],
+        "optional": []
+      },
+      "outputs": {
+        "response_schema": "GoogleExampleLibraryagentV1Book",
+        "list_field": null,
+        "id_field": null,
+        "id_is_full_resource_name": false,
+        "produces_fields": []
+      },
+      "independent": false,
+      "dependency_hints": [
+        {
+          "param": "name",
+          "can_come_from": [
+            {
+              "kind": "known_format",
+              "template": "shelves/{shelveId}/books/{bookId}",
+              "slots": [
+                {
+                  "slot": "shelveId",
+                  "source": "from_list_op",
+                  "after_segment": "shelves"
+                },
+                {
+                  "slot": "bookId",
+                  "source": "from_list_op",
+                  "after_segment": "books"
+                }
+              ]
+            },
+            {
+              "kind": "from_list_op",
+              "op": "gcp.libraryagent.shelves.list",
+              "match_tier": 1,
+              "match_confidence": "exact",
+              "list_field": "shelves",
+              "id_field": "name",
+              "produces_slot": "shelveId",
+              "note": "[tier 1/exact] call gcp.libraryagent.shelves.list, iterate response[\"shelves\"][], extract item[\"name\"] \u2192 fill {shelveId}"
+            },
+            {
+              "kind": "from_list_op",
+              "op": "gcp.libraryagent.shelves.books.list",
+              "match_tier": 1,
+              "match_confidence": "exact",
+              "list_field": "books",
+              "id_field": "name",
+              "produces_slot": "bookId",
+              "note": "[tier 1/exact] call gcp.libraryagent.shelves.books.list, iterate response[\"books\"][], extract item[\"name\"] \u2192 fill {bookId}"
+            }
+          ]
+        }
+      ],
+      "scopes": [
+        "https://www.googleapis.com/auth/cloud-platform"
+      ],
+      "paginated": false
+    },
+    "gcp.libraryagent.shelves.books.get": {
+      "op": "gcp.libraryagent.shelves.books.get",
+      "service": "libraryagent",
+      "kind": "read_get",
+      "http": {
+        "verb": "GET",
+        "path": "/v1/{+name}"
+      },
+      "python_call": "svc.shelves().books().get(**params).execute()",
+      "description": "Gets a book. Returns NOT_FOUND if the book does not exist.",
+      "inputs": {
+        "required": [
+          {
+            "param": "name",
+            "type": "string",
+            "location": "path",
+            "template": "shelves/{shelveId}/books/{bookId}",
+            "slots": [
+              {
+                "slot": "shelveId",
+                "source": "from_list_op",
+                "after_segment": "shelves"
+              },
+              {
+                "slot": "bookId",
+                "source": "from_list_op",
+                "after_segment": "books"
+              }
+            ],
+            "pattern": "^shelves/[^/]+/books/[^/]+$",
+            "description": "Required. The name of the book to retrieve."
+          }
+        ],
+        "optional": []
+      },
+      "outputs": {
+        "response_schema": "GoogleExampleLibraryagentV1Book",
+        "list_field": null,
+        "id_field": null,
+        "id_is_full_resource_name": false,
+        "produces_fields": [
+          {
+            "path": "name",
+            "type": "string",
+            "is_id": true
+          },
+          {
+            "path": "author",
+            "type": "string",
+            "is_id": false
+          },
+          {
+            "path": "title",
+            "type": "string",
+            "is_id": false
+          },
+          {
+            "path": "read",
+            "type": "boolean",
+            "is_id": false
+          }
+        ]
+      },
+      "independent": false,
+      "dependency_hints": [
+        {
+          "param": "name",
+          "can_come_from": [
+            {
+              "kind": "known_format",
+              "template": "shelves/{shelveId}/books/{bookId}",
+              "slots": [
+                {
+                  "slot": "shelveId",
+                  "source": "from_list_op",
+                  "after_segment": "shelves"
+                },
+                {
+                  "slot": "bookId",
+                  "source": "from_list_op",
+                  "after_segment": "books"
+                }
+              ]
+            },
+            {
+              "kind": "from_list_op",
+              "op": "gcp.libraryagent.shelves.list",
+              "match_tier": 1,
+              "match_confidence": "exact",
+              "list_field": "shelves",
+              "id_field": "name",
+              "produces_slot": "shelveId",
+              "note": "[tier 1/exact] call gcp.libraryagent.shelves.list, iterate response[\"shelves\"][], extract item[\"name\"] \u2192 fill {shelveId}"
+            },
+            {
+              "kind": "from_list_op",
+              "op": "gcp.libraryagent.shelves.books.list",
+              "match_tier": 1,
+              "match_confidence": "exact",
+              "list_field": "books",
+              "id_field": "name",
+              "produces_slot": "bookId",
+              "note": "[tier 1/exact] call gcp.libraryagent.shelves.books.list, iterate response[\"books\"][], extract item[\"name\"] \u2192 fill {bookId}"
+            }
+          ]
+        }
+      ],
+      "scopes": [
+        "https://www.googleapis.com/auth/cloud-platform"
+      ],
+      "paginated": false
+    },
+    "gcp.libraryagent.shelves.books.list": {
+      "op": "gcp.libraryagent.shelves.books.list",
+      "service": "libraryagent",
+      "kind": "read_list",
+      "http": {
+        "verb": "GET",
+        "path": "/v1/{+parent}/books"
+      },
+      "python_call": "svc.shelves().books().list(**params).execute()",
+      "description": "Lists books in a shelf. The order is unspecified but deterministic. Newly created books will not necessarily be added to the end of this list. Returns NOT_FOUND if the shelf does not exist.",
+      "inputs": {
+        "required": [
+          {
+            "param": "parent",
+            "type": "string",
+            "location": "path",
+            "template": "{parent}",
+            "slots": [
+              {
+                "slot": "parent",
+                "source": "always_available",
+                "after_segment": ""
+              }
+            ],
+            "pattern": "^shelves/[^/]+$",
+            "description": "Required. The name of the shelf whose books we'd like to list."
+          }
+        ],
+        "optional": [
+          "pageToken",
+          "pageSize"
+        ]
+      },
+      "outputs": {
+        "response_schema": "GoogleExampleLibraryagentV1ListBooksResponse",
+        "list_field": "books",
+        "id_field": "name",
+        "id_is_full_resource_name": true,
+        "produces_fields": [
+          {
+            "path": "books[].name",
+            "type": "string",
+            "is_id": true,
+            "note": "resource identity \u2014 use as name/parent param for .get()"
+          },
+          {
+            "path": "books[].author",
+            "type": "string",
+            "is_id": false
+          },
+          {
+            "path": "books[].title",
+            "type": "string",
+            "is_id": false
+          },
+          {
+            "path": "books[].read",
+            "type": "string",
+            "is_id": false
+          }
+        ]
+      },
+      "independent": true,
+      "dependency_hints": [
+        {
+          "param": "parent",
+          "can_come_from": [
+            {
+              "kind": "always_available",
+              "param": "parent"
+            }
+          ]
+        }
+      ],
+      "scopes": [
+        "https://www.googleapis.com/auth/cloud-platform"
+      ],
+      "paginated": true
+    },
+    "gcp.libraryagent.shelves.books.borrow": {
+      "op": "gcp.libraryagent.shelves.books.borrow",
+      "service": "libraryagent",
+      "kind": "other",
+      "http": {
+        "verb": "POST",
+        "path": "/v1/{+name}:borrow"
+      },
+      "python_call": "svc.shelves().books().borrow(**params).execute()",
+      "description": "Borrow a book from the library. Returns the book if it is borrowed successfully. Returns NOT_FOUND if the book does not exist in the library. Returns quota exceeded error if the amount of books borrow",
+      "inputs": {
+        "required": [
+          {
+            "param": "name",
+            "type": "string",
+            "location": "path",
+            "template": "shelves/{shelveId}/books/{bookId}",
+            "slots": [
+              {
+                "slot": "shelveId",
+                "source": "from_list_op",
+                "after_segment": "shelves"
+              },
+              {
+                "slot": "bookId",
+                "source": "from_list_op",
+                "after_segment": "books"
+              }
+            ],
+            "pattern": "^shelves/[^/]+/books/[^/]+$",
+            "description": "Required. The name of the book to borrow."
+          }
+        ],
+        "optional": []
+      },
+      "outputs": {
+        "response_schema": "GoogleExampleLibraryagentV1Book",
+        "list_field": null,
+        "id_field": null,
+        "id_is_full_resource_name": false,
+        "produces_fields": []
+      },
+      "independent": false,
+      "dependency_hints": [
+        {
+          "param": "name",
+          "can_come_from": [
+            {
+              "kind": "known_format",
+              "template": "shelves/{shelveId}/books/{bookId}",
+              "slots": [
+                {
+                  "slot": "shelveId",
+                  "source": "from_list_op",
+                  "after_segment": "shelves"
+                },
+                {
+                  "slot": "bookId",
+                  "source": "from_list_op",
+                  "after_segment": "books"
+                }
+              ]
+            },
+            {
+              "kind": "from_list_op",
+              "op": "gcp.libraryagent.shelves.list",
+              "match_tier": 1,
+              "match_confidence": "exact",
+              "list_field": "shelves",
+              "id_field": "name",
+              "produces_slot": "shelveId",
+              "note": "[tier 1/exact] call gcp.libraryagent.shelves.list, iterate response[\"shelves\"][], extract item[\"name\"] \u2192 fill {shelveId}"
+            },
+            {
+              "kind": "from_list_op",
+              "op": "gcp.libraryagent.shelves.books.list",
+              "match_tier": 1,
+              "match_confidence": "exact",
+              "list_field": "books",
+              "id_field": "name",
+              "produces_slot": "bookId",
+              "note": "[tier 1/exact] call gcp.libraryagent.shelves.books.list, iterate response[\"books\"][], extract item[\"name\"] \u2192 fill {bookId}"
+            }
+          ]
+        }
+      ],
+      "scopes": [
+        "https://www.googleapis.com/auth/cloud-platform"
+      ],
+      "paginated": false
+    }
+  }
+}

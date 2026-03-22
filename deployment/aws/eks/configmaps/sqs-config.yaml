@@ -1,0 +1,34 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sqs-config
+  namespace: threat-engine-engines
+  annotations:
+    description: >
+      SQS queue URLs for the threat-engine async pipeline.
+      Set SQS_PIPELINE_QUEUE_URL on the onboarding engine to enable SQS mode.
+      The pipeline-worker deployment reads SQS_PIPELINE_QUEUE_URL to know
+      which queue to poll.
+data:
+  # ── Main pipeline input queue ─────────────────────────────────────────────
+  # Onboarding publishes scan_requested events here.
+  # pipeline-worker polls this queue and runs the full stage pipeline.
+  SQS_PIPELINE_QUEUE_URL: "https://sqs.ap-south-1.amazonaws.com/588989875114/threat-engine-scan-requests.fifo"
+
+  # ── Events / monitoring queue (optional) ─────────────────────────────────
+  # pipeline-worker publishes stage_complete / stage_failed / scan_complete
+  # events here for external consumers (e.g. notifications, dashboards).
+  SQS_EVENTS_QUEUE_URL: "https://sqs.ap-south-1.amazonaws.com/588989875114/threat-engine-pipeline-events.fifo"
+
+  # ── Tuning ────────────────────────────────────────────────────────────────
+  # How long a pipeline message stays invisible while the worker processes it.
+  # Set to at least the maximum expected end-to-end pipeline duration.
+  SQS_VISIBILITY_TIMEOUT: "3600"   # 1 hour
+
+  # Seconds to sleep between empty poll cycles (long-poll is 20 s by default).
+  SQS_POLL_INTERVAL_S: "5"
+
+  # ── Parallel Discovery Queue ────────────────────────────────────────────
+  # Discovery dispatcher publishes (account × region × service) tasks here.
+  # KEDA ScaledJob workers poll this queue — one task per pod.
+  SQS_DISCOVERY_QUEUE_URL: "https://sqs.ap-south-1.amazonaws.com/588989875114/threat-engine-discovery-tasks.fifo"

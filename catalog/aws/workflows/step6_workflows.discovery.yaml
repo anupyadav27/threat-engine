@@ -1,0 +1,317 @@
+# ============================================================
+# Discovery YAML — workflows (AWS)
+# Generated: 2026-02-21T04:57:00Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: workflows
+services:
+  client: workflows
+  module: boto3.client
+discovery:
+  # ── ListActivities ──
+  - discovery_id: aws.workflows.list_activities
+    calls:
+      - action: list_activities
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.activities }}'
+      item:
+        activityArn: '{{ item.activityArn }}'
+        creationDate: '{{ item.creationDate }}'
+        encryptionConfiguration: '{{ item.encryptionConfiguration }}'
+        input: '{{ item.input }}'
+        kmsDataKeyReusePeriodSeconds: '{{ item.kmsDataKeyReusePeriodSeconds }}'
+        kmsKeyId: '{{ item.kmsKeyId }}'
+        name: '{{ item.name }}'
+        taskToken: '{{ item.taskToken }}'
+  # ── ListExecutions ──
+  - discovery_id: aws.workflows.list_executions
+    calls:
+      - action: list_executions
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.executions }}'
+      item:
+        cause: '{{ item.cause }}'
+        error: '{{ item.error }}'
+        executionArn: '{{ item.executionArn }}'
+        inputDetails: '{{ item.inputDetails }}'
+        itemCount: '{{ item.itemCount }}'
+        mapRunArn: '{{ item.mapRunArn }}'
+        name: '{{ item.name }}'
+        output: '{{ item.output }}'
+        outputDetails: '{{ item.outputDetails }}'
+        redriveCount: '{{ item.redriveCount }}'
+        redriveDate: '{{ item.redriveDate }}'
+        startDate: '{{ item.startDate }}'
+        stateMachineAliasArn: '{{ item.stateMachineAliasArn }}'
+        stateMachineArn: '{{ item.stateMachineArn }}'
+        stateMachineVersionArn: '{{ item.stateMachineVersionArn }}'
+        status: '{{ item.status }}'
+        stopDate: '{{ item.stopDate }}'
+  # ── ListStateMachines ──
+  - discovery_id: aws.workflows.list_state_machines
+    calls:
+      - action: list_state_machines
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.activities }}'
+      item:
+        creationDate: '{{ item.creationDate }}'
+        definition: '{{ item.definition }}'
+        description: '{{ item.description }}'
+        label: '{{ item.label }}'
+        name: '{{ item.name }}'
+        stateMachineArn: '{{ item.stateMachineArn }}'
+        type: '{{ item.type }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── DescribeActivity ──
+  - discovery_id: aws.workflows.describe_activity
+    for_each: aws.workflows.list_activities
+    calls:
+      - action: describe_activity
+        params:
+          activityArn: '{{ item.activityArn }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.activities }}'
+      item:
+        Status: '{{ item.Status }}'
+        Enabled: '{{ item.Enabled }}'
+        encryptionConfiguration: '{{ item.encryptionConfiguration }}'
+        kmsDataKeyReusePeriodSeconds: '{{ item.kmsDataKeyReusePeriodSeconds }}'
+        kmsKeyId: '{{ item.kmsKeyId }}'
+        type: '{{ item.type }}'
+  # ── DescribeExecution ──
+  - discovery_id: aws.workflows.describe_execution
+    for_each: aws.workflows.list_executions
+    calls:
+      - action: describe_execution
+        params:
+          executionArn: '{{ item.executionArn }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.executions }}'
+      item:
+        cause: '{{ item.cause }}'
+        error: '{{ item.error }}'
+        included: '{{ item.included }}'
+        inputDetails: '{{ item.inputDetails }}'
+        output: '{{ item.output }}'
+        outputDetails: '{{ item.outputDetails }}'
+  # ── DescribeMapRun ──
+  - discovery_id: aws.workflows.describe_map_run
+    for_each: aws.workflows.list_executions
+    calls:
+      - action: describe_map_run
+        params:
+          mapRunArn: '{{ item.mapRunArn }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.itemCounts }}'
+      item:
+        aborted: '{{ item.aborted }}'
+        failed: '{{ item.failed }}'
+        failuresNotRedrivable: '{{ item.failuresNotRedrivable }}'
+        pending: '{{ item.pending }}'
+        pendingRedrive: '{{ item.pendingRedrive }}'
+        resultsWritten: '{{ item.resultsWritten }}'
+        running: '{{ item.running }}'
+        succeeded: '{{ item.succeeded }}'
+        timedOut: '{{ item.timedOut }}'
+        total: '{{ item.total }}'
+  # ── DescribeStateMachine ──
+  - discovery_id: aws.workflows.describe_state_machine
+    for_each: aws.workflows.list_state_machines
+    calls:
+      - action: describe_state_machine
+        params:
+          stateMachineArn: '{{ item.stateMachineArn }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.stateMachines }}'
+      item:
+        definition: '{{ item.definition }}'
+        description: '{{ item.description }}'
+        destinations: '{{ item.destinations }}'
+        includeExecutionData: '{{ item.includeExecutionData }}'
+        label: '{{ item.label }}'
+        level: '{{ item.level }}'
+        loggingConfiguration: '{{ item.loggingConfiguration }}'
+  # ── DescribeStateMachineAlias ──
+  - discovery_id: aws.workflows.describe_state_machine_alias
+    for_each: aws.workflows.list_executions
+    calls:
+      - action: describe_state_machine_alias
+        params:
+          stateMachineAliasArn: '{{ item.stateMachineAliasArn }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.executions }}'
+      item:
+        stateMachineVersionArn: '{{ item.stateMachineVersionArn }}'
+        weight: '{{ item.weight }}'
+  # ── DescribeStateMachineForExecution ──
+  - discovery_id: aws.workflows.describe_state_machine_for_execution
+    for_each: aws.workflows.list_executions
+    calls:
+      - action: describe_state_machine_for_execution
+        params:
+          executionArn: '{{ item.executionArn }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.loggingConfiguration }}'
+      item:
+        destinations: '{{ item.destinations }}'
+        includeExecutionData: '{{ item.includeExecutionData }}'
+        level: '{{ item.level }}'
+  # ── GetActivityTask ──
+  - discovery_id: aws.workflows.get_activity_task
+    for_each: aws.workflows.list_activities
+    calls:
+      - action: get_activity_task
+        params:
+          activityArn: '{{ item.activityArn }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.activities }}'
+      item:
+        input: '{{ item.input }}'
+        taskToken: '{{ item.taskToken }}'
+  # ── GetExecutionHistory ──
+  - discovery_id: aws.workflows.get_execution_history
+    for_each: aws.workflows.list_executions
+    calls:
+      - action: get_execution_history
+        params:
+          executionArn: '{{ item.executionArn }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.events }}'
+      item:
+        activityFailedEventDetails: '{{ item.activityFailedEventDetails }}'
+        activityScheduleFailedEventDetails: '{{ item.activityScheduleFailedEventDetails }}'
+        activityScheduledEventDetails: '{{ item.activityScheduledEventDetails }}'
+        activityStartedEventDetails: '{{ item.activityStartedEventDetails }}'
+        activitySucceededEventDetails: '{{ item.activitySucceededEventDetails }}'
+        activityTimedOutEventDetails: '{{ item.activityTimedOutEventDetails }}'
+        evaluationFailedEventDetails: '{{ item.evaluationFailedEventDetails }}'
+        events: '{{ item.events }}'
+        executionAbortedEventDetails: '{{ item.executionAbortedEventDetails }}'
+        executionFailedEventDetails: '{{ item.executionFailedEventDetails }}'
+        executionRedrivenEventDetails: '{{ item.executionRedrivenEventDetails }}'
+        executionStartedEventDetails: '{{ item.executionStartedEventDetails }}'
+        executionSucceededEventDetails: '{{ item.executionSucceededEventDetails }}'
+        executionTimedOutEventDetails: '{{ item.executionTimedOutEventDetails }}'
+        id: '{{ item.id }}'
+        lambdaFunctionFailedEventDetails: '{{ item.lambdaFunctionFailedEventDetails }}'
+        lambdaFunctionScheduleFailedEventDetails: '{{ item.lambdaFunctionScheduleFailedEventDetails }}'
+        lambdaFunctionScheduledEventDetails: '{{ item.lambdaFunctionScheduledEventDetails }}'
+        lambdaFunctionStartFailedEventDetails: '{{ item.lambdaFunctionStartFailedEventDetails }}'
+        lambdaFunctionSucceededEventDetails: '{{ item.lambdaFunctionSucceededEventDetails }}'
+        lambdaFunctionTimedOutEventDetails: '{{ item.lambdaFunctionTimedOutEventDetails }}'
+        mapIterationAbortedEventDetails: '{{ item.mapIterationAbortedEventDetails }}'
+        mapIterationFailedEventDetails: '{{ item.mapIterationFailedEventDetails }}'
+        mapIterationStartedEventDetails: '{{ item.mapIterationStartedEventDetails }}'
+        mapIterationSucceededEventDetails: '{{ item.mapIterationSucceededEventDetails }}'
+        mapRunFailedEventDetails: '{{ item.mapRunFailedEventDetails }}'
+        mapRunRedrivenEventDetails: '{{ item.mapRunRedrivenEventDetails }}'
+        mapRunStartedEventDetails: '{{ item.mapRunStartedEventDetails }}'
+        mapStateStartedEventDetails: '{{ item.mapStateStartedEventDetails }}'
+        previousEventId: '{{ item.previousEventId }}'
+        stateEnteredEventDetails: '{{ item.stateEnteredEventDetails }}'
+        stateExitedEventDetails: '{{ item.stateExitedEventDetails }}'
+        taskFailedEventDetails: '{{ item.taskFailedEventDetails }}'
+        taskScheduledEventDetails: '{{ item.taskScheduledEventDetails }}'
+        taskStartFailedEventDetails: '{{ item.taskStartFailedEventDetails }}'
+        taskStartedEventDetails: '{{ item.taskStartedEventDetails }}'
+        taskSubmitFailedEventDetails: '{{ item.taskSubmitFailedEventDetails }}'
+        taskSubmittedEventDetails: '{{ item.taskSubmittedEventDetails }}'
+        taskSucceededEventDetails: '{{ item.taskSucceededEventDetails }}'
+        taskTimedOutEventDetails: '{{ item.taskTimedOutEventDetails }}'
+        timestamp: '{{ item.timestamp }}'
+        type: '{{ item.type }}'
+  # ── ListMapRuns ──
+  - discovery_id: aws.workflows.list_map_runs
+    for_each: aws.workflows.list_executions
+    calls:
+      - action: list_map_runs
+        params:
+          executionArn: '{{ item.executionArn }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.executions }}'
+      item:
+        executionArn: '{{ item.executionArn }}'
+        mapRunArn: '{{ item.mapRunArn }}'
+        startDate: '{{ item.startDate }}'
+        stateMachineArn: '{{ item.stateMachineArn }}'
+        stopDate: '{{ item.stopDate }}'
+  # ── ListStateMachineAliases ──
+  - discovery_id: aws.workflows.list_state_machine_aliases
+    for_each: aws.workflows.list_state_machines
+    calls:
+      - action: list_state_machine_aliases
+        params:
+          stateMachineArn: '{{ item.stateMachineArn }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.activities }}'
+      item:
+        creationDate: '{{ item.creationDate }}'
+        stateMachineAliasArn: '{{ item.stateMachineAliasArn }}'
+  # ── ListStateMachineVersions ──
+  - discovery_id: aws.workflows.list_state_machine_versions
+    for_each: aws.workflows.list_state_machines
+    calls:
+      - action: list_state_machine_versions
+        params:
+          stateMachineArn: '{{ item.stateMachineArn }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.activities }}'
+      item:
+        creationDate: '{{ item.creationDate }}'
+        stateMachineVersionArn: '{{ item.stateMachineVersionArn }}'
+  # ── ListTagsForResource ──
+  - discovery_id: aws.workflows.list_tags_for_resource
+    calls:
+      - action: list_tags_for_resource
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.tags }}'
+      item:
+        key: '{{ item.key }}'
+        value: '{{ item.value }}'

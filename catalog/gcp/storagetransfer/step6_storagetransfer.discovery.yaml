@@ -1,0 +1,179 @@
+# ============================================================
+# Discovery YAML — storagetransfer (v1)
+# Generated: 2026-02-21T03:06:41Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 7 | independent: 2 | dependent: 5
+# ops with fields: 7/7 | dep ops with chain: 3/5
+# ============================================================
+version: '1.0'
+provider: gcp
+service: storagetransfer
+
+services:
+  client: storagetransfer
+  module: "googleapiclient.discovery.build('storagetransfer', 'v1')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Returns the Google service account that is used by Storage Transfer Service to access buckets in the
+  # ── gcp.storagetransfer.googleServiceAccounts.get ──
+  - discovery_id: gcp.storagetransfer.googleServiceAccounts.get
+    # python: svc.googleServiceAccounts().get(**params).execute()
+    calls:
+      - action: googleServiceAccounts.get
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        accountEmail: '{{ response.accountEmail }}'
+        subjectId: '{{ response.subjectId }}'
+  # Lists agent pools.
+  # ── gcp.storagetransfer.projects.agentPools.list ──
+  - discovery_id: gcp.storagetransfer.projects.agentPools.list
+    # python: svc.projects().agentPools().list(**params).execute()
+    calls:
+      - action: projects.agentPools.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.agentPools }}'
+      item:
+        bandwidthLimit: '{{ item.bandwidthLimit }}'
+        displayName: '{{ item.displayName }}'
+        name: '{{ item.name }}'
+        state: '{{ item.state }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Gets an agent pool.
+  # ── gcp.storagetransfer.projects.agentPools.get [dependent] ──
+  - discovery_id: gcp.storagetransfer.projects.agentPools.get
+    for_each: gcp.storagetransfer.projects.agentPools.list
+    # python: svc.projects().agentPools().get(**params).execute()
+    calls:
+      - action: projects.agentPools.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        bandwidthLimit: '{{ response.bandwidthLimit }}'
+        displayName: '{{ response.displayName }}'
+        name: '{{ response.name }}'
+        state: '{{ response.state }}'
+    # required_params: ['name']
+  # Gets a transfer job.
+  # ── gcp.storagetransfer.transferJobs.get [dependent] ──
+  - discovery_id: gcp.storagetransfer.transferJobs.get
+    for_each: gcp.storagetransfer.transferJobs.list
+    # python: svc.transferJobs().get(**params).execute()
+    calls:
+      - action: transferJobs.get
+        params:
+          jobName: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        creationTime: '{{ response.creationTime }}'
+        deletionTime: '{{ response.deletionTime }}'
+        description: '{{ response.description }}'
+        eventStream: '{{ response.eventStream }}'
+        lastModificationTime: '{{ response.lastModificationTime }}'
+        latestOperationName: '{{ response.latestOperationName }}'
+        loggingConfig: '{{ response.loggingConfig }}'
+        name: '{{ response.name }}'
+        notificationConfig: '{{ response.notificationConfig }}'
+        projectId: '{{ response.projectId }}'
+        replicationSpec: '{{ response.replicationSpec }}'
+        schedule: '{{ response.schedule }}'
+        serviceAccount: '{{ response.serviceAccount }}'
+        status: '{{ response.status }}'
+        transferSpec: '{{ response.transferSpec }}'
+    # required_params: ['projectId', 'jobName']
+  # Lists transfer jobs.
+  # ── gcp.storagetransfer.transferJobs.list [dependent] ──
+  - discovery_id: gcp.storagetransfer.transferJobs.list
+    # python: svc.transferJobs().list(**params).execute()
+    calls:
+      - action: transferJobs.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.transferJobs }}'
+      item:
+        creationTime: '{{ item.creationTime }}'
+        deletionTime: '{{ item.deletionTime }}'
+        description: '{{ item.description }}'
+        eventStream: '{{ item.eventStream }}'
+        lastModificationTime: '{{ item.lastModificationTime }}'
+        latestOperationName: '{{ item.latestOperationName }}'
+        loggingConfig: '{{ item.loggingConfig }}'
+        name: '{{ item.name }}'
+        notificationConfig: '{{ item.notificationConfig }}'
+        projectId: '{{ item.projectId }}'
+        replicationSpec: '{{ item.replicationSpec }}'
+        schedule: '{{ item.schedule }}'
+        serviceAccount: '{{ item.serviceAccount }}'
+        status: '{{ item.status }}'
+        transferSpec: '{{ item.transferSpec }}'
+    # required_params: ['filter']
+  # Gets the latest state of a long-running operation. Clients can use this method to poll the operation
+  # ── gcp.storagetransfer.transferOperations.get [dependent] ──
+  - discovery_id: gcp.storagetransfer.transferOperations.get
+    for_each: gcp.storagetransfer.transferOperations.list
+    # python: svc.transferOperations().get(**params).execute()
+    calls:
+      - action: transferOperations.get
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        done: '{{ response.done }}'
+        error: '{{ response.error }}'
+        metadata: '{{ response.metadata }}'
+        name: '{{ response.name }}'
+        response: '{{ response.response }}'
+    # required_params: ['name']
+  # Lists transfer operations. Operations are ordered by their creation time in reverse chronological or
+  # ── gcp.storagetransfer.transferOperations.list [dependent] ──
+  - discovery_id: gcp.storagetransfer.transferOperations.list
+    # python: svc.transferOperations().list(**params).execute()
+    calls:
+      - action: transferOperations.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.transferOperations }}'
+      item:
+        done: '{{ item.done }}'
+        error: '{{ item.error }}'
+        metadata: '{{ item.metadata }}'
+        name: '{{ item.name }}'
+        response: '{{ item.response }}'
+    # required_params: ['filter', 'name']

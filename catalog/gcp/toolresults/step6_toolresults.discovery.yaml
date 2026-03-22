@@ -1,0 +1,475 @@
+# ============================================================
+# Discovery YAML — toolresults (v1beta3)
+# Generated: 2026-02-21T03:06:41Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 19 | independent: 2 | dependent: 17
+# ops with fields: 19/19 | dep ops with chain: 17/17
+# ============================================================
+version: '1.0'
+provider: gcp
+service: toolresults
+
+services:
+  client: toolresults
+  module: "googleapiclient.discovery.build('toolresults', 'v1beta3')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Gets the Tool Results settings for a project. May return any of the following canonical error codes:
+  # ── gcp.toolresults.projects.getSettings ──
+  - discovery_id: gcp.toolresults.projects.getSettings
+    # python: svc.projects().getSettings(**params).execute()
+    calls:
+      - action: projects.getSettings
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        defaultBucket: '{{ response.defaultBucket }}'
+        name: '{{ response.name }}'
+  # Lists Histories for a given Project. The histories are sorted by modification time in descending ord
+  # ── gcp.toolresults.projects.histories.list ──
+  - discovery_id: gcp.toolresults.projects.histories.list
+    # python: svc.projects().histories().list(**params).execute()
+    calls:
+      - action: projects.histories.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.histories }}'
+      item:
+        displayName: '{{ item.displayName }}'
+        historyId: '{{ item.historyId }}'
+        name: '{{ item.name }}'
+        testPlatform: '{{ item.testPlatform }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # Retrieves a single screenshot cluster by its ID
+  # ── gcp.toolresults.projects.histories.executions.clusters.get [dependent] ──
+  - discovery_id: gcp.toolresults.projects.histories.executions.clusters.get
+    for_each: gcp.toolresults.projects.histories.executions.clusters.list
+    # python: svc.projects().histories().executions().clusters().get(**params).execute()
+    calls:
+      - action: projects.histories.executions.clusters.get
+        params:
+          clusterId: '{{ item.clusterId }}'
+          executionId: '{{ item.executionId }}'
+          historyId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        activity: '{{ response.activity }}'
+        clusterId: '{{ response.clusterId }}'
+        keyScreen: '{{ response.keyScreen }}'
+        screens: '{{ response.screens }}'
+    # required_params: ['projectId', 'historyId', 'executionId', 'clusterId']
+  # Lists Screenshot Clusters Returns the list of screenshot clusters corresponding to an execution. Scr
+  # ── gcp.toolresults.projects.histories.executions.clusters.list [dependent] ──
+  - discovery_id: gcp.toolresults.projects.histories.executions.clusters.list
+    for_each: gcp.toolresults.projects.histories.executions.list
+    # python: svc.projects().histories().executions().clusters().list(**params).execute()
+    calls:
+      - action: projects.histories.executions.clusters.list
+        params:
+          executionId: '{{ item.executionId }}'
+          historyId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.clusters }}'
+      item:
+        activity: '{{ item.activity }}'
+        clusterId: '{{ item.clusterId }}'
+        keyScreen: '{{ item.keyScreen }}'
+        screens: '{{ item.screens }}'
+    # required_params: ['projectId', 'historyId', 'executionId']
+  # Gets an Environment. May return any of the following canonical error codes: - PERMISSION_DENIED - if
+  # ── gcp.toolresults.projects.histories.executions.environments.get [dependent] ──
+  - discovery_id: gcp.toolresults.projects.histories.executions.environments.get
+    for_each: gcp.toolresults.projects.histories.executions.environments.list
+    # python: svc.projects().histories().executions().environments().get(**params).execute()
+    calls:
+      - action: projects.histories.executions.environments.get
+        params:
+          environmentId: '{{ item.projectId }}'
+          executionId: '{{ item.executionId }}'
+          historyId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        completionTime: '{{ response.completionTime }}'
+        creationTime: '{{ response.creationTime }}'
+        dimensionValue: '{{ response.dimensionValue }}'
+        displayName: '{{ response.displayName }}'
+        environmentId: '{{ response.environmentId }}'
+        environmentResult: '{{ response.environmentResult }}'
+        executionId: '{{ response.executionId }}'
+        historyId: '{{ response.historyId }}'
+        projectId: '{{ response.projectId }}'
+        resultsStorage: '{{ response.resultsStorage }}'
+        shardSummaries: '{{ response.shardSummaries }}'
+    # required_params: ['projectId', 'historyId', 'executionId', 'environmentId']
+  # Lists Environments for a given Execution. The Environments are sorted by display name. May return an
+  # ── gcp.toolresults.projects.histories.executions.environments.list [dependent] ──
+  - discovery_id: gcp.toolresults.projects.histories.executions.environments.list
+    for_each: gcp.toolresults.projects.histories.executions.list
+    # python: svc.projects().histories().executions().environments().list(**params).execute()
+    calls:
+      - action: projects.histories.executions.environments.list
+        params:
+          executionId: '{{ item.executionId }}'
+          historyId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.environments }}'
+      item:
+        completionTime: '{{ item.completionTime }}'
+        creationTime: '{{ item.creationTime }}'
+        dimensionValue: '{{ item.dimensionValue }}'
+        displayName: '{{ item.displayName }}'
+        environmentId: '{{ item.environmentId }}'
+        environmentResult: '{{ item.environmentResult }}'
+        resultsStorage: '{{ item.resultsStorage }}'
+        shardSummaries: '{{ item.shardSummaries }}'
+    # required_params: ['projectId', 'historyId', 'executionId']
+  # Gets an Execution. May return any of the following canonical error codes: - PERMISSION_DENIED - if t
+  # ── gcp.toolresults.projects.histories.executions.get [dependent] ──
+  - discovery_id: gcp.toolresults.projects.histories.executions.get
+    for_each: gcp.toolresults.projects.histories.executions.list
+    # python: svc.projects().histories().executions().get(**params).execute()
+    calls:
+      - action: projects.histories.executions.get
+        params:
+          executionId: '{{ item.executionId }}'
+          historyId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        completionTime: '{{ response.completionTime }}'
+        creationTime: '{{ response.creationTime }}'
+        dimensionDefinitions: '{{ response.dimensionDefinitions }}'
+        executionId: '{{ response.executionId }}'
+        outcome: '{{ response.outcome }}'
+        specification: '{{ response.specification }}'
+        state: '{{ response.state }}'
+        testExecutionMatrixId: '{{ response.testExecutionMatrixId }}'
+    # required_params: ['projectId', 'historyId', 'executionId']
+  # Lists Executions for a given History. The executions are sorted by creation_time in descending order
+  # ── gcp.toolresults.projects.histories.executions.list [dependent] ──
+  - discovery_id: gcp.toolresults.projects.histories.executions.list
+    for_each: gcp.toolresults.projects.histories.list
+    # python: svc.projects().histories().executions().list(**params).execute()
+    calls:
+      - action: projects.histories.executions.list
+        params:
+          historyId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.executions }}'
+      item:
+        completionTime: '{{ item.completionTime }}'
+        creationTime: '{{ item.creationTime }}'
+        dimensionDefinitions: '{{ item.dimensionDefinitions }}'
+        executionId: '{{ item.executionId }}'
+        outcome: '{{ item.outcome }}'
+        specification: '{{ item.specification }}'
+        state: '{{ item.state }}'
+        testExecutionMatrixId: '{{ item.testExecutionMatrixId }}'
+    # required_params: ['projectId', 'historyId']
+  # Lists accessibility clusters for a given Step May return any of the following canonical error codes:
+  # ── gcp.toolresults.projects.histories.executions.steps.accessibilityClusters [dependent] ──
+  - discovery_id: gcp.toolresults.projects.histories.executions.steps.accessibilityClusters
+    for_each: gcp.toolresults.projects.histories.executions.steps.list
+    # python: svc.projects().histories().executions().steps().accessibilityClusters(**params).execute()
+    calls:
+      - action: projects.histories.executions.steps.accessibilityClusters
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        clusters: '{{ response.clusters }}'
+        name: '{{ response.name }}'
+    # required_params: ['name']
+  # Gets a Step. May return any of the following canonical error codes: - PERMISSION_DENIED - if the use
+  # ── gcp.toolresults.projects.histories.executions.steps.get [dependent] ──
+  - discovery_id: gcp.toolresults.projects.histories.executions.steps.get
+    for_each: gcp.toolresults.projects.histories.executions.steps.list
+    # python: svc.projects().histories().executions().steps().get(**params).execute()
+    calls:
+      - action: projects.histories.executions.steps.get
+        params:
+          executionId: '{{ item.executionId }}'
+          historyId: '{{ item.name }}'
+          stepId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        completionTime: '{{ response.completionTime }}'
+        creationTime: '{{ response.creationTime }}'
+        description: '{{ response.description }}'
+        deviceUsageDuration: '{{ response.deviceUsageDuration }}'
+        dimensionValue: '{{ response.dimensionValue }}'
+        hasImages: '{{ response.hasImages }}'
+        labels: '{{ response.labels }}'
+        multiStep: '{{ response.multiStep }}'
+        name: '{{ response.name }}'
+        outcome: '{{ response.outcome }}'
+        runDuration: '{{ response.runDuration }}'
+        state: '{{ response.state }}'
+        stepId: '{{ response.stepId }}'
+        testExecutionStep: '{{ response.testExecutionStep }}'
+        toolExecutionStep: '{{ response.toolExecutionStep }}'
+    # required_params: ['projectId', 'historyId', 'executionId', 'stepId']
+  # Retrieves a PerfMetricsSummary. May return any of the following error code(s): - NOT_FOUND - The spe
+  # ── gcp.toolresults.projects.histories.executions.steps.getPerfMetricsSummary [dependent] ──
+  - discovery_id: gcp.toolresults.projects.histories.executions.steps.getPerfMetricsSummary
+    for_each: gcp.toolresults.projects.histories.executions.steps.list
+    # python: svc.projects().histories().executions().steps().getPerfMetricsSummary(**params).execute()
+    calls:
+      - action: projects.histories.executions.steps.getPerfMetricsSummary
+        params:
+          executionId: '{{ item.executionId }}'
+          historyId: '{{ item.name }}'
+          stepId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        appStartTime: '{{ response.appStartTime }}'
+        executionId: '{{ response.executionId }}'
+        graphicsStats: '{{ response.graphicsStats }}'
+        historyId: '{{ response.historyId }}'
+        perfEnvironment: '{{ response.perfEnvironment }}'
+        perfMetrics: '{{ response.perfMetrics }}'
+        projectId: '{{ response.projectId }}'
+        stepId: '{{ response.stepId }}'
+    # required_params: ['projectId', 'historyId', 'executionId', 'stepId']
+  # Lists Steps for a given Execution. The steps are sorted by creation_time in descending order. The st
+  # ── gcp.toolresults.projects.histories.executions.steps.list [dependent] ──
+  - discovery_id: gcp.toolresults.projects.histories.executions.steps.list
+    for_each: gcp.toolresults.projects.histories.executions.list
+    # python: svc.projects().histories().executions().steps().list(**params).execute()
+    calls:
+      - action: projects.histories.executions.steps.list
+        params:
+          executionId: '{{ item.executionId }}'
+          historyId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.steps }}'
+      item:
+        completionTime: '{{ item.completionTime }}'
+        creationTime: '{{ item.creationTime }}'
+        description: '{{ item.description }}'
+        deviceUsageDuration: '{{ item.deviceUsageDuration }}'
+        dimensionValue: '{{ item.dimensionValue }}'
+        hasImages: '{{ item.hasImages }}'
+        labels: '{{ item.labels }}'
+        multiStep: '{{ item.multiStep }}'
+        name: '{{ item.name }}'
+        outcome: '{{ item.outcome }}'
+        runDuration: '{{ item.runDuration }}'
+        state: '{{ item.state }}'
+        stepId: '{{ item.stepId }}'
+        testExecutionStep: '{{ item.testExecutionStep }}'
+        toolExecutionStep: '{{ item.toolExecutionStep }}'
+    # required_params: ['projectId', 'historyId', 'executionId']
+  # Gets a PerfSampleSeries. May return any of the following error code(s): - NOT_FOUND - The specified 
+  # ── gcp.toolresults.projects.histories.executions.steps.perfSampleSeries.get [dependent] ──
+  - discovery_id: gcp.toolresults.projects.histories.executions.steps.perfSampleSeries.get
+    for_each: gcp.toolresults.projects.histories.executions.steps.perfSampleSeries.list
+    # python: svc.projects().histories().executions().steps().perfSampleSeries().get(**params).execute()
+    calls:
+      - action: projects.histories.executions.steps.perfSampleSeries.get
+        params:
+          executionId: '{{ item.executionId }}'
+          historyId: '{{ item.name }}'
+          sampleSeriesId: '{{ item.projectId }}'
+          stepId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        basicPerfSampleSeries: '{{ response.basicPerfSampleSeries }}'
+        executionId: '{{ response.executionId }}'
+        historyId: '{{ response.historyId }}'
+        projectId: '{{ response.projectId }}'
+        sampleSeriesId: '{{ response.sampleSeriesId }}'
+        stepId: '{{ response.stepId }}'
+    # required_params: ['projectId', 'historyId', 'executionId', 'stepId', 'sampleSeriesId']
+  # Lists PerfSampleSeries for a given Step. The request provides an optional filter which specifies one
+  # ── gcp.toolresults.projects.histories.executions.steps.perfSampleSeries.list [dependent] ──
+  - discovery_id: gcp.toolresults.projects.histories.executions.steps.perfSampleSeries.list
+    for_each: gcp.toolresults.projects.histories.executions.steps.list
+    # python: svc.projects().histories().executions().steps().perfSampleSeries().list(**params).execute()
+    calls:
+      - action: projects.histories.executions.steps.perfSampleSeries.list
+        params:
+          executionId: '{{ item.executionId }}'
+          historyId: '{{ item.name }}'
+          stepId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.perfSampleSeries }}'
+      item:
+        basicPerfSampleSeries: '{{ item.basicPerfSampleSeries }}'
+        executionId: '{{ item.executionId }}'
+        historyId: '{{ item.historyId }}'
+        projectId: '{{ item.projectId }}'
+        sampleSeriesId: '{{ item.sampleSeriesId }}'
+        stepId: '{{ item.stepId }}'
+    # required_params: ['projectId', 'historyId', 'executionId', 'stepId']
+  # Lists the Performance Samples of a given Sample Series - The list results are sorted by timestamps a
+  # ── gcp.toolresults.projects.histories.executions.steps.perfSampleSeries.samples.list [dependent] ──
+  - discovery_id: gcp.toolresults.projects.histories.executions.steps.perfSampleSeries.samples.list
+    for_each: gcp.toolresults.projects.histories.executions.steps.perfSampleSeries.list
+    # python: svc.projects().histories().executions().steps().perfSampleSeries().samples().list(**params).execute()
+    calls:
+      - action: projects.histories.executions.steps.perfSampleSeries.samples.list
+        params:
+          executionId: '{{ item.executionId }}'
+          historyId: '{{ item.name }}'
+          sampleSeriesId: '{{ item.projectId }}'
+          stepId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.samples }}'
+      item:
+        sampleTime: '{{ item.sampleTime }}'
+        value: '{{ item.value }}'
+    # required_params: ['projectId', 'historyId', 'executionId', 'stepId', 'sampleSeriesId']
+  # Gets details of a Test Case for a Step. Experimental test cases API. Still in active development. Ma
+  # ── gcp.toolresults.projects.histories.executions.steps.testCases.get [dependent] ──
+  - discovery_id: gcp.toolresults.projects.histories.executions.steps.testCases.get
+    for_each: gcp.toolresults.projects.histories.executions.steps.testCases.list
+    # python: svc.projects().histories().executions().steps().testCases().get(**params).execute()
+    calls:
+      - action: projects.histories.executions.steps.testCases.get
+        params:
+          executionId: '{{ item.executionId }}'
+          historyId: '{{ item.name }}'
+          stepId: '{{ item.name }}'
+          testCaseId: '{{ item.testCaseId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        elapsedTime: '{{ response.elapsedTime }}'
+        endTime: '{{ response.endTime }}'
+        skippedMessage: '{{ response.skippedMessage }}'
+        stackTraces: '{{ response.stackTraces }}'
+        startTime: '{{ response.startTime }}'
+        status: '{{ response.status }}'
+        testCaseId: '{{ response.testCaseId }}'
+        testCaseReference: '{{ response.testCaseReference }}'
+        toolOutputs: '{{ response.toolOutputs }}'
+    # required_params: ['projectId', 'historyId', 'executionId', 'stepId', 'testCaseId']
+  # Lists Test Cases attached to a Step. Experimental test cases API. Still in active development. May r
+  # ── gcp.toolresults.projects.histories.executions.steps.testCases.list [dependent] ──
+  - discovery_id: gcp.toolresults.projects.histories.executions.steps.testCases.list
+    for_each: gcp.toolresults.projects.histories.executions.steps.list
+    # python: svc.projects().histories().executions().steps().testCases().list(**params).execute()
+    calls:
+      - action: projects.histories.executions.steps.testCases.list
+        params:
+          executionId: '{{ item.executionId }}'
+          historyId: '{{ item.name }}'
+          stepId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.testCases }}'
+      item:
+        elapsedTime: '{{ item.elapsedTime }}'
+        endTime: '{{ item.endTime }}'
+        skippedMessage: '{{ item.skippedMessage }}'
+        stackTraces: '{{ item.stackTraces }}'
+        startTime: '{{ item.startTime }}'
+        status: '{{ item.status }}'
+        testCaseId: '{{ item.testCaseId }}'
+        testCaseReference: '{{ item.testCaseReference }}'
+        toolOutputs: '{{ item.toolOutputs }}'
+    # required_params: ['projectId', 'historyId', 'executionId', 'stepId']
+  # Lists thumbnails of images attached to a step. May return any of the following canonical error codes
+  # ── gcp.toolresults.projects.histories.executions.steps.thumbnails.list [dependent] ──
+  - discovery_id: gcp.toolresults.projects.histories.executions.steps.thumbnails.list
+    for_each: gcp.toolresults.projects.histories.executions.steps.list
+    # python: svc.projects().histories().executions().steps().thumbnails().list(**params).execute()
+    calls:
+      - action: projects.histories.executions.steps.thumbnails.list
+        params:
+          executionId: '{{ item.executionId }}'
+          historyId: '{{ item.name }}'
+          stepId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.thumbnails }}'
+      item:
+        error: '{{ item.error }}'
+        sourceImage: '{{ item.sourceImage }}'
+        stepId: '{{ item.stepId }}'
+        thumbnail: '{{ item.thumbnail }}'
+    # required_params: ['projectId', 'historyId', 'executionId', 'stepId']
+  # Gets a History. May return any of the following canonical error codes: - PERMISSION_DENIED - if the 
+  # ── gcp.toolresults.projects.histories.get [dependent] ──
+  - discovery_id: gcp.toolresults.projects.histories.get
+    for_each: gcp.toolresults.projects.histories.list
+    # python: svc.projects().histories().get(**params).execute()
+    calls:
+      - action: projects.histories.get
+        params:
+          historyId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        displayName: '{{ response.displayName }}'
+        historyId: '{{ response.historyId }}'
+        name: '{{ response.name }}'
+        testPlatform: '{{ response.testPlatform }}'
+    # required_params: ['projectId', 'historyId']

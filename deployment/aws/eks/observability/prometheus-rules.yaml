@@ -1,0 +1,129 @@
+# PrometheusRule — alert rules for operational health of the threat-engine pipeline.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: threat-engine-alerts
+  namespace: threat-engine-engines
+  labels:
+    release: prometheus
+    app: threat-engine
+spec:
+  groups:
+    - name: threat-engine-scan-health
+      interval: 30s
+      rules:
+        # 1. Scan failure rate > 5%
+        - alert: ScanFailureRateHigh
+          expr: |
+            (
+              rate(engine_scan_errors_total[5m])
+              / on(engine) rate(engine_scan_duration_seconds_count[5m])
+            ) > 0.05
+          for: 5m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "High scan failure rate for {{ $labels.engine }}"
+            description: >
+              Engine {{ $labels.engine }} error rate is {{ $value | humanizePercentage }}
+              over the last 5 minutes. Check credentials, permissions, or service health.
+            runbook_url: "https://wiki.internal/runbooks/scan-failure-rate"
+
+        # 2. P95 scan time > 10 minutes
+        - alert: ScanTimeoutDetected
+          expr: |
+            histogram_quantile(0.95, rate(engine_scan_duration_seconds_bucket[10m])) > 600
+          for: 10m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Slow scan detected for {{ $labels.engine }}"
+            description: >
+              P95 scan duration is {{ $value | humanizeDuration }} for {{ $labels.engine }}.
+              May indicate external API rate limits or slow database queries.
+
+        # 3. Vulnerability cache > 7 days old
+        - alert: VulnerabilityCacheTooOld
+          expr: |
+            (time() - external_collector_cache_age_seconds{cache_name="vuln_cache"}) > 604800
+          for: 1h
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "NVD/CVE vulnerability cache is stale"
+            description: >
+              vuln_cache has not been refreshed in over 7 days. Findings may
+              be missing recently published CVEs.
+
+        # 4. Threat intel cache > 3 days old
+        - alert: ThreatIntelCacheTooOld
+          expr: |
+            (time() - external_collector_cache_age_seconds{cache_name="threat_intel_ioc"}) > 259200
+          for: 30m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Threat intel feed is stale"
+            description: >
+              threat_intel_ioc has not been refreshed in over 3 days. IOC
+              detection may miss recent indicators of compromise.
+
+        # 5. Service not responding
+        - alert: ServiceNotReady
+          expr: up{job=~"engine-.*"} == 0
+          for: 2m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "{{ $labels.job }} is down"
+            description: >
+              Service {{ $labels.job }} has not responded to health checks
+              for over 2 minutes. Check pod status and logs.
+
+        # 6. Database connection failures
+        - alert: DatabaseConnectionFailures
+          expr: |
+            increase(engine_database_query_errors_total{error_type="connection"}[5m]) > 5
+          for: 5m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Database connection errors for {{ $labels.engine }}"
+            description: >
+              {{ $labels.engine }} has experienced {{ $value }} DB connection
+              errors in 5 minutes. Check RDS health and network connectivity.
+
+        # 7. Slow ETL transformation
+        - alert: SlowETLTransformation
+          expr: |
+            histogram_quantile(0.95, rate(engine_etl_duration_seconds_bucket[10m])) > 300
+          for: 10m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Slow ETL stage for {{ $labels.engine }}"
+            description: >
+              P95 ETL duration is {{ $value | humanizeDuration }}. Consider adding
+              database indexes or optimizing transformation queries.
+
+        # 8. Slow rule evaluation
+        - alert: SlowFindingEvaluation
+          expr: |
+            histogram_quantile(0.95, rate(engine_evaluation_duration_seconds_bucket{stage="evaluate"}[10m])) > 120
+          for: 10m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Slow rule evaluation for {{ $labels.engine }}"
+            description: >
+              P95 evaluation duration is {{ $value | humanizeDuration }}. May
+              indicate high rule complexity or large dataset.

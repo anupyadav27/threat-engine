@@ -1,0 +1,518 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: cspm-scan-pipeline
+  namespace: threat-engine-engines
+  labels:
+    app: cspm-pipeline
+spec:
+  serviceAccountName: default
+  entrypoint: full-pipeline
+
+  arguments:
+    parameters:
+    - name: scan-run-id
+      description: "Pipeline-wide UUID (from scan_orchestration)"
+    - name: tenant-id
+      description: "Tenant identifier"
+    - name: account-id
+      description: "Cloud account ID"
+    - name: provider
+      value: "aws"
+      description: "Cloud provider (aws, azure, gcp)"
+    - name: credential-type
+      value: "access_key"
+    - name: credential-ref
+      value: "threat-engine/account/588989875114"
+
+  # Garbage-collect completed pods after 10 minutes
+  podGC:
+    strategy: OnPodCompletion
+    deleteDelayDuration: "600s"
+
+  templates:
+
+  # ── Full pipeline DAG ──────────────────────────────────────────────────
+  - name: full-pipeline
+    dag:
+      tasks:
+      - name: create-orchestration-record
+        template: create-orch-record
+
+      - name: discovery
+        dependencies: [create-orchestration-record]
+        template: trigger-and-poll
+        arguments:
+          parameters:
+          - name: engine
+            value: discovery
+          - name: trigger-url
+            value: "http://engine-discoveries/api/v1/discovery"
+          - name: payload
+            value: |
+              {
+                "scan_run_id": "{{workflow.parameters.scan-run-id}}",
+                "tenant_id": "{{workflow.parameters.tenant-id}}",
+                "account_id": "{{workflow.parameters.account-id}}",
+                "provider": "{{workflow.parameters.provider}}",
+                "credential_type": "{{workflow.parameters.credential-type}}",
+                "credential_ref": "{{workflow.parameters.credential-ref}}"
+              }
+          - name: poll-url
+            value: "http://engine-discoveries/api/v1/discovery/{{workflow.parameters.scan-run-id}}"
+          - name: timeout
+            value: "1800"
+
+      - name: check
+        dependencies: [discovery]
+        template: trigger-and-wait
+        arguments:
+          parameters:
+          - name: engine
+            value: check
+          - name: url
+            value: "http://engine-check/api/v1/scan"
+          - name: payload
+            value: |
+              {"scan_run_id": "{{workflow.parameters.scan-run-id}}"}
+          - name: timeout
+            value: "600"
+
+      - name: inventory
+        dependencies: [discovery]
+        template: trigger-and-wait
+        arguments:
+          parameters:
+          - name: engine
+            value: inventory
+          - name: url
+            value: "http://engine-inventory/api/v1/inventory/scan/discovery"
+          - name: payload
+            value: |
+              {
+                "scan_run_id": "{{workflow.parameters.scan-run-id}}",
+                "tenant_id": "{{workflow.parameters.tenant-id}}"
+              }
+          - name: timeout
+            value: "600"
+
+      - name: threat
+        dependencies: [check]
+        template: trigger-and-wait
+        arguments:
+          parameters:
+          - name: engine
+            value: threat
+          - name: url
+            value: "http://engine-threat/api/v1/scan"
+          - name: payload
+            value: |
+              {
+                "scan_run_id": "{{workflow.parameters.scan-run-id}}",
+                "cloud": "{{workflow.parameters.provider}}",
+                "trigger_type": "api",
+                "accounts": [],
+                "regions": [],
+                "services": []
+              }
+          - name: timeout
+            value: "600"
+
+      - name: compliance
+        dependencies: [threat]
+        template: trigger-and-wait
+        arguments:
+          parameters:
+          - name: engine
+            value: compliance
+          - name: url
+            value: "http://engine-compliance/api/v1/scan"
+          - name: payload
+            value: |
+              {
+                "scan_run_id": "{{workflow.parameters.scan-run-id}}",
+                "trigger_type": "orchestrated",
+                "export_to_db": true
+              }
+          - name: timeout
+            value: "600"
+
+      - name: iam
+        dependencies: [threat]
+        template: trigger-and-wait
+        arguments:
+          parameters:
+          - name: engine
+            value: iam
+          - name: url
+            value: "http://engine-iam/api/v1/scan"
+          - name: payload
+            value: |
+              {
+                "scan_run_id": "{{workflow.parameters.scan-run-id}}",
+                "max_findings": 5000
+              }
+          - name: timeout
+            value: "600"
+
+      - name: datasec
+        dependencies: [threat]
+        template: trigger-and-wait
+        arguments:
+          parameters:
+          - name: engine
+            value: datasec
+          - name: url
+            value: "http://engine-datasec/api/v1/scan"
+          - name: payload
+            value: |
+              {
+                "scan_run_id": "{{workflow.parameters.scan-run-id}}",
+                "include_classification": true,
+                "include_lineage": true,
+                "include_residency": true,
+                "include_activity": true,
+                "max_findings": 5000
+              }
+          - name: timeout
+            value: "600"
+
+      - name: mark-complete
+        dependencies: [compliance, iam, datasec, inventory]
+        template: update-orch-status
+        arguments:
+          parameters:
+          - name: status
+            value: "completed"
+
+  # ── Create orchestration record in onboarding DB ──────────────────────
+  - name: create-orch-record
+    script:
+      image: yadavanup84/engine-discoveries:v-std-cols
+      command: [python3]
+      envFrom:
+      - configMapRef:
+          name: threat-engine-db-config
+      - secretRef:
+          name: threat-engine-db-passwords
+          optional: true
+      source: |
+        import psycopg2, os, json
+        host = os.getenv('ONBOARDING_DB_HOST', os.getenv('DB_HOST', 'localhost'))
+        port = int(os.getenv('ONBOARDING_DB_PORT', os.getenv('DB_PORT', '5432')))
+        db = os.getenv('ONBOARDING_DB_NAME', 'threat_engine_onboarding')
+        user = os.getenv('ONBOARDING_DB_USER', os.getenv('DB_USER', 'postgres'))
+        pw = os.getenv('ONBOARDING_DB_PASSWORD', os.getenv('DB_PASSWORD', ''))
+
+        scan_run_id = '{{workflow.parameters.scan-run-id}}'
+        tenant_id = '{{workflow.parameters.tenant-id}}'
+        account_id = '{{workflow.parameters.account-id}}'
+        provider = '{{workflow.parameters.provider}}'
+        cred_type = '{{workflow.parameters.credential-type}}'
+        cred_ref = '{{workflow.parameters.credential-ref}}'
+
+        engines = json.dumps(['discovery','check','inventory','threat','compliance','iam','datasec'])
+
+        conn = psycopg2.connect(host=host, port=port, database=db, user=user, password=pw)
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO scan_orchestration
+                (scan_run_id, tenant_id, scan_type, trigger_type, engines_requested,
+                 engines_completed, overall_status, started_at, provider, account_id,
+                 credential_type, credential_ref, created_at)
+            VALUES (%s, %s, 'full', 'argo', %s::jsonb,
+                '[]'::jsonb, 'running', NOW(), %s, %s, %s, %s, NOW())
+            ON CONFLICT (scan_run_id) DO UPDATE SET overall_status='running', started_at=NOW()
+        """, (scan_run_id, tenant_id, engines, provider, account_id, cred_type, cred_ref))
+        conn.commit()
+        conn.close()
+        print(f'Orchestration record created: {scan_run_id}')
+
+  # ── Trigger + Poll (for async engines like discovery) ─────────────────
+  - name: trigger-and-poll
+    inputs:
+      parameters:
+      - name: engine
+      - name: trigger-url
+      - name: payload
+      - name: poll-url
+      - name: timeout
+        value: "1800"
+    retryStrategy:
+      limit: 1
+      retryPolicy: OnFailure
+    timeout: "{{inputs.parameters.timeout}}s"
+    script:
+      image: yadavanup84/engine-discoveries:v-std-cols
+      command: [python3]
+      envFrom:
+      - configMapRef:
+          name: threat-engine-db-config
+      - secretRef:
+          name: threat-engine-db-passwords
+          optional: true
+      source: |
+        import requests, time, os, psycopg2, json
+
+        ENGINE = "{{inputs.parameters.engine}}"
+        TRIGGER_URL = "{{inputs.parameters.trigger-url}}"
+        POLL_URL = "{{inputs.parameters.poll-url}}"
+        TIMEOUT = int("{{inputs.parameters.timeout}}")
+        SCAN_RUN_ID = "{{workflow.parameters.scan-run-id}}"
+
+        print(f"=== Triggering {ENGINE} ===")
+        print(f"URL: {TRIGGER_URL}")
+
+        payload = json.loads('''{{inputs.parameters.payload}}''')
+        resp = requests.post(TRIGGER_URL, json=payload, timeout=60)
+        print(f"HTTP {resp.status_code}")
+        print(resp.text[:200])
+
+        if resp.status_code >= 400:
+            print(f"FAILED: {ENGINE} returned HTTP {resp.status_code}")
+            exit(1)
+
+        print(f"=== {ENGINE} triggered, polling for completion ===")
+
+        elapsed = 0
+        interval = 15
+
+        while elapsed < TIMEOUT:
+            time.sleep(interval)
+            elapsed += interval
+
+            try:
+                sr = requests.get(POLL_URL, timeout=10)
+                data = sr.json()
+                status = data.get("status", "unknown")
+            except Exception:
+                status = "unknown"
+
+            if elapsed % 60 < interval:
+                findings = data.get("total_findings", "?") if status != "unknown" else "?"
+                print(f"[{ENGINE}] {elapsed}s status={status} findings={findings}")
+
+            if status == "completed":
+                print(f"=== {ENGINE} COMPLETED ({elapsed}s) ===")
+                # Update engines_completed in scan_orchestration
+                try:
+                    conn = psycopg2.connect(
+                        host=os.getenv('ONBOARDING_DB_HOST', os.getenv('DB_HOST', 'localhost')),
+                        port=int(os.getenv('ONBOARDING_DB_PORT', os.getenv('DB_PORT', '5432'))),
+                        database=os.getenv('ONBOARDING_DB_NAME', 'threat_engine_onboarding'),
+                        user=os.getenv('ONBOARDING_DB_USER', os.getenv('DB_USER', 'postgres')),
+                        password=os.getenv('ONBOARDING_DB_PASSWORD', os.getenv('DB_PASSWORD', ''))
+                    )
+                    cur = conn.cursor()
+                    cur.execute("""
+                        UPDATE scan_orchestration
+                        SET engines_completed = COALESCE(engines_completed, '[]'::jsonb) || to_jsonb(%s::text)
+                        WHERE scan_run_id = %s
+                    """, (ENGINE, SCAN_RUN_ID))
+                    conn.commit()
+                    conn.close()
+                    print(f"Updated engines_completed += {ENGINE}")
+                except Exception as e:
+                    print(f"Warning: {e}")
+                exit(0)
+
+            if status == "failed":
+                print(f"=== {ENGINE} FAILED ===")
+                exit(1)
+
+        print(f"=== {ENGINE} TIMEOUT after {TIMEOUT}s ===")
+        exit(1)
+
+  # ── Trigger + Wait (for synchronous engines) ──────────────────────────
+  - name: trigger-and-wait
+    inputs:
+      parameters:
+      - name: engine
+      - name: url
+      - name: payload
+      - name: timeout
+        value: "600"
+    retryStrategy:
+      limit: 2
+      retryPolicy: OnFailure
+      backoff:
+        duration: "10s"
+        factor: 2
+    timeout: "{{inputs.parameters.timeout}}s"
+    script:
+      image: yadavanup84/engine-discoveries:v-std-cols
+      command: [python3]
+      envFrom:
+      - configMapRef:
+          name: threat-engine-db-config
+      - secretRef:
+          name: threat-engine-db-passwords
+          optional: true
+      source: |
+        import requests, os, psycopg2, json
+
+        ENGINE = "{{inputs.parameters.engine}}"
+        URL = "{{inputs.parameters.url}}"
+        SCAN_RUN_ID = "{{workflow.parameters.scan-run-id}}"
+        TIMEOUT = int("{{inputs.parameters.timeout}}")
+
+        print(f"=== Triggering {ENGINE} ===")
+        print(f"URL: {URL}")
+
+        payload = json.loads('''{{inputs.parameters.payload}}''')
+        resp = requests.post(URL, json=payload, timeout=TIMEOUT)
+
+        print(f"HTTP {resp.status_code}")
+        print(resp.text[:300])
+
+        if resp.status_code >= 400:
+            print(f"FAILED: {ENGINE} returned HTTP {resp.status_code}")
+            exit(1)
+
+        # Update engines_completed in scan_orchestration
+        try:
+            conn = psycopg2.connect(
+                host=os.getenv('ONBOARDING_DB_HOST', os.getenv('DB_HOST', 'localhost')),
+                port=int(os.getenv('ONBOARDING_DB_PORT', os.getenv('DB_PORT', '5432'))),
+                database=os.getenv('ONBOARDING_DB_NAME', 'threat_engine_onboarding'),
+                user=os.getenv('ONBOARDING_DB_USER', os.getenv('DB_USER', 'postgres')),
+                password=os.getenv('ONBOARDING_DB_PASSWORD', os.getenv('DB_PASSWORD', ''))
+            )
+            cur = conn.cursor()
+            cur.execute("""
+                UPDATE scan_orchestration
+                SET engines_completed = COALESCE(engines_completed, '[]'::jsonb) || to_jsonb(%s::text)
+                WHERE scan_run_id = %s
+            """, (ENGINE, SCAN_RUN_ID))
+            conn.commit()
+            conn.close()
+            print(f"Updated engines_completed += {ENGINE}")
+        except Exception as e:
+            print(f"Warning: {e}")
+
+        print(f"=== {ENGINE} COMPLETED ===")
+
+  # ── Update orchestration status ───────────────────────────────────────
+  - name: update-orch-status
+    inputs:
+      parameters:
+      - name: status
+    script:
+      image: yadavanup84/engine-discoveries:v-std-cols
+      command: [python3]
+      envFrom:
+      - configMapRef:
+          name: threat-engine-db-config
+      - secretRef:
+          name: threat-engine-db-passwords
+          optional: true
+      source: |
+        import psycopg2, os
+        host = os.getenv('ONBOARDING_DB_HOST', os.getenv('DB_HOST', 'localhost'))
+        port = int(os.getenv('ONBOARDING_DB_PORT', os.getenv('DB_PORT', '5432')))
+        db = os.getenv('ONBOARDING_DB_NAME', 'threat_engine_onboarding')
+        user = os.getenv('ONBOARDING_DB_USER', os.getenv('DB_USER', 'postgres'))
+        pw = os.getenv('ONBOARDING_DB_PASSWORD', os.getenv('DB_PASSWORD', ''))
+
+        scan_run_id = '{{workflow.parameters.scan-run-id}}'
+        status = '{{inputs.parameters.status}}'
+
+        conn = psycopg2.connect(host=host, port=port, database=db, user=user, password=pw)
+        cur = conn.cursor()
+        cur.execute("""
+            UPDATE scan_orchestration
+            SET overall_status = %s,
+                completed_at = NOW(),
+                engines_completed = engines_requested
+            WHERE scan_run_id = %s
+        """, (status, scan_run_id))
+        conn.commit()
+        conn.close()
+        print(f'Pipeline {status} for scan_run_id={scan_run_id}')
+
+---
+# ── Single engine workflow (for running individual engines) ──────────────
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: cspm-single-engine
+  namespace: threat-engine-engines
+  labels:
+    app: cspm-pipeline
+spec:
+  serviceAccountName: default
+  entrypoint: run-engine
+
+  arguments:
+    parameters:
+    - name: engine
+      description: "Engine to run: discovery, check, inventory, threat, compliance, iam, datasec"
+    - name: scan-run-id
+      description: "Pipeline-wide UUID"
+    - name: tenant-id
+      value: "test-tenant-002"
+    - name: account-id
+      value: "588989875114"
+    - name: provider
+      value: "aws"
+
+  templates:
+  - name: run-engine
+    steps:
+    - - name: trigger
+        template: trigger-engine-direct
+        arguments:
+          parameters:
+          - name: engine
+            value: "{{workflow.parameters.engine}}"
+          - name: scan-run-id
+            value: "{{workflow.parameters.scan-run-id}}"
+          - name: tenant-id
+            value: "{{workflow.parameters.tenant-id}}"
+          - name: account-id
+            value: "{{workflow.parameters.account-id}}"
+          - name: provider
+            value: "{{workflow.parameters.provider}}"
+
+  - name: trigger-engine-direct
+    inputs:
+      parameters:
+      - name: engine
+      - name: scan-run-id
+      - name: tenant-id
+      - name: account-id
+      - name: provider
+    retryStrategy:
+      limit: 2
+      retryPolicy: OnFailure
+    timeout: "30m"
+    script:
+      image: curlimages/curl:8.5.0
+      command: [sh]
+      source: |
+        ENGINE="{{inputs.parameters.engine}}"
+        SCAN_RUN_ID="{{inputs.parameters.scan-run-id}}"
+        TENANT_ID="{{inputs.parameters.tenant-id}}"
+        ACCOUNT_ID="{{inputs.parameters.account-id}}"
+        PROVIDER="{{inputs.parameters.provider}}"
+
+        # Resolve URL
+        case "$ENGINE" in
+          discovery)   URL="http://engine-discoveries/api/v1/discovery" ;;
+          check)       URL="http://engine-check/api/v1/scan" ;;
+          inventory)   URL="http://engine-inventory/api/v1/inventory/scan/discovery" ;;
+          threat)      URL="http://engine-threat/api/v1/scan" ;;
+          compliance)  URL="http://engine-compliance/api/v1/scan" ;;
+          iam)         URL="http://engine-iam/api/v1/scan" ;;
+          datasec)     URL="http://engine-datasec/api/v1/scan" ;;
+          *)           echo "Unknown engine: $ENGINE"; exit 1 ;;
+        esac
+
+        echo "=== Triggering $ENGINE at $URL ==="
+        curl -sf -X POST "$URL" \
+          -H "Content-Type: application/json" \
+          -d "{\"scan_run_id\": \"$SCAN_RUN_ID\", \"tenant_id\": \"$TENANT_ID\", \"account_id\": \"$ACCOUNT_ID\", \"provider\": \"$PROVIDER\"}" \
+          --max-time 300
+
+        echo ""
+        echo "=== $ENGINE triggered ==="

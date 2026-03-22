@@ -1,0 +1,38 @@
+version: '1.0'
+provider: k8s
+service: configmap
+services:
+  client: configmap
+  module: boto3.client
+discovery:
+- discovery_id: k8s.configmap.list
+  calls:
+  - action: list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+    item:
+      metadata: '{{ item.metadata }}'
+      metadata.name: '{{ item.metadata.name }}'
+      metadata.namespace: '{{ item.metadata.namespace }}'
+      data: '{{ item.data }}'
+      binaryData: '{{ item.binaryData }}'
+      immutable: '{{ item.immutable }}'
+- discovery_id: k8s.configmap.get
+  calls:
+  - action: get
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+    item:
+      metadata: '{{ item.metadata }}'
+      metadata.name: '{{ item.metadata.name }}'
+      metadata.namespace: '{{ item.metadata.namespace }}'
+      data: '{{ item.data }}'
+      binaryData: '{{ item.binaryData }}'
+      immutable: '{{ item.immutable }}'
+checks: []

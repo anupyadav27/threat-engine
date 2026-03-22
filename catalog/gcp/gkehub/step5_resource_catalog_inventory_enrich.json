@@ -1,0 +1,2005 @@
+{
+  "csp": "gcp",
+  "generated_at": "2026-02-19T14:43:26.980223+00:00",
+  "anchors": {
+    "fixed": [
+      "project_id",
+      "org_id",
+      "folder_id",
+      "location",
+      "zone",
+      "region"
+    ]
+  },
+  "services": {
+    "gkehub": {
+      "version": "v1",
+      "resources": {
+        "bindings": {
+          "resource_type": "bindings",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.gkehub.projects.locations.memberships.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/memberships"
+                },
+                "python_call": "svc.projects().locations().memberships().list(**params).execute()",
+                "produces": {
+                  "name": "resources[].name",
+                  "deleteTime": "resources[].deleteTime",
+                  "monitoringConfig": "resources[].monitoringConfig",
+                  "state": "resources[].state",
+                  "lastConnectionTime": "resources[].lastConnectionTime",
+                  "endpoint": "resources[].endpoint",
+                  "labels": "resources[].labels",
+                  "createTime": "resources[].createTime",
+                  "membershipType": "resources[].membershipType",
+                  "clusterTier": "resources[].clusterTier",
+                  "authority": "resources[].authority",
+                  "updateTime": "resources[].updateTime",
+                  "description": "resources[].description",
+                  "uniqueId": "resources[].uniqueId",
+                  "externalId": "resources[].externalId"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.gkehub.projects.locations.memberships.bindings.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/bindings"
+                },
+                "python_call": "svc.projects().locations().memberships().bindings().list(**params).execute()",
+                "produces": {
+                  "name": "membershipBindings[].name",
+                  "uid": "membershipBindings[].uid",
+                  "deleteTime": "membershipBindings[].deleteTime",
+                  "createTime": "membershipBindings[].createTime",
+                  "updateTime": "membershipBindings[].updateTime",
+                  "scope": "membershipBindings[].scope",
+                  "state": "membershipBindings[].state",
+                  "labels": "membershipBindings[].labels"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.gkehub.projects.locations.memberships.bindings.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().memberships().bindings().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.gkehub.projects.locations.memberships.bindings.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 3,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.gkehub.projects.locations.memberships.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().memberships().list(**params).execute()",
+                      "path": "/v1/{+parent}/memberships",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. The parent (project and location) where the Memberships will be listed. Specified in the format `projects/*/lo"
+                        }
+                      },
+                      "output_list_field": "resources",
+                      "output_id_field": "name",
+                      "produces": {
+                        "membershipId": {
+                          "via_list_field": "resources",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"resources\"][], extract item[\"name\"] \u2192 pass as \"membershipId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: membershipId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.gkehub.projects.locations.memberships.bindings.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().memberships().bindings().list(**params).execute()",
+                      "path": "/v1/{+parent}/bindings",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/memberships/[^/]+$",
+                          "description": "Required. The parent Membership for which the MembershipBindings will be listed. Specified in the format `projects/*/loc"
+                        }
+                      },
+                      "output_list_field": "membershipBindings",
+                      "output_id_field": "name",
+                      "produces": {
+                        "bindingId": {
+                          "via_list_field": "membershipBindings",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"membershipBindings\"][], extract item[\"name\"] \u2192 pass as \"bindingId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: bindingId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.gkehub.projects.locations.memberships.bindings.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().memberships().bindings().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/memberships/[^/]+/bindings/[^/]+$",
+                          "description": "Required. The MembershipBinding resource name in the format `projects/*/locations/*/memberships/*/bindings/*`."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "membershipId": {
+                            "from_step": 1,
+                            "from_op": "gcp.gkehub.projects.locations.memberships.list",
+                            "field": "name"
+                          },
+                          "bindingId": {
+                            "from_step": 2,
+                            "from_op": "gcp.gkehub.projects.locations.memberships.bindings.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "features": {
+          "resource_type": "features",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.gkehub.projects.locations.features.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/features"
+                },
+                "python_call": "svc.projects().locations().features().list(**params).execute()",
+                "produces": {
+                  "name": "resources[].name",
+                  "spec": "resources[].spec",
+                  "resourceState": "resources[].resourceState",
+                  "membershipSpecs": "resources[].membershipSpecs",
+                  "labels": "resources[].labels",
+                  "scopeSpecs": "resources[].scopeSpecs",
+                  "membershipStates": "resources[].membershipStates",
+                  "fleetDefaultMemberConfig": "resources[].fleetDefaultMemberConfig",
+                  "scopeStates": "resources[].scopeStates",
+                  "createTime": "resources[].createTime",
+                  "deleteTime": "resources[].deleteTime",
+                  "updateTime": "resources[].updateTime",
+                  "state": "resources[].state"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.gkehub.projects.locations.features.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().features().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.gkehub.projects.locations.features.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.gkehub.projects.locations.features.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().features().list(**params).execute()",
+                      "path": "/v1/{+parent}/features",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. The parent (project and location) where the Features will be listed. Specified in the format `projects/*/locat"
+                        }
+                      },
+                      "output_list_field": "resources",
+                      "output_id_field": "name",
+                      "produces": {
+                        "featureId": {
+                          "via_list_field": "resources",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"resources\"][], extract item[\"name\"] \u2192 pass as \"featureId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: featureId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.gkehub.projects.locations.features.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().features().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/features/[^/]+$",
+                          "description": "Required. The Feature resource name in the format `projects/*/locations/*/features/*`"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "featureId": {
+                            "from_step": 1,
+                            "from_op": "gcp.gkehub.projects.locations.features.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.gkehub.projects.locations.features.getIamPolicy",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+resource}:getIamPolicy"
+                },
+                "python_call": "svc.projects().locations().features().getIamPolicy(**params).execute()",
+                "required_params": {
+                  "resource": {
+                    "from_identifier": "gcp.gkehub.projects.locations.features.list \u2192 resources[].name"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.gkehub.projects.locations.features.getIamPolicy",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.gkehub.projects.locations.features.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().features().list(**params).execute()",
+                      "path": "/v1/{+parent}/features",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. The parent (project and location) where the Features will be listed. Specified in the format `projects/*/locat"
+                        }
+                      },
+                      "output_list_field": "resources",
+                      "output_id_field": "name",
+                      "produces": {
+                        "featureId": {
+                          "via_list_field": "resources",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"resources\"][], extract item[\"name\"] \u2192 pass as \"featureId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: featureId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.gkehub.projects.locations.features.getIamPolicy",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().features().getIamPolicy(**params).execute()",
+                      "path": "/v1/{+resource}:getIamPolicy",
+                      "required_params": {
+                        "resource": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/features/[^/]+$",
+                          "description": "REQUIRED: The resource for which the policy is being requested. See [Resource names](https://cloud.google.com/apis/desig"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "resource": {
+                          "featureId": {
+                            "from_step": 1,
+                            "from_op": "gcp.gkehub.projects.locations.features.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "fleets": {
+          "resource_type": "fleets",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.gkehub.organizations.locations.fleets.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/fleets"
+                },
+                "python_call": "svc.organizations().locations().fleets().list(**params).execute()",
+                "produces": {
+                  "name": "fleets[].name",
+                  "labels": "fleets[].labels",
+                  "state": "fleets[].state",
+                  "uid": "fleets[].uid",
+                  "displayName": "fleets[].displayName",
+                  "deleteTime": "fleets[].deleteTime",
+                  "updateTime": "fleets[].updateTime",
+                  "defaultClusterConfig": "fleets[].defaultClusterConfig",
+                  "createTime": "fleets[].createTime"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.gkehub.projects.locations.fleets.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/fleets"
+                },
+                "python_call": "svc.projects().locations().fleets().list(**params).execute()",
+                "produces": {
+                  "name": "fleets[].name",
+                  "labels": "fleets[].labels",
+                  "state": "fleets[].state",
+                  "uid": "fleets[].uid",
+                  "displayName": "fleets[].displayName",
+                  "deleteTime": "fleets[].deleteTime",
+                  "updateTime": "fleets[].updateTime",
+                  "defaultClusterConfig": "fleets[].defaultClusterConfig",
+                  "createTime": "fleets[].createTime"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.gkehub.projects.locations.fleets.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().fleets().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.gkehub.projects.locations.fleets.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.gkehub.organizations.locations.fleets.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.organizations().locations().fleets().list(**params).execute()",
+                      "path": "/v1/{+parent}/fleets",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^organizations/[^/]+/locations/[^/]+$",
+                          "description": "Required. The organization or project to list for Fleets under, in the format `organizations/*/locations/*` or `projects"
+                        }
+                      },
+                      "output_list_field": "fleets",
+                      "output_id_field": "name",
+                      "produces": {
+                        "fleetId": {
+                          "via_list_field": "fleets",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"fleets\"][], extract item[\"name\"] \u2192 pass as \"fleetId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: fleetId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.gkehub.projects.locations.fleets.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().fleets().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/fleets/[^/]+$",
+                          "description": "Required. The Fleet resource name in the format `projects/*/locations/*/fleets/*`."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "fleetId": {
+                            "from_step": 1,
+                            "from_op": "gcp.gkehub.organizations.locations.fleets.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "locations": {
+          "resource_type": "locations",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.gkehub.projects.locations.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}/locations"
+                },
+                "python_call": "svc.projects().locations().list(**params).execute()",
+                "produces": {
+                  "name": "locations[].name",
+                  "metadata": "locations[].metadata",
+                  "labels": "locations[].labels",
+                  "displayName": "locations[].displayName",
+                  "locationId": "locations[].locationId"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.gkehub.projects.locations.get",
+                "kind": "read_get",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "memberships": {
+          "resource_type": "memberships",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}:generateConnectManifest",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.gkehub.projects.locations.memberships.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/memberships"
+                },
+                "python_call": "svc.projects().locations().memberships().list(**params).execute()",
+                "produces": {
+                  "name": "resources[].name",
+                  "deleteTime": "resources[].deleteTime",
+                  "monitoringConfig": "resources[].monitoringConfig",
+                  "state": "resources[].state",
+                  "lastConnectionTime": "resources[].lastConnectionTime",
+                  "endpoint": "resources[].endpoint",
+                  "labels": "resources[].labels",
+                  "createTime": "resources[].createTime",
+                  "membershipType": "resources[].membershipType",
+                  "clusterTier": "resources[].clusterTier",
+                  "authority": "resources[].authority",
+                  "updateTime": "resources[].updateTime",
+                  "description": "resources[].description",
+                  "uniqueId": "resources[].uniqueId",
+                  "externalId": "resources[].externalId"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.gkehub.projects.locations.memberships.generateConnectManifest",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}:generateConnectManifest"
+                },
+                "python_call": "svc.projects().locations().memberships().generateConnectManifest(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.gkehub.projects.locations.memberships.generateConnectManifest",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.gkehub.projects.locations.memberships.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().memberships().list(**params).execute()",
+                      "path": "/v1/{+parent}/memberships",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. The parent (project and location) where the Memberships will be listed. Specified in the format `projects/*/lo"
+                        }
+                      },
+                      "output_list_field": "resources",
+                      "output_id_field": "name",
+                      "produces": {
+                        "membershipId": {
+                          "via_list_field": "resources",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"resources\"][], extract item[\"name\"] \u2192 pass as \"membershipId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: membershipId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.gkehub.projects.locations.memberships.generateConnectManifest",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().memberships().generateConnectManifest(**params).execute()",
+                      "path": "/v1/{+name}:generateConnectManifest",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/memberships/[^/]+$",
+                          "description": "Required. The Membership resource name the Agent will associate with, in the format `projects/*/locations/*/memberships/"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "membershipId": {
+                            "from_step": 1,
+                            "from_op": "gcp.gkehub.projects.locations.memberships.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.gkehub.projects.locations.memberships.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().memberships().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.gkehub.projects.locations.memberships.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.gkehub.projects.locations.memberships.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().memberships().list(**params).execute()",
+                      "path": "/v1/{+parent}/memberships",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. The parent (project and location) where the Memberships will be listed. Specified in the format `projects/*/lo"
+                        }
+                      },
+                      "output_list_field": "resources",
+                      "output_id_field": "name",
+                      "produces": {
+                        "membershipId": {
+                          "via_list_field": "resources",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"resources\"][], extract item[\"name\"] \u2192 pass as \"membershipId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: membershipId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.gkehub.projects.locations.memberships.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().memberships().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/memberships/[^/]+$",
+                          "description": "Required. The Membership resource name in the format `projects/*/locations/*/memberships/*`."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "membershipId": {
+                            "from_step": 1,
+                            "from_op": "gcp.gkehub.projects.locations.memberships.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.gkehub.projects.locations.memberships.getIamPolicy",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+resource}:getIamPolicy"
+                },
+                "python_call": "svc.projects().locations().memberships().getIamPolicy(**params).execute()",
+                "required_params": {
+                  "resource": {
+                    "from_identifier": "gcp.gkehub.projects.locations.memberships.list \u2192 resources[].name"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.gkehub.projects.locations.memberships.getIamPolicy",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.gkehub.projects.locations.memberships.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().memberships().list(**params).execute()",
+                      "path": "/v1/{+parent}/memberships",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. The parent (project and location) where the Memberships will be listed. Specified in the format `projects/*/lo"
+                        }
+                      },
+                      "output_list_field": "resources",
+                      "output_id_field": "name",
+                      "produces": {
+                        "membershipId": {
+                          "via_list_field": "resources",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"resources\"][], extract item[\"name\"] \u2192 pass as \"membershipId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: membershipId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.gkehub.projects.locations.memberships.getIamPolicy",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().memberships().getIamPolicy(**params).execute()",
+                      "path": "/v1/{+resource}:getIamPolicy",
+                      "required_params": {
+                        "resource": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/memberships/[^/]+$",
+                          "description": "REQUIRED: The resource for which the policy is being requested. See [Resource names](https://cloud.google.com/apis/desig"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "resource": {
+                          "membershipId": {
+                            "from_step": 1,
+                            "from_op": "gcp.gkehub.projects.locations.memberships.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "namespaces": {
+          "resource_type": "namespaces",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.gkehub.projects.locations.scopes.listPermitted",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/scopes:listPermitted"
+                },
+                "python_call": "svc.projects().locations().scopes().listPermitted(**params).execute()",
+                "produces": {
+                  "name": "scopes[].name",
+                  "namespaceLabels": "scopes[].namespaceLabels",
+                  "deleteTime": "scopes[].deleteTime",
+                  "uid": "scopes[].uid",
+                  "createTime": "scopes[].createTime",
+                  "state": "scopes[].state",
+                  "labels": "scopes[].labels",
+                  "updateTime": "scopes[].updateTime"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.gkehub.projects.locations.scopes.namespaces.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/namespaces"
+                },
+                "python_call": "svc.projects().locations().scopes().namespaces().list(**params).execute()",
+                "produces": {
+                  "name": "scopeNamespaces[].name",
+                  "deleteTime": "scopeNamespaces[].deleteTime",
+                  "state": "scopeNamespaces[].state",
+                  "updateTime": "scopeNamespaces[].updateTime",
+                  "createTime": "scopeNamespaces[].createTime",
+                  "labels": "scopeNamespaces[].labels",
+                  "scope": "scopeNamespaces[].scope",
+                  "uid": "scopeNamespaces[].uid",
+                  "namespaceLabels": "scopeNamespaces[].namespaceLabels"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.gkehub.projects.locations.scopes.namespaces.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().scopes().namespaces().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.gkehub.projects.locations.scopes.namespaces.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 3,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.gkehub.projects.locations.scopes.listPermitted",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().scopes().listPermitted(**params).execute()",
+                      "path": "/v1/{+parent}/scopes:listPermitted",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. The parent (project and location) where the Scope will be listed. Specified in the format `projects/*/location"
+                        }
+                      },
+                      "output_list_field": "scopes",
+                      "output_id_field": "name",
+                      "produces": {
+                        "scopeId": {
+                          "via_list_field": "scopes",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"scopes\"][], extract item[\"name\"] \u2192 pass as \"scopeId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: scopeId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.gkehub.projects.locations.scopes.namespaces.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().scopes().namespaces().list(**params).execute()",
+                      "path": "/v1/{+parent}/namespaces",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/scopes/[^/]+$",
+                          "description": "Required. The parent (project and location) where the Features will be listed. Specified in the format `projects/*/locat"
+                        }
+                      },
+                      "output_list_field": "scopeNamespaces",
+                      "output_id_field": "name",
+                      "produces": {
+                        "namespaceId": {
+                          "via_list_field": "scopeNamespaces",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"scopeNamespaces\"][], extract item[\"name\"] \u2192 pass as \"namespaceId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: namespaceId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.gkehub.projects.locations.scopes.namespaces.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().scopes().namespaces().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/scopes/[^/]+/namespaces/[^/]+$",
+                          "description": "Required. The Namespace resource name in the format `projects/*/locations/*/scopes/*/namespaces/*`."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "scopeId": {
+                            "from_step": 1,
+                            "from_op": "gcp.gkehub.projects.locations.scopes.listPermitted",
+                            "field": "name"
+                          },
+                          "namespaceId": {
+                            "from_step": 2,
+                            "from_op": "gcp.gkehub.projects.locations.scopes.namespaces.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "operations": {
+          "resource_type": "operations",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.gkehub.projects.locations.operations.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}/operations"
+                },
+                "python_call": "svc.projects().locations().operations().list(**params).execute()",
+                "produces": {
+                  "name": "operations[].name",
+                  "done": "operations[].done",
+                  "response": "operations[].response",
+                  "metadata": "operations[].metadata",
+                  "error": "operations[].error"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.gkehub.projects.locations.operations.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().operations().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.gkehub.projects.locations.operations.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.gkehub.projects.locations.operations.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().operations().list(**params).execute()",
+                      "path": "/v1/{+name}/operations",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "The name of the operation's parent resource."
+                        }
+                      },
+                      "output_list_field": "operations",
+                      "output_id_field": "name",
+                      "produces": {
+                        "operationId": {
+                          "via_list_field": "operations",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"operations\"][], extract item[\"name\"] \u2192 pass as \"operationId\""
+                        }
+                      },
+                      "param_sources": {
+                        "name": "always_available"
+                      },
+                      "purpose": "Provides: operationId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.gkehub.projects.locations.operations.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().operations().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/operations/[^/]+$",
+                          "description": "The name of the operation resource."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "operationId": {
+                            "from_step": 1,
+                            "from_op": "gcp.gkehub.projects.locations.operations.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "rbacrolebindings": {
+          "resource_type": "rbacrolebindings",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.gkehub.projects.locations.memberships.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/memberships"
+                },
+                "python_call": "svc.projects().locations().memberships().list(**params).execute()",
+                "produces": {
+                  "name": "resources[].name",
+                  "deleteTime": "resources[].deleteTime",
+                  "monitoringConfig": "resources[].monitoringConfig",
+                  "state": "resources[].state",
+                  "lastConnectionTime": "resources[].lastConnectionTime",
+                  "endpoint": "resources[].endpoint",
+                  "labels": "resources[].labels",
+                  "createTime": "resources[].createTime",
+                  "membershipType": "resources[].membershipType",
+                  "clusterTier": "resources[].clusterTier",
+                  "authority": "resources[].authority",
+                  "updateTime": "resources[].updateTime",
+                  "description": "resources[].description",
+                  "uniqueId": "resources[].uniqueId",
+                  "externalId": "resources[].externalId"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.gkehub.projects.locations.memberships.rbacrolebindings.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/rbacrolebindings"
+                },
+                "python_call": "svc.projects().locations().memberships().rbacrolebindings().list(**params).execute()",
+                "produces": {
+                  "name": "rbacrolebindings[].name",
+                  "createTime": "rbacrolebindings[].createTime",
+                  "state": "rbacrolebindings[].state",
+                  "role": "rbacrolebindings[].role",
+                  "user": "rbacrolebindings[].user",
+                  "deleteTime": "rbacrolebindings[].deleteTime",
+                  "group": "rbacrolebindings[].group",
+                  "labels": "rbacrolebindings[].labels",
+                  "uid": "rbacrolebindings[].uid",
+                  "updateTime": "rbacrolebindings[].updateTime"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.gkehub.projects.locations.scopes.listPermitted",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/scopes:listPermitted"
+                },
+                "python_call": "svc.projects().locations().scopes().listPermitted(**params).execute()",
+                "produces": {
+                  "name": "scopes[].name",
+                  "namespaceLabels": "scopes[].namespaceLabels",
+                  "deleteTime": "scopes[].deleteTime",
+                  "uid": "scopes[].uid",
+                  "createTime": "scopes[].createTime",
+                  "state": "scopes[].state",
+                  "labels": "scopes[].labels",
+                  "updateTime": "scopes[].updateTime"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.gkehub.projects.locations.scopes.rbacrolebindings.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/rbacrolebindings"
+                },
+                "python_call": "svc.projects().locations().scopes().rbacrolebindings().list(**params).execute()",
+                "produces": {
+                  "name": "rbacrolebindings[].name",
+                  "createTime": "rbacrolebindings[].createTime",
+                  "state": "rbacrolebindings[].state",
+                  "role": "rbacrolebindings[].role",
+                  "user": "rbacrolebindings[].user",
+                  "deleteTime": "rbacrolebindings[].deleteTime",
+                  "group": "rbacrolebindings[].group",
+                  "labels": "rbacrolebindings[].labels",
+                  "uid": "rbacrolebindings[].uid",
+                  "updateTime": "rbacrolebindings[].updateTime"
+                },
+                "chain_to_independent": null
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.gkehub.projects.locations.memberships.rbacrolebindings.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().memberships().rbacrolebindings().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.gkehub.projects.locations.memberships.rbacrolebindings.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 3,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.gkehub.projects.locations.memberships.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().memberships().list(**params).execute()",
+                      "path": "/v1/{+parent}/memberships",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. The parent (project and location) where the Memberships will be listed. Specified in the format `projects/*/lo"
+                        }
+                      },
+                      "output_list_field": "resources",
+                      "output_id_field": "name",
+                      "produces": {
+                        "membershipId": {
+                          "via_list_field": "resources",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"resources\"][], extract item[\"name\"] \u2192 pass as \"membershipId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: membershipId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.gkehub.projects.locations.memberships.rbacrolebindings.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().memberships().rbacrolebindings().list(**params).execute()",
+                      "path": "/v1/{+parent}/rbacrolebindings",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/memberships/[^/]+$",
+                          "description": "Required. The parent (project and location) where the Features will be listed. Specified in the format `projects/*/locat"
+                        }
+                      },
+                      "output_list_field": "rbacrolebindings",
+                      "output_id_field": "name",
+                      "produces": {
+                        "rbacrolebindingId": {
+                          "via_list_field": "rbacrolebindings",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"rbacrolebindings\"][], extract item[\"name\"] \u2192 pass as \"rbacrolebindingId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: rbacrolebindingId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.gkehub.projects.locations.memberships.rbacrolebindings.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().memberships().rbacrolebindings().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/memberships/[^/]+/rbacrolebindings/[^/]+$",
+                          "description": "Required. The RBACRoleBinding resource name in the format `projects/*/locations/*/memberships/*/rbacrolebindings/*`."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "membershipId": {
+                            "from_step": 1,
+                            "from_op": "gcp.gkehub.projects.locations.memberships.list",
+                            "field": "name"
+                          },
+                          "rbacrolebindingId": {
+                            "from_step": 2,
+                            "from_op": "gcp.gkehub.projects.locations.memberships.rbacrolebindings.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.gkehub.projects.locations.scopes.rbacrolebindings.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().scopes().rbacrolebindings().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.gkehub.projects.locations.scopes.rbacrolebindings.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 3,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.gkehub.projects.locations.scopes.listPermitted",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().scopes().listPermitted(**params).execute()",
+                      "path": "/v1/{+parent}/scopes:listPermitted",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. The parent (project and location) where the Scope will be listed. Specified in the format `projects/*/location"
+                        }
+                      },
+                      "output_list_field": "scopes",
+                      "output_id_field": "name",
+                      "produces": {
+                        "scopeId": {
+                          "via_list_field": "scopes",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"scopes\"][], extract item[\"name\"] \u2192 pass as \"scopeId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: scopeId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.gkehub.projects.locations.memberships.rbacrolebindings.list",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().memberships().rbacrolebindings().list(**params).execute()",
+                      "path": "/v1/{+parent}/rbacrolebindings",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/memberships/[^/]+$",
+                          "description": "Required. The parent (project and location) where the Features will be listed. Specified in the format `projects/*/locat"
+                        }
+                      },
+                      "output_list_field": "rbacrolebindings",
+                      "output_id_field": "name",
+                      "produces": {
+                        "rbacrolebindingId": {
+                          "via_list_field": "rbacrolebindings",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"rbacrolebindings\"][], extract item[\"name\"] \u2192 pass as \"rbacrolebindingId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: rbacrolebindingId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 3,
+                      "op": "gcp.gkehub.projects.locations.scopes.rbacrolebindings.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().scopes().rbacrolebindings().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/scopes/[^/]+/rbacrolebindings/[^/]+$",
+                          "description": "Required. The RBACRoleBinding resource name in the format `projects/*/locations/*/scopes/*/rbacrolebindings/*`."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "scopeId": {
+                            "from_step": 1,
+                            "from_op": "gcp.gkehub.projects.locations.scopes.listPermitted",
+                            "field": "name"
+                          },
+                          "rbacrolebindingId": {
+                            "from_step": 2,
+                            "from_op": "gcp.gkehub.projects.locations.memberships.rbacrolebindings.list",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        },
+        "scopes": {
+          "resource_type": "scopes",
+          "pattern_type": "CONSTRUCTED",
+          "identifier": {
+            "kind": "full_name",
+            "full_identifier": {
+              "template": "{name}",
+              "built_from_parts": [
+                "name"
+              ],
+              "notes": "Full resource name; anchor parts are user-provided service anchors."
+            },
+            "parts": [],
+            "part_sources": {},
+            "transforms": []
+          },
+          "inventory": {
+            "ops": [
+              {
+                "op": "gcp.gkehub.projects.locations.scopes.listPermitted",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/scopes:listPermitted"
+                },
+                "python_call": "svc.projects().locations().scopes().listPermitted(**params).execute()",
+                "produces": {
+                  "name": "scopes[].name",
+                  "namespaceLabels": "scopes[].namespaceLabels",
+                  "deleteTime": "scopes[].deleteTime",
+                  "uid": "scopes[].uid",
+                  "createTime": "scopes[].createTime",
+                  "state": "scopes[].state",
+                  "labels": "scopes[].labels",
+                  "updateTime": "scopes[].updateTime"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.gkehub.projects.locations.scopes.list",
+                "kind": "read_list",
+                "independent": true,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+parent}/scopes"
+                },
+                "python_call": "svc.projects().locations().scopes().list(**params).execute()",
+                "produces": {
+                  "name": "scopes[].name",
+                  "namespaceLabels": "scopes[].namespaceLabels",
+                  "deleteTime": "scopes[].deleteTime",
+                  "uid": "scopes[].uid",
+                  "createTime": "scopes[].createTime",
+                  "state": "scopes[].state",
+                  "labels": "scopes[].labels",
+                  "updateTime": "scopes[].updateTime"
+                },
+                "chain_to_independent": null
+              },
+              {
+                "op": "gcp.gkehub.projects.locations.scopes.listMemberships",
+                "kind": "read_list",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+scopeName}:listMemberships"
+                },
+                "python_call": "svc.projects().locations().scopes().listMemberships(**params).execute()",
+                "produces": {
+                  "name": "memberships[].name",
+                  "deleteTime": "memberships[].deleteTime",
+                  "monitoringConfig": "memberships[].monitoringConfig",
+                  "state": "memberships[].state",
+                  "lastConnectionTime": "memberships[].lastConnectionTime",
+                  "endpoint": "memberships[].endpoint",
+                  "labels": "memberships[].labels",
+                  "createTime": "memberships[].createTime",
+                  "membershipType": "memberships[].membershipType",
+                  "clusterTier": "memberships[].clusterTier",
+                  "authority": "memberships[].authority",
+                  "updateTime": "memberships[].updateTime",
+                  "description": "memberships[].description",
+                  "uniqueId": "memberships[].uniqueId",
+                  "externalId": "memberships[].externalId"
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.gkehub.projects.locations.scopes.listMemberships",
+                  "kind": "read_list",
+                  "independent": false,
+                  "hop_distance": 999,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.gkehub.projects.locations.scopes.listPermitted",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().scopes().listPermitted(**params).execute()",
+                      "path": "/v1/{+parent}/scopes:listPermitted",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. The parent (project and location) where the Scope will be listed. Specified in the format `projects/*/location"
+                        }
+                      },
+                      "output_list_field": "scopes",
+                      "output_id_field": "name",
+                      "produces": {
+                        "scopeId": {
+                          "via_list_field": "scopes",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"scopes\"][], extract item[\"name\"] \u2192 pass as \"scopeId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: scopeId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.gkehub.projects.locations.scopes.listMemberships",
+                      "kind": "read_list",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().scopes().listMemberships(**params).execute()",
+                      "path": "/v1/{+scopeName}:listMemberships",
+                      "required_params": {
+                        "scopeName": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/scopes/[^/]+$",
+                          "description": "Required. Name of the Scope, in the format `projects/*/locations/global/scopes/*`, to which the Memberships are bound."
+                        }
+                      },
+                      "output_list_field": "memberships",
+                      "output_id_field": "name",
+                      "produces": {
+                        "scopeId": {
+                          "via_list_field": "memberships",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"memberships\"][], extract item[\"name\"] \u2192 pass as \"scopeId\""
+                        }
+                      },
+                      "param_sources": {
+                        "scopeName": {
+                          "scopeId": {
+                            "from_step": 1,
+                            "from_op": "gcp.gkehub.projects.locations.scopes.listPermitted",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "inventory_enrich": {
+            "ops": [
+              {
+                "op": "gcp.gkehub.projects.locations.scopes.get",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+name}"
+                },
+                "python_call": "svc.projects().locations().scopes().get(**params).execute()",
+                "required_params": {
+                  "name": {
+                    "from_identifier": "full_id"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.gkehub.projects.locations.scopes.get",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.gkehub.projects.locations.scopes.listPermitted",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().scopes().listPermitted(**params).execute()",
+                      "path": "/v1/{+parent}/scopes:listPermitted",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. The parent (project and location) where the Scope will be listed. Specified in the format `projects/*/location"
+                        }
+                      },
+                      "output_list_field": "scopes",
+                      "output_id_field": "name",
+                      "produces": {
+                        "scopeId": {
+                          "via_list_field": "scopes",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"scopes\"][], extract item[\"name\"] \u2192 pass as \"scopeId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: scopeId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.gkehub.projects.locations.scopes.get",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().scopes().get(**params).execute()",
+                      "path": "/v1/{+name}",
+                      "required_params": {
+                        "name": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/scopes/[^/]+$",
+                          "description": "Required. The Scope resource name in the format `projects/*/locations/*/scopes/*`."
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "name": {
+                          "scopeId": {
+                            "from_step": 1,
+                            "from_op": "gcp.gkehub.projects.locations.scopes.listPermitted",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              },
+              {
+                "op": "gcp.gkehub.projects.locations.scopes.getIamPolicy",
+                "kind": "read_get",
+                "independent": false,
+                "http": {
+                  "verb": "GET",
+                  "path": "/v1/{+resource}:getIamPolicy"
+                },
+                "python_call": "svc.projects().locations().scopes().getIamPolicy(**params).execute()",
+                "required_params": {
+                  "resource": {
+                    "from_identifier": "gcp.gkehub.projects.locations.scopes.listPermitted \u2192 scopes[].name"
+                  }
+                },
+                "chain_to_independent": {
+                  "target_op": "gcp.gkehub.projects.locations.scopes.getIamPolicy",
+                  "kind": "read_get",
+                  "independent": false,
+                  "hop_distance": 1,
+                  "chain_length": 2,
+                  "execution_steps": [
+                    {
+                      "step": 1,
+                      "op": "gcp.gkehub.projects.locations.scopes.listPermitted",
+                      "kind": "read_list",
+                      "independent": true,
+                      "python_call": "svc.projects().locations().scopes().listPermitted(**params).execute()",
+                      "path": "/v1/{+parent}/scopes:listPermitted",
+                      "required_params": {
+                        "parent": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+$",
+                          "description": "Required. The parent (project and location) where the Scope will be listed. Specified in the format `projects/*/location"
+                        }
+                      },
+                      "output_list_field": "scopes",
+                      "output_id_field": "name",
+                      "produces": {
+                        "scopeId": {
+                          "via_list_field": "scopes",
+                          "from_id_field": "name",
+                          "note": "Iterate response[\"scopes\"][], extract item[\"name\"] \u2192 pass as \"scopeId\""
+                        }
+                      },
+                      "param_sources": {
+                        "parent": "always_available"
+                      },
+                      "purpose": "Provides: scopeId",
+                      "full_resource_name_template": ""
+                    },
+                    {
+                      "step": 2,
+                      "op": "gcp.gkehub.projects.locations.scopes.getIamPolicy",
+                      "kind": "read_get",
+                      "independent": false,
+                      "python_call": "svc.projects().locations().scopes().getIamPolicy(**params).execute()",
+                      "path": "/v1/{+resource}:getIamPolicy",
+                      "required_params": {
+                        "resource": {
+                          "type": "string",
+                          "location": "path",
+                          "pattern": "^projects/[^/]+/locations/[^/]+/scopes/[^/]+$",
+                          "description": "REQUIRED: The resource for which the policy is being requested. See [Resource names](https://cloud.google.com/apis/desig"
+                        }
+                      },
+                      "output_list_field": null,
+                      "output_id_field": null,
+                      "produces": {},
+                      "param_sources": {
+                        "resource": {
+                          "scopeId": {
+                            "from_step": 1,
+                            "from_op": "gcp.gkehub.projects.locations.scopes.listPermitted",
+                            "field": "name"
+                          }
+                        }
+                      },
+                      "purpose": "Target operation",
+                      "full_resource_name_template": ""
+                    }
+                  ],
+                  "always_available_params": [],
+                  "unresolved_params": []
+                }
+              }
+            ]
+          },
+          "confidence": 0.9,
+          "notes": ""
+        }
+      }
+    }
+  }
+}

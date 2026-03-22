@@ -1,3 +1,5 @@
+# Check Engine — lightweight API pod that creates K8s Jobs for scans.
+# The actual check scan runs as a Job on spot nodes (reads discovery_findings, evaluates rules).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -25,7 +27,7 @@ spec:
       serviceAccountName: engine-sa
       containers:
       - name: engine-check
-        image: yadavanup84/engine-check:latest
+        image: yadavanup84/engine-check:v-std-cols
         imagePullPolicy: Always
         ports:
         - containerPort: 8002
@@ -40,98 +42,60 @@ spec:
           value: /app
         - name: LOG_LEVEL
           value: "INFO"
-        - name: S3_BUCKET
-          valueFrom:
-            configMapKeyRef:
-              name: s3-mount-config
-              key: s3-bucket
-        - name: AWS_REGION
-          valueFrom:
-            configMapKeyRef:
-              name: s3-mount-config
-              key: s3-region
-        - name: OUTPUT_DIR
-          value: "/output"
         - name: ENGINE_NAME
           value: "check"
         - name: CHECK_MODE
           value: "database"
-        volumeMounts:
-        - name: output
-          mountPath: /output
+        - name: AWS_REGION
+          value: "ap-south-1"
+        # ── Scanner Job config (used when creating K8s Jobs) ────
+        - name: CHECK_SCANNER_IMAGE
+          value: "yadavanup84/engine-check:v-refactor2"
+        - name: SCANNER_CPU_REQUEST
+          value: "500m"
+        - name: SCANNER_MEM_REQUEST
+          value: "2Gi"
+        - name: SCANNER_CPU_LIMIT
+          value: "1"
+        - name: SCANNER_MEM_LIMIT
+          value: "4Gi"
+        # ── Onboarding DB (for orchestration metadata) ──────────
+        - name: ONBOARDING_DB_HOST
+          value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+        - name: ONBOARDING_DB_PORT
+          value: "5432"
+        - name: ONBOARDING_DB_NAME
+          value: "threat_engine_onboarding"
+        - name: ONBOARDING_DB_USER
+          value: "postgres"
+        - name: ONBOARDING_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: ONBOARDING_DB_PASSWORD
         resources:
           requests:
-            memory: "512Mi"
+            memory: "128Mi"
             cpu: "100m"
           limits:
-            memory: "2Gi"
-            cpu: "500m"
+            memory: "256Mi"
+            cpu: "250m"
         livenessProbe:
           httpGet:
             path: /api/v1/health/live
             port: 8002
-          initialDelaySeconds: 60
+          initialDelaySeconds: 30
           periodSeconds: 30
           timeoutSeconds: 10
-          failureThreshold: 10
+          failureThreshold: 5
         readinessProbe:
           httpGet:
             path: /api/v1/health/ready
             port: 8002
-          initialDelaySeconds: 15
+          initialDelaySeconds: 10
           periodSeconds: 10
           timeoutSeconds: 5
-          failureThreshold: 6
-
-      # S3 sync sidecar - output only
-      # Check engine is database-first: rules come from rule_checks table,
-      # discoveries come from discovery_findings table via DiscoveryReader.
-      # No input sync needed — no S3 files are read.
-      # Output NDJSON (checks.ndjson, summary.json) is synced to S3 for audit/downstream use.
-      - name: s3-sync
-        image: amazon/aws-cli:latest
-        command: ["/bin/sh", "-c"]
-        args:
-          - |
-            echo "S3 Sync Sidecar starting (output-only, check engine is database-first)"
-            echo "Output: /output -> s3://${S3_BUCKET}/engine_output/${ENGINE_NAME}/"
-            while true; do
-              if [ -d "/output" ] && [ "$(ls -A /output 2>/dev/null)" ]; then
-                aws s3 sync /output "s3://${S3_BUCKET}/engine_output/${ENGINE_NAME}/" \
-                  --region ${AWS_REGION} \
-                  --exclude "*.tmp" \
-                  --exclude "*.lock" \
-                  --delete 2>/dev/null || echo "$(date): S3 sync failed, retrying next cycle"
-              fi
-              sleep 30
-            done
-        env:
-        - name: S3_BUCKET
-          valueFrom:
-            configMapKeyRef:
-              name: s3-mount-config
-              key: s3-bucket
-        - name: AWS_REGION
-          valueFrom:
-            configMapKeyRef:
-              name: s3-mount-config
-              key: s3-region
-        - name: ENGINE_NAME
-          value: "check"
-        volumeMounts:
-        - name: output
-          mountPath: /output
-        resources:
-          requests:
-            memory: "64Mi"
-            cpu: "25m"
-          limits:
-            memory: "128Mi"
-            cpu: "100m"
-
-      volumes:
-      - name: output
-        emptyDir: {}
+          failureThreshold: 3
 ---
 apiVersion: v1
 kind: Service

@@ -1,0 +1,76 @@
+version: '1.0'
+provider: aws
+service: repostspace
+services:
+  client: repostspace
+  module: boto3.client
+discovery:
+- discovery_id: aws.repostspace.listSpaces
+  calls:
+  - action: listSpaces
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.spaces }}'
+    item:
+      spaceId: '{{ item.spaceId }}'
+      arn: '{{ item.arn }}'
+      name: '{{ item.name }}'
+      description: '{{ item.description }}'
+      status: '{{ item.status }}'
+      configurationStatus: '{{ item.configurationStatus }}'
+      vanityDomainStatus: '{{ item.vanityDomainStatus }}'
+      vanityDomain: '{{ item.vanityDomain }}'
+      randomDomain: '{{ item.randomDomain }}'
+      tier: '{{ item.tier }}'
+      storageLimit: '{{ item.storageLimit }}'
+      createDateTime: '{{ item.createDateTime }}'
+      deleteDateTime: '{{ item.deleteDateTime }}'
+      userKMSKey: '{{ item.userKMSKey }}'
+      userCount: '{{ item.userCount }}'
+      contentSize: '{{ item.contentSize }}'
+      supportedEmailDomains: '{{ item.supportedEmailDomains }}'
+- discovery_id: aws.repostspace.getChannel
+  calls:
+  - action: getChannel
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.spaceId }}'
+- discovery_id: aws.repostspace.getSpace
+  calls:
+  - action: getSpace
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.userAdmins }}'
+- discovery_id: aws.repostspace.listChannels
+  calls:
+  - action: listChannels
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.channels }}'
+    item:
+      spaceId: '{{ item.spaceId }}'
+      channelId: '{{ item.channelId }}'
+      channelName: '{{ item.channelName }}'
+      channelDescription: '{{ item.channelDescription }}'
+      createDateTime: '{{ item.createDateTime }}'
+      deleteDateTime: '{{ item.deleteDateTime }}'
+      channelStatus: '{{ item.channelStatus }}'
+      userCount: '{{ item.userCount }}'
+      groupCount: '{{ item.groupCount }}'
+- discovery_id: aws.repostspace.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.tags }}'
+checks: []

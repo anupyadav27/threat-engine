@@ -1,0 +1,109 @@
+version: '1.0'
+provider: aws
+service: ssm-quicksetup
+services:
+  client: ssm-quicksetup
+  module: boto3.client
+discovery:
+- discovery_id: aws.ssm-quicksetup.getServiceSettings
+  calls:
+  - action: getServiceSettings
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ServiceSettings }}'
+    item:
+      ExplorerEnablingRoleArn: '{{ item.ExplorerEnablingRoleArn }}'
+- discovery_id: aws.ssm-quicksetup.listConfigurationManagers
+  calls:
+  - action: listConfigurationManagers
+    save_as: response
+    on_error: continue
+    params:
+      MaxItems: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ConfigurationManagersList }}'
+    item:
+      ConfigurationDefinitionSummaries: '{{ item.ConfigurationDefinitionSummaries
+        }}'
+      Description: '{{ item.Description }}'
+      ManagerArn: '{{ item.ManagerArn }}'
+      Name: '{{ item.Name }}'
+      StatusSummaries: '{{ item.StatusSummaries }}'
+- discovery_id: aws.ssm-quicksetup.listConfigurations
+  calls:
+  - action: listConfigurations
+    save_as: response
+    on_error: continue
+    params:
+      MaxItems: 1000
+  emit:
+    as: item
+    items_for: '{{ response.ConfigurationsList }}'
+    item:
+      Account: '{{ item.Account }}'
+      ConfigurationDefinitionId: '{{ item.ConfigurationDefinitionId }}'
+      CreatedAt: '{{ item.CreatedAt }}'
+      FirstClassParameters: '{{ item.FirstClassParameters }}'
+      Id: '{{ item.Id }}'
+      ManagerArn: '{{ item.ManagerArn }}'
+      Region: '{{ item.Region }}'
+      StatusSummaries: '{{ item.StatusSummaries }}'
+      Type: '{{ item.Type }}'
+      TypeVersion: '{{ item.TypeVersion }}'
+- discovery_id: aws.ssm-quicksetup.listQuickSetupTypes
+  calls:
+  - action: listQuickSetupTypes
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.QuickSetupTypeList }}'
+    item:
+      LatestVersion: '{{ item.LatestVersion }}'
+      Type: '{{ item.Type }}'
+- discovery_id: aws.ssm-quicksetup.getConfiguration
+  calls:
+  - action: getConfiguration
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.StatusSummaries }}'
+    item:
+      LastUpdatedAt: '{{ item.LastUpdatedAt }}'
+      Status: '{{ item.Status }}'
+      StatusDetails: '{{ item.StatusDetails }}'
+      StatusMessage: '{{ item.StatusMessage }}'
+      StatusType: '{{ item.StatusType }}'
+- discovery_id: aws.ssm-quicksetup.getConfigurationManager
+  calls:
+  - action: getConfigurationManager
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ConfigurationDefinitions }}'
+    item:
+      Id: '{{ item.Id }}'
+      LocalDeploymentAdministrationRoleArn: '{{ item.LocalDeploymentAdministrationRoleArn
+        }}'
+      LocalDeploymentExecutionRoleName: '{{ item.LocalDeploymentExecutionRoleName
+        }}'
+      Parameters: '{{ item.Parameters }}'
+      Type: '{{ item.Type }}'
+      TypeVersion: '{{ item.TypeVersion }}'
+- discovery_id: aws.ssm-quicksetup.listTagsForResource
+  calls:
+  - action: listTagsForResource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Tags }}'
+    item:
+      Key: '{{ item.Key }}'
+      Value: '{{ item.Value }}'
+checks: []

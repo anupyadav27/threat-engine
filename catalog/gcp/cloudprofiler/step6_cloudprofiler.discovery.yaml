@@ -1,0 +1,49 @@
+# ============================================================
+# Discovery YAML — cloudprofiler (v2)
+# Generated: 2026-02-21T03:06:39Z
+# Sources: step2 (ops) | step3 (dep chain) | step4/step5 (fields)
+# read ops: 1 | independent: 1 | dependent: 0
+# ops with fields: 1/1 | dep ops with chain: 0/0
+# ============================================================
+version: '1.0'
+provider: gcp
+service: cloudprofiler
+
+services:
+  client: cloudprofiler
+  module: "googleapiclient.discovery.build('cloudprofiler', 'v2')"
+
+# Anchors: fixed service-level parameters (caller provides values)
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # Lists profiles which have been collected so far and for which the caller has permission to view.
+  # ── gcp.cloudprofiler.projects.profiles.list ──
+  - discovery_id: gcp.cloudprofiler.projects.profiles.list
+    # python: svc.projects().profiles().list(**params).execute()
+    calls:
+      - action: projects.profiles.list
+        params: {}
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.profiles }}'
+      item:
+        deployment: '{{ item.deployment }}'
+        duration: '{{ item.duration }}'
+        labels: '{{ item.labels }}'
+        name: '{{ item.name }}'
+        profileBytes: '{{ item.profileBytes }}'
+        profileType: '{{ item.profileType }}'
+        startTime: '{{ item.startTime }}'
