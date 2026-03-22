@@ -39,22 +39,22 @@ def _get_datasec_db_connection() -> psycopg2.extensions.connection:
     )
 
 
-def _resolve_latest_datasec_scan_id(
+def _resolve_latest_scan_run_id(
     cur: psycopg2.extensions.cursor,
     tenant_id: str,
 ) -> Optional[str]:
-    """Resolve the most recent datasec_scan_id for a tenant.
+    """Resolve the most recent scan_run_id for a tenant.
 
     Args:
         cur: Database cursor (RealDictCursor).
         tenant_id: Tenant identifier.
 
     Returns:
-        The latest datasec_scan_id string, or None if no report exists.
+        The latest scan_run_id string, or None if no report exists.
     """
     cur.execute(
         """
-        SELECT datasec_scan_id
+        SELECT scan_run_id
         FROM datasec_report
         WHERE tenant_id = %s
         ORDER BY created_at DESC
@@ -63,7 +63,7 @@ def _resolve_latest_datasec_scan_id(
         (tenant_id,),
     )
     row = cur.fetchone()
-    return row["datasec_scan_id"] if row else None
+    return row["scan_run_id"] if row else None
 
 
 # ---------------------------------------------------------------------------
@@ -87,20 +87,20 @@ async def get_datasec_ui_data(
     * **catalog** -- data store resources derived from findings
     * **findings** -- top *limit* individual findings (default 200)
     * **total_findings** -- overall count (may exceed len(findings))
-    * **scan_id** -- the resolved datasec_scan_id
+    * **scan_id** -- the resolved scan_run_id
     """
     conn: Optional[psycopg2.extensions.connection] = None
     try:
         conn = _get_datasec_db_connection()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             # ── 1. Resolve scan_id ──────────────────────────────────────
-            datasec_scan_id: Optional[str] = None
+            scan_run_id: Optional[str] = None
             if scan_id == "latest":
-                datasec_scan_id = _resolve_latest_datasec_scan_id(cur, tenant_id)
+                scan_run_id = _resolve_latest_scan_run_id(cur, tenant_id)
             else:
-                datasec_scan_id = scan_id
+                scan_run_id = scan_id
 
-            if not datasec_scan_id:
+            if not scan_run_id:
                 return _empty_response()
 
             # ── 2. Report-level summary ─────────────────────────────────
@@ -116,10 +116,10 @@ async def get_datasec_ui_data(
                        report_data,
                        provider
                 FROM datasec_report
-                WHERE datasec_scan_id = %s AND tenant_id = %s
+                WHERE scan_run_id = %s AND tenant_id = %s
                 LIMIT 1
                 """,
-                (datasec_scan_id, tenant_id),
+                (scan_run_id, tenant_id),
             )
             report_row = cur.fetchone()
 
@@ -128,9 +128,9 @@ async def get_datasec_ui_data(
                 """
                 SELECT COUNT(*) AS cnt
                 FROM datasec_findings
-                WHERE datasec_scan_id = %s AND tenant_id = %s
+                WHERE scan_run_id = %s AND tenant_id = %s
                 """,
-                (datasec_scan_id, tenant_id),
+                (scan_run_id, tenant_id),
             )
             total_row = cur.fetchone()
             total_findings = total_row["cnt"] if total_row else 0
@@ -141,11 +141,11 @@ async def get_datasec_ui_data(
                 """
                 SELECT m AS module, COUNT(*) AS cnt
                 FROM datasec_findings, unnest(datasec_modules) AS m
-                WHERE datasec_scan_id = %s AND tenant_id = %s
+                WHERE scan_run_id = %s AND tenant_id = %s
                 GROUP BY m
                 ORDER BY cnt DESC
                 """,
-                (datasec_scan_id, tenant_id),
+                (scan_run_id, tenant_id),
             )
             module_rows = cur.fetchall()
             by_module: Dict[str, int] = {
@@ -158,11 +158,11 @@ async def get_datasec_ui_data(
                 """
                 SELECT c AS classification, COUNT(DISTINCT resource_uid) AS cnt
                 FROM datasec_findings, unnest(data_classification) AS c
-                WHERE datasec_scan_id = %s AND tenant_id = %s
+                WHERE scan_run_id = %s AND tenant_id = %s
                 GROUP BY c
                 ORDER BY cnt DESC
                 """,
-                (datasec_scan_id, tenant_id),
+                (scan_run_id, tenant_id),
             )
             class_rows = cur.fetchall()
             by_classification: Dict[str, int] = {
@@ -175,12 +175,12 @@ async def get_datasec_ui_data(
                 """
                 SELECT COUNT(DISTINCT resource_uid) AS cnt
                 FROM datasec_findings
-                WHERE datasec_scan_id = %s
+                WHERE scan_run_id = %s
                   AND tenant_id = %s
                   AND sensitivity_score > 70
                   AND status = 'FAIL'
                 """,
-                (datasec_scan_id, tenant_id),
+                (scan_run_id, tenant_id),
             )
             sensitive_row = cur.fetchone()
             sensitive_exposed = sensitive_row["cnt"] if sensitive_row else 0
@@ -215,7 +215,7 @@ async def get_datasec_ui_data(
                 # Fallback: compute from encryption module findings
                 if encrypted_pct == 0.0:
                     encrypted_pct = _compute_encrypted_pct(
-                        cur, datasec_scan_id, tenant_id
+                        cur, scan_run_id, tenant_id
                     )
 
                 # Use report-level values when available
@@ -237,7 +237,7 @@ async def get_datasec_ui_data(
                     residency = rs
 
             # Always compute live region breakdown from findings
-            by_region = _query_region_breakdown(cur, datasec_scan_id, tenant_id)
+            by_region = _query_region_breakdown(cur, scan_run_id, tenant_id)
 
             # If report-level residency_summary was empty, populate from
             # live region counts
@@ -248,12 +248,12 @@ async def get_datasec_ui_data(
                 residency["by_region"] = by_region
 
             # ── 8b. Build data-store catalog ────────────────────────────
-            catalog = _build_catalog(cur, datasec_scan_id, tenant_id)
+            catalog = _build_catalog(cur, scan_run_id, tenant_id)
 
             # ── 9a. Module-grouped sections for BFF ─────────────────────
-            classifications = _query_findings_by_module(cur, datasec_scan_id, tenant_id, "classification", limit)
-            dlp_violations = _query_findings_by_module(cur, datasec_scan_id, tenant_id, "dlp", limit)
-            encryption_status = _query_findings_by_module(cur, datasec_scan_id, tenant_id, "encryption", limit)
+            classifications = _query_findings_by_module(cur, scan_run_id, tenant_id, "classification", limit)
+            dlp_violations = _query_findings_by_module(cur, scan_run_id, tenant_id, "dlp", limit)
+            encryption_status = _query_findings_by_module(cur, scan_run_id, tenant_id, "encryption", limit)
 
             # ── 9. Paginated findings list ──────────────────────────────
             cur.execute(
@@ -272,7 +272,7 @@ async def get_datasec_ui_data(
                        sensitivity_score,
                        finding_data
                 FROM datasec_findings
-                WHERE datasec_scan_id = %s AND tenant_id = %s
+                WHERE scan_run_id = %s AND tenant_id = %s
                 ORDER BY
                     CASE severity
                         WHEN 'critical' THEN 1
@@ -285,7 +285,7 @@ async def get_datasec_ui_data(
                     finding_id
                 LIMIT %s
                 """,
-                (datasec_scan_id, tenant_id, limit),
+                (scan_run_id, tenant_id, limit),
             )
             finding_rows = cur.fetchall()
 
@@ -332,7 +332,7 @@ async def get_datasec_ui_data(
             "lineage": {},
             "findings": findings,
             "total_findings": total_findings,
-            "scan_id": datasec_scan_id,
+            "scan_id": scan_run_id,
         }
 
     except Exception:
@@ -379,7 +379,7 @@ def _empty_response() -> Dict[str, Any]:
 
 def _query_findings_by_module(
     cur: psycopg2.extensions.cursor,
-    datasec_scan_id: str,
+    scan_run_id: str,
     tenant_id: str,
     module_name: str,
     limit: int = 200,
@@ -388,7 +388,7 @@ def _query_findings_by_module(
 
     Args:
         cur: Database cursor (RealDictCursor).
-        datasec_scan_id: DataSec scan identifier.
+        scan_run_id: DataSec scan identifier.
         tenant_id: Tenant identifier.
         module_name: Module pattern to filter on (e.g. 'classification', 'dlp', 'encryption').
         limit: Max findings to return.
@@ -405,7 +405,7 @@ def _query_findings_by_module(
                    region, data_classification, sensitivity_score,
                    finding_data
             FROM datasec_findings
-            WHERE datasec_scan_id = %s
+            WHERE scan_run_id = %s
               AND tenant_id = %s
               AND EXISTS (
                   SELECT 1 FROM unnest(datasec_modules) AS m
@@ -423,7 +423,7 @@ def _query_findings_by_module(
                 finding_id
             LIMIT %s
             """,
-            (datasec_scan_id, tenant_id, f"%{module_name}%", limit),
+            (scan_run_id, tenant_id, f"%{module_name}%", limit),
         )
         rows = cur.fetchall()
         result: List[Dict[str, Any]] = []
@@ -456,7 +456,7 @@ def _query_findings_by_module(
 
 def _compute_encrypted_pct(
     cur: psycopg2.extensions.cursor,
-    datasec_scan_id: str,
+    scan_run_id: str,
     tenant_id: str,
 ) -> float:
     """Compute encryption percentage from findings.
@@ -467,7 +467,7 @@ def _compute_encrypted_pct(
 
     Args:
         cur: Database cursor.
-        datasec_scan_id: Scan identifier.
+        scan_run_id: Scan identifier.
         tenant_id: Tenant identifier.
 
     Returns:
@@ -483,9 +483,9 @@ def _compute_encrypted_pct(
                 ) AS encrypted,
                 COUNT(DISTINCT resource_uid) AS total
             FROM datasec_findings
-            WHERE datasec_scan_id = %s AND tenant_id = %s
+            WHERE scan_run_id = %s AND tenant_id = %s
             """,
-            (datasec_scan_id, tenant_id),
+            (scan_run_id, tenant_id),
         )
         row = cur.fetchone()
         if row and row["total"] > 0:
@@ -497,7 +497,7 @@ def _compute_encrypted_pct(
 
 def _build_catalog(
     cur: psycopg2.extensions.cursor,
-    datasec_scan_id: str,
+    scan_run_id: str,
     tenant_id: str,
 ) -> List[Dict[str, Any]]:
     """Build a data-store catalog from findings.
@@ -508,7 +508,7 @@ def _build_catalog(
 
     Args:
         cur: Database cursor (RealDictCursor).
-        datasec_scan_id: Scan identifier.
+        scan_run_id: Scan identifier.
         tenant_id: Tenant identifier.
 
     Returns:
@@ -543,12 +543,12 @@ def _build_catalog(
                COUNT(*) FILTER (WHERE status = 'FAIL') AS fail_count,
                COUNT(*) FILTER (WHERE status = 'PASS') AS pass_count
         FROM datasec_findings
-        WHERE datasec_scan_id = %s AND tenant_id = %s
+        WHERE scan_run_id = %s AND tenant_id = %s
         GROUP BY resource_uid, resource_type, resource_id,
                  account_id, region, data_classification, sensitivity_score
         ORDER BY fail_count DESC, sensitivity_score DESC NULLS LAST
         """,
-        (datasec_scan_id, tenant_id),
+        (scan_run_id, tenant_id),
     )
     rows = cur.fetchall()
 
@@ -583,7 +583,7 @@ def _build_catalog(
 
 def _query_region_breakdown(
     cur: psycopg2.extensions.cursor,
-    datasec_scan_id: str,
+    scan_run_id: str,
     tenant_id: str,
 ) -> List[Dict[str, Any]]:
     """Compute data residency breakdown by region from datasec_findings.
@@ -593,7 +593,7 @@ def _query_region_breakdown(
 
     Args:
         cur: Database cursor (RealDictCursor).
-        datasec_scan_id: Scan identifier.
+        scan_run_id: Scan identifier.
         tenant_id: Tenant identifier.
 
     Returns:
@@ -607,13 +607,13 @@ def _query_region_breakdown(
                    COUNT(DISTINCT resource_uid) AS resource_count,
                    COUNT(*) FILTER (WHERE status = 'FAIL') AS fail_count
             FROM datasec_findings
-            WHERE datasec_scan_id = %s
+            WHERE scan_run_id = %s
               AND tenant_id = %s
               AND region IS NOT NULL
             GROUP BY region
             ORDER BY resource_count DESC
             """,
-            (datasec_scan_id, tenant_id),
+            (scan_run_id, tenant_id),
         )
         rows = cur.fetchall()
         return [

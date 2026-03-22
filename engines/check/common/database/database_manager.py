@@ -106,13 +106,13 @@ class DatabaseManager:
         customer_id: str,
         tenant_id: str,
         provider: str,
-        hierarchy_id: str = None,
+        account_id: str = None,
         hierarchy_type: str = None,
         region: str = None,
         service: str = None,
         scan_type: str = "check",
         metadata: Dict = None,
-        discovery_scan_id: str = None,
+        discovery_scan_run_id: str = None,
     ) -> None:
         """Insert a check_report row (status = 'running')."""
         conn = self._get_connection()
@@ -121,18 +121,18 @@ class DatabaseManager:
                 cur.execute(
                     """
                     INSERT INTO check_report
-                        (check_scan_id, customer_id, tenant_id, provider,
-                         hierarchy_id, hierarchy_type, region, service,
-                         scan_type, status, metadata, discovery_scan_id)
+                        (scan_run_id, customer_id, tenant_id, provider,
+                         account_id, hierarchy_type, region, service,
+                         scan_type, status, metadata, discovery_scan_run_id)
                     VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                    ON CONFLICT (check_scan_id) DO NOTHING
+                    ON CONFLICT (scan_run_id) DO NOTHING
                     """,
                     (
                         scan_id, customer_id, tenant_id, provider,
-                        hierarchy_id, hierarchy_type, region, service,
+                        account_id, hierarchy_type, region, service,
                         scan_type, "running",
                         json.dumps(metadata or {}),
-                        discovery_scan_id,
+                        discovery_scan_run_id,
                     ),
                 )
             conn.commit()
@@ -145,7 +145,7 @@ class DatabaseManager:
         try:
             with conn.cursor() as cur:
                 cur.execute(
-                    "UPDATE check_report SET status = %s WHERE check_scan_id = %s",
+                    "UPDATE check_report SET status = %s WHERE scan_run_id = %s",
                     (status, scan_id),
                 )
             conn.commit()
@@ -160,7 +160,7 @@ class DatabaseManager:
         customer_id: str,
         tenant_id: str,
         provider: str,
-        hierarchy_id: str,
+        account_id: str,
         hierarchy_type: str,
         rule_id: str,
         service: str = None,
@@ -184,8 +184,8 @@ class DatabaseManager:
                 cur.execute(
                     """
                     INSERT INTO check_findings
-                        (check_scan_id, customer_id, tenant_id, provider,
-                         hierarchy_id, hierarchy_type, rule_id,
+                        (scan_run_id, customer_id, tenant_id, provider,
+                         account_id, hierarchy_type, rule_id,
                          service, discovery_id, region,
                          resource_uid, resource_id, resource_type,
                          resource_service,
@@ -194,7 +194,7 @@ class DatabaseManager:
                     """,
                     (
                         scan_id, customer_id, tenant_id, provider,
-                        hierarchy_id, hierarchy_type, rule_id,
+                        account_id, hierarchy_type, rule_id,
                         service, discovery_id, region,
                         resource_uid, resource_id, resource_type,
                         resource_service,
@@ -216,7 +216,7 @@ class DatabaseManager:
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(
-                    "SELECT * FROM check_findings WHERE check_scan_id = %s ORDER BY created_at",
+                    "SELECT * FROM check_findings WHERE scan_run_id = %s ORDER BY first_seen_at",
                     (scan_id,),
                 )
                 return [dict(r) for r in cur.fetchall()]
@@ -235,7 +235,7 @@ class DatabaseManager:
         filters: List[str] = []
         params: List[Any] = []
         if scan_id:
-            filters.append("check_scan_id = %s"); params.append(scan_id)
+            filters.append("scan_run_id = %s"); params.append(scan_id)
         if tenant_id:
             filters.append("tenant_id = %s"); params.append(tenant_id)
         if rule_id:
@@ -249,7 +249,7 @@ class DatabaseManager:
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(
-                    f"SELECT * FROM check_findings {where} ORDER BY created_at DESC",
+                    f"SELECT * FROM check_findings {where} ORDER BY first_seen_at DESC",
                     params,
                 )
                 return [dict(r) for r in cur.fetchall()]

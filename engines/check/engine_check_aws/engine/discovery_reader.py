@@ -85,7 +85,7 @@ class DiscoveryReader:
             conn.close()
     
     def read_discovery_records(self, discovery_id: str, tenant_id: str,
-                              hierarchy_id: str, scan_id: Optional[str] = None,
+                              account_id: str, scan_id: Optional[str] = None,
                               service: Optional[str] = None) -> List[Dict]:
         """
         Read discovery records from discoveries database
@@ -93,7 +93,7 @@ class DiscoveryReader:
         Args:
             discovery_id: Discovery ID (e.g., 'aws.s3.list_buckets')
             tenant_id: Tenant ID
-            hierarchy_id: Hierarchy ID (account_id, etc.) - IGNORED if scan_id provided
+            account_id: Hierarchy ID (account_id, etc.) - IGNORED if scan_id provided
             scan_id: Discovery scan ID to filter by (PREFERRED - scopes to specific scan)
             service: Optional service name to filter
 
@@ -104,10 +104,10 @@ class DiscoveryReader:
         try:
             conn = self._get_connection()
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                # ARCHITECTURE: Use discovery_scan_id to scope the query (preferred)
+                # ARCHITECTURE: Use scan_run_id to scope the query (preferred)
                 # This ensures we only get discoveries from the specific scan run
                 if scan_id:
-                    # PREFERRED: Filter by discovery_scan_id (most precise)
+                    # PREFERRED: Filter by scan_run_id (most precise)
                     query = """
                         SELECT DISTINCT ON (resource_uid)
                             resource_uid as resource_uid,
@@ -117,17 +117,17 @@ class DiscoveryReader:
                             service,
                             region,
                             discovery_id,
-                            discovery_scan_id,
-                            hierarchy_id,
+                            scan_run_id,
+                            account_id,
                             tenant_id
                         FROM discovery_findings
                         WHERE discovery_id = %s
-                          AND discovery_scan_id = %s
+                          AND scan_run_id = %s
                     """
                     params = [discovery_id, scan_id]
                 else:
-                    # FALLBACK: Filter by tenant_id + hierarchy_id (gets latest across all scans)
-                    logger.warning(f"No scan_id provided for discovery_id={discovery_id}, using tenant_id + hierarchy_id filter (may return stale data)")
+                    # FALLBACK: Filter by tenant_id + account_id (gets latest across all scans)
+                    logger.warning(f"No scan_id provided for discovery_id={discovery_id}, using tenant_id + account_id filter (may return stale data)")
                     query = """
                         SELECT DISTINCT ON (resource_uid)
                             resource_uid as resource_uid,
@@ -137,21 +137,21 @@ class DiscoveryReader:
                             service,
                             region,
                             discovery_id,
-                            discovery_scan_id,
-                            hierarchy_id,
+                            scan_run_id,
+                            account_id,
                             tenant_id
                         FROM discovery_findings
                         WHERE discovery_id = %s
                           AND tenant_id = %s
-                          AND hierarchy_id = %s
+                          AND account_id = %s
                     """
-                    params = [discovery_id, tenant_id, hierarchy_id]
+                    params = [discovery_id, tenant_id, account_id]
 
                 if service:
                     query += " AND service = %s"
                     params.append(service)
 
-                query += " ORDER BY resource_uid, scan_timestamp DESC"
+                query += " ORDER BY resource_uid, first_seen_at DESC"
 
                 cur.execute(query, params)
                 rows = cur.fetchall()
@@ -185,10 +185,10 @@ class DiscoveryReader:
             conn = self._get_connection()
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute("""
-                    SELECT discovery_scan_id, customer_id, tenant_id, provider,
-                           hierarchy_id, hierarchy_type, status, scan_timestamp
+                    SELECT scan_run_id, customer_id, tenant_id, provider,
+                           account_id, hierarchy_type, status, first_seen_at
                     FROM discovery_report
-                    WHERE discovery_scan_id = %s AND scan_type = 'discovery'
+                    WHERE scan_run_id = %s AND scan_type = 'discovery'
                 """, (scan_id,))
                 row = cur.fetchone()
                 return dict(row) if row else None
@@ -199,25 +199,25 @@ class DiscoveryReader:
             if conn:
                 self._return_connection(conn)
     
-    def list_available_scans(self, tenant_id: str, hierarchy_id: Optional[str] = None) -> List[Dict]:
+    def list_available_scans(self, tenant_id: str, account_id: Optional[str] = None) -> List[Dict]:
         """List available discovery scans"""
         conn = None
         try:
             conn = self._get_connection()
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 query = """
-                    SELECT discovery_scan_id, customer_id, tenant_id, provider,
-                           hierarchy_id, hierarchy_type, status, scan_timestamp
+                    SELECT scan_run_id, customer_id, tenant_id, provider,
+                           account_id, hierarchy_type, status, first_seen_at
                     FROM discovery_report
                     WHERE tenant_id = %s AND scan_type = 'discovery'
                 """
                 params = [tenant_id]
                 
-                if hierarchy_id:
-                    query += " AND hierarchy_id = %s"
-                    params.append(hierarchy_id)
+                if account_id:
+                    query += " AND account_id = %s"
+                    params.append(account_id)
                 
-                query += " ORDER BY scan_timestamp DESC"
+                query += " ORDER BY first_seen_at DESC"
                 
                 cur.execute(query, params)
                 rows = cur.fetchall()

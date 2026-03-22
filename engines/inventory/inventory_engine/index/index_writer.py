@@ -10,9 +10,9 @@ Env: INVENTORY_DB_HOST / INVENTORY_DB_PORT / INVENTORY_DB_NAME / INVENTORY_DB_US
 
 Tables WRITTEN:
   - inventory_report        : write_scan_summary(ScanSummary)
-                              — INSERT ... ON CONFLICT (inventory_scan_id) DO UPDATE
+                              — INSERT ... ON CONFLICT (scan_run_id) DO UPDATE
   - inventory_findings      : write_asset_index(assets)
-                              — INSERT ... ON CONFLICT (asset_id) DO UPDATE (latest state only)
+                              — INSERT ... ON CONFLICT (finding_id) DO UPDATE (latest state only)
   - inventory_scan_data     : write_scan_snapshot(assets)
                               — INSERT per asset per scan (historical snapshots, 5 retained)
   - inventory_relationships : write_relationship_index(relationships)
@@ -27,7 +27,7 @@ import uuid
 import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
-from ..schemas.asset_schema import Asset, generate_asset_id
+from ..schemas.asset_schema import Asset, generate_finding_id
 from ..schemas.relationship_schema import Relationship
 from ..schemas.summary_schema import ScanSummary
 
@@ -91,12 +91,12 @@ class PostgresIndexWriter(IndexWriter):
         cursor = self.conn.cursor()
         cursor.execute("""
             INSERT INTO inventory_report (
-                inventory_scan_id, tenant_id, started_at, completed_at, status,
+                scan_run_id, tenant_id, started_at, completed_at, status,
                 total_assets, total_relationships, assets_by_provider,
                 assets_by_resource_type, assets_by_region, providers_scanned,
                 accounts_scanned, regions_scanned, errors_count
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (inventory_scan_id) DO UPDATE SET
+            ON CONFLICT (scan_run_id) DO UPDATE SET
                 completed_at = EXCLUDED.completed_at,
                 status = EXCLUDED.status,
                 total_assets = EXCLUDED.total_assets,
@@ -131,7 +131,7 @@ class PostgresIndexWriter(IndexWriter):
             return obj
 
         for asset in assets:
-            asset_id = generate_asset_id(asset)
+            finding_id = generate_finding_id(asset)
 
             # Extract enrichment data from metadata
             configuration = asset.metadata.get('configuration', {}) if asset.metadata else {}
@@ -143,21 +143,21 @@ class PostgresIndexWriter(IndexWriter):
             labels = _serialize_value(labels)
             properties = _serialize_value(properties)
 
-            # Remove stale row if resource_uid exists under a different asset_id
-            # (handles the dual unique constraint: PK on asset_id + UNIQUE on resource_uid,tenant_id)
+            # Remove stale row if resource_uid exists under a different finding_id
+            # (handles the dual unique constraint: PK on finding_id + UNIQUE on resource_uid,tenant_id)
             cursor.execute(
-                "DELETE FROM inventory_findings WHERE resource_uid = %s AND tenant_id = %s AND asset_id != %s",
-                (asset.resource_uid, asset.tenant_id, asset_id),
+                "DELETE FROM inventory_findings WHERE resource_uid = %s AND tenant_id = %s AND finding_id != %s",
+                (asset.resource_uid, asset.tenant_id, finding_id),
             )
 
             cursor.execute("""
                 INSERT INTO inventory_findings (
-                    asset_id, tenant_id, resource_uid, provider, account_id,
+                    finding_id, tenant_id, resource_uid, provider, account_id,
                     region, resource_type, resource_id, name, tags, labels,
                     properties, configuration,
-                    inventory_scan_id, latest_scan_run_id, updated_at
+                    scan_run_id, latest_scan_run_id, updated_at
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (asset_id) DO UPDATE SET
+                ON CONFLICT (finding_id) DO UPDATE SET
                     resource_uid = EXCLUDED.resource_uid,
                     resource_type = EXCLUDED.resource_type,
                     resource_id = EXCLUDED.resource_id,
@@ -166,11 +166,11 @@ class PostgresIndexWriter(IndexWriter):
                     labels = EXCLUDED.labels,
                     properties = EXCLUDED.properties,
                     configuration = EXCLUDED.configuration,
-                    inventory_scan_id = EXCLUDED.inventory_scan_id,
+                    scan_run_id = EXCLUDED.scan_run_id,
                     latest_scan_run_id = EXCLUDED.latest_scan_run_id,
                     updated_at = EXCLUDED.updated_at
             """, (
-                asset_id, asset.tenant_id, asset.resource_uid,
+                finding_id, asset.tenant_id, asset.resource_uid,
                 asset.provider.value, asset.account_id, asset.region,
                 asset.resource_type, asset.resource_id, asset.name,
                 json.dumps(asset.tags), json.dumps(labels),
@@ -182,25 +182,32 @@ class PostgresIndexWriter(IndexWriter):
         self.conn.commit()
     
     def write_relationship_index(self, relationships: List[Relationship]):
-        """Write to inventory_relationships table"""
+        """Write to inventory_relationships table.
+
+        TODO: migrate to new columns only (source_resource_uid, target_resource_uid,
+        relationship_type) and drop legacy from_uid/to_uid/relation_type once all
+        readers (threat_analyzer, graph_builder, blast-radius queries) are updated.
+        """
         if not relationships:
             return
-        
+
         cursor = self.conn.cursor()
-        
+
         for rel in relationships:
             provider_val = rel.provider.value if hasattr(rel.provider, 'value') else str(rel.provider)
             cursor.execute("""
                 INSERT INTO inventory_relationships (
-                    tenant_id, inventory_scan_id, provider, account_id, region,
-                    relation_type, from_uid, to_uid, from_resource_type, to_resource_type, properties
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    tenant_id, scan_run_id, provider, account_id, region,
+                    relation_type, from_uid, to_uid, from_resource_type, to_resource_type, properties,
+                    source_resource_uid, target_resource_uid, relationship_type
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
                 rel.tenant_id, rel.scan_run_id, provider_val,
                 rel.account_id, rel.region, rel.relation_type,
                 rel.from_uid, rel.to_uid,
                 rel.from_resource_type, rel.to_resource_type,
-                json.dumps(rel.properties)
+                json.dumps(rel.properties),
+                rel.from_uid, rel.to_uid, rel.relation_type,
             ))
 
         self.conn.commit()
@@ -226,7 +233,7 @@ class PostgresIndexWriter(IndexWriter):
             return obj
 
         for asset in assets:
-            asset_id = generate_asset_id(asset)
+            finding_id = generate_finding_id(asset)
             configuration = asset.metadata.get('configuration', {}) if asset.metadata else {}
             labels = asset.metadata.get('labels', {}) if asset.metadata else {}
             properties = {k: v for k, v in asset.metadata.items() if k not in ['configuration', 'labels', 'raw_refs']} if asset.metadata else {}
@@ -236,12 +243,12 @@ class PostgresIndexWriter(IndexWriter):
 
             cursor.execute("""
                 INSERT INTO inventory_scan_data (
-                    inventory_scan_id, tenant_id, asset_id, resource_uid,
+                    scan_run_id, tenant_id, finding_id, resource_uid,
                     provider, account_id, region, resource_type, resource_id,
                     name, tags, labels, properties, configuration
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
-                asset.scan_run_id, asset.tenant_id, asset_id, asset.resource_uid,
+                asset.scan_run_id, asset.tenant_id, finding_id, asset.resource_uid,
                 asset.provider.value, asset.account_id, asset.region,
                 asset.resource_type, asset.resource_id, asset.name,
                 json.dumps(asset.tags), json.dumps(labels),
@@ -262,7 +269,7 @@ class PostgresIndexWriter(IndexWriter):
         cursor = self.conn.cursor()
         # Get the scan IDs to keep (most recent N)
         cursor.execute("""
-            SELECT inventory_scan_id FROM inventory_report
+            SELECT scan_run_id FROM inventory_report
             WHERE tenant_id = %s
             ORDER BY created_at DESC
             LIMIT %s
@@ -278,8 +285,8 @@ class PostgresIndexWriter(IndexWriter):
                 cursor.execute(f"""
                     DELETE FROM {table}
                     WHERE tenant_id = %s
-                      AND inventory_scan_id IS NOT NULL
-                      AND inventory_scan_id != ALL(%s)
+                      AND scan_run_id IS NOT NULL
+                      AND scan_run_id != ALL(%s)
                 """, (tenant_id, keep_ids))
                 deleted = cursor.rowcount
                 if deleted > 0:
@@ -333,7 +340,7 @@ class PostgresIndexWriter(IndexWriter):
 
                 cursor.execute("""
                     INSERT INTO inventory_drift (
-                        drift_id, inventory_scan_id, previous_scan_id, tenant_id,
+                        drift_id, scan_run_id, previous_scan_id, tenant_id,
                         resource_uid, provider, resource_type, change_type,
                         previous_state, current_state, changes_summary,
                         severity, detected_at

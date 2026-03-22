@@ -34,7 +34,7 @@ class TestPrepareTransformedRow:
         row = {
             "risk_scan_id": "scan-1",
             "tenant_id": "t-1",
-            "orchestration_id": "orch-1",
+            "scan_run_id": "orch-1",
             "source_finding_id": "f-001",
             "source_engine": "datasec",
             "severity": "critical",
@@ -144,7 +144,7 @@ class TestInsertReport:
     def test_inserts_report(self, writer, mock_conn):
         report = {
             "risk_scan_id": "scan-1",
-            "orchestration_id": "orch-1",
+            "scan_run_id": "orch-1",
             "tenant_id": "t-1",
             "total_scenarios": 10,
             "total_exposure_likely": 5000000,
@@ -160,7 +160,7 @@ class TestInsertReport:
     def test_handles_none_jsonb_fields(self, writer, mock_conn):
         report = {
             "risk_scan_id": "scan-1",
-            "orchestration_id": "orch-1",
+            "scan_run_id": "orch-1",
             "tenant_id": "t-1",
             "engine_breakdown": None,
             "top_scenarios": None,
@@ -186,7 +186,7 @@ class TestBatchInsertSummaries:
             {
                 "risk_scan_id": "scan-1",
                 "tenant_id": "t-1",
-                "orchestration_id": "orch-1",
+                "scan_run_id": "orch-1",
                 "source_engine": "datasec",
                 "scenario_count": 5,
                 "critical_count": 2,

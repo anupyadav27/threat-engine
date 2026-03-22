@@ -46,7 +46,7 @@ class CheckEvaluator(ABC):
         service: str,
         discovery_id: str,
         region: str,
-        hierarchy_id: str,
+        account_id: str,
     ) -> Dict[str, str]:
         """
         Extract or generate resource identifiers from a discovered resource.
@@ -61,7 +61,7 @@ class CheckEvaluator(ABC):
             service:        Service name        (e.g. 'ec2', 'storage')
             discovery_id:   Discovery operation (e.g. 'aws.ec2.describe_instances')
             region:         Region              (e.g. 'us-east-1')
-            hierarchy_id:   Account / subscription / project ID
+            account_id:   Account / subscription / project ID
 
         Returns:
             Dict with all four keys (value may be None if unavailable):

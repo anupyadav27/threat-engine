@@ -120,22 +120,22 @@ class CheckEngine:
         self,
         discovery_id: str,
         tenant_id: str,
-        hierarchy_id: str,
+        account_id: str,
         scan_id: str,
         service: str,
     ) -> List[Dict]:
         if self.use_ndjson:
-            return self._load_from_ndjson(scan_id, discovery_id, service, hierarchy_id)
+            return self._load_from_ndjson(scan_id, discovery_id, service, account_id)
         return self.discovery_reader.read_discovery_records(
             discovery_id=discovery_id,
             tenant_id=tenant_id,
-            hierarchy_id=hierarchy_id,
+            account_id=account_id,
             scan_id=scan_id,
             service=service,
         )
 
     def _load_from_ndjson(
-        self, scan_id: str, discovery_id: str, service: str, hierarchy_id: str
+        self, scan_id: str, discovery_id: str, service: str, account_id: str
     ) -> List[Dict]:
         output_base = os.getenv("OUTPUT_DIR")
         base = (
@@ -151,7 +151,7 @@ class CheckEngine:
             return []
 
         items: List[Dict] = []
-        for f in discoveries_dir.glob(f"{hierarchy_id}_*_{service}.ndjson"):
+        for f in discoveries_dir.glob(f"{account_id}_*_{service}.ndjson"):
             try:
                 with open(f, encoding="utf-8") as fh:
                     for line in fh:
@@ -173,7 +173,7 @@ class CheckEngine:
                                     "region": rec.get("region"),
                                     "discovery_id": rec.get("discovery_id"),
                                     "emitted_fields": ef,
-                                    "scan_timestamp": rec.get("scan_timestamp"),
+                                    "first_seen_at": rec.get("first_seen_at"),
                                 }
                             )
                         except (json.JSONDecodeError, Exception):
@@ -214,36 +214,36 @@ class CheckEngine:
 
     def run_check_scan(
         self,
-        discovery_scan_id: str,
+        discovery_scan_run_id: str,
         customer_id: str,
         tenant_id: str,
         provider: str,
-        hierarchy_id: str,
+        account_id: str,
         hierarchy_type: str,
         services: List[str],
         check_source: str = "default",
         use_ndjson: Optional[bool] = None,
-        check_scan_id: Optional[str] = None,
+        scan_run_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Run security checks against discovered resources.
 
         Args:
-            discovery_scan_id: Discovery scan to evaluate against.
+            discovery_scan_run_id: Discovery scan to evaluate against.
             customer_id:       Customer identifier.
             tenant_id:         Tenant identifier.
             provider:          CSP name (aws / azure / gcp / oci).
-            hierarchy_id:      Account / subscription / project ID.
+            account_id:      Account / subscription / project ID.
             hierarchy_type:    account / subscription / project.
             services:          List of services to check, e.g. ['ec2', 's3'].
             check_source:      'default' or 'custom' — selects YAML subdirectory.
-            check_scan_id:     Optional UUID; generated if omitted.
+            scan_run_id:     Optional UUID; generated if omitted.
 
         Returns:
-            Summary dict: check_scan_id, totals, mode.
+            Summary dict: scan_run_id, totals, mode.
         """
         use_ndjson_mode = use_ndjson if use_ndjson is not None else self.use_ndjson
-        check_scan_id = check_scan_id or str(uuid.uuid4())
+        scan_run_id = scan_run_id or str(uuid.uuid4())
         mode = "NDJSON" if use_ndjson_mode else "DATABASE"
 
         # Phase logger
@@ -256,10 +256,10 @@ class CheckEngine:
             / f"engine_check_{provider}"
             / "output"
         )
-        output_dir = base / "checks" / check_scan_id
-        self.phase_logger = PhaseLogger(check_scan_id, "checks", output_dir)
+        output_dir = base / "checks" / scan_run_id
+        self.phase_logger = PhaseLogger(scan_run_id, "checks", output_dir)
         self.phase_logger.info(
-            "Check scan %s [%s] → discovery %s", check_scan_id, mode, discovery_scan_id
+            "Check scan %s [%s] → discovery %s", scan_run_id, mode, discovery_scan_run_id
         )
         self.phase_logger.info(
             "  Provider: %s | Services: %d | Source: %s",
@@ -269,20 +269,20 @@ class CheckEngine:
         # Create scan record in DB
         if not use_ndjson_mode and self.db:
             self.db.create_scan(
-                scan_id=check_scan_id,
+                scan_id=scan_run_id,
                 customer_id=customer_id,
                 tenant_id=tenant_id,
                 provider=provider,
-                hierarchy_id=hierarchy_id,
+                account_id=account_id,
                 hierarchy_type=hierarchy_type,
                 scan_type="check",
                 metadata={
-                    "discovery_scan_id": discovery_scan_id,
+                    "discovery_scan_run_id": discovery_scan_run_id,
                     "services": services,
                     "check_source": check_source,
                     "mode": mode,
                 },
-                discovery_scan_id=discovery_scan_id,
+                discovery_scan_run_id=discovery_scan_run_id,
             )
 
         ndjson_buffer: Optional[List[Dict]] = [] if use_ndjson_mode else None
@@ -312,7 +312,7 @@ class CheckEngine:
                     did = ch.get("for_each")
                     if did and did not in disc_cache:
                         disc_cache[did] = self._load_discoveries(
-                            did, tenant_id, hierarchy_id, discovery_scan_id, service
+                            did, tenant_id, account_id, discovery_scan_run_id, service
                         )
                 loaded = sum(1 for v in disc_cache.values() if v)
                 self.phase_logger.info(
@@ -346,7 +346,7 @@ class CheckEngine:
                                 service=service,
                                 discovery_id=for_each,
                                 region=item_record.get("region", ""),
-                                hierarchy_id=hierarchy_id,
+                                account_id=account_id,
                             )
                             resource_arn = ids.get("resource_arn")
                             resource_uid = ids.get("resource_uid") or resource_arn
@@ -381,12 +381,12 @@ class CheckEngine:
                             if use_ndjson_mode:
                                 ndjson_buffer.append(
                                     {
-                                        "check_scan_id": check_scan_id,
-                                        "discovery_scan_id": discovery_scan_id,
+                                        "scan_run_id": scan_run_id,
+                                        "discovery_scan_run_id": discovery_scan_run_id,
                                         "customer_id": customer_id,
                                         "tenant_id": tenant_id,
                                         "provider": provider,
-                                        "hierarchy_id": hierarchy_id,
+                                        "account_id": account_id,
                                         "hierarchy_type": hierarchy_type,
                                         "rule_id": rule_id,
                                         "service": service,
@@ -401,16 +401,16 @@ class CheckEngine:
                                         "checked_fields": checked_fields,
                                         "actual_values": actual_values,
                                         "finding_data": finding_data,
-                                        "scan_timestamp": datetime.now(timezone.utc).isoformat(),
+                                        "first_seen_at": datetime.now(timezone.utc).isoformat(),
                                     }
                                 )
                             elif self.db:
                                 self.db.store_check_result(
-                                    scan_id=check_scan_id,
+                                    scan_id=scan_run_id,
                                     customer_id=customer_id,
                                     tenant_id=tenant_id,
                                     provider=provider,
-                                    hierarchy_id=hierarchy_id,
+                                    account_id=account_id,
                                     hierarchy_type=hierarchy_type,
                                     rule_id=rule_id,
                                     service=service,
@@ -435,11 +435,11 @@ class CheckEngine:
                             if self.db and not use_ndjson_mode:
                                 try:
                                     self.db.store_check_result(
-                                        scan_id=check_scan_id,
+                                        scan_id=scan_run_id,
                                         customer_id=customer_id,
                                         tenant_id=tenant_id,
                                         provider=provider,
-                                        hierarchy_id=hierarchy_id,
+                                        account_id=account_id,
                                         hierarchy_type=hierarchy_type,
                                         rule_id=rule_id,
                                         service=service,
@@ -461,14 +461,14 @@ class CheckEngine:
 
         # Finalise
         if not use_ndjson_mode and self.db:
-            self.db.update_scan_status(check_scan_id, "completed")
+            self.db.update_scan_status(scan_run_id, "completed")
 
         if use_ndjson_mode and ndjson_buffer:
-            self._write_ndjson(output_dir, check_scan_id, ndjson_buffer)
+            self._write_ndjson(output_dir, scan_run_id, ndjson_buffer)
 
         summary = {
-            "check_scan_id":    check_scan_id,
-            "discovery_scan_id": discovery_scan_id,
+            "scan_run_id":    scan_run_id,
+            "discovery_scan_run_id": discovery_scan_run_id,
             "provider":         provider,
             "mode":             mode,
             "total_checks":     total,
@@ -553,7 +553,7 @@ class CheckEngine:
         return data
 
     def _write_ndjson(
-        self, output_dir: Path, check_scan_id: str, results: List[Dict]
+        self, output_dir: Path, scan_run_id: str, results: List[Dict]
     ) -> None:
         output_dir.mkdir(parents=True, exist_ok=True)
         out = output_dir / "checks.ndjson"
@@ -561,7 +561,7 @@ class CheckEngine:
             for r in results:
                 f.write(json.dumps(r, default=str) + "\n")
         summary = {
-            "check_scan_id": check_scan_id,
+            "scan_run_id": scan_run_id,
             "total":  len(results),
             "passed": sum(1 for r in results if r["status"] == "PASS"),
             "failed": sum(1 for r in results if r["status"] == "FAIL"),

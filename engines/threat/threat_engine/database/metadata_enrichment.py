@@ -76,7 +76,7 @@ def get_enriched_check_results(
     mitre_techniques, mitre_tactics, and risk_score.
 
     Args:
-        scan_id: Check scan ID (check_scan_id in check_findings)
+        scan_id: Check scan ID (scan_run_id in check_findings)
         schema: Ignored (kept for backward compat)
         status_filter: Filter by status (e.g., ['FAIL', 'WARN']). Default: all
         tenant_id: Optional tenant_id filter
@@ -91,11 +91,11 @@ def get_enriched_check_results(
             query = """
                 SELECT
                     cf.id,
-                    cf.check_scan_id,
+                    cf.scan_run_id,
                     cf.customer_id,
                     cf.tenant_id,
                     cf.provider,
-                    cf.hierarchy_id,
+                    cf.account_id,
                     cf.hierarchy_type,
                     cf.rule_id,
                     cf.resource_uid AS resource_arn,
@@ -105,7 +105,7 @@ def get_enriched_check_results(
                     cf.status,
                     cf.checked_fields,
                     cf.finding_data,
-                    cf.created_at as scan_timestamp,
+                    cf.created_at as first_seen_at,
 
                     -- Rule metadata
                     rm.service as rule_service,
@@ -131,7 +131,7 @@ def get_enriched_check_results(
 
                 FROM check_findings cf
                 LEFT JOIN rule_metadata rm ON cf.rule_id = rm.rule_id
-                WHERE cf.check_scan_id = %s
+                WHERE cf.scan_run_id = %s
             """
 
             params: list = [scan_id]

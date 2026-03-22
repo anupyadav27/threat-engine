@@ -42,7 +42,7 @@ class RiskReporter:
     def run(
         self,
         scan_id: str,
-        orchestration_id: str,
+        scan_run_id: str,
         tenant_id: str,
         account_id: str,
         provider: str = "aws",
@@ -90,7 +90,7 @@ class RiskReporter:
 
         report = {
             "risk_scan_id": scan_id,
-            "orchestration_id": orchestration_id,
+            "scan_run_id": scan_run_id,
             "tenant_id": tenant_id,
             "account_id": account_id,
             "provider": provider,
@@ -124,7 +124,7 @@ class RiskReporter:
 
         # 6. Write per-engine summaries
         summaries = self._build_engine_summaries(
-            scenarios, scan_id, orchestration_id, tenant_id
+            scenarios, scan_id, scan_run_id, tenant_id
         )
         writer.batch_insert_summaries(summaries)
 
@@ -227,7 +227,7 @@ class RiskReporter:
         self,
         scenarios: List[Dict],
         scan_id: str,
-        orchestration_id: str,
+        scan_run_id: str,
         tenant_id: str,
     ) -> List[Dict[str, Any]]:
         """Build per-engine summary rows."""
@@ -253,7 +253,7 @@ class RiskReporter:
             summaries.append({
                 "risk_scan_id": scan_id,
                 "tenant_id": tenant_id,
-                "orchestration_id": orchestration_id,
+                "scan_run_id": scan_run_id,
                 "source_engine": engine,
                 "scenario_count": len(group),
                 "critical_count": critical_count,

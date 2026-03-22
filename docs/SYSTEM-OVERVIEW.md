@@ -67,8 +67,8 @@ security pipeline. A single scan produces:
 
 ## Scan Pipeline (Ordered)
 
-A full scan runs through these engines. Each engine reads the `scan_orchestration`
-table to find what to process, then writes its `scan_id` back when complete.
+A full scan runs through these engines. All engines share a single `scan_run_id`
+(UUID) generated at the start of the pipeline.
 
 ```
 Step 1              Step 2
@@ -90,7 +90,7 @@ CHECK                          INVENTORY
  *** PARALLEL WITH INVENTORY ***
 
               └──────────┬──────────┘
-                         │ (both check_scan_id and inventory_scan_id available)
+                         │ (both scan_run_id and scan_run_id available)
               ┌──────────┼──────────────────────┐
               ▼          ▼          ▼            ▼
 Step 5a           Step 5b     Step 5c       Step 5d
@@ -142,18 +142,11 @@ This is the **coordination hub** of the entire pipeline.
 ```
 scan_orchestration table (threat_engine_onboarding DB)
 ───────────────────────────────────────────────────────
-orchestration_id     UUID (primary key)
+scan_run_id          UUID (primary key) ← single ID shared by ALL engines
 tenant_id            VARCHAR
 account_id           VARCHAR   ← cloud account being scanned
 provider_type        VARCHAR   ← 'aws' | 'azure' | 'gcp' | ...
 status               VARCHAR   ← pending | running | completed | failed
-discovery_scan_id    UUID      ← written by engine-discoveries when done
-check_scan_id        UUID      ← written by engine-check when done
-inventory_scan_id    UUID      ← written by engine-inventory when done
-compliance_scan_id   UUID      ← written by engine-compliance when done
-threat_scan_id       UUID      ← written by engine-threat when done
-iam_scan_id          UUID      ← written by engine-iam when done
-datasec_scan_id      UUID      ← written by engine-datasec when done
 created_at           TIMESTAMP
 updated_at           TIMESTAMP
 ```
@@ -162,31 +155,31 @@ updated_at           TIMESTAMP
 
 ```
 1. UI / API-GW → POST /onboarding/api/v1/scan/trigger
-                 → creates scan_orchestration row, returns orchestration_id
+                 → creates scan_orchestration row, returns scan_run_id
 
 2. Onboarding → POST discoveries/api/v1/discovery
-                { orchestration_id, provider, hierarchy_id }
-                → discoveries scans cloud, writes discovery_scan_id
+                { scan_run_id, provider, account_id }
+                → scans cloud, stores discovery_findings
 
 3. Check engine  → POST check/api/v1/check
-                   { orchestration_id }
-                   → reads discovery_scan_id, evaluates rules, writes check_scan_id
+                   { scan_run_id }
+                   → reads discovery_findings, evaluates rules, stores check_findings
 
 4. Inventory     → POST inventory/api/v1/inventory/scan/discovery
-                   { orchestration_id }
-                   → reads discovery_scan_id, normalises assets, writes inventory_scan_id
+                   { scan_run_id }
+                   → reads discovery_findings, normalises assets, stores inventory_findings
 
 5. Compliance    → POST compliance/api/v1/compliance/scan
-                   { orchestration_id }
-                   → reads check_scan_id, builds framework report, writes compliance_scan_id
+                   { scan_run_id }
+                   → reads check_findings, builds framework report
 
 6. Threat        → POST threat/api/v1/scan
-                   { orchestration_id }
-                   → reads check + inventory data, scores risks, writes threat_scan_id
+                   { scan_run_id }
+                   → reads check + inventory data, scores risks
 
 7. IAM / DataSec → POST iam/..., datasec/...
-                   { orchestration_id }
-                   → specialised analysis, write their scan_ids
+                   { scan_run_id }
+                   → specialised analysis
 ```
 
 ---
@@ -211,11 +204,11 @@ CSP-specific resource catalogues live in:
 
 The platform supports scanning multiple cloud accounts in a single orchestrated run:
 
-- **Account identifier**: `hierarchy_id` (maps to cloud account ID / subscription ID)
+- **Account identifier**: `account_id` (cloud account ID / subscription ID)
 - **Stored in**: `cloud_accounts` table in `threat_engine_onboarding` DB
 - **Propagated via**: `scan_orchestration.account_id`
 - **Query pattern**: All engines accept `account_ids` (comma-separated) for multi-account queries
-- **SQL pattern**: `WHERE hierarchy_id = ANY(%s::text[])`
+- **SQL pattern**: `WHERE account_id = ANY(%s::text[])`
 
 ---
 

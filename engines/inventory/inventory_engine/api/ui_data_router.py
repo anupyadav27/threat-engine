@@ -10,7 +10,7 @@ Endpoint:
 
 Tables read (threat_engine_inventory):
   - inventory_report        : scan summaries (total_assets, total_relationships, scan_metadata)
-  - inventory_findings      : per-asset records (asset_id, resource_uid, resource_type, name, provider, region …)
+  - inventory_findings      : per-asset records (finding_id, resource_uid, resource_type, name, provider, region …)
   - inventory_relationships : resource-to-resource relationships (relation_type, from_uid, to_uid)
   - inventory_drift         : configuration drift records (change_type: added/removed/modified)
 """
@@ -43,12 +43,12 @@ def _get_inventory_conn():
     )
 
 
-def _resolve_inventory_scan_id(
+def _resolve_scan_run_id(
     cursor: psycopg2.extensions.cursor,
     tenant_id: str,
     scan_run_id: Optional[str],
 ) -> Optional[str]:
-    """Resolve the inventory_scan_id.
+    """Resolve the scan_run_id.
 
     If *scan_run_id* is ``None`` or ``"latest"`` the most recent
     ``inventory_report`` row for the tenant is used.  Otherwise the
@@ -60,32 +60,31 @@ def _resolve_inventory_scan_id(
         scan_run_id: Explicit scan_run_id or ``"latest"``.
 
     Returns:
-        The resolved inventory_scan_id, or ``None`` if nothing was found.
+        The resolved scan_run_id, or ``None`` if nothing was found.
     """
     if scan_run_id and scan_run_id != "latest":
         # Check if the caller passed a scan_run_id — try to find a matching
-        # inventory_scan_id.  inventory_report has no scan_run_id column,
-        # but the inventory_scan_id often embeds it (inventory_{scan_run_id}).
+        # row in inventory_report.
         inv_candidate = f"inventory_{scan_run_id}"
         cursor.execute(
             """
-            SELECT inventory_scan_id
+            SELECT scan_run_id
             FROM inventory_report
-            WHERE tenant_id = %s AND inventory_scan_id = %s
+            WHERE tenant_id = %s AND scan_run_id = %s
             LIMIT 1
             """,
             (tenant_id, inv_candidate),
         )
         row = cursor.fetchone()
         if row:
-            return row["inventory_scan_id"]
-        # Fallback: maybe the value IS an inventory_scan_id already.
+            return row["scan_run_id"]
+        # Fallback: maybe the value IS a scan_run_id already.
         return scan_run_id
 
     # "latest" — pick the most recent report for this tenant.
     cursor.execute(
         """
-        SELECT inventory_scan_id
+        SELECT scan_run_id
         FROM inventory_report
         WHERE tenant_id = %s
         ORDER BY created_at DESC LIMIT 1
@@ -93,7 +92,7 @@ def _resolve_inventory_scan_id(
         (tenant_id,),
     )
     row = cursor.fetchone()
-    return row["inventory_scan_id"] if row else None
+    return row["scan_run_id"] if row else None
 
 
 # ---------------------------------------------------------------------------
@@ -114,7 +113,7 @@ async def inventory_ui_data(
     * ``assets`` — paginated list of inventory findings.
     * ``total`` — total asset count (before pagination).
     * ``has_more`` — whether more pages exist.
-    * ``scan_id`` — resolved inventory_scan_id.
+    * ``scan_id`` — resolved scan_run_id.
 
     Args:
         tenant_id: Tenant UUID.
@@ -130,8 +129,8 @@ async def inventory_ui_data(
         conn = _get_inventory_conn()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
-        # 1. Resolve inventory_scan_id ----------------------------------------
-        inv_scan_id = _resolve_inventory_scan_id(cursor, tenant_id, scan_run_id)
+        # 1. Resolve scan_run_id ----------------------------------------
+        inv_scan_id = _resolve_scan_run_id(cursor, tenant_id, scan_run_id)
         if not inv_scan_id:
             return {
                 "summary": {
@@ -155,7 +154,7 @@ async def inventory_ui_data(
             """
             SELECT total_assets, total_relationships, scan_metadata
             FROM inventory_report
-            WHERE inventory_scan_id = %s AND tenant_id = %s
+            WHERE scan_run_id = %s AND tenant_id = %s
             LIMIT 1
             """,
             (inv_scan_id, tenant_id),
@@ -180,7 +179,7 @@ async def inventory_ui_data(
             """
             SELECT provider, COUNT(*) AS cnt
             FROM inventory_findings
-            WHERE inventory_scan_id = %s AND tenant_id = %s
+            WHERE scan_run_id = %s AND tenant_id = %s
             GROUP BY provider
             ORDER BY cnt DESC
             """,
@@ -195,7 +194,7 @@ async def inventory_ui_data(
             """
             SELECT resource_type, COUNT(*) AS cnt
             FROM inventory_findings
-            WHERE inventory_scan_id = %s AND tenant_id = %s
+            WHERE scan_run_id = %s AND tenant_id = %s
             GROUP BY resource_type
             ORDER BY cnt DESC
             LIMIT 50
@@ -212,7 +211,7 @@ async def inventory_ui_data(
             """
             SELECT region, COUNT(*) AS cnt
             FROM inventory_findings
-            WHERE inventory_scan_id = %s AND tenant_id = %s
+            WHERE scan_run_id = %s AND tenant_id = %s
             GROUP BY region
             ORDER BY cnt DESC
             LIMIT 50
@@ -229,7 +228,7 @@ async def inventory_ui_data(
             """
             SELECT relation_type, COUNT(*) AS cnt
             FROM inventory_relationships
-            WHERE inventory_scan_id = %s AND tenant_id = %s
+            WHERE scan_run_id = %s AND tenant_id = %s
             GROUP BY relation_type
             ORDER BY cnt DESC
             """,
@@ -244,7 +243,7 @@ async def inventory_ui_data(
             """
             SELECT change_type, COUNT(*) AS cnt
             FROM inventory_drift
-            WHERE inventory_scan_id = %s AND tenant_id = %s
+            WHERE scan_run_id = %s AND tenant_id = %s
             GROUP BY change_type
             ORDER BY cnt DESC
             """,
@@ -260,12 +259,12 @@ async def inventory_ui_data(
         # 6. Paginated asset list -----------------------------------------------
         cursor.execute(
             """
-            SELECT asset_id, inventory_scan_id, tenant_id, resource_uid,
+            SELECT finding_id, scan_run_id, tenant_id, resource_uid,
                    resource_type, name, provider, account_id,
-                   region, tags, configuration, first_discovered_at,
+                   region, tags, configuration, first_seen_at,
                    updated_at
             FROM inventory_findings
-            WHERE inventory_scan_id = %s AND tenant_id = %s
+            WHERE scan_run_id = %s AND tenant_id = %s
             ORDER BY resource_type, name
             LIMIT %s OFFSET %s
             """,
@@ -283,7 +282,7 @@ async def inventory_ui_data(
                 config_val = {}
 
             assets.append({
-                "id": str(r["asset_id"]),
+                "id": str(r["finding_id"]),
                 "resource_uid": r["resource_uid"],
                 "resource_type": r["resource_type"],
                 "resource_name": r["name"],
@@ -292,7 +291,7 @@ async def inventory_ui_data(
                 "region": r["region"],
                 "tags": tags_val,
                 "config": config_val,
-                "created_at": r["first_discovered_at"].isoformat() if r["first_discovered_at"] else None,
+                "created_at": r["first_seen_at"].isoformat() if r["first_seen_at"] else None,
                 "last_scanned": r["updated_at"].isoformat() if r.get("updated_at") else None,
             })
 

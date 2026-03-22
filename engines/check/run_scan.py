@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
 from engine_common.logger import setup_logger
-from engine_common.orchestration import get_orchestration_metadata, update_orchestration_scan_id
+from engine_common.orchestration import get_orchestration_metadata
 from engine_common.retention import cleanup_old_scans
 
 from common.database.database_manager import DatabaseManager
@@ -36,20 +36,20 @@ PROVIDER_EVALUATORS = {
 }
 
 
-def _update_report_status(db_manager: DatabaseManager, check_scan_id: str, status: str, error: str = None):
+def _update_report_status(db_manager: DatabaseManager, scan_run_id: str, status: str, error: str = None):
     """Update check_report status in DB."""
     try:
         conn = db_manager._get_connection()
         with conn.cursor() as cur:
             if error:
                 cur.execute(
-                    "UPDATE check_report SET status = %s, error_details = %s WHERE check_scan_id = %s",
-                    (status, error, check_scan_id),
+                    "UPDATE check_report SET status = %s, error_details = %s WHERE scan_run_id = %s",
+                    (status, error, scan_run_id),
                 )
             else:
                 cur.execute(
-                    "UPDATE check_report SET status = %s WHERE check_scan_id = %s",
-                    (status, check_scan_id),
+                    "UPDATE check_report SET status = %s WHERE scan_run_id = %s",
+                    (status, scan_run_id),
                 )
         conn.commit()
         db_manager._return_connection(conn)
@@ -57,18 +57,18 @@ def _update_report_status(db_manager: DatabaseManager, check_scan_id: str, statu
         logger.error(f"Failed to update report status: {e}")
 
 
-def _create_report_row(db_manager: DatabaseManager, check_scan_id: str, tenant_id: str,
-                       provider: str, discovery_scan_id: str, metadata: dict):
+def _create_report_row(db_manager: DatabaseManager, scan_run_id: str, tenant_id: str,
+                       provider: str, discovery_scan_run_id: str, metadata: dict):
     """Pre-create check_report row with status='running'."""
     try:
         conn = db_manager._get_connection()
         with conn.cursor() as cur:
             cur.execute(
                 """INSERT INTO check_report
-                   (check_scan_id, tenant_id, provider, discovery_scan_id, status, scan_timestamp, metadata)
+                   (scan_run_id, tenant_id, provider, discovery_scan_run_id, status, first_seen_at, metadata)
                    VALUES (%s, %s, %s, %s, 'running', NOW(), %s)
-                   ON CONFLICT (check_scan_id) DO UPDATE SET status = 'running'""",
-                (check_scan_id, tenant_id, provider, discovery_scan_id,
+                   ON CONFLICT (scan_run_id) DO UPDATE SET status = 'running'""",
+                (scan_run_id, tenant_id, provider, discovery_scan_run_id,
                  __import__('json').dumps(metadata)),
             )
         conn.commit()
@@ -79,21 +79,19 @@ def _create_report_row(db_manager: DatabaseManager, check_scan_id: str, tenant_i
 
 def main():
     parser = argparse.ArgumentParser(description="Check Engine Scanner")
-    parser.add_argument("--orchestration-id", required=True, help="Pipeline orchestration ID")
-    parser.add_argument("--check-scan-id", required=True, help="Pre-assigned check scan ID")
+    parser.add_argument("--scan-run-id", required=True, help="Pipeline scan run ID")
     args = parser.parse_args()
 
-    orchestration_id = args.orchestration_id
-    check_scan_id = args.check_scan_id
+    scan_run_id = args.scan_run_id
 
-    logger.info(f"Check scanner starting orchestration_id={orchestration_id} scan_id={check_scan_id}")
+    logger.info(f"Check scanner starting scan_run_id={scan_run_id}")
 
     db_manager = DatabaseManager()
 
     # SIGTERM handler — mark scan failed on preemption/timeout
     def _handle_sigterm(*_):
-        logger.warning(f"SIGTERM received — marking check scan {check_scan_id} as failed")
-        _update_report_status(db_manager, check_scan_id, "failed", "Terminated by SIGTERM (spot preemption or timeout)")
+        logger.warning(f"SIGTERM received — marking check scan {scan_run_id} as failed")
+        _update_report_status(db_manager, scan_run_id, "failed", "Terminated by SIGTERM (spot preemption or timeout)")
         sys.exit(1)
 
     signal.signal(signal.SIGTERM, _handle_sigterm)
@@ -101,36 +99,29 @@ def main():
     try:
         # 1. Get orchestration metadata
         logger.info("Resolving orchestration metadata...")
-        metadata = get_orchestration_metadata(orchestration_id)
+        metadata = get_orchestration_metadata(scan_run_id)
         if not metadata:
-            raise ValueError(f"No orchestration metadata for {orchestration_id}")
+            raise ValueError(f"No orchestration metadata for {scan_run_id}")
 
-        discovery_scan_id = metadata.get("discovery_scan_id")
-        if not discovery_scan_id:
-            raise ValueError(f"Discovery scan not completed for orchestration_id={orchestration_id}")
+        # All engines share the same scan_run_id
+        discovery_scan_run_id = scan_run_id
 
         tenant_id = metadata.get("tenant_id", "default-tenant")
         customer_id = metadata.get("customer_id", "default")
         provider = metadata.get("provider") or metadata.get("provider_type", "aws")
-        hierarchy_id = metadata.get("hierarchy_id") or metadata.get("account_id", "")
+        account_id = metadata.get("account_id") or metadata.get("account_id", "")
         hierarchy_type = metadata.get("hierarchy_type", "account")
         include_services = metadata.get("include_services")
 
-        logger.info(f"Resolved: tenant={tenant_id} provider={provider} discovery={discovery_scan_id}")
+        logger.info(f"Resolved: tenant={tenant_id} provider={provider} discovery={discovery_scan_run_id}")
 
         # 2. Pre-create report row
-        _create_report_row(db_manager, check_scan_id, tenant_id, provider, discovery_scan_id, {
-            "orchestration_id": orchestration_id,
+        _create_report_row(db_manager, scan_run_id, tenant_id, provider, discovery_scan_run_id, {
+            "scan_run_id": scan_run_id,
             "mode": "job",
         })
 
-        # 3. Update orchestration table
-        try:
-            update_orchestration_scan_id(orchestration_id, "check", check_scan_id)
-        except Exception as e:
-            logger.warning(f"Failed to update orchestration table: {e}")
-
-        # 4. Run check scan
+        # 3. Run check scan
         provider_key = provider.lower()
         if provider_key not in PROVIDER_EVALUATORS:
             raise ValueError(f"Unsupported provider: {provider}")
@@ -147,12 +138,12 @@ def main():
 
         start = datetime.now(timezone.utc)
         results = engine.run_check_scan(
-            discovery_scan_id=discovery_scan_id,
-            check_scan_id=check_scan_id,
+            discovery_scan_run_id=discovery_scan_run_id,
+            scan_run_id=scan_run_id,
             customer_id=customer_id,
             tenant_id=tenant_id,
             provider=provider_key,
-            hierarchy_id=hierarchy_id,
+            account_id=account_id,
             hierarchy_type=hierarchy_type,
             services=services,
             check_source="default",
@@ -160,8 +151,8 @@ def main():
         duration = (datetime.now(timezone.utc) - start).total_seconds()
 
         # 5. Update status to completed
-        _update_report_status(db_manager, check_scan_id, "completed")
-        logger.info(f"Check scan completed: {check_scan_id} — {results.get('total_checks', 0)} checks in {duration:.1f}s")
+        _update_report_status(db_manager, scan_run_id, "completed")
+        logger.info(f"Check scan completed: {scan_run_id} — {results.get('total_checks', 0)} checks in {duration:.1f}s")
 
         # 6. Retention cleanup (keep last 3 scans per tenant)
         try:
@@ -171,7 +162,7 @@ def main():
 
     except Exception as e:
         logger.error(f"Check scan FAILED: {e}", exc_info=True)
-        _update_report_status(db_manager, check_scan_id, "failed", str(e))
+        _update_report_status(db_manager, scan_run_id, "failed", str(e))
         sys.exit(1)
 
 

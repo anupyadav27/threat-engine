@@ -38,7 +38,7 @@ class RiskEvaluator:
     def run(
         self,
         scan_id: str,
-        orchestration_id: str,
+        scan_run_id: str,
         tenant_id: str,
         account_id: str,
         provider: str = "aws",
@@ -74,7 +74,7 @@ class RiskEvaluator:
         from engines.risk.db.risk_db_writer import RiskDBWriter
         writer = RiskDBWriter(self._risk_conn)
         count = writer.batch_insert_scenarios(
-            scenarios, scan_id, tenant_id, orchestration_id
+            scenarios, scan_id, tenant_id, scan_run_id
         )
 
         logger.info("Risk Evaluator complete: %d scenarios", count)

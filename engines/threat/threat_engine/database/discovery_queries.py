@@ -128,14 +128,14 @@ class DiscoveryDatabaseQueries:
         query = f"""
         WITH scan_stats AS (
             SELECT
-                discovery_scan_id,
+                scan_run_id,
                 COUNT(*) as total_discoveries,
                 COUNT(DISTINCT resource_uid) FILTER (WHERE resource_uid IS NOT NULL) as unique_resources,
-                MAX(scan_timestamp) as scan_timestamp
+                MAX(first_seen_at) as first_seen_at
             FROM discovery_findings
             WHERE tenant_id = %s
               {customer_filter}
-            GROUP BY discovery_scan_id
+            GROUP BY scan_run_id
         ),
         service_stats AS (
             SELECT
@@ -153,12 +153,12 @@ class DiscoveryDatabaseQueries:
         SELECT
             (SELECT COALESCE(SUM(total_discoveries), 0) FROM scan_stats) as total_discoveries,
             (SELECT COALESCE(SUM(unique_resources), 0) FROM scan_stats) as unique_resources,
-            (SELECT COUNT(DISTINCT discovery_scan_id) FROM scan_stats) as total_scans,
+            (SELECT COUNT(DISTINCT scan_run_id) FROM scan_stats) as total_scans,
             (SELECT COUNT(DISTINCT service) FROM discovery_findings
              WHERE tenant_id = %s {customer_filter}) as services_scanned,
             (SELECT json_agg(row_to_json(s.*)) FROM service_stats s) as top_services,
-            (SELECT json_agg(row_to_json(sc.*) ORDER BY sc.scan_timestamp DESC)
-             FROM (SELECT * FROM scan_stats ORDER BY scan_timestamp DESC LIMIT %s) sc) as recent_scans;
+            (SELECT json_agg(row_to_json(sc.*) ORDER BY sc.first_seen_at DESC)
+             FROM (SELECT * FROM scan_stats ORDER BY first_seen_at DESC LIMIT %s) sc) as recent_scans;
         """
         
         all_params = params + params + params + [limit_recent_scans]
@@ -217,7 +217,7 @@ class DiscoveryDatabaseQueries:
         
         # Get total count
         count_query = f"""
-        SELECT COUNT(DISTINCT discovery_scan_id)
+        SELECT COUNT(DISTINCT scan_run_id)
         FROM discovery_findings
         WHERE tenant_id = %s
           {customer_filter};
@@ -226,22 +226,22 @@ class DiscoveryDatabaseQueries:
         # Get scans with aggregations
         list_query = f"""
         SELECT
-            discovery_scan_id,
+            scan_run_id,
             customer_id,
             tenant_id,
             provider,
-            hierarchy_id,
+            account_id,
             hierarchy_type,
             COUNT(*) as total_discoveries,
             COUNT(DISTINCT resource_uid) FILTER (WHERE resource_uid IS NOT NULL) as unique_resources,
             COUNT(DISTINCT service) as services_scanned,
             COUNT(DISTINCT region) FILTER (WHERE region IS NOT NULL) as regions_scanned,
-            MAX(scan_timestamp) as scan_timestamp
+            MAX(first_seen_at) as first_seen_at
         FROM discovery_findings
         WHERE tenant_id = %s
           {customer_filter}
-        GROUP BY discovery_scan_id, customer_id, tenant_id, provider, hierarchy_id, hierarchy_type
-        ORDER BY MAX(scan_timestamp) DESC
+        GROUP BY scan_run_id, customer_id, tenant_id, provider, account_id, hierarchy_type
+        ORDER BY MAX(first_seen_at) DESC
         LIMIT %s OFFSET %s;
         """
         
@@ -276,21 +276,21 @@ class DiscoveryDatabaseQueries:
         """Get scan summary from database"""
         query = """
         SELECT
-            discovery_scan_id,
+            scan_run_id,
             customer_id,
             tenant_id,
             provider,
-            hierarchy_id,
+            account_id,
             hierarchy_type,
             COUNT(*) as total_discoveries,
             COUNT(DISTINCT resource_uid) FILTER (WHERE resource_uid IS NOT NULL) as unique_resources,
             COUNT(DISTINCT service) as services_scanned,
             COUNT(DISTINCT region) FILTER (WHERE region IS NOT NULL) as regions_scanned,
-            MAX(scan_timestamp) as scan_timestamp
+            MAX(first_seen_at) as first_seen_at
         FROM discovery_findings
-        WHERE discovery_scan_id = %s
+        WHERE scan_run_id = %s
           AND tenant_id = %s
-        GROUP BY discovery_scan_id, customer_id, tenant_id, provider, hierarchy_id, hierarchy_type;
+        GROUP BY scan_run_id, customer_id, tenant_id, provider, account_id, hierarchy_type;
         """
         
         result = self._execute_query_one(query, [scan_id, tenant_id])
@@ -328,7 +328,7 @@ class DiscoveryDatabaseQueries:
             array_agg(DISTINCT region) FILTER (WHERE region IS NOT NULL) as regions,
             array_agg(DISTINCT discovery_id) as discovery_functions
         FROM discovery_findings
-        WHERE discovery_scan_id = %s
+        WHERE scan_run_id = %s
           AND tenant_id = %s
         GROUP BY service
         ORDER BY service;
@@ -365,7 +365,7 @@ class DiscoveryDatabaseQueries:
             COUNT(DISTINCT resource_uid) FILTER (WHERE resource_uid IS NOT NULL) as unique_resources,
             array_agg(DISTINCT region) FILTER (WHERE region IS NOT NULL) as regions
         FROM discovery_findings
-        WHERE discovery_scan_id = %s
+        WHERE scan_run_id = %s
           AND service = %s
           AND tenant_id = %s
         GROUP BY service;
@@ -379,7 +379,7 @@ class DiscoveryDatabaseQueries:
             COUNT(DISTINCT resource_uid) FILTER (WHERE resource_uid IS NOT NULL) as unique_resources,
             array_agg(DISTINCT resource_uid) FILTER (WHERE resource_uid IS NOT NULL) as resource_uids
         FROM discovery_findings
-        WHERE discovery_scan_id = %s
+        WHERE scan_run_id = %s
           AND service = %s
           AND tenant_id = %s
         GROUP BY discovery_id
@@ -445,7 +445,7 @@ class DiscoveryDatabaseQueries:
             params.append(customer_id)
         
         if scan_id:
-            where_clauses.append("discovery_scan_id = %s")
+            where_clauses.append("scan_run_id = %s")
             params.append(scan_id)
 
         if service:
@@ -473,11 +473,11 @@ class DiscoveryDatabaseQueries:
         list_query = f"""
         SELECT
             id,
-            discovery_scan_id,
+            scan_run_id,
             customer_id,
             tenant_id,
             provider,
-            hierarchy_id,
+            account_id,
             hierarchy_type,
             discovery_id,
             region,
@@ -487,11 +487,11 @@ class DiscoveryDatabaseQueries:
             raw_response,
             emitted_fields,
             config_hash,
-            scan_timestamp,
+            first_seen_at,
             version
         FROM discovery_findings
         WHERE {where_sql}
-        ORDER BY scan_timestamp DESC, id DESC
+        ORDER BY first_seen_at DESC, id DESC
         LIMIT %s OFFSET %s;
         """
         
@@ -507,11 +507,11 @@ class DiscoveryDatabaseQueries:
         for disc in discoveries:
             formatted.append({
                 'id': disc.get('id'),
-                'scan_id': disc['discovery_scan_id'],
+                'scan_id': disc['scan_run_id'],
                 'customer_id': disc['customer_id'],
                 'tenant_id': disc['tenant_id'],
                 'provider': disc['provider'],
-                'hierarchy_id': disc['hierarchy_id'],
+                'account_id': disc['account_id'],
                 'hierarchy_type': disc['hierarchy_type'],
                 'discovery_id': disc['discovery_id'],
                 'region': disc.get('region'),
@@ -521,7 +521,7 @@ class DiscoveryDatabaseQueries:
                 'raw_response': disc.get('raw_response', {}),
                 'emitted_fields': disc.get('emitted_fields', {}),
                 'config_hash': disc.get('config_hash'),
-                'scan_timestamp': disc['scan_timestamp'],
+                'first_seen_at': disc['first_seen_at'],
                 'version': disc.get('version', 1)
             })
         
@@ -561,11 +561,11 @@ class DiscoveryDatabaseQueries:
         query = f"""
         SELECT
             id,
-            discovery_scan_id,
+            scan_run_id,
             customer_id,
             tenant_id,
             provider,
-            hierarchy_id,
+            account_id,
             discovery_id,
             region,
             service,
@@ -574,11 +574,11 @@ class DiscoveryDatabaseQueries:
             raw_response,
             emitted_fields,
             config_hash,
-            scan_timestamp,
+            first_seen_at,
             version
         FROM discovery_findings
         WHERE {where_sql}
-        ORDER BY scan_timestamp DESC
+        ORDER BY first_seen_at DESC
         LIMIT 1000;
         """
 
@@ -631,7 +631,7 @@ class DiscoveryDatabaseQueries:
             params.append(customer_id)
         
         if scan_id:
-            where_clauses.append("discovery_scan_id = %s")
+            where_clauses.append("scan_run_id = %s")
             params.append(scan_id)
 
         where_sql = " AND ".join(where_clauses)
@@ -639,11 +639,11 @@ class DiscoveryDatabaseQueries:
         query = f"""
         SELECT
             id,
-            discovery_scan_id,
+            scan_run_id,
             customer_id,
             tenant_id,
             provider,
-            hierarchy_id,
+            account_id,
             discovery_id,
             region,
             service,
@@ -652,11 +652,11 @@ class DiscoveryDatabaseQueries:
             raw_response,
             emitted_fields,
             config_hash,
-            scan_timestamp,
+            first_seen_at,
             version
         FROM discovery_findings
         WHERE {where_sql}
-        ORDER BY scan_timestamp DESC
+        ORDER BY first_seen_at DESC
         LIMIT 1000;
         """
         
@@ -679,7 +679,7 @@ class DiscoveryDatabaseQueries:
             'discoveries': [dict(d) for d in discoveries]
         }
 
-    def get_latest_scan(self, tenant_id: str, hierarchy_id: Optional[str] = None,
+    def get_latest_scan(self, tenant_id: str, account_id: Optional[str] = None,
                         service: Optional[str] = None,
                         start_time: Optional[datetime] = None,
                         end_time: Optional[datetime] = None) -> Optional[Dict[str, Any]]:
@@ -689,75 +689,75 @@ class DiscoveryDatabaseQueries:
         where_clauses = ["tenant_id = %s"]
         params = [tenant_id]
 
-        if hierarchy_id:
-            where_clauses.append("hierarchy_id = %s")
-            params.append(hierarchy_id)
+        if account_id:
+            where_clauses.append("account_id = %s")
+            params.append(account_id)
 
         if service:
             where_clauses.append("service = %s")
             params.append(service)
 
         if start_time:
-            where_clauses.append("scan_timestamp >= %s")
+            where_clauses.append("first_seen_at >= %s")
             params.append(start_time)
         if end_time:
-            where_clauses.append("scan_timestamp <= %s")
+            where_clauses.append("first_seen_at <= %s")
             params.append(end_time)
 
         where_sql = " AND ".join(where_clauses)
 
         query = f"""
-        SELECT discovery_scan_id, MAX(scan_timestamp) as scan_timestamp
+        SELECT scan_run_id, MAX(first_seen_at) as first_seen_at
         FROM discovery_findings
         WHERE {where_sql}
-        GROUP BY discovery_scan_id
-        ORDER BY MAX(scan_timestamp) DESC
+        GROUP BY scan_run_id
+        ORDER BY MAX(first_seen_at) DESC
         LIMIT 1;
         """
 
         return self._execute_query_one(query, params)
 
     def get_previous_scan(self, tenant_id: str, current_scan_id: str,
-                          hierarchy_id: Optional[str] = None,
+                          account_id: Optional[str] = None,
                           service: Optional[str] = None,
                           start_time: Optional[datetime] = None,
                           end_time: Optional[datetime] = None) -> Optional[Dict[str, Any]]:
         """
         Get previous discovery scan (immediately before current) for tenant/account/service.
         """
-        where_clauses = ["tenant_id = %s", "discovery_scan_id != %s"]
+        where_clauses = ["tenant_id = %s", "scan_run_id != %s"]
         params = [tenant_id, current_scan_id]
 
-        if hierarchy_id:
-            where_clauses.append("hierarchy_id = %s")
-            params.append(hierarchy_id)
+        if account_id:
+            where_clauses.append("account_id = %s")
+            params.append(account_id)
 
         if service:
             where_clauses.append("service = %s")
             params.append(service)
 
         if start_time:
-            where_clauses.append("scan_timestamp >= %s")
+            where_clauses.append("first_seen_at >= %s")
             params.append(start_time)
         if end_time:
-            where_clauses.append("scan_timestamp <= %s")
+            where_clauses.append("first_seen_at <= %s")
             params.append(end_time)
 
         where_sql = " AND ".join(where_clauses)
 
         query = f"""
-        SELECT discovery_scan_id, MAX(scan_timestamp) as scan_timestamp
+        SELECT scan_run_id, MAX(first_seen_at) as first_seen_at
         FROM discovery_findings
         WHERE {where_sql}
-        GROUP BY discovery_scan_id
-        ORDER BY MAX(scan_timestamp) DESC
+        GROUP BY scan_run_id
+        ORDER BY MAX(first_seen_at) DESC
         LIMIT 1;
         """
 
         return self._execute_query_one(query, params)
 
     def get_configuration_drift(self, tenant_id: str, current_scan_id: str,
-                                hierarchy_id: Optional[str] = None,
+                                account_id: Optional[str] = None,
                                 service: Optional[str] = None,
                                 discovery_id: Optional[str] = None,
                                 region: Optional[str] = None,
@@ -766,12 +766,12 @@ class DiscoveryDatabaseQueries:
         """
         Get configuration drift events for a scan from discovery_history.
         """
-        where_clauses = ["dh.tenant_id = %s", "dh.discovery_scan_id = %s", "dh.change_type = 'modified'"]
+        where_clauses = ["dh.tenant_id = %s", "dh.scan_run_id = %s", "dh.change_type = 'modified'"]
         params = [tenant_id, current_scan_id]
 
-        if hierarchy_id:
-            where_clauses.append("dh.hierarchy_id = %s")
-            params.append(hierarchy_id)
+        if account_id:
+            where_clauses.append("dh.account_id = %s")
+            params.append(account_id)
 
         if service:
             where_clauses.append("d.service = %s")
@@ -786,10 +786,10 @@ class DiscoveryDatabaseQueries:
             params.append(region)
 
         if start_time:
-            where_clauses.append("dh.scan_timestamp >= %s")
+            where_clauses.append("dh.first_seen_at >= %s")
             params.append(start_time)
         if end_time:
-            where_clauses.append("dh.scan_timestamp <= %s")
+            where_clauses.append("dh.first_seen_at <= %s")
             params.append(end_time)
 
         where_sql = " AND ".join(where_clauses)
@@ -799,25 +799,25 @@ class DiscoveryDatabaseQueries:
             dh.*,
             d.service,
             d.region,
-            prev.discovery_scan_id as baseline_scan_id
+            prev.scan_run_id as baseline_scan_id
         FROM discovery_history dh
         LEFT JOIN discovery_findings d
-          ON d.discovery_scan_id = dh.discovery_scan_id
+          ON d.scan_run_id = dh.scan_run_id
          AND d.discovery_id = dh.discovery_id
          AND d.resource_uid = dh.resource_uid
          AND d.tenant_id = dh.tenant_id
         LEFT JOIN LATERAL (
-            SELECT discovery_scan_id
+            SELECT scan_run_id
             FROM discovery_history
             WHERE tenant_id = dh.tenant_id
               AND discovery_id = dh.discovery_id
               AND resource_uid = dh.resource_uid
-              AND scan_timestamp < dh.scan_timestamp
-            ORDER BY scan_timestamp DESC
+              AND first_seen_at < dh.first_seen_at
+            ORDER BY first_seen_at DESC
             LIMIT 1
         ) prev ON true
         WHERE {where_sql}
-        ORDER BY dh.scan_timestamp DESC;
+        ORDER BY dh.first_seen_at DESC;
         """
 
         results = self._execute_query(query, params)

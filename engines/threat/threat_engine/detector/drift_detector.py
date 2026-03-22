@@ -29,7 +29,7 @@ class DriftDetector:
     def detect_configuration_drift(
         self,
         tenant_id: str,
-        hierarchy_id: Optional[str] = None,
+        account_id: Optional[str] = None,
         service: Optional[str] = None,
         current_scan_id: Optional[str] = None,
         region: Optional[str] = None,
@@ -45,7 +45,7 @@ class DriftDetector:
         if not current_scan_id:
             latest = self.discovery_queries.get_latest_scan(
                 tenant_id=tenant_id,
-                hierarchy_id=hierarchy_id,
+                account_id=account_id,
                 service=service,
                 start_time=start_time,
                 end_time=end_time
@@ -58,7 +58,7 @@ class DriftDetector:
         previous = self.discovery_queries.get_previous_scan(
             tenant_id=tenant_id,
             current_scan_id=current_scan_id,
-            hierarchy_id=hierarchy_id,
+            account_id=account_id,
             service=service,
             start_time=start_time,
             end_time=end_time
@@ -69,7 +69,7 @@ class DriftDetector:
         drift_events = self.discovery_queries.get_configuration_drift(
             tenant_id=tenant_id,
             current_scan_id=current_scan_id,
-            hierarchy_id=hierarchy_id,
+            account_id=account_id,
             service=service,
             region=region,
             start_time=start_time,
@@ -82,7 +82,7 @@ class DriftDetector:
             resource_arn = event.get("resource_arn")
             resource_uid = event.get("resource_uid") or resource_arn
             region = event.get("region") or "global"
-            account = event.get("hierarchy_id") or "unknown"
+            account = event.get("account_id") or "unknown"
             discovery_id = event.get("discovery_id")
 
             change_summary = event.get("diff_summary") or {}
@@ -103,8 +103,8 @@ class DriftDetector:
                 severity=severity,
                 confidence=Confidence.MEDIUM,
                 status=ThreatStatus.OPEN,
-                first_seen_at=event.get("scan_timestamp") or datetime.now(timezone.utc),
-                last_seen_at=event.get("scan_timestamp") or datetime.now(timezone.utc),
+                first_seen_at=event.get("first_seen_at") or datetime.now(timezone.utc),
+                last_seen_at=event.get("first_seen_at") or datetime.now(timezone.utc),
                 correlations=ThreatCorrelation(
                     misconfig_finding_refs=[],
                     affected_assets=[]

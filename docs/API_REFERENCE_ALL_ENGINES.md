@@ -83,14 +83,12 @@ All paginated endpoints return:
 
 ### Scan Pipeline Identifiers
 
-| Identifier | Set by | Read by |
-|------------|--------|---------|
-| `orchestration_id` | Onboarding (scan_orchestration table) | All engines |
-| `discovery_scan_id` | Discoveries engine | Check, Inventory |
-| `check_scan_id` | Check engine | Compliance, Threat, IAM, DataSec |
-| `inventory_scan_id` | Inventory engine | Frontend queries |
-| `compliance_scan_id` | Compliance engine | Frontend queries |
-| `threat_scan_id` | Threat engine | Frontend queries |
+| Identifier | Description |
+|------------|-------------|
+| `scan_run_id` | Single UUID shared by ALL engines in a pipeline run |
+
+All engines receive and store the same `scan_run_id`. Per-engine scan ID columns
+(`scan_run_id`, `scan_run_id`, etc.) have been removed.
 
 ---
 
@@ -490,9 +488,9 @@ Content-Type: application/json
 
 ```json
 {
-  "orchestration_id": "550e8400-e29b-41d4-a716-446655440000",
+  "scan_run_id": "550e8400-e29b-41d4-a716-446655440000",
   "provider": "aws",
-  "hierarchy_id": "588989875114",
+  "account_id": "588989875114",
   "tenant_id": "test-tenant"
 }
 ```
@@ -519,7 +517,7 @@ GET http://<ELB>/discoveries/api/v1/discovery/7e3c4d2a-bf91-4f2e-9abc-123456789a
   "scan_id": "7e3c4d2a-bf91-4f2e-9abc-123456789abc",
   "status": "completed",
   "provider": "aws",
-  "hierarchy_id": "588989875114",
+  "account_id": "588989875114",
   "started_at": "2026-02-21T17:00:00.000Z",
   "completed_at": "2026-02-21T17:17:00.000Z",
   "services_scanned": 38,
@@ -529,8 +527,8 @@ GET http://<ELB>/discoveries/api/v1/discovery/7e3c4d2a-bf91-4f2e-9abc-123456789a
 
 ### Notes
 
-- `hierarchy_id` is the cloud account identifier (AWS account number, GCP project ID, etc.).
-- The scan writes a `discovery_scan_id` back to the `scan_orchestration` table when complete.
+- `account_id` is the cloud account identifier (AWS account number, GCP project ID, etc.).
+- The scan writes a `scan_run_id` back to the `scan_orchestration` table when complete.
 - Scan speed is approximately 2.2 services/minute (~3-4 hours for a full 414-service AWS scan).
 - Performance is controlled by environment variables: `BOTO_READ_TIMEOUT=10`, `BOTO_MAX_ATTEMPTS=2`, `DB_POOL_MIN=5`, `DB_POOL_MAX=60`.
 
@@ -556,7 +554,7 @@ stored in the `threat_engine_check` database.
 | GET | `/api/v1/providers` | List supported providers | — |
 | POST | `/api/v1/scan` | Trigger compliance check scan | body (see below) |
 | GET | `/api/v1/checks` | List check scans | `tenant_id` |
-| GET | `/api/v1/check/{check_scan_id}/status` | Get scan status | `check_scan_id` |
+| GET | `/api/v1/check/{scan_run_id}/status` | Get scan status | `scan_run_id` |
 
 ### Health Check
 
@@ -609,7 +607,7 @@ Content-Type: application/json
 
 ```json
 {
-  "orchestration_id": "550e8400-e29b-41d4-a716-446655440000",
+  "scan_run_id": "550e8400-e29b-41d4-a716-446655440000",
   "tenant_id": "test-tenant"
 }
 ```
@@ -617,7 +615,7 @@ Content-Type: application/json
 **Response (202):** [example]
 ```json
 {
-  "check_scan_id": "9f2a1b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c",
+  "scan_run_id": "9f2a1b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c",
   "status": "started",
   "message": "Check scan initiated"
 }
@@ -633,7 +631,7 @@ GET http://<ELB>/check/api/v1/check/9f2a1b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c/status
 **Response (200):** [example]
 ```json
 {
-  "check_scan_id": "9f2a1b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c",
+  "scan_run_id": "9f2a1b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c",
   "status": "completed",
   "total_checks": 1840,
   "passed": 1200,
@@ -645,7 +643,7 @@ GET http://<ELB>/check/api/v1/check/9f2a1b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c/status
 ### Notes
 
 - The check engine reads discovery findings from the `discoveries` DB and evaluates them against rules stored in `rule_discoveries`.
-- The `orchestration_id` mode reads the `discovery_scan_id` from `scan_orchestration` automatically.
+- The `scan_run_id` mode reads the `scan_run_id` from `scan_orchestration` automatically.
 - Results are written to `check_findings` table in the `threat_engine_check` database.
 
 ---
@@ -666,7 +664,7 @@ asset graph queries, drift detection, and account/service summaries.
 | Method | Path | Description | Required Params |
 |--------|------|-------------|-----------------|
 | GET | `/health` | Health check | — |
-| POST | `/api/v1/inventory/scan/discovery` | Trigger inventory scan (pipeline mode, recommended) | `tenant_id`, `orchestration_id` OR `discovery_scan_id` |
+| POST | `/api/v1/inventory/scan/discovery` | Trigger inventory scan (pipeline mode, recommended) | `tenant_id`, `scan_run_id` OR `scan_run_id` |
 | POST | `/api/v1/inventory/scan/discovery/async` | Async inventory scan, returns `job_id` | same as above |
 | POST | `/api/v1/inventory/scan/async` | Alternative async trigger | `tenant_id` |
 | POST | `/api/v1/scan` | Legacy sync scan trigger | `tenant_id`, `scan_run_id` |
@@ -707,7 +705,7 @@ GET http://<ELB>/inventory/api/v1/inventory/runs/latest/summary?tenant_id=test-t
 **Response (200):**
 ```json
 {
-  "inventory_scan_id": "aa9c7896-bf57-4d7c-9df3-23b293c0d64c",
+  "scan_run_id": "aa9c7896-bf57-4d7c-9df3-23b293c0d64c",
   "tenant_id": "test-tenant",
   "started_at": "2026-02-21T17:22:30.920727+00:00",
   "completed_at": "2026-02-21T17:22:34.219011+00:00",
@@ -915,22 +913,22 @@ Content-Type: application/json
 ```json
 {
   "tenant_id": "test-tenant",
-  "orchestration_id": "550e8400-e29b-41d4-a716-446655440000"
+  "scan_run_id": "550e8400-e29b-41d4-a716-446655440000"
 }
 ```
 
-Or pass `discovery_scan_id` directly instead of `orchestration_id`:
+Or pass `scan_run_id` directly instead of `scan_run_id`:
 ```json
 {
   "tenant_id": "test-tenant",
-  "discovery_scan_id": "7e3c4d2a-bf91-4f2e-9abc-123456789abc"
+  "scan_run_id": "7e3c4d2a-bf91-4f2e-9abc-123456789abc"
 }
 ```
 
 **Response (200):** [example]
 ```json
 {
-  "inventory_scan_id": "aa9c7896-bf57-4d7c-9df3-23b293c0d64c",
+  "scan_run_id": "aa9c7896-bf57-4d7c-9df3-23b293c0d64c",
   "status": "completed",
   "total_assets": 275,
   "total_relationships": 1
@@ -965,9 +963,9 @@ control-level pass/fail scores.
 |--------|------|-------------|-----------------|
 | GET | `/api/v1/health` | Health check | — |
 | POST | `/api/v1/scan` | Generic scan trigger | body |
-| POST | `/api/v1/compliance/generate` | Generate report from orchestration | `orchestration_id` OR `scan_id`, `csp`, `frameworks` |
+| POST | `/api/v1/compliance/generate` | Generate report from orchestration | `scan_run_id` OR `scan_id`, `csp`, `frameworks` |
 | POST | `/api/v1/compliance/generate/from-threat-engine` | Generate from threat engine data | body |
-| POST | `/api/v1/compliance/generate/from-check-db` | Generate directly from check DB | `check_scan_id`, `csp` |
+| POST | `/api/v1/compliance/generate/from-check-db` | Generate directly from check DB | `scan_run_id`, `csp` |
 | POST | `/api/v1/compliance/generate/from-threat-db` | Generate from threat DB | body |
 | POST | `/api/v1/compliance/generate/detailed` | Detailed report generation | body |
 | POST | `/api/v1/compliance/mock/generate` | Generate mock report (no scan required) | body |
@@ -1255,7 +1253,7 @@ Content-Type: application/json
 
 ```json
 {
-  "orchestration_id": "550e8400-e29b-41d4-a716-446655440000",
+  "scan_run_id": "550e8400-e29b-41d4-a716-446655440000",
   "tenant_id": "test-tenant"
 }
 ```
@@ -1263,7 +1261,7 @@ Content-Type: application/json
 **Response (202):** [example]
 ```json
 {
-  "threat_scan_id": "thr-20260228-abc123",
+  "scan_run_id": "thr-20260228-abc123",
   "status": "started"
 }
 ```
@@ -1379,14 +1377,14 @@ GET http://<ELB>/iam/api/v1/iam-security/rule-ids?tenant_id=test-tenant&csp=aws&
 GET http://<ELB>/iam/api/v1/iam-security/findings?tenant_id=test-tenant&csp=aws&scan_id=latest
 ```
 
-**Optional filters:** `account_id`, `hierarchy_id`, `service`, `module`, `status`, `resource_id`
+**Optional filters:** `account_id`, `account_id`, `service`, `module`, `status`, `resource_id`
 
 **Response (200):**
 ```json
 {
   "filters": {
     "account_id": null,
-    "hierarchy_id": null,
+    "account_id": null,
     "service": null,
     "module": null,
     "status": null,
@@ -1433,7 +1431,7 @@ Content-Type: application/json
 
 ```json
 {
-  "orchestration_id": "550e8400-e29b-41d4-a716-446655440000",
+  "scan_run_id": "550e8400-e29b-41d4-a716-446655440000",
   "tenant_id": "test-tenant",
   "provider": "aws"
 }
@@ -1442,7 +1440,7 @@ Content-Type: application/json
 **Response (202):** [example]
 ```json
 {
-  "iam_scan_id": "iam-20260228-xyz789",
+  "scan_run_id": "iam-20260228-xyz789",
   "status": "started"
 }
 ```
@@ -1536,7 +1534,7 @@ Content-Type: application/json
 
 ```json
 {
-  "orchestration_id": "550e8400-e29b-41d4-a716-446655440000",
+  "scan_run_id": "550e8400-e29b-41d4-a716-446655440000",
   "tenant_id": "test-tenant",
   "provider": "aws"
 }
@@ -1545,7 +1543,7 @@ Content-Type: application/json
 **Response (202):** [example]
 ```json
 {
-  "datasec_scan_id": "ds-20260228-abc456",
+  "scan_run_id": "ds-20260228-abc456",
   "status": "started"
 }
 ```
@@ -1821,9 +1819,9 @@ POST $ELB/discoveries/api/v1/discovery
 Content-Type: application/json
 
 {
-  "orchestration_id": "<new-uuid>",
+  "scan_run_id": "<new-uuid>",
   "provider": "aws",
-  "hierarchy_id": "588989875114",
+  "account_id": "588989875114",
   "tenant_id": "test-tenant"
 }
 ```
@@ -1844,12 +1842,12 @@ POST $ELB/check/api/v1/scan
 Content-Type: application/json
 
 {
-  "orchestration_id": "<same-uuid-from-step-2>",
+  "scan_run_id": "<same-uuid-from-step-2>",
   "tenant_id": "test-tenant"
 }
 ```
 
-Save the returned `check_scan_id`. Poll:
+Save the returned `scan_run_id`. Poll:
 ```
 GET $ELB/check/api/v1/check/$CHECK_SCAN_ID/status
 ```
@@ -1862,7 +1860,7 @@ Content-Type: application/json
 
 {
   "tenant_id": "test-tenant",
-  "orchestration_id": "<same-uuid>"
+  "scan_run_id": "<same-uuid>"
 }
 ```
 
@@ -1877,7 +1875,7 @@ Content-Type: application/json
   "account_id": "588989875114",
   "framework": "cis_aws",
   "csp": "aws",
-  "scan_id": "<check_scan_id>"
+  "scan_id": "<scan_run_id>"
 }
 ```
 
@@ -1888,7 +1886,7 @@ POST $ELB/threat/api/v1/scan
 Content-Type: application/json
 
 {
-  "orchestration_id": "<same-uuid>",
+  "scan_run_id": "<same-uuid>",
   "tenant_id": "test-tenant"
 }
 ```
@@ -1900,7 +1898,7 @@ POST $ELB/iam/api/v1/iam-security/scan
 Content-Type: application/json
 
 {
-  "orchestration_id": "<same-uuid>",
+  "scan_run_id": "<same-uuid>",
   "tenant_id": "test-tenant",
   "provider": "aws"
 }
@@ -1913,7 +1911,7 @@ POST $ELB/datasec/api/v1/data-security/scan
 Content-Type: application/json
 
 {
-  "orchestration_id": "<same-uuid>",
+  "scan_run_id": "<same-uuid>",
   "tenant_id": "test-tenant",
   "provider": "aws"
 }

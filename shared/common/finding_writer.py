@@ -19,7 +19,7 @@ Usage:
         Finding(
             scan_id="abc-123",
             tenant_id="tenant-1",
-            orchestration_id="orch-456",
+            scan_run_id="orch-456",
             resource_id="i-0abcdef1234567890",
             resource_type="ec2_instance",
             rule_id="aws.ec2.public_ip_check",
@@ -47,7 +47,7 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 # Fields that must be present for every finding
-REQUIRED_FIELDS = {"scan_id", "tenant_id", "orchestration_id", "rule_id", "result"}
+REQUIRED_FIELDS = {"scan_id", "tenant_id", "scan_run_id", "rule_id", "result"}
 
 
 # ---------------------------------------------------------------------------
@@ -65,7 +65,7 @@ class Finding:
     # Required
     scan_id: str = ""
     tenant_id: str = ""
-    orchestration_id: str = ""
+    scan_run_id: str = ""
     rule_id: str = ""
     result: str = "SKIP"  # PASS | FAIL | SKIP | ERROR
 
@@ -118,7 +118,7 @@ class Finding:
             self.finding_id,
             self.scan_id,
             self.tenant_id,
-            self.orchestration_id,
+            self.scan_run_id,
             self.resource_id,
             self.resource_type,
             self.resource_arn,
@@ -190,7 +190,7 @@ class FindingWriter:
 
         insert_sql = f"""
             INSERT INTO {table_name} (
-                finding_id, {scan_id_col}, tenant_id, orchestration_id,
+                finding_id, {scan_id_col}, tenant_id, scan_run_id,
                 resource_id, resource_type, resource_arn,
                 rule_id, result, severity, title, description,
                 evidence, remediation,
@@ -264,7 +264,7 @@ class FindingWriter:
 
         insert_sql = f"""
             INSERT INTO {table_name} (
-                finding_id, {scan_id_col}, tenant_id, orchestration_id,
+                finding_id, {scan_id_col}, tenant_id, scan_run_id,
                 resource_id, resource_type, resource_arn,
                 rule_id, result, severity, title, description,
                 evidence, remediation,
@@ -346,7 +346,7 @@ def result_to_finding(
     asset: Dict[str, Any],
     scan_id: str,
     tenant_id: str,
-    orchestration_id: str,
+    scan_run_id: str,
     account_id: Optional[str] = None,
     region: Optional[str] = None,
     csp: str = "aws",
@@ -363,7 +363,7 @@ def result_to_finding(
                           resource_id, resource_type, resource_arn).
         scan_id:          The engine's scan ID.
         tenant_id:        Tenant identifier.
-        orchestration_id: Orchestration identifier.
+        scan_run_id: Orchestration identifier.
         account_id:       Cloud account ID (optional).
         region:           Region (optional).
         csp:              CSP name (default 'aws').
@@ -374,7 +374,7 @@ def result_to_finding(
     return Finding(
         scan_id=scan_id,
         tenant_id=tenant_id,
-        orchestration_id=orchestration_id,
+        scan_run_id=scan_run_id,
         resource_id=asset.get("resource_id"),
         resource_type=asset.get("resource_type"),
         resource_arn=asset.get("resource_arn"),

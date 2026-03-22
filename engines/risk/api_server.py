@@ -116,7 +116,7 @@ _last_scan_duration_ms = 0
 
 
 class ScanRequest(BaseModel):
-    orchestration_id: str
+    scan_run_id: str
     tenant_id: str
     account_id: str
     provider: str = "aws"
@@ -124,7 +124,7 @@ class ScanRequest(BaseModel):
 
 class ScanResponse(BaseModel):
     risk_scan_id: str
-    orchestration_id: str
+    scan_run_id: str
     status: str
     transformed_count: int
     scenario_count: int
@@ -156,7 +156,7 @@ async def run_scan(request: ScanRequest):
         from engines.risk.etl.risk_etl import RiskETL
         etl = RiskETL(risk_conn, discovery_conn, onboarding_conn, external_conn)
         transformed_count = etl.run(
-            scan_id, request.orchestration_id,
+            scan_id, request.scan_run_id,
             request.tenant_id, request.account_id, request.provider,
         )
 
@@ -164,7 +164,7 @@ async def run_scan(request: ScanRequest):
         from engines.risk.evaluator.risk_evaluator import RiskEvaluator
         evaluator = RiskEvaluator(risk_conn, discovery_conn)
         scenario_count = evaluator.run(
-            scan_id, request.orchestration_id,
+            scan_id, request.scan_run_id,
             request.tenant_id, request.account_id, request.provider,
         )
 
@@ -172,7 +172,7 @@ async def run_scan(request: ScanRequest):
         from engines.risk.reporter.risk_reporter import RiskReporter
         reporter = RiskReporter(risk_conn)
         report = reporter.run(
-            scan_id, request.orchestration_id,
+            scan_id, request.scan_run_id,
             request.tenant_id, request.account_id, request.provider,
             started_at=started_at,
         )
@@ -180,7 +180,7 @@ async def run_scan(request: ScanRequest):
         # Stage 4: Coordinate — Update orchestration
         from engines.risk.db.risk_db_writer import RiskDBWriter
         writer = RiskDBWriter(risk_conn)
-        writer.update_orchestration(request.orchestration_id, scan_id, discovery_conn)
+        writer.update_orchestration(request.scan_run_id, scan_id, discovery_conn)
 
         duration_ms = int((time.time() - start_time) * 1000)
         _scan_count += 1
@@ -188,7 +188,7 @@ async def run_scan(request: ScanRequest):
 
         return ScanResponse(
             risk_scan_id=scan_id,
-            orchestration_id=request.orchestration_id,
+            scan_run_id=request.scan_run_id,
             status="completed",
             transformed_count=transformed_count,
             scenario_count=scenario_count,
@@ -205,7 +205,7 @@ async def run_scan(request: ScanRequest):
             writer = RiskDBWriter(get_risk_conn())
             writer.insert_report({
                 "risk_scan_id": scan_id,
-                "orchestration_id": request.orchestration_id,
+                "scan_run_id": request.scan_run_id,
                 "tenant_id": request.tenant_id,
                 "account_id": request.account_id,
                 "provider": request.provider,
@@ -226,7 +226,7 @@ async def get_report(scan_id: str):
     cursor = conn.cursor()
     try:
         cursor.execute("""
-            SELECT risk_scan_id::text, orchestration_id::text, tenant_id,
+            SELECT risk_scan_id::text, scan_run_id::text, tenant_id,
                    account_id, provider,
                    total_scenarios, critical_scenarios, high_scenarios,
                    medium_scenarios, low_scenarios,
@@ -245,7 +245,7 @@ async def get_report(scan_id: str):
 
         return {
             "risk_scan_id": row[0],
-            "orchestration_id": row[1],
+            "scan_run_id": row[1],
             "tenant_id": row[2],
             "account_id": row[3],
             "provider": row[4],

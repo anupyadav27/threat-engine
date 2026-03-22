@@ -55,7 +55,7 @@ def _resolve_latest_report(
     """
     cur.execute(
         """
-        SELECT compliance_scan_id, tenant_id, scan_run_id, check_scan_id,
+        SELECT scan_run_id, tenant_id, scan_run_id, check_scan_id,
                total_controls, controls_passed, controls_failed,
                report_data, created_at, status, provider
         FROM compliance_report
@@ -85,7 +85,7 @@ def _resolve_report_by_scan_id(
     """
     cur.execute(
         """
-        SELECT compliance_scan_id, tenant_id, scan_run_id, check_scan_id,
+        SELECT scan_run_id, tenant_id, scan_run_id, check_scan_id,
                total_controls, controls_passed, controls_failed,
                report_data, created_at, status, provider
         FROM compliance_report
@@ -184,7 +184,7 @@ def _get_framework_summaries(
         FROM compliance_findings cf
         LEFT JOIN compliance_frameworks fw
             ON cf.compliance_framework = fw.framework_id
-        WHERE cf.compliance_scan_id = %s AND cf.tenant_id = %s
+        WHERE cf.scan_run_id = %s AND cf.tenant_id = %s
         GROUP BY cf.compliance_framework, fw.framework_name,
                  fw.version, fw.authority, fw.category
         ORDER BY cf.compliance_framework
@@ -263,7 +263,7 @@ def _get_failing_controls(
         FROM compliance_findings cf
         LEFT JOIN compliance_controls cc
             ON cf.control_id = cc.control_id
-        WHERE cf.compliance_scan_id = %s AND cf.tenant_id = %s AND cf.status = 'FAIL'
+        WHERE cf.scan_run_id = %s AND cf.tenant_id = %s AND cf.status = 'FAIL'
         GROUP BY cf.control_id, cf.compliance_framework, cf.severity,
                  cc.control_name, cf.control_name, cc.control_description,
                  cc.control_family
@@ -347,7 +347,7 @@ def _get_recent_reports(
     """
     cur.execute(
         """
-        SELECT compliance_scan_id, created_at, status, provider
+        SELECT scan_run_id, created_at, status, provider
         FROM compliance_report
         WHERE tenant_id = %s
         ORDER BY created_at DESC
@@ -358,7 +358,7 @@ def _get_recent_reports(
     rows = cur.fetchall()
     return [
         {
-            "report_id": row["compliance_scan_id"],
+            "report_id": row["scan_run_id"],
             "created_at": (
                 row["created_at"].isoformat()
                 if isinstance(row["created_at"], datetime)
@@ -410,7 +410,7 @@ async def get_compliance_ui_data(
                 detail=f"No compliance report found for tenant_id={tenant_id}, scan_id={scan_id}",
             )
 
-        report_id = report_row["compliance_scan_id"]
+        report_id = report_row["scan_run_id"]
         report_data = report_row.get("report_data")
 
         # 2. Build posture summary

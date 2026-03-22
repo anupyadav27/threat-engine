@@ -23,10 +23,8 @@ CREATE TABLE IF NOT EXISTS tenants (
 
 -- Compliance Report (scan-level metadata)
 CREATE TABLE IF NOT EXISTS compliance_report (
-    compliance_scan_id VARCHAR(255) PRIMARY KEY DEFAULT uuid_generate_v4(),
-    orchestration_id VARCHAR(255),  -- PLANNED: not yet deployed to RDS
+    scan_run_id VARCHAR(255) PRIMARY KEY,
     tenant_id VARCHAR(255) NOT NULL,
-    scan_run_id VARCHAR(255) NOT NULL,
     cloud VARCHAR(50) DEFAULT 'aws',
     trigger_type VARCHAR(50) NOT NULL,
     collection_mode VARCHAR(50) NOT NULL,
@@ -38,12 +36,10 @@ CREATE TABLE IF NOT EXISTS compliance_report (
     total_findings INTEGER NOT NULL DEFAULT 0,
     report_data JSONB NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    discovery_scan_id VARCHAR(255),
     customer_id VARCHAR(255),
     provider VARCHAR(50) DEFAULT 'aws',
     status VARCHAR(50) DEFAULT 'completed',
     execution_id VARCHAR(255),
-    check_scan_id VARCHAR(255),
 
     CONSTRAINT fk_tenant_report FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE
 );
@@ -51,9 +47,8 @@ CREATE TABLE IF NOT EXISTS compliance_report (
 -- Compliance Findings (individual compliance check results)
 CREATE TABLE IF NOT EXISTS compliance_findings (
     finding_id VARCHAR(255) PRIMARY KEY,
-    compliance_scan_id VARCHAR(255) NOT NULL,
-    tenant_id VARCHAR(255) NOT NULL,
     scan_run_id VARCHAR(255) NOT NULL,
+    tenant_id VARCHAR(255) NOT NULL,
     rule_id VARCHAR(255) NOT NULL,
     rule_version VARCHAR(50),
     category VARCHAR(100),
@@ -228,14 +223,13 @@ CREATE TABLE IF NOT EXISTS remediation_tracking (
 -- Report indexes
 CREATE INDEX IF NOT EXISTS idx_cr_tenant ON compliance_report(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_cr_scan_run ON compliance_report(scan_run_id);
-CREATE INDEX IF NOT EXISTS idx_cr_check_scan ON compliance_report(check_scan_id);
-CREATE INDEX IF NOT EXISTS idx_cr_discovery_scan ON compliance_report(discovery_scan_id);
+-- Removed: idx_cr_check_scan and idx_cr_discovery_scan (columns removed)
 CREATE INDEX IF NOT EXISTS idx_cr_completed_at ON compliance_report(completed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_cr_cloud ON compliance_report(cloud);
 
 -- Finding indexes
 CREATE INDEX IF NOT EXISTS idx_cf_tenant ON compliance_findings(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_cf_compliance_scan ON compliance_findings(compliance_scan_id);
+CREATE INDEX IF NOT EXISTS idx_cf_scan_run ON compliance_findings(scan_run_id);
 CREATE INDEX IF NOT EXISTS idx_cf_severity ON compliance_findings(severity);
 CREATE INDEX IF NOT EXISTS idx_cf_status ON compliance_findings(status);
 CREATE INDEX IF NOT EXISTS idx_cf_rule_id ON compliance_findings(rule_id);

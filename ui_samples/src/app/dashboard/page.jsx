@@ -761,15 +761,15 @@ export default function DashboardPage() {
               style={{ color: 'var(--accent-primary)' }}>
               Attack Paths <ArrowRight className="w-3 h-3" />
             </Link>
-            <Link href="/threats/internet-exposed"
+            <Link href="/threats/blast-radius"
               className="text-xs flex items-center gap-1 font-semibold hover:opacity-80 transition-opacity"
               style={{ color: 'var(--accent-primary)' }}>
-              Internet Exposed <ArrowRight className="w-3 h-3" />
+              Blast Radius <ArrowRight className="w-3 h-3" />
             </Link>
-            <Link href="/threats/analytics"
+            <Link href="/threats/toxic-combinations"
               className="text-xs flex items-center gap-1 font-semibold hover:opacity-80 transition-opacity"
               style={{ color: 'var(--accent-primary)' }}>
-              Analytics <ArrowRight className="w-3 h-3" />
+              Toxic Combos <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
         </div>

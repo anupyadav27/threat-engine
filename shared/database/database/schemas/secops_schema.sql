@@ -1,11 +1,13 @@
 -- SecOps Engine Schema
 -- Database: threat_engine_secops
 -- Tables: secops_rule_metadata, secops_report, secops_findings
+-- Supports: SAST, DAST, SCA scan types
 
 -- Rule metadata (seeded from scanner docs, ~2,899 rules across 14 languages)
 CREATE TABLE IF NOT EXISTS secops_rule_metadata (
-    rule_id          VARCHAR(512) PRIMARY KEY,
+    rule_id          VARCHAR(512) NOT NULL,
     scanner          VARCHAR(64)  NOT NULL,   -- python, terraform, java, docker, kubernetes, ansible, javascript, csharp, azure, cloudformation, go, cpp, c, ruby
+    PRIMARY KEY (rule_id, scanner),
     title            TEXT,
     description      TEXT,
     default_severity VARCHAR(64),             -- Raw from docs: Critical, Major, Minor, Info, Blocker
@@ -43,6 +45,7 @@ CREATE TABLE IF NOT EXISTS secops_report (
     repo_url          VARCHAR(1024) NOT NULL,
     branch            VARCHAR(255) DEFAULT 'main',
     provider          VARCHAR(64)  DEFAULT 'git',
+    scan_type         VARCHAR(20)  DEFAULT 'sast',  -- sast, dast, sca
     status            VARCHAR(32)  NOT NULL,    -- queued, running, completed, failed
     scan_timestamp    TIMESTAMPTZ,
     completed_at      TIMESTAMPTZ,
@@ -59,6 +62,7 @@ CREATE INDEX IF NOT EXISTS idx_sr_tenant      ON secops_report(tenant_id, scan_t
 CREATE INDEX IF NOT EXISTS idx_sr_project     ON secops_report(project_name);
 CREATE INDEX IF NOT EXISTS idx_sr_orch        ON secops_report(orchestration_id) WHERE orchestration_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_sr_status      ON secops_report(status);
+CREATE INDEX IF NOT EXISTS idx_sr_scan_type   ON secops_report(scan_type);
 
 
 -- Scan findings (one row per finding)
@@ -75,6 +79,7 @@ CREATE TABLE IF NOT EXISTS secops_findings (
     line_number      INTEGER,
     status           VARCHAR(32),               -- violation, not_applicable
     resource         VARCHAR(512),              -- Terraform resource name
+    scan_type        VARCHAR(20)  DEFAULT 'sast',  -- sast, dast, sca
     metadata         JSONB,                     -- property_path, value, extras
     created_at       TIMESTAMPTZ  DEFAULT now()
 );
@@ -84,3 +89,4 @@ CREATE INDEX IF NOT EXISTS idx_sf_tenant      ON secops_findings(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_sf_severity    ON secops_findings(severity);
 CREATE INDEX IF NOT EXISTS idx_sf_language    ON secops_findings(language);
 CREATE INDEX IF NOT EXISTS idx_sf_rule_id     ON secops_findings(rule_id);
+CREATE INDEX IF NOT EXISTS idx_sf_scan_type   ON secops_findings(scan_type);

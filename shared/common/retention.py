@@ -23,46 +23,46 @@ ENGINE_TABLES = {
         "db_env": "DISCOVERIES",
         "db_name": "threat_engine_discoveries",
         "report_table": "discovery_report",
-        "scan_id_col": "discovery_scan_id",
+        "scan_id_col": "scan_run_id",
         "tenant_col": "tenant_id",
-        "timestamp_col": "scan_timestamp",
+        "timestamp_col": "first_seen_at",
         "dependent_tables": [
-            ("discovery_findings", "discovery_scan_id"),
+            ("discovery_findings", "scan_run_id"),
         ],
     },
     "check": {
         "db_env": "CHECK",
         "db_name": "threat_engine_check",
         "report_table": "check_report",
-        "scan_id_col": "check_scan_id",
+        "scan_id_col": "scan_run_id",
         "tenant_col": "tenant_id",
-        "timestamp_col": "scan_timestamp",
+        "timestamp_col": "first_seen_at",
         "dependent_tables": [
-            ("check_findings", "check_scan_id"),
+            ("check_findings", "scan_run_id"),
         ],
     },
     "inventory": {
         "db_env": "INVENTORY",
         "db_name": "threat_engine_inventory",
         "report_table": "inventory_report",
-        "scan_id_col": "inventory_scan_id",
+        "scan_id_col": "scan_run_id",
         "tenant_col": "tenant_id",
         "timestamp_col": "started_at",
         "dependent_tables": [
             # inventory_findings NOT deleted (UPSERT by resource_uid, latest state)
-            ("inventory_relationships", "inventory_scan_id"),
-            ("inventory_drift", "inventory_scan_id"),
+            ("inventory_relationships", "scan_run_id"),
+            ("inventory_drift", "scan_run_id"),
         ],
     },
     "threat": {
         "db_env": "THREAT",
         "db_name": "threat_engine_threat",
         "report_table": "threat_report",
-        "scan_id_col": "threat_scan_id",
+        "scan_id_col": "scan_run_id",
         "tenant_col": "tenant_id",
         "timestamp_col": "started_at",
         "dependent_tables": [
-            ("threat_findings", "threat_scan_id"),
+            ("threat_findings", "scan_run_id"),
             ("threat_detections", "scan_id"),
         ],
     },
@@ -70,34 +70,34 @@ ENGINE_TABLES = {
         "db_env": "COMPLIANCE",
         "db_name": "threat_engine_compliance",
         "report_table": "compliance_report",
-        "scan_id_col": "compliance_scan_id",
+        "scan_id_col": "scan_run_id",
         "tenant_col": "tenant_id",
         "timestamp_col": "completed_at",
         "dependent_tables": [
-            ("compliance_findings", "compliance_scan_id"),
+            ("compliance_findings", "scan_run_id"),
         ],
     },
     "iam": {
         "db_env": "IAM",
         "db_name": "threat_engine_iam",
         "report_table": "iam_report",
-        "scan_id_col": "iam_scan_id",
+        "scan_id_col": "scan_run_id",
         "tenant_col": "tenant_id",
         "timestamp_col": "generated_at",
         "dependent_tables": [
-            ("iam_findings", "iam_scan_id"),
+            ("iam_findings", "scan_run_id"),
         ],
     },
     "datasec": {
         "db_env": "DATASEC",
         "db_name": "threat_engine_datasec",
         "report_table": "datasec_report",
-        "scan_id_col": "datasec_scan_id",
+        "scan_id_col": "scan_run_id",
         "tenant_col": "tenant_id",
         "timestamp_col": "generated_at",
         "dependent_tables": [
-            ("datasec_findings", "datasec_scan_id"),
-            ("datasec_data_stores", "datasec_scan_id"),
+            ("datasec_findings", "scan_run_id"),
+            ("datasec_data_stores", "scan_run_id"),
         ],
     },
 }
@@ -214,8 +214,8 @@ def cleanup_old_orchestrations(tenant_id: str, keep: int = 3) -> int:
 
         cur.execute(
             "DELETE FROM scan_orchestration WHERE tenant_id = %s "
-            "AND orchestration_id NOT IN ("
-            "  SELECT orchestration_id FROM scan_orchestration "
+            "AND scan_run_id NOT IN ("
+            "  SELECT scan_run_id FROM scan_orchestration "
             "  WHERE tenant_id = %s ORDER BY created_at DESC LIMIT %s"
             ")",
             (tenant_id, tenant_id, keep),

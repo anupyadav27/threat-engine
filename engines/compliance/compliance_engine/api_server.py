@@ -100,31 +100,17 @@ trend_tracker = TrendTracker()
 report_storage = ReportStorage()
 
 
-# DEPRECATED: Replaced by get_orchestration_metadata() from engine_common.orchestration
-# This wrapper maintained for backward compatibility
+# DEPRECATED: All engines now use the same scan_run_id. No per-engine scan ID
+# columns exist in scan_orchestration. This function simply returns scan_run_id.
 def get_check_scan_id_from_orchestration(scan_run_id: str) -> Optional[str]:
-    """Query scan_orchestration table to get check_scan_id for a given scan_run_id."""
-    try:
-        metadata = get_orchestration_metadata(scan_run_id)
-        if metadata:
-            check_scan_id = metadata.get("check_scan_id")
-            if check_scan_id:
-                logger.info(f"Found check_scan_id={check_scan_id} for scan_run_id={scan_run_id}")
-                return check_scan_id
-            else:
-                logger.warning(f"No check_scan_id found in scan_orchestration for scan_run_id={scan_run_id}")
-                return None
-        return None
-    except Exception as e:
-        logger.error(f"Error querying scan_orchestration table: {e}", exc_info=True)
-        return None
+    """Return scan_run_id directly — all engines share the same ID."""
+    return scan_run_id
 
 
 class GenerateReportRequest(BaseModel):
     """Request to generate compliance report."""
     scan_id: Optional[str] = None  # Direct check_scan_id (ad-hoc mode)
-    orchestration_id: Optional[str] = None  # Orchestration ID (pipeline mode)
-    scan_run_id: Optional[str] = None  # Alias for orchestration_id
+    scan_run_id: Optional[str] = None  # Pipeline scan_run_id (pipeline mode)
     csp: str  # aws, azure, gcp, alicloud, oci, ibm
     frameworks: Optional[List[str]] = None  # Optional: filter specific frameworks
 
@@ -132,8 +118,7 @@ class GenerateReportRequest(BaseModel):
 class GenerateEnterpriseReportRequest(BaseModel):
     """Request to generate enterprise-grade compliance report."""
     scan_id: Optional[str] = None  # Direct check_scan_id (ad-hoc mode)
-    orchestration_id: Optional[str] = None  # Orchestration ID (pipeline mode)
-    scan_run_id: Optional[str] = None  # Alias for orchestration_id
+    scan_run_id: Optional[str] = None  # Pipeline scan_run_id (pipeline mode)
     csp: Optional[str] = None  # aws, azure, gcp (OPTIONAL - queried from scan_orchestration if not provided)
     tenant_id: Optional[str] = None  # OPTIONAL - queried from scan_orchestration if not provided
     tenant_name: Optional[str] = None
@@ -454,22 +439,18 @@ async def generate_compliance_report(
     report_id = str(uuid.uuid4())
 
     # Determine which check_scan_id to use
-    # Priority: direct scan_id > orchestration_id lookup > scan_run_id lookup
+    # Priority: direct scan_id > scan_run_id (all engines share the same ID)
     check_query_scan_id = None
 
     if request.scan_id:
         # MODE 1: Direct scan_id provided (ad-hoc testing)
         check_query_scan_id = request.scan_id
         logger.info(f"Using direct check_scan_id: {check_query_scan_id}")
-    elif request.orchestration_id or request.scan_run_id:
-        # MODE 2: Orchestrated run - query scan_orchestration table
-        orchestration_id = request.orchestration_id or request.scan_run_id
-        check_query_scan_id = get_check_scan_id_from_orchestration(orchestration_id)
-
-        if not check_query_scan_id:
-            raise HTTPException(status_code=400, detail=f"No check_scan_id found in scan_orchestration for scan_run_id={orchestration_id}. Check engine may not have completed yet.")
+    elif request.scan_run_id:
+        # MODE 2: Pipeline mode - scan_run_id is the same across all engines
+        check_query_scan_id = request.scan_run_id
     else:
-        raise HTTPException(status_code=400, detail="Either scan_id, scan_run_id, or orchestration_id must be provided")
+        raise HTTPException(status_code=400, detail="Either scan_id or scan_run_id must be provided")
 
     with LogContext(scan_run_id=check_query_scan_id):
         logger.info("Generating compliance report", extra={
@@ -1116,38 +1097,37 @@ async def generate_enterprise_report(request: GenerateEnterpriseReportRequest):
     """
     Start a compliance scan by creating a K8s Job on a spot node.
 
-    **Pipeline mode** -- provide `orchestration_id`:
+    **Pipeline mode** -- provide `scan_run_id`:
       Fetches metadata from scan_orchestration table.
 
     **Ad-hoc mode** -- provide `scan_id`:
-      Uses the supplied check_scan_id with optional overrides.
+      Uses the supplied scan_run_id with optional overrides.
 
-    Returns immediately with compliance_scan_id. Poll status via
-    GET /api/v1/compliance/{compliance_scan_id}/status.
+    Returns immediately with scan_run_id. Poll status via
+    GET /api/v1/compliance/{scan_run_id}/status.
     """
-    orch_id = request.orchestration_id or request.scan_run_id
-    compliance_scan_id = orch_id
+    scan_run_id = request.scan_run_id
+    compliance_scan_id = scan_run_id
 
-    if not orch_id and not request.scan_id:
-        raise HTTPException(status_code=400, detail="Either scan_id, scan_run_id, or orchestration_id must be provided")
+    if not scan_run_id and not request.scan_id:
+        raise HTTPException(status_code=400, detail="Either scan_id or scan_run_id must be provided")
 
     # Resolve orchestration metadata
-    if orch_id:
+    if scan_run_id:
         try:
-            metadata = get_orchestration_metadata(orch_id)
+            metadata = get_orchestration_metadata(scan_run_id)
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e))
 
-        check_scan_id = metadata.get("check_scan_id")
-        if not check_scan_id:
-            raise HTTPException(status_code=400, detail=f"No check_scan_id found for orchestration_id={orch_id}. Check engine may not have completed yet.")
+        # All engines use the same scan_run_id — no per-engine column lookup needed
+        check_scan_id = scan_run_id
 
         csp = (metadata.get("provider_type") or metadata.get("provider", "aws")).lower()
         tenant_id = metadata.get("tenant_id", "default-tenant")
-        logger.info(f"Pipeline mode: orch={orch_id} check={check_scan_id} csp={csp}")
+        logger.info(f"Pipeline mode: scan_run_id={scan_run_id} check={check_scan_id} csp={csp}")
     else:
-        # Ad-hoc: orchestration_id is required for Job-based execution
-        raise HTTPException(status_code=400, detail="orchestration_id is required for Job-based execution")
+        # Ad-hoc: scan_run_id is required for Job-based execution
+        raise HTTPException(status_code=400, detail="scan_run_id is required for Job-based execution")
 
     # Pre-create compliance_report row in DB (so status endpoint works immediately)
     try:
@@ -1155,11 +1135,11 @@ async def generate_enterprise_report(request: GenerateEnterpriseReportRequest):
         with conn.cursor() as cur:
             cur.execute(
                 """INSERT INTO compliance_report
-                   (compliance_scan_id, tenant_id, provider, check_scan_id, status, completed_at, metadata)
+                   (scan_run_id, tenant_id, provider, check_scan_id, status, completed_at, metadata)
                    VALUES (%s, %s, %s, %s, 'running', NOW(), %s)
-                   ON CONFLICT (compliance_scan_id) DO UPDATE SET status = 'running'""",
+                   ON CONFLICT (scan_run_id) DO UPDATE SET status = 'running'""",
                 (compliance_scan_id, tenant_id, csp, check_scan_id,
-                 json.dumps({"orchestration_id": orch_id, "mode": "job"})),
+                 json.dumps({"scan_run_id": scan_run_id, "mode": "job"})),
             )
         conn.commit()
         conn.close()
@@ -1171,7 +1151,7 @@ async def generate_enterprise_report(request: GenerateEnterpriseReportRequest):
         job_name = create_engine_job(
             engine_name="compliance",
             scan_id=compliance_scan_id,
-            orchestration_id=orch_id,
+            scan_run_id=scan_run_id,
             image=SCANNER_IMAGE,
             cpu_request=SCANNER_CPU_REQUEST,
             mem_request=SCANNER_MEM_REQUEST,
@@ -1187,7 +1167,7 @@ async def generate_enterprise_report(request: GenerateEnterpriseReportRequest):
         "compliance_scan_id": compliance_scan_id,
         "status": "running",
         "message": f"Scanner Job '{job_name}' created on spot node (image={SCANNER_IMAGE})",
-        "orchestration_id": orch_id,
+        "scan_run_id": scan_run_id,
     }
 
 
@@ -1199,8 +1179,8 @@ async def get_compliance_status(compliance_scan_id: str):
         conn = _get_compliance_conn()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
-                "SELECT compliance_scan_id, status, provider, check_scan_id, completed_at, metadata "
-                "FROM compliance_report WHERE compliance_scan_id = %s",
+                "SELECT scan_run_id, status, provider, check_scan_id, completed_at, metadata "
+                "FROM compliance_report WHERE scan_run_id = %s",
                 (compliance_scan_id,),
             )
             row = cur.fetchone()
@@ -1212,7 +1192,7 @@ async def get_compliance_status(compliance_scan_id: str):
         raise HTTPException(status_code=404, detail=f"Compliance scan {compliance_scan_id} not found")
 
     return {
-        "compliance_scan_id": row["compliance_scan_id"],
+        "compliance_scan_id": row["scan_run_id"],
         "status": row["status"],
         "provider": row.get("provider"),
         "check_scan_id": row.get("check_scan_id"),

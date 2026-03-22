@@ -41,7 +41,7 @@ class ThreatDBReader:
     Reads threat findings from Threat DB (threat_findings table).
 
     The threat_findings table stores individual misconfig findings with columns:
-        finding_id, threat_scan_id, tenant_id, customer_id, scan_run_id,
+        finding_id, scan_run_id, tenant_id, customer_id,
         rule_id, threat_category, severity, status, resource_type,
         resource_id, resource_uid, account_id, region,
         mitre_tactics (jsonb), mitre_techniques (jsonb),
@@ -83,52 +83,26 @@ class ThreatDBReader:
     def __exit__(self, *args):
         self.close()
 
-    def _resolve_threat_scan_id(self, conn, tenant_id: str, scan_run_id: str) -> Optional[str]:
+    def _resolve_scan_run_id(self, conn, tenant_id: str, scan_run_id: str) -> Optional[str]:
         """
-        Resolve the threat_scan_id from threat_report table using tenant_id + scan_run_id.
-
-        The threat_findings table uses threat_scan_id as FK, not scan_run_id directly.
-        threat_scan_id format is typically 'threat_{scan_run_id}'.
-
-        Special cases:
-          - 'latest' → find the most recent threat_scan_id for this tenant.
-          - Already prefixed with 'threat_' → return as-is to avoid double-prefix bug.
+        Resolve scan_run_id. Handles 'latest' by looking up the most recent scan.
+        All engines now use the same scan_run_id — no per-engine scan IDs.
         """
-        # Handle "latest" — resolve to the most recent threat_scan_id for the tenant
         if scan_run_id == "latest":
             try:
                 with conn.cursor() as cur:
                     cur.execute(
-                        "SELECT threat_scan_id FROM threat_report WHERE tenant_id = %s ORDER BY created_at DESC LIMIT 1",
+                        "SELECT scan_run_id FROM threat_report WHERE tenant_id = %s ORDER BY created_at DESC LIMIT 1",
                         (tenant_id,),
                     )
                     row = cur.fetchone()
                     if row:
                         return row[0]
             except Exception as e:
-                logger.error(f"Error resolving latest threat_scan_id: {e}")
+                logger.error(f"Error resolving latest scan_run_id: {e}")
                 conn.rollback()
             return None
-
-        # Already a threat_scan_id (passed from orchestration metadata)
-        if scan_run_id.startswith("threat_"):
-            return scan_run_id
-
-        try:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT threat_scan_id FROM threat_report WHERE tenant_id = %s AND scan_run_id = %s",
-                    (tenant_id, scan_run_id),
-                )
-                row = cur.fetchone()
-                if row:
-                    return row[0]
-        except Exception as e:
-            logger.error(f"Error resolving threat_scan_id: {e}")
-            conn.rollback()
-
-        # Fallback: construct conventional format from bare check_scan_id
-        return f"threat_{scan_run_id}"
+        return scan_run_id
 
     def load_threat_report_summary(self, tenant_id: str, scan_run_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -151,7 +125,7 @@ class ThreatDBReader:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(
                     """
-                    SELECT threat_scan_id, tenant_id, scan_run_id, provider,
+                    SELECT scan_run_id, tenant_id, provider,
                            total_findings, critical_findings, high_findings,
                            medium_findings, low_findings, status,
                            report_data, created_at
@@ -194,10 +168,9 @@ class ThreatDBReader:
             return []
         conn = self._get_conn()
         try:
-            # Resolve threat_scan_id from threat_report
-            threat_scan_id = self._resolve_threat_scan_id(conn, tenant_id, scan_run_id)
-            if not threat_scan_id:
-                logger.warning(f"Could not resolve threat_scan_id for scan_run_id={scan_run_id}")
+            resolved_id = self._resolve_scan_run_id(conn, tenant_id, scan_run_id)
+            if not resolved_id:
+                logger.warning(f"Could not resolve scan_run_id={scan_run_id}")
                 return []
 
             # Build query — filter by IAM rule_ids if provided
@@ -205,8 +178,8 @@ class ThreatDBReader:
                 # Use rule_id IN (...) filter for IAM-relevant findings
                 placeholders = ','.join(['%s'] * len(iam_rule_ids))
                 query = f"""
-                    SELECT finding_id, threat_scan_id, tenant_id, customer_id,
-                           scan_run_id, rule_id, threat_category,
+                    SELECT finding_id, scan_run_id, tenant_id, customer_id,
+                           rule_id, threat_category,
                            severity, status,
                            resource_type, resource_id, resource_uid,
                            account_id, region,
@@ -214,16 +187,16 @@ class ThreatDBReader:
                            evidence, finding_data,
                            first_seen_at, last_seen_at, created_at
                     FROM threat_findings
-                    WHERE tenant_id = %s AND threat_scan_id = %s
+                    WHERE tenant_id = %s AND scan_run_id = %s
                       AND rule_id IN ({placeholders})
                     ORDER BY severity, rule_id
                 """
-                params = [tenant_id, threat_scan_id] + list(iam_rule_ids)
+                params = [tenant_id, resolved_id] + list(iam_rule_ids)
             else:
                 # Return all findings for this scan
                 query = """
-                    SELECT finding_id, threat_scan_id, tenant_id, customer_id,
-                           scan_run_id, rule_id, threat_category,
+                    SELECT finding_id, scan_run_id, tenant_id, customer_id,
+                           rule_id, threat_category,
                            severity, status,
                            resource_type, resource_id, resource_uid,
                            account_id, region,
@@ -231,10 +204,10 @@ class ThreatDBReader:
                            evidence, finding_data,
                            first_seen_at, last_seen_at, created_at
                     FROM threat_findings
-                    WHERE tenant_id = %s AND threat_scan_id = %s
+                    WHERE tenant_id = %s AND scan_run_id = %s
                     ORDER BY severity, rule_id
                 """
-                params = [tenant_id, threat_scan_id]
+                params = [tenant_id, resolved_id]
 
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(query, params)
@@ -312,12 +285,12 @@ class ThreatDBReader:
             return []
         conn = self._get_conn()
         try:
-            threat_scan_id = self._resolve_threat_scan_id(conn, tenant_id, scan_run_id)
-            if not threat_scan_id:
+            resolved_id = self._resolve_scan_run_id(conn, tenant_id, scan_run_id)
+            if not resolved_id:
                 return []
 
             query = """
-                SELECT finding_id, threat_scan_id, tenant_id, customer_id,
+                SELECT finding_id, tenant_id, customer_id,
                        scan_run_id, rule_id, threat_category,
                        severity, status,
                        resource_type, resource_id, resource_uid,
@@ -326,10 +299,10 @@ class ThreatDBReader:
                        evidence, finding_data,
                        first_seen_at, last_seen_at, created_at
                 FROM threat_findings
-                WHERE tenant_id = %s AND threat_scan_id = %s
+                WHERE tenant_id = %s AND scan_run_id = %s
                   AND resource_uid = %s
             """
-            params = [tenant_id, threat_scan_id, resource_uid]
+            params = [tenant_id, resolved_id, resource_uid]
 
             if iam_rule_ids:
                 placeholders = ','.join(['%s'] * len(iam_rule_ids))

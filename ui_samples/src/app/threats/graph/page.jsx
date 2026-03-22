@@ -8,6 +8,8 @@ import React, {
   useCallback,
 } from 'react';
 import { fetchView } from '@/lib/api';
+import { getServiceIcon } from '@/lib/inventory-taxonomy';
+import * as LucideIcons from 'lucide-react';
 import {
   Network,
   ChevronRight,
@@ -16,43 +18,62 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize2,
-  Shield,
   ShieldAlert,
+  Globe,
   ExternalLink,
   GitBranch,
   AlertTriangle,
   Eye,
   Filter,
   RotateCcw,
+  Server,
+  HardDrive,
+  Database,
+  Cpu,
+  KeyRound,
+  Lock,
+  Shield,
+  Layers,
+  Scale,
+  Box,
 } from 'lucide-react';
-import KpiCard from '@/components/shared/KpiCard';
+import MetricStrip from '@/components/shared/MetricStrip';
 import SeverityBadge from '@/components/shared/SeverityBadge';
-import LoadingSkeleton from '@/components/shared/LoadingSkeleton';
 import EmptyState from '@/components/shared/EmptyState';
 import ThreatsSubNav from '@/components/shared/ThreatsSubNav';
+
+// ---------------------------------------------------------------------------
+// Lucide icon resolver — maps icon name string to React component
+// ---------------------------------------------------------------------------
+function getLucideIcon(name) {
+  if (!name) return Box;
+  return LucideIcons[name] || Box;
+}
 
 // ---------------------------------------------------------------------------
 // Node type configuration
 // ---------------------------------------------------------------------------
 const NODE_TYPE_CONFIG = {
-  EC2:             { color: '#3b82f6', abbr: 'EC2',  label: 'EC2' },
-  S3:              { color: '#22c55e', abbr: 'S3',   label: 'S3' },
-  IAM:             { color: '#a855f7', abbr: 'IAM',  label: 'IAM' },
-  RDS:             { color: '#f97316', abbr: 'RDS',  label: 'RDS' },
-  Lambda:          { color: '#06b6d4', abbr: 'Fn',   label: 'Lambda' },
-  VPC:             { color: '#8b5cf6', abbr: 'VPC',  label: 'VPC' },
-  SecurityGroup:   { color: '#ef4444', abbr: 'SG',   label: 'Security Group' },
-  LoadBalancer:    { color: '#eab308', abbr: 'LB',   label: 'Load Balancer' },
-  CloudFront:      { color: '#f59e0b', abbr: 'CF',   label: 'CloudFront' },
-  DynamoDB:        { color: '#527fff', abbr: 'DDB',  label: 'DynamoDB' },
-  SNS:             { color: '#ec4899', abbr: 'SNS',  label: 'SNS' },
-  SQS:             { color: '#ec4899', abbr: 'SQS',  label: 'SQS' },
-  KMS:             { color: '#dc2626', abbr: 'KMS',  label: 'KMS' },
-  Subnet:          { color: '#7c3aed', abbr: 'SUB',  label: 'Subnet' },
-  NATGateway:      { color: '#f97316', abbr: 'NAT',  label: 'NAT Gateway' },
-  ElastiCache:     { color: '#c7131f', abbr: 'EC',   label: 'ElastiCache' },
-  EKS:             { color: '#326ce5', abbr: 'EKS',  label: 'EKS' },
-  ECS:             { color: '#ff9900', abbr: 'ECS',  label: 'ECS' },
+  Internet:        { color: '#ef4444', label: 'Internet',       iconName: 'Globe' },
+  EC2:             { color: '#3b82f6', label: 'EC2',            iconName: 'Server' },
+  S3:              { color: '#22c55e', label: 'S3',             iconName: 'HardDrive' },
+  IAM:             { color: '#a855f7', label: 'IAM',            iconName: 'KeyRound' },
+  RDS:             { color: '#f97316', label: 'RDS',            iconName: 'Database' },
+  Lambda:          { color: '#06b6d4', label: 'Lambda',         iconName: 'Cpu' },
+  VPC:             { color: '#8b5cf6', label: 'VPC',            iconName: 'Network' },
+  SecurityGroup:   { color: '#ef4444', label: 'Security Group', iconName: 'Shield' },
+  LoadBalancer:    { color: '#eab308', label: 'Load Balancer',  iconName: 'Scale' },
+  CloudFront:      { color: '#f59e0b', label: 'CloudFront',     iconName: 'Gauge' },
+  DynamoDB:        { color: '#527fff', label: 'DynamoDB',       iconName: 'Table' },
+  SNS:             { color: '#ec4899', label: 'SNS',            iconName: 'Bell' },
+  SQS:             { color: '#ec4899', label: 'SQS',            iconName: 'Inbox' },
+  KMS:             { color: '#dc2626', label: 'KMS',            iconName: 'Lock' },
+  Subnet:          { color: '#7c3aed', label: 'Subnet',         iconName: 'Layers' },
+  NATGateway:      { color: '#f97316', label: 'NAT Gateway',    iconName: 'ArrowLeftRight' },
+  ElastiCache:     { color: '#c7131f', label: 'ElastiCache',    iconName: 'Zap' },
+  EKS:             { color: '#326ce5', label: 'EKS',            iconName: 'Ship' },
+  ECS:             { color: '#ff9900', label: 'ECS',            iconName: 'Container' },
+  threat:          { color: '#dc2626', label: 'Threat',         iconName: 'ShieldAlert' },
 };
 
 const DEFAULT_NODE_COLOR = '#6b7280';
@@ -69,6 +90,10 @@ const EDGE_TYPE_CONFIG = {
   HAS_FINDING:     { color: '#f97316', label: 'Has Finding' },
   REFERENCES:      { color: '#3b82f6', label: 'References' },
   CONTAINS:        { color: '#06b6d4', label: 'Contains' },
+  CONNECTS_TO:     { color: '#60a5fa', label: 'Connects To' },
+  ASSUMES:         { color: '#c084fc', label: 'Assumes' },
+  AFFECTS:         { color: '#f87171', label: 'Affects' },
+  RELATES_TO:      { color: '#94a3b8', label: 'Relates To' },
 };
 
 const DEFAULT_EDGE_COLOR = '#525252';
@@ -81,9 +106,9 @@ function clamp(val, min, max) {
 }
 
 function forceSimulation(nodes, edges, width, height, iterations = 200) {
-  const CHARGE = -300;
-  const LINK_DIST = 100;
-  const COLLISION_PAD = 8;
+  const CHARGE = -500;
+  const LINK_DIST = 140;
+  const COLLISION_PAD = 14;
   const ALPHA_DECAY = 0.02;
 
   // Initialize positions from center with jitter
@@ -194,6 +219,7 @@ function SecurityGraph({
   searchQuery,
   visibleNodeTypes,
   visibleEdgeTypes,
+  viewPreset,
   containerWidth,
   containerHeight,
 }) {
@@ -212,9 +238,17 @@ function SecurityGraph({
   const filteredNodes = useMemo(() => {
     return nodes.filter((n) => {
       const nType = normalizeType(n.type || n.resourceType || '');
-      return visibleNodeTypes.has(nType);
+      if (visibleNodeTypes && !visibleNodeTypes.has(nType)) return false;
+      // Threat hunting presets
+      if (viewPreset === 'threats') {
+        return n.has_threat || (n.threats ?? n.threatCount ?? 0) > 0;
+      }
+      if (viewPreset === 'internet') {
+        return n.internet_exposed ?? n.internetExposed ?? false;
+      }
+      return true;
     });
-  }, [nodes, visibleNodeTypes]);
+  }, [nodes, visibleNodeTypes, viewPreset]);
 
   const filteredNodeIds = useMemo(
     () => new Set(filteredNodes.map((n) => n.id)),
@@ -225,7 +259,7 @@ function SecurityGraph({
     return edges.filter((e) => {
       const eType = (e.type || e.relationship || '').toUpperCase().replace(/\s+/g, '_');
       return (
-        visibleEdgeTypes.has(eType) &&
+        (!visibleEdgeTypes || visibleEdgeTypes.has(eType)) &&
         filteredNodeIds.has(e.source) &&
         filteredNodeIds.has(e.target)
       );
@@ -248,7 +282,7 @@ function SecurityGraph({
 
     const simNodes = filteredNodes.map((n) => {
       const conns = connectionCounts[n.id] || 0;
-      const radius = 6 + Math.min(conns, 15) * 1.2;
+      const radius = Math.max(16, Math.min(24, 16 + Math.min(conns, 10) * 0.8));
       return {
         ...n,
         x: nodePositions[n.id]?.x ?? null,
@@ -394,11 +428,6 @@ function SecurityGraph({
     return NODE_TYPE_CONFIG[nType]?.color || DEFAULT_NODE_COLOR;
   };
 
-  const getNodeAbbr = (type) => {
-    const nType = normalizeType(type);
-    return NODE_TYPE_CONFIG[nType]?.abbr || type?.slice(0, 3)?.toUpperCase() || '?';
-  };
-
   const getEdgeColor = (type) => {
     const eType = (type || '').toUpperCase().replace(/\s+/g, '_');
     return EDGE_TYPE_CONFIG[eType]?.color || DEFAULT_EDGE_COLOR;
@@ -476,7 +505,7 @@ function SecurityGraph({
             markerHeight="6"
             orient="auto-start-reverse"
           >
-            <polygon points="0 0, 10 3.5, 0 7" fill="#525252" />
+            <polygon points="0 0, 10 3.5, 0 7" fill="currentColor" opacity="0.6" />
           </marker>
           {/* Glow filter for selected node */}
           <filter id="glow">
@@ -497,7 +526,7 @@ function SecurityGraph({
         />
 
         <g transform={`translate(${transform.x}, ${transform.y}) scale(${transform.k})`}>
-          {/* Edges */}
+          {/* Edges — Wiz-style: thin lines with arrow, label on hover */}
           {filteredEdges.map((edge, idx) => {
             const srcPos = nodePositions[edge.source];
             const tgtPos = nodePositions[edge.target];
@@ -506,32 +535,58 @@ function SecurityGraph({
             const isConnected =
               selectedNodeId &&
               (edge.source === selectedNodeId || edge.target === selectedNodeId);
-            const opacity = selectedNodeId ? (isConnected ? 0.9 : 0.08) : 0.4;
+            const opacity = selectedNodeId ? (isConnected ? 1 : 0.06) : 0.5;
+            const edgeColor = getEdgeColor(edge.type || edge.relationship);
+
+            // Shorten line so it doesn't overlap the node circle
+            const dx = tgtPos.x - srcPos.x;
+            const dy = tgtPos.y - srcPos.y;
+            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+            const srcR = srcPos._radius || 16;
+            const tgtR = tgtPos._radius || 16;
+            const x1 = srcPos.x + (dx / dist) * (srcR + 2);
+            const y1 = srcPos.y + (dy / dist) * (srcR + 2);
+            const x2 = tgtPos.x - (dx / dist) * (tgtR + 6);
+            const y2 = tgtPos.y - (dy / dist) * (tgtR + 6);
+            const mx = (x1 + x2) / 2;
+            const my = (y1 + y2) / 2;
 
             return (
-              <line
-                key={`edge-${idx}`}
-                x1={srcPos.x}
-                y1={srcPos.y}
-                x2={tgtPos.x}
-                y2={tgtPos.y}
-                stroke={getEdgeColor(edge.type || edge.relationship)}
-                strokeWidth={isConnected ? 2 : 1}
-                strokeOpacity={opacity}
-                markerEnd={isConnected ? 'url(#arrowhead)' : undefined}
-              />
+              <g key={`edge-${idx}`}>
+                <line
+                  x1={x1} y1={y1} x2={x2} y2={y2}
+                  stroke={edgeColor}
+                  strokeWidth={isConnected ? 2 : 1}
+                  strokeOpacity={opacity}
+                  markerEnd="url(#arrowhead)"
+                />
+                {/* Edge label shown when connected to selection */}
+                {isConnected && (
+                  <text
+                    x={mx} y={my - 5}
+                    textAnchor="middle"
+                    fill={edgeColor}
+                    fontSize={8}
+                    fontFamily="system-ui, sans-serif"
+                    fontWeight="600"
+                    style={{ pointerEvents: 'none' }}
+                  >
+                    {(edge.type || edge.relationship || '').replace(/_/g, ' ')}
+                  </text>
+                )}
+              </g>
             );
           })}
 
-          {/* Nodes */}
+          {/* Nodes — Wiz-style: circle with Lucide icon + label below */}
           {filteredNodes.map((node) => {
             const pos = nodePositions[node.id];
             if (!pos) return null;
 
             const conns = connectionCounts[node.id] || 0;
-            const radius = pos._radius || 6 + Math.min(conns, 15) * 1.2;
+            const radius = Math.max(16, Math.min(24, 16 + Math.min(conns, 10) * 0.8));
             const color = getNodeColor(node.type || node.resourceType);
-            const abbr = getNodeAbbr(node.type || node.resourceType);
+            const NodeIcon = getNodeIcon(node.type || node.resourceType || '');
             const isSelected = selectedNodeId === node.id;
             const isConnectedToSel =
               selectedNodeId && connectedToSelected.has(node.id);
@@ -539,20 +594,21 @@ function SecurityGraph({
             const isDimmed =
               (selectedNodeId && !isConnectedToSel) ||
               (searchMatch && searchMatch.size > 0 && !isSearchHit);
+            const hasThreat = node.threatCount > 0 || node.has_threat;
             const name =
               node.label ||
               node.resourceName ||
               node.id?.split('/')?.pop()?.split(':')?.pop() ||
               '';
-            const truncName = name.length > 16 ? name.slice(0, 14) + '..' : name;
+            const truncName = name.length > 18 ? name.slice(0, 16) + '..' : name;
 
             return (
               <g
                 key={node.id}
                 style={{
                   cursor: dragNode === node.id ? 'grabbing' : 'pointer',
-                  opacity: isDimmed ? 0.15 : 1,
-                  transition: 'opacity 0.2s',
+                  opacity: isDimmed ? 0.12 : 1,
+                  transition: 'opacity 0.25s ease',
                 }}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -560,29 +616,20 @@ function SecurityGraph({
                 }}
                 onMouseDown={(e) => handleNodeMouseDown(e, node.id)}
               >
-                {/* Threat glow */}
-                {node.has_threat && (
+                {/* Threat pulse ring */}
+                {hasThreat && (
                   <circle
-                    cx={pos.x}
-                    cy={pos.y}
-                    r={radius + 6}
-                    fill="none"
-                    stroke="#ef4444"
-                    strokeWidth={1.5}
-                    strokeOpacity={0.6}
-                    strokeDasharray="3 2"
+                    cx={pos.x} cy={pos.y} r={radius + 6}
+                    fill="none" stroke="#ef4444" strokeWidth={1.5}
+                    strokeOpacity={0.5} strokeDasharray="4 3"
                   />
                 )}
 
                 {/* Selection ring */}
                 {isSelected && (
                   <circle
-                    cx={pos.x}
-                    cy={pos.y}
-                    r={radius + 4}
-                    fill="none"
-                    stroke="#fbbf24"
-                    strokeWidth={2.5}
+                    cx={pos.x} cy={pos.y} r={radius + 5}
+                    fill="none" stroke="#fbbf24" strokeWidth={2.5}
                     filter="url(#glow)"
                   />
                 )}
@@ -590,48 +637,76 @@ function SecurityGraph({
                 {/* Search match ring */}
                 {isSearchHit && !isSelected && (
                   <circle
-                    cx={pos.x}
-                    cy={pos.y}
-                    r={radius + 3}
-                    fill="none"
-                    stroke="#22d3ee"
-                    strokeWidth={1.5}
-                    strokeDasharray="4 2"
+                    cx={pos.x} cy={pos.y} r={radius + 4}
+                    fill="none" stroke="#22d3ee" strokeWidth={1.5}
+                    strokeDasharray="5 3"
                   />
                 )}
 
-                {/* Main circle */}
+                {/* Outer border ring (Wiz style) */}
                 <circle
-                  cx={pos.x}
-                  cy={pos.y}
-                  r={radius}
-                  fill={color}
-                  stroke="rgba(255,255,255,0.2)"
-                  strokeWidth={1}
+                  cx={pos.x} cy={pos.y} r={radius + 1}
+                  fill="none" stroke={color} strokeWidth={2}
+                  strokeOpacity={0.4}
                 />
 
-                {/* Abbreviation text */}
-                <text
-                  x={pos.x}
-                  y={pos.y}
-                  textAnchor="middle"
-                  dominantBaseline="central"
-                  fill="white"
-                  fontSize={Math.max(7, Math.min(radius * 0.7, 11))}
-                  fontWeight="bold"
-                  fontFamily="system-ui, sans-serif"
-                  style={{ pointerEvents: 'none' }}
-                >
-                  {abbr}
-                </text>
+                {/* Main circle — dark fill with colored border */}
+                <circle
+                  cx={pos.x} cy={pos.y} r={radius}
+                  fill="#131a2b"
+                  stroke={color} strokeWidth={2}
+                />
 
-                {/* Label */}
+                {/* Lucide icon */}
+                <foreignObject
+                  x={pos.x - radius * 0.5}
+                  y={pos.y - radius * 0.5}
+                  width={radius}
+                  height={radius}
+                  style={{ pointerEvents: 'none', overflow: 'visible' }}
+                >
+                  <div style={{
+                    width: '100%', height: '100%',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <NodeIcon
+                      style={{
+                        width: Math.max(12, radius * 0.6),
+                        height: Math.max(12, radius * 0.6),
+                        color: color,
+                      }}
+                    />
+                  </div>
+                </foreignObject>
+
+                {/* Risk badge (top-right corner) */}
+                {(node.riskScore || 0) > 0 && (
+                  <g>
+                    <circle
+                      cx={pos.x + radius * 0.7} cy={pos.y - radius * 0.7}
+                      r={7}
+                      fill={node.riskScore >= 70 ? '#ef4444' : node.riskScore >= 40 ? '#f97316' : '#22c55e'}
+                    />
+                    <text
+                      x={pos.x + radius * 0.7} y={pos.y - radius * 0.7}
+                      textAnchor="middle" dominantBaseline="central"
+                      fill="white" fontSize={7} fontWeight="bold"
+                      fontFamily="system-ui, sans-serif"
+                      style={{ pointerEvents: 'none' }}
+                    >
+                      {node.riskScore}
+                    </text>
+                  </g>
+                )}
+
+                {/* Label below node */}
                 <text
                   x={pos.x}
-                  y={pos.y + radius + 12}
+                  y={pos.y + radius + 14}
                   textAnchor="middle"
-                  fill="rgba(255,255,255,0.7)"
-                  fontSize={9}
+                  fill="rgba(255,255,255,0.75)"
+                  fontSize={10}
+                  fontWeight="500"
                   fontFamily="system-ui, sans-serif"
                   style={{ pointerEvents: 'none' }}
                 >
@@ -651,30 +726,50 @@ function SecurityGraph({
 // ---------------------------------------------------------------------------
 function normalizeType(raw) {
   if (!raw) return 'Unknown';
+  // Exact match first (e.g., "Internet", "threat")
+  if (NODE_TYPE_CONFIG[raw]) return raw;
   const s = raw.replace(/[._\-\s]+/g, '').toLowerCase();
   for (const key of Object.keys(NODE_TYPE_CONFIG)) {
     if (key.toLowerCase() === s) return key;
   }
+  // Service prefix from resource_type format "service.subtype"
+  const svc = raw.split('.')[0].toLowerCase();
   // Partial matches
-  if (s.includes('ec2') || s.includes('instance')) return 'EC2';
-  if (s.includes('s3') || s.includes('bucket')) return 'S3';
-  if (s.includes('iam') || s.includes('role') || s.includes('user') || s.includes('policy')) return 'IAM';
-  if (s.includes('rds') || s.includes('dbinstance')) return 'RDS';
-  if (s.includes('lambda') || s.includes('function')) return 'Lambda';
+  if (svc === 'ec2' || s.includes('instance')) return 'EC2';
+  if (svc === 's3' || s.includes('bucket')) return 'S3';
+  if (svc === 'iam' || s.includes('role') || s.includes('policy')) return 'IAM';
+  if (svc === 'rds' || s.includes('dbinstance')) return 'RDS';
+  if (svc === 'lambda') return 'Lambda';
   if (s.includes('vpc') && !s.includes('endpoint')) return 'VPC';
-  if (s.includes('securitygroup') || s.includes('sg')) return 'SecurityGroup';
-  if (s.includes('loadbalancer') || s.includes('alb') || s.includes('elb') || s.includes('nlb')) return 'LoadBalancer';
-  if (s.includes('cloudfront') || s.includes('distribution')) return 'CloudFront';
-  if (s.includes('dynamodb') || s.includes('ddb')) return 'DynamoDB';
-  if (s.includes('sns')) return 'SNS';
-  if (s.includes('sqs')) return 'SQS';
-  if (s.includes('kms') || s.includes('key')) return 'KMS';
+  if (s.includes('securitygroup') || s.includes('security-group')) return 'SecurityGroup';
+  if (s.includes('loadbalancer') || svc === 'elbv2' || svc === 'elb') return 'LoadBalancer';
+  if (svc === 'cloudfront' || s.includes('distribution')) return 'CloudFront';
+  if (svc === 'dynamodb') return 'DynamoDB';
+  if (svc === 'sns') return 'SNS';
+  if (svc === 'sqs') return 'SQS';
+  if (svc === 'kms') return 'KMS';
   if (s.includes('subnet')) return 'Subnet';
   if (s.includes('nat')) return 'NATGateway';
-  if (s.includes('elasticache') || s.includes('cache')) return 'ElastiCache';
-  if (s.includes('eks') || s.includes('cluster')) return 'EKS';
-  if (s.includes('ecs') || s.includes('task') || s.includes('container')) return 'ECS';
+  if (svc === 'elasticache') return 'ElastiCache';
+  if (svc === 'eks') return 'EKS';
+  if (svc === 'ecs') return 'ECS';
+  if (raw === 'threat') return 'threat';
   return raw;
+}
+
+/**
+ * Get Lucide icon component for a resource type.
+ * Uses inventory-taxonomy SERVICE_ICONS for exact type, NODE_TYPE_CONFIG for normalized.
+ */
+function getNodeIcon(resourceType) {
+  // Try inventory-taxonomy lookup first (handles "ec2.instance", "lambda", etc.)
+  const iconName = getServiceIcon(resourceType);
+  const Icon = getLucideIcon(iconName);
+  if (Icon && Icon !== Box) return Icon;
+  // Fall back to NODE_TYPE_CONFIG
+  const nType = normalizeType(resourceType);
+  const cfgIconName = NODE_TYPE_CONFIG[nType]?.iconName;
+  return cfgIconName ? getLucideIcon(cfgIconName) : Box;
 }
 
 // ---------------------------------------------------------------------------
@@ -745,10 +840,15 @@ function DetailPanel({ node, edges, allNodes, onNodeClick, onClose }) {
         {/* Resource type + name */}
         <div>
           <div className="flex items-center gap-2 mb-2">
-            <span
-              className="w-3 h-3 rounded-full flex-shrink-0"
-              style={{ backgroundColor: color }}
-            />
+            {(() => {
+              const PanelIcon = getNodeIcon(node.type || node.resourceType || '');
+              return (
+                <span className="w-5 h-5 rounded flex-shrink-0 flex items-center justify-center"
+                  style={{ backgroundColor: color }}>
+                  <PanelIcon style={{ width: 12, height: 12, color: 'white' }} />
+                </span>
+              );
+            })()}
             <span
               className="text-xs font-semibold uppercase tracking-wider"
               style={{ color: 'var(--text-secondary)' }}
@@ -889,6 +989,7 @@ function DetailPanel({ node, edges, allNodes, onNodeClick, onClose }) {
             {connectedNodes.map(({ edge, node: cn }) => {
               const cnType = normalizeType(cn.type || cn.resourceType || '');
               const cnColor = NODE_TYPE_CONFIG[cnType]?.color || DEFAULT_NODE_COLOR;
+              const CnIcon = getNodeIcon(cn.type || cn.resourceType || '');
               return (
                 <button
                   key={cn.id}
@@ -900,10 +1001,10 @@ function DetailPanel({ node, edges, allNodes, onNodeClick, onClose }) {
                     borderColor: 'var(--border-primary)',
                   }}
                 >
-                  <span
-                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: cnColor }}
-                  />
+                  <span className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center"
+                    style={{ backgroundColor: cnColor }}>
+                    <CnIcon style={{ width: 10, height: 10, color: 'white' }} />
+                  </span>
                   <div className="flex-1 min-w-0">
                     <p
                       className="text-xs font-medium truncate"
@@ -934,7 +1035,7 @@ function DetailPanel({ node, edges, allNodes, onNodeClick, onClose }) {
           style={{ borderColor: 'var(--border-primary)' }}
         >
           <a
-            href={`/inventory?search=${encodeURIComponent(node.id)}`}
+            href={`/ui/inventory/architecture?resource_uid=${encodeURIComponent(node.id)}`}
             className="flex items-center justify-center gap-2 text-xs py-2 rounded-lg border
                        hover:opacity-75 transition-opacity"
             style={{
@@ -946,7 +1047,7 @@ function DetailPanel({ node, edges, allNodes, onNodeClick, onClose }) {
             View in Inventory
           </a>
           <a
-            href={`/threats?search=${encodeURIComponent(node.id)}`}
+            href={`/ui/threats?search=${encodeURIComponent(node.id)}`}
             className="flex items-center justify-center gap-2 text-xs py-2 rounded-lg
                        hover:opacity-90 transition-opacity text-white"
             style={{ backgroundColor: 'rgba(239,68,68,0.7)' }}
@@ -955,7 +1056,7 @@ function DetailPanel({ node, edges, allNodes, onNodeClick, onClose }) {
             View Threats
           </a>
           <a
-            href={`/threats/blast-radius?uid=${encodeURIComponent(node.id)}`}
+            href={`/ui/threats/blast-radius?resource_uid=${encodeURIComponent(node.id)}`}
             className="flex items-center justify-center gap-2 text-xs py-2 rounded-lg
                        hover:opacity-90 transition-opacity text-white"
             style={{ backgroundColor: 'rgba(139,92,246,0.7)' }}
@@ -984,8 +1085,9 @@ function MultiSelectFilter({ label, icon, items, selected, onToggle }) {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const allSelected = items.every((i) => selected.has(i.key));
-  const noneSelected = items.every((i) => !selected.has(i.key));
+  const sel = selected || new Set(items.map((i) => i.key));
+  const allSelected = items.every((i) => sel.has(i.key));
+  const noneSelected = items.every((i) => !sel.has(i.key));
 
   return (
     <div className="relative" ref={ref}>
@@ -1008,7 +1110,7 @@ function MultiSelectFilter({ label, icon, items, selected, onToggle }) {
             color: '#60a5fa',
           }}
         >
-          {[...selected].filter((k) => items.some((i) => i.key === k)).length}
+          {[...sel].filter((k) => items.some((i) => i.key === k)).length}
         </span>
       </button>
 
@@ -1027,9 +1129,8 @@ function MultiSelectFilter({ label, icon, items, selected, onToggle }) {
           >
             <button
               onClick={() => {
-                const all = new Set(items.map((i) => i.key));
                 items.forEach((i) => {
-                  if (!selected.has(i.key)) onToggle(i.key);
+                  if (!sel.has(i.key)) onToggle(i.key);
                 });
               }}
               className="text-[10px] hover:underline"
@@ -1040,7 +1141,7 @@ function MultiSelectFilter({ label, icon, items, selected, onToggle }) {
             <button
               onClick={() => {
                 items.forEach((i) => {
-                  if (selected.has(i.key)) onToggle(i.key);
+                  if (sel.has(i.key)) onToggle(i.key);
                 });
               }}
               className="text-[10px] hover:underline"
@@ -1058,7 +1159,7 @@ function MultiSelectFilter({ label, icon, items, selected, onToggle }) {
             >
               <input
                 type="checkbox"
-                checked={selected.has(item.key)}
+                checked={sel.has(item.key)}
                 onChange={() => onToggle(item.key)}
                 className="rounded border-gray-500 bg-transparent text-blue-500
                            focus:ring-blue-500 focus:ring-offset-0 w-3.5 h-3.5"
@@ -1089,12 +1190,10 @@ export default function SecurityGraphExplorer() {
   const [error, setError] = useState(null);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [visibleNodeTypes, setVisibleNodeTypes] = useState(
-    new Set(Object.keys(NODE_TYPE_CONFIG))
-  );
-  const [visibleEdgeTypes, setVisibleEdgeTypes] = useState(
-    new Set(Object.keys(EDGE_TYPE_CONFIG))
-  );
+  const [visibleNodeTypes, setVisibleNodeTypes] = useState(null); // null = show all
+  const [visibleEdgeTypes, setVisibleEdgeTypes] = useState(null); // null = show all
+  // Threat hunting: quick-filter presets
+  const [viewPreset, setViewPreset] = useState('all'); // 'all' | 'threats' | 'internet'
   const containerRef = useRef(null);
   const [containerDims, setContainerDims] = useState({ w: 1200, h: 600 });
 
@@ -1158,17 +1257,25 @@ export default function SecurityGraphExplorer() {
   // KPIs
   const kpi = useMemo(() => {
     if (data?.kpi) return data.kpi;
-    const avgRisk =
-      nodes.length > 0
-        ? Math.round(
-            nodes.reduce((sum, n) => sum + (n.risk_score ?? n.riskScore ?? 0), 0) /
-              nodes.length
-          )
-        : 0;
+    const totalConns = edges.length * 2; // each edge touches 2 nodes
+    const avgConns = nodes.length > 0 ? (totalConns / nodes.length).toFixed(1) : '0';
+    const highRisk = nodes.filter(
+      (n) => (n.risk_score ?? n.riskScore ?? 0) >= 70
+    ).length;
+    const internetExposed = nodes.filter(
+      (n) => n.internet_exposed ?? n.internetExposed ?? false
+    ).length;
+    const techniques = new Set();
+    nodes.forEach((n) => {
+      (n.mitre_techniques ?? n.techniques ?? []).forEach((t) => techniques.add(t));
+    });
     return {
       totalNodes: nodes.length,
       totalEdges: edges.length,
-      avgRiskScore: avgRisk,
+      avgConnections: avgConns,
+      highRisk,
+      internetExposed,
+      techniques: techniques.size,
     };
   }, [data, nodes, edges]);
 
@@ -1192,6 +1299,28 @@ export default function SecurityGraphExplorer() {
     );
     return types;
   }, [edges]);
+
+  // Auto-initialize visible sets to include ALL types (config + discovered)
+  const allNodeTypes = useMemo(() => {
+    return new Set([...Object.keys(NODE_TYPE_CONFIG), ...discoveredNodeTypes]);
+  }, [discoveredNodeTypes]);
+
+  const allEdgeTypes = useMemo(() => {
+    return new Set([...Object.keys(EDGE_TYPE_CONFIG), ...discoveredEdgeTypes]);
+  }, [discoveredEdgeTypes]);
+
+  // Initialize once data arrives
+  useEffect(() => {
+    if (visibleNodeTypes === null && allNodeTypes.size > 0) {
+      setVisibleNodeTypes(new Set(allNodeTypes));
+    }
+  }, [allNodeTypes]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (visibleEdgeTypes === null && allEdgeTypes.size > 0) {
+      setVisibleEdgeTypes(new Set(allEdgeTypes));
+    }
+  }, [allEdgeTypes]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Node type filter items
   const nodeTypeItems = useMemo(() => {
@@ -1221,19 +1350,19 @@ export default function SecurityGraphExplorer() {
 
   const toggleNodeType = useCallback((key) => {
     setVisibleNodeTypes((prev) => {
-      const next = new Set(prev);
+      const next = new Set(prev || allNodeTypes);
       next.has(key) ? next.delete(key) : next.add(key);
       return next;
     });
-  }, []);
+  }, [allNodeTypes]);
 
   const toggleEdgeType = useCallback((key) => {
     setVisibleEdgeTypes((prev) => {
-      const next = new Set(prev);
+      const next = new Set(prev || allEdgeTypes);
       next.has(key) ? next.delete(key) : next.add(key);
       return next;
     });
-  }, []);
+  }, [allEdgeTypes]);
 
   const handleNodeClick = useCallback((nodeId) => {
     setSelectedNodeId((prev) => (prev === nodeId ? null : nodeId));
@@ -1246,18 +1375,28 @@ export default function SecurityGraphExplorer() {
 
   if (loading) {
     return (
-      <div className="space-y-6 p-6" style={{ backgroundColor: 'var(--bg-primary)', minHeight: '100vh' }}>
+      <div className="space-y-4 p-6" style={{ backgroundColor: 'var(--bg-primary)', minHeight: '100vh' }}>
         {/* Header skeleton */}
         <div>
           <div className="h-8 w-64 rounded-lg animate-pulse" style={{ backgroundColor: 'var(--bg-secondary)' }} />
           <div className="h-4 w-40 mt-2 rounded-lg animate-pulse" style={{ backgroundColor: 'var(--bg-secondary)' }} />
         </div>
-        {/* KPI skeleton */}
-        <div className="grid grid-cols-3 gap-4">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="rounded-xl border p-6" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-              <div className="h-4 w-20 rounded animate-pulse mb-3" style={{ backgroundColor: 'var(--bg-secondary)' }} />
-              <div className="h-8 w-16 rounded animate-pulse" style={{ backgroundColor: 'var(--bg-secondary)' }} />
+        {/* MetricStrip skeleton */}
+        <div
+          className="rounded-xl border overflow-hidden"
+          style={{ display: 'flex', backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}
+        >
+          {[1, 2].map((g) => (
+            <div key={g} style={{ flex: 1, padding: '14px 20px', borderLeft: g > 1 ? '1px solid var(--border-primary)' : 'none', borderTop: '3px solid var(--bg-secondary)' }}>
+              <div className="h-3 w-24 rounded animate-pulse mb-4" style={{ backgroundColor: 'var(--bg-secondary)' }} />
+              <div style={{ display: 'flex', gap: 28 }}>
+                {[1, 2, 3].map((c) => (
+                  <div key={c}>
+                    <div className="h-2.5 w-14 rounded animate-pulse mb-2" style={{ backgroundColor: 'var(--bg-secondary)' }} />
+                    <div className="h-6 w-10 rounded animate-pulse" style={{ backgroundColor: 'var(--bg-secondary)' }} />
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
         </div>
@@ -1276,7 +1415,7 @@ export default function SecurityGraphExplorer() {
 
   if (error) {
     return (
-      <div className="space-y-6 p-6" style={{ backgroundColor: 'var(--bg-primary)', minHeight: '100vh' }}>
+      <div className="space-y-4 p-6" style={{ backgroundColor: 'var(--bg-primary)', minHeight: '100vh' }}>
         <Header />
         <div
           className="rounded-xl border p-8"
@@ -1301,7 +1440,7 @@ export default function SecurityGraphExplorer() {
 
   if (nodes.length === 0) {
     return (
-      <div className="space-y-6 p-6" style={{ backgroundColor: 'var(--bg-primary)', minHeight: '100vh' }}>
+      <div className="space-y-4 p-6" style={{ backgroundColor: 'var(--bg-primary)', minHeight: '100vh' }}>
         <Header />
         <div
           className="rounded-xl border p-8"
@@ -1331,36 +1470,29 @@ export default function SecurityGraphExplorer() {
       {/* Threats Sub-Navigation */}
       <ThreatsSubNav />
 
-      {/* KPI Strip */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <KpiCard
-          title="Total Nodes"
-          value={kpi.totalNodes ?? nodes.length}
-          icon={<Network size={20} />}
-          color="blue"
-          subtitle="Cloud resources in graph"
-        />
-        <KpiCard
-          title="Total Edges"
-          value={kpi.totalEdges ?? edges.length}
-          icon={<GitBranch size={20} />}
-          color="purple"
-          subtitle="Relationships mapped"
-        />
-        <KpiCard
-          title="Avg Risk Score"
-          value={kpi.avgRiskScore ?? 0}
-          icon={<Shield size={20} />}
-          color={
-            (kpi.avgRiskScore ?? 0) >= 70
-              ? 'red'
-              : (kpi.avgRiskScore ?? 0) >= 40
-              ? 'orange'
-              : 'green'
-          }
-          subtitle="Across all resources"
-        />
-      </div>
+      {/* KPI MetricStrip */}
+      <MetricStrip
+        groups={[
+          {
+            label: '\u{1F535} GRAPH TOPOLOGY',
+            color: 'var(--accent-primary)',
+            cells: [
+              { label: 'NODES', value: kpi.nodes ?? kpi.totalNodes ?? nodes.length, noTrend: true, context: 'cloud resources' },
+              { label: 'EDGES', value: kpi.edges ?? kpi.totalEdges ?? edges.length, noTrend: true, context: 'relationships' },
+              { label: 'AVG RISK', value: kpi.avgRisk ?? kpi.avgConnections ?? '0', noTrend: true, context: 'risk score' },
+            ],
+          },
+          {
+            label: '\u{1F534} RISK',
+            color: 'var(--accent-danger)',
+            cells: [
+              { label: 'INTERNET EXPOSED', value: kpi.internetExposed ?? 0, valueColor: '#f97316', noTrend: true, context: 'publicly reachable' },
+              { label: 'GRAPH NODES', value: nodes.length, noTrend: true, context: 'in view' },
+              { label: 'GRAPH EDGES', value: edges.length, noTrend: true, context: 'in view' },
+            ],
+          },
+        ]}
+      />
 
       {/* Toolbar: Search + Filters */}
       <div
@@ -1420,11 +1552,36 @@ export default function SecurityGraphExplorer() {
           onToggle={toggleEdgeType}
         />
 
+        {/* Separator */}
+        <div className="w-px h-6" style={{ backgroundColor: 'var(--border-primary)' }} />
+
+        {/* Threat hunting quick filters */}
+        {[
+          { key: 'all', label: 'All', icon: null },
+          { key: 'threats', label: 'With Threats', icon: <ShieldAlert className="w-3 h-3" /> },
+          { key: 'internet', label: 'Internet Exposed', icon: <Globe className="w-3 h-3" /> },
+        ].map((preset) => (
+          <button
+            key={preset.key}
+            onClick={() => setViewPreset(preset.key)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-colors"
+            style={{
+              backgroundColor: viewPreset === preset.key ? 'rgba(59,130,246,0.15)' : 'var(--bg-secondary)',
+              borderColor: viewPreset === preset.key ? '#3b82f6' : 'var(--border-primary)',
+              color: viewPreset === preset.key ? '#60a5fa' : 'var(--text-secondary)',
+            }}
+          >
+            {preset.icon}
+            {preset.label}
+          </button>
+        ))}
+
         {/* Reset filters */}
         <button
           onClick={() => {
-            setVisibleNodeTypes(new Set(Object.keys(NODE_TYPE_CONFIG)));
-            setVisibleEdgeTypes(new Set(Object.keys(EDGE_TYPE_CONFIG)));
+            setVisibleNodeTypes(new Set(allNodeTypes));
+            setVisibleEdgeTypes(new Set(allEdgeTypes));
+            setViewPreset('all');
             setSearchQuery('');
             setSelectedNodeId(null);
           }}
@@ -1459,6 +1616,7 @@ export default function SecurityGraphExplorer() {
           searchQuery={searchQuery}
           visibleNodeTypes={visibleNodeTypes}
           visibleEdgeTypes={visibleEdgeTypes}
+          viewPreset={viewPreset}
           containerWidth={containerDims.w}
           containerHeight={graphHeight}
         />
@@ -1534,7 +1692,7 @@ function Header() {
     <div>
       <div className="flex items-center gap-2 mb-1">
         <a
-          href="/threats"
+          href="/ui/threats"
           className="text-xs hover:underline"
           style={{ color: 'var(--text-secondary)' }}
         >

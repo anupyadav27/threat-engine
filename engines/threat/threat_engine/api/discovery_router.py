@@ -92,13 +92,13 @@ async def get_dashboard(
             customer_id=tenant_id,  # From aggregation
             tenant_id=tenant_id,
             provider="aws",  # Default
-            hierarchy_id="",  # Not in aggregation
+            account_id="",  # Not in aggregation
             hierarchy_type="account",
             total_discoveries=scan.get('total_discoveries', 0),
             unique_resources=scan.get('unique_resources', 0),
             services_scanned=0,  # Not in aggregation
             regions_scanned=0,  # Not in aggregation
-            scan_timestamp=scan.get('scan_timestamp')
+            first_seen_at=scan.get('first_seen_at')
         ))
     
     return DiscoveryDashboard(
@@ -108,7 +108,7 @@ async def get_dashboard(
         accounts_scanned=stats.get('accounts_scanned', 1),
         top_services=top_services,
         recent_scans=recent,
-        last_scan_timestamp=recent[0].scan_timestamp if recent else None
+        last_first_seen_at=recent[0].first_seen_at if recent else None
     )
 
 
@@ -139,12 +139,12 @@ async def list_scans(
             customer_id=scan['customer_id'],
             tenant_id=scan['tenant_id'],
             provider=scan['provider'],
-            hierarchy_id=scan['hierarchy_id'],
+            account_id=scan['account_id'],
             total_discoveries=scan['total_discoveries'],
             unique_resources=scan.get('unique_resources', 0),
             services_scanned=scan.get('services_scanned', 0),
             regions_scanned=scan.get('regions_scanned', 0),
-            scan_timestamp=scan['scan_timestamp']
+            first_seen_at=scan['first_seen_at']
         ))
     
     return DiscoveryScanList(
@@ -180,13 +180,13 @@ async def get_scan(
         customer_id=scan['customer_id'],
         tenant_id=scan['tenant_id'],
         provider=scan['provider'],
-        hierarchy_id=scan['hierarchy_id'],
+        account_id=scan['account_id'],
         hierarchy_type=scan['hierarchy_type'],
         total_discoveries=scan['total_discoveries'],
         unique_resources=scan.get('unique_resources', 0),
         services_scanned=scan.get('services_scanned', 0),
         regions_scanned=scan.get('regions_scanned', 0),
-        scan_timestamp=scan['scan_timestamp']
+        first_seen_at=scan['first_seen_at']
     )
 
 
@@ -274,7 +274,7 @@ async def get_scan_discoveries(
             customer_id=d['customer_id'],
             tenant_id=d['tenant_id'],
             provider=d['provider'],
-            hierarchy_id=d['hierarchy_id'],
+            account_id=d['account_id'],
             hierarchy_type=d['hierarchy_type'],
             discovery_id=d['discovery_id'],
             region=d.get('region'),
@@ -284,7 +284,7 @@ async def get_scan_discoveries(
             raw_response=d.get('raw_response', {}),
             emitted_fields=d.get('emitted_fields', {}),
             config_hash=d.get('config_hash'),
-            scan_timestamp=d['scan_timestamp'],
+            first_seen_at=d['first_seen_at'],
             version=d.get('version', 1)
         ))
     
@@ -357,7 +357,7 @@ async def search_discoveries(
             customer_id=d['customer_id'],
             tenant_id=d['tenant_id'],
             provider=d['provider'],
-            hierarchy_id=d['hierarchy_id'],
+            account_id=d['account_id'],
             hierarchy_type=d['hierarchy_type'],
             discovery_id=d['discovery_id'],
             region=d.get('region'),
@@ -367,7 +367,7 @@ async def search_discoveries(
             raw_response=d.get('raw_response', {}),
             emitted_fields=d.get('emitted_fields', {}),
             config_hash=d.get('config_hash'),
-            scan_timestamp=d['scan_timestamp'],
+            first_seen_at=d['first_seen_at'],
             version=d.get('version', 1)
         ))
     
@@ -413,7 +413,7 @@ async def get_resource_discoveries(
             customer_id=d['customer_id'],
             tenant_id=d['tenant_id'],
             provider=d['provider'],
-            hierarchy_id=d['hierarchy_id'],
+            account_id=d['account_id'],
             hierarchy_type=d['hierarchy_type'],
             discovery_id=d['discovery_id'],
             region=d.get('region'),
@@ -423,7 +423,7 @@ async def get_resource_discoveries(
             raw_response=d.get('raw_response', {}),
             emitted_fields=d.get('emitted_fields', {}),
             config_hash=d.get('config_hash'),
-            scan_timestamp=d['scan_timestamp'],
+            first_seen_at=d['first_seen_at'],
             version=d.get('version', 1)
         ))
     
@@ -467,7 +467,7 @@ async def get_discovery_function_detail(
             customer_id=d['customer_id'],
             tenant_id=d['tenant_id'],
             provider=d['provider'],
-            hierarchy_id=d['hierarchy_id'],
+            account_id=d['account_id'],
             hierarchy_type=d.get('hierarchy_type', 'account'),
             discovery_id=d['discovery_id'],
             region=d.get('region'),
@@ -477,7 +477,7 @@ async def get_discovery_function_detail(
             raw_response=d.get('raw_response', {}),
             emitted_fields=d.get('emitted_fields', {}),
             config_hash=d.get('config_hash'),
-            scan_timestamp=d['scan_timestamp'],
+            first_seen_at=d['first_seen_at'],
             version=d.get('version', 1)
         ))
     
@@ -541,7 +541,7 @@ async def export_scan(
         output = io.StringIO()
         writer = csv.DictWriter(output, fieldnames=[
             'scan_id', 'discovery_id', 'service', 'region', 'resource_arn', 'resource_id',
-            'scan_timestamp'
+            'first_seen_at'
         ])
         writer.writeheader()
         
@@ -553,7 +553,7 @@ async def export_scan(
                 'region': d.get('region', ''),
                 'resource_arn': d.get('resource_arn', ''),
                 'resource_id': d.get('resource_id', ''),
-                'scan_timestamp': d['scan_timestamp']
+                'first_seen_at': d['first_seen_at']
             })
         
         output.seek(0)

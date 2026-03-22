@@ -2,7 +2,7 @@
 Compliance Engine — Job entry point.
 
 Runs as a K8s Job on spot nodes. Called by the API pod via:
-    python -m run_scan --orchestration-id X --compliance-scan-id Y
+    python -m run_scan --scan-run-id X
 
 Reads check_findings from DB, generates compliance reports against 13+
 frameworks, writes results to compliance_report / compliance_findings.
@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
 from engine_common.logger import setup_logger
-from engine_common.orchestration import get_orchestration_metadata, update_orchestration_scan_id
+from engine_common.orchestration import get_orchestration_metadata
 from engine_common.retention import cleanup_old_scans
 
 logger = setup_logger(__name__, engine_name="compliance-scanner")
@@ -41,20 +41,20 @@ def _get_compliance_conn():
     )
 
 
-def _update_report_status(compliance_scan_id: str, status: str, error: str = None):
+def _update_report_status(scan_run_id: str, status: str, error: str = None):
     """Update compliance_report status in DB."""
     try:
         conn = _get_compliance_conn()
         with conn.cursor() as cur:
             if error:
                 cur.execute(
-                    "UPDATE compliance_report SET status = %s, report_data = %s::jsonb WHERE compliance_scan_id = %s",
-                    (status, __import__('json').dumps({"error": error}), compliance_scan_id),
+                    "UPDATE compliance_report SET status = %s, report_data = %s::jsonb WHERE scan_run_id = %s",
+                    (status, __import__('json').dumps({"error": error}), scan_run_id),
                 )
             else:
                 cur.execute(
-                    "UPDATE compliance_report SET status = %s WHERE compliance_scan_id = %s",
-                    (status, compliance_scan_id),
+                    "UPDATE compliance_report SET status = %s WHERE scan_run_id = %s",
+                    (status, scan_run_id),
                 )
         conn.commit()
         conn.close()
@@ -62,7 +62,7 @@ def _update_report_status(compliance_scan_id: str, status: str, error: str = Non
         logger.error(f"Failed to update report status: {e}")
 
 
-def _create_report_row(compliance_scan_id: str, tenant_id: str, provider: str,
+def _create_report_row(scan_run_id: str, tenant_id: str, provider: str,
                        check_scan_id: str, metadata: dict):
     """Pre-create compliance_report row with status='running'."""
     try:
@@ -70,10 +70,16 @@ def _create_report_row(compliance_scan_id: str, tenant_id: str, provider: str,
         with conn.cursor() as cur:
             cur.execute(
                 """INSERT INTO compliance_report
-                   (compliance_scan_id, tenant_id, scan_run_id, provider, check_scan_id, status, started_at)
-                   VALUES (%s, %s, %s, %s, %s, 'running', NOW())
-                   ON CONFLICT (compliance_scan_id) DO UPDATE SET status = 'running'""",
-                (compliance_scan_id, tenant_id, compliance_scan_id, provider, check_scan_id),
+                   (scan_run_id, tenant_id, provider, check_scan_id,
+                    trigger_type, collection_mode, cloud,
+                    total_controls, controls_passed, controls_failed, total_findings,
+                    report_data, status, started_at, completed_at)
+                   VALUES (%s, %s, %s, %s,
+                    'orchestrated', 'full', %s,
+                    0, 0, 0, 0,
+                    '{}'::jsonb, 'running', NOW(), NOW())
+                   ON CONFLICT (scan_run_id) DO UPDATE SET status = 'running'""",
+                (scan_run_id, tenant_id, provider, check_scan_id, provider),
             )
         conn.commit()
         conn.close()
@@ -83,19 +89,17 @@ def _create_report_row(compliance_scan_id: str, tenant_id: str, provider: str,
 
 def main():
     parser = argparse.ArgumentParser(description="Compliance Engine Scanner")
-    parser.add_argument("--orchestration-id", required=True, help="Pipeline orchestration ID")
-    parser.add_argument("--compliance-scan-id", required=True, help="Pre-assigned compliance scan ID")
+    parser.add_argument("--scan-run-id", required=True, help="Pipeline scan run ID")
     args = parser.parse_args()
 
-    orchestration_id = args.orchestration_id
-    compliance_scan_id = args.compliance_scan_id
+    scan_run_id = args.scan_run_id
 
-    logger.info(f"Compliance scanner starting orchestration_id={orchestration_id} scan_id={compliance_scan_id}")
+    logger.info(f"Compliance scanner starting scan_run_id={scan_run_id}")
 
     # SIGTERM handler — mark scan failed on preemption/timeout
     def _handle_sigterm(*_):
-        logger.warning(f"SIGTERM received — marking compliance scan {compliance_scan_id} as failed")
-        _update_report_status(compliance_scan_id, "failed", "Terminated by SIGTERM (spot preemption or timeout)")
+        logger.warning(f"SIGTERM received — marking compliance scan {scan_run_id} as failed")
+        _update_report_status(scan_run_id, "failed", "Terminated by SIGTERM (spot preemption or timeout)")
         sys.exit(1)
 
     signal.signal(signal.SIGTERM, _handle_sigterm)
@@ -103,13 +107,12 @@ def main():
     try:
         # 1. Get orchestration metadata
         logger.info("Resolving orchestration metadata...")
-        metadata = get_orchestration_metadata(orchestration_id)
+        metadata = get_orchestration_metadata(scan_run_id)
         if not metadata:
-            raise ValueError(f"No orchestration metadata for {orchestration_id}")
+            raise ValueError(f"No orchestration metadata for {scan_run_id}")
 
-        check_scan_id = metadata.get("check_scan_id")
-        if not check_scan_id:
-            raise ValueError(f"Check scan not completed for orchestration_id={orchestration_id}")
+        # All engines share the same scan_run_id
+        check_scan_id = scan_run_id
 
         tenant_id = metadata.get("tenant_id", "default-tenant")
         provider = (metadata.get("provider") or metadata.get("provider_type", "aws")).lower()
@@ -117,16 +120,10 @@ def main():
         logger.info(f"Resolved: tenant={tenant_id} provider={provider} check_scan_id={check_scan_id}")
 
         # 2. Pre-create report row
-        _create_report_row(compliance_scan_id, tenant_id, provider, check_scan_id, {
-            "orchestration_id": orchestration_id,
+        _create_report_row(scan_run_id, tenant_id, provider, check_scan_id, {
+            "scan_run_id": scan_run_id,
             "mode": "job",
         })
-
-        # 3. Update orchestration table
-        try:
-            update_orchestration_scan_id(orchestration_id, "compliance", compliance_scan_id)
-        except Exception as e:
-            logger.warning(f"Failed to update orchestration table: {e}")
 
         # 4. Run compliance scan — enterprise report from check DB
         start = datetime.now(timezone.utc)
@@ -191,7 +188,7 @@ def main():
             from compliance_engine.storage.compliance_db_writer import save_compliance_report_to_db
             # Build a dict that save_compliance_report_to_db expects
             report_dict = {
-                "report_id": compliance_scan_id,
+                "report_id": scan_run_id,
                 "scan_id": check_scan_id,
                 "csp": provider,
                 "tenant_id": tenant_id,
@@ -217,8 +214,8 @@ def main():
         duration = (datetime.now(timezone.utc) - start).total_seconds()
 
         # 5. Update status to completed
-        _update_report_status(compliance_scan_id, "completed")
-        logger.info(f"Compliance scan completed: {compliance_scan_id} in {duration:.1f}s")
+        _update_report_status(scan_run_id, "completed")
+        logger.info(f"Compliance scan completed: {scan_run_id} in {duration:.1f}s")
 
         # 6. Retention cleanup (keep last 3 scans per tenant)
         try:
@@ -228,7 +225,7 @@ def main():
 
     except Exception as e:
         logger.error(f"Compliance scan FAILED: {e}", exc_info=True)
-        _update_report_status(compliance_scan_id, "failed", str(e))
+        _update_report_status(scan_run_id, "failed", str(e))
         sys.exit(1)
 
 

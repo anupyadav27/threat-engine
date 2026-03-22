@@ -159,7 +159,7 @@ class DatabaseManager:
     
     # Scan Management (shared)
     def create_scan(self, scan_id: str, customer_id: str, tenant_id: str,
-                   provider: str, hierarchy_id: str = None,
+                   provider: str, account_id: str = None,
                    hierarchy_type: str = None, region: str = None,
                    service: str = None, scan_type: str = 'discovery',
                    metadata: Dict = None) -> None:
@@ -169,13 +169,13 @@ class DatabaseManager:
             with conn.cursor() as cur:
                 cur.execute("""
                     INSERT INTO discovery_report
-                    (discovery_scan_id, customer_id, tenant_id, provider, hierarchy_id, hierarchy_type,
+                    (scan_run_id, customer_id, tenant_id, provider, account_id, hierarchy_type,
                      region, service, scan_type, status, metadata)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (discovery_scan_id) DO NOTHING
+                    ON CONFLICT (scan_run_id) DO NOTHING
                 """, (
                     scan_id, customer_id, tenant_id, provider,
-                    hierarchy_id, hierarchy_type, region, service,
+                    account_id, hierarchy_type, region, service,
                     scan_type, 'running',
                     json.dumps(metadata or {}) if metadata else None
                 ))
@@ -189,7 +189,7 @@ class DatabaseManager:
         try:
             with conn.cursor() as cur:
                 cur.execute("""
-                    UPDATE discovery_report SET status = %s WHERE discovery_scan_id = %s
+                    UPDATE discovery_report SET status = %s WHERE scan_run_id = %s
                 """, (status, scan_id))
             conn.commit()
         finally:
@@ -200,15 +200,14 @@ class DatabaseManager:
         """Calculate SHA256 hash of configuration"""
         config_dict = {
             k: v for k, v in item.items()
-            if k not in ['_raw_response', 'scan_timestamp', 'version', 'metadata']
+            if k not in ['_raw_response', 'first_seen_at', 'version', 'metadata']
         }
         config_str = json.dumps(config_dict, sort_keys=True, default=str)
         return hashlib.sha256(config_str.encode()).hexdigest()
     
     def store_discoveries_batch(self, scan_id: str, customer_id: str, tenant_id: str,
                                 provider: str, discovery_id: str, items: List[Dict],
-                                hierarchy_id: str = None, hierarchy_type: str = None,
-                                account_id: str = None,
+                                account_id: str = None, hierarchy_type: str = None,
                                 region: str = None, service: str = None) -> Dict[str, Any]:
         """
         Store discovery results in batch (optimized for performance)
@@ -268,16 +267,15 @@ class DatabaseManager:
                     placeholders = ','.join(['%s'] * len(resource_uids))
                     cur.execute(f"""
                         SELECT discovery_id, resource_uid, config_hash, version,
-                               discovery_scan_id, scan_timestamp, emitted_fields
+                               scan_run_id, first_seen_at, emitted_fields
                         FROM discovery_findings
                         WHERE discovery_id = %s
                           AND resource_uid IN ({placeholders})
                           AND customer_id = %s
                           AND tenant_id = %s
-                          AND hierarchy_id = %s
                           AND account_id = %s
-                        ORDER BY scan_timestamp DESC
-                    """, (discovery_id, *resource_uids, customer_id, tenant_id, hierarchy_id, account_id))
+                        ORDER BY first_seen_at DESC
+                    """, (discovery_id, *resource_uids, customer_id, tenant_id, account_id))
                     
                     # Build lookup map: resource_uid -> latest version
                     for row in cur.fetchall():
@@ -307,7 +305,7 @@ class DatabaseManager:
                     
                     raw_response_json = json.dumps(item.get('_raw_response', {}), default=json_serial)
                     emitted_fields_json = json.dumps(item, default=json_serial)
-                    history_resource_uid = resource_uid or f"account:{hierarchy_id}:{discovery_id}"
+                    history_resource_uid = resource_uid or f"account:{account_id}:{discovery_id}"
                     
                     if previous:
                         previous_hash = previous['config_hash']
@@ -324,8 +322,7 @@ class DatabaseManager:
                                 discovery_id,
                                 customer_id,
                                 tenant_id,
-                                hierarchy_id,
-                                account_id
+                                account_id,
                             ))
                         else:
                             # MODIFIED: INSERT new version
@@ -348,7 +345,7 @@ class DatabaseManager:
                             
                             discoveries_to_insert.append((
                                 scan_id, customer_id, tenant_id, provider,
-                                hierarchy_id, hierarchy_type, account_id,
+                                account_id, hierarchy_type,
                                 discovery_id, region, service, resource_uid, resource_id,
                                 resource_type, raw_response_json, emitted_fields_json, config_hash, version
                             ))
@@ -361,14 +358,14 @@ class DatabaseManager:
 
                         discoveries_to_insert.append((
                             scan_id, customer_id, tenant_id, provider,
-                            hierarchy_id, hierarchy_type, account_id,
+                            account_id, hierarchy_type,
                             discovery_id, region, service, resource_uid, resource_id,
                             resource_type, raw_response_json, emitted_fields_json, config_hash, version
                         ))
                     
                     # Always add to history
                     history_batch.append((
-                        customer_id, tenant_id, provider, hierarchy_id, hierarchy_type,
+                        customer_id, tenant_id, provider, account_id, hierarchy_type,
                         discovery_id, resource_uid, scan_id, config_hash,
                         raw_response_json, emitted_fields_json, version, change_type,
                         previous['config_hash'] if previous else None,
@@ -379,12 +376,11 @@ class DatabaseManager:
                 if discoveries_to_update:
                     cur.executemany("""
                         UPDATE discovery_findings
-                        SET discovery_scan_id = %s, scan_timestamp = CURRENT_TIMESTAMP
+                        SET scan_run_id = %s, first_seen_at = CURRENT_TIMESTAMP
                         WHERE resource_uid = %s
                           AND discovery_id = %s
                           AND customer_id = %s
                           AND tenant_id = %s
-                          AND hierarchy_id = %s
                           AND account_id = %s
                     """, discoveries_to_update)
 
@@ -392,24 +388,31 @@ class DatabaseManager:
                 if discoveries_to_insert:
                     cur.executemany("""
                         INSERT INTO discovery_findings
-                        (discovery_scan_id, customer_id, tenant_id, provider, hierarchy_id, hierarchy_type,
-                         account_id, discovery_id, region, service, resource_uid, resource_id,
+                        (scan_run_id, customer_id, tenant_id, provider, account_id, hierarchy_type,
+                         discovery_id, region, service, resource_uid, resource_id,
                          resource_type, raw_response, emitted_fields, config_hash, version)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        VALUES (%s, COALESCE(%s, 'default'), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """, discoveries_to_insert)
                 
                 # Batch insert history
+                # Commit findings first (critical)
+                conn.commit()
+
+                # History is non-critical — don't let it block findings
                 if history_batch:
-                    cur.executemany("""
-                        INSERT INTO discovery_history
-                        (customer_id, tenant_id, provider, hierarchy_id, hierarchy_type,
-                         discovery_id, resource_uid, discovery_scan_id, config_hash,
-                         raw_response, emitted_fields, version, change_type,
-                         previous_hash, diff_summary)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    """, history_batch)
-            
-            conn.commit()
+                    try:
+                        cur.executemany("""
+                            INSERT INTO discovery_history
+                            (customer_id, tenant_id, provider, account_id, hierarchy_type,
+                             discovery_id, resource_uid, scan_run_id, config_hash,
+                             raw_response, emitted_fields, version, change_type,
+                             previous_hash, diff_summary)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """, history_batch)
+                        conn.commit()
+                    except Exception as hist_err:
+                        conn.rollback()
+                        logger.warning(f"History insert failed (non-critical): {hist_err}")
         finally:
             self._return_connection(conn)
         
@@ -460,7 +463,7 @@ class DatabaseManager:
     
     # Query Methods
     def query_discovery(self, discovery_id: str = None, tenant_id: str = None,
-                       hierarchy_id: str = None, scan_id: str = None,
+                       account_id: str = None, scan_id: str = None,
                        customer_id: str = None, service: str = None) -> List[Dict]:
         """Query discoveries"""
         conn = self._get_connection()
@@ -468,7 +471,7 @@ class DatabaseManager:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 if scan_id:
                     # Query specific scan
-                    query = "SELECT * FROM discovery_findings WHERE discovery_scan_id = %s"
+                    query = "SELECT * FROM discovery_findings WHERE scan_run_id = %s"
                     params = [scan_id]
                     
                     if discovery_id:
@@ -477,9 +480,9 @@ class DatabaseManager:
                     if tenant_id:
                         query += " AND tenant_id = %s"
                         params.append(tenant_id)
-                    if hierarchy_id:
-                        query += " AND hierarchy_id = %s"
-                        params.append(hierarchy_id)
+                    if account_id:
+                        query += " AND account_id = %s"
+                        params.append(account_id)
                     if service:
                         query += " AND service = %s"
                         params.append(service)
@@ -491,8 +494,8 @@ class DatabaseManager:
                         SELECT d1.* FROM discovery_findings d1
                         INNER JOIN (
                             SELECT discovery_id, COALESCE(resource_uid, '') as resource_uid,
-                                   customer_id, tenant_id, hierarchy_id,
-                                   MAX(scan_timestamp) as max_ts
+                                   customer_id, tenant_id, account_id,
+                                   MAX(first_seen_at) as max_ts
                             FROM discovery_findings
                             WHERE 1=1
                     """
@@ -503,22 +506,22 @@ class DatabaseManager:
                         params.append(discovery_id)
 
                     query += """
-                            GROUP BY discovery_id, COALESCE(resource_uid, ''), customer_id, tenant_id, hierarchy_id
+                            GROUP BY discovery_id, COALESCE(resource_uid, ''), customer_id, tenant_id, account_id
                         ) d2 ON d1.discovery_id = d2.discovery_id
                             AND COALESCE(d1.resource_uid, '') = d2.resource_uid
                             AND d1.customer_id = d2.customer_id
                             AND d1.tenant_id = d2.tenant_id
-                            AND d1.hierarchy_id = d2.hierarchy_id
-                            AND d1.scan_timestamp = d2.max_ts
+                            AND d1.account_id = d2.account_id
+                            AND d1.first_seen_at = d2.max_ts
                         WHERE 1=1
                     """
                     
                     if tenant_id:
                         query += " AND d1.tenant_id = %s"
                         params.append(tenant_id)
-                    if hierarchy_id:
-                        query += " AND d1.hierarchy_id = %s"
-                        params.append(hierarchy_id)
+                    if account_id:
+                        query += " AND d1.account_id = %s"
+                        params.append(account_id)
                     if customer_id:
                         query += " AND d1.customer_id = %s"
                         params.append(customer_id)
@@ -557,10 +560,10 @@ class DatabaseManager:
             with conn.cursor() as cur:
                 cur.execute("""
                     INSERT INTO service_scan_attempts (
-                        discovery_scan_id, service, region, status,
+                        scan_run_id, service, region, status,
                         discoveries_count, error_code, error_message, scan_duration_ms
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (discovery_scan_id, service, region)
+                    ON CONFLICT (scan_run_id, service, region)
                     DO UPDATE SET
                         status = EXCLUDED.status,
                         discoveries_count = EXCLUDED.discoveries_count,

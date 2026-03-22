@@ -68,21 +68,20 @@ metrics = {
 
 
 # DEPRECATED: Replaced by get_orchestration_metadata() from engine_common.orchestration
-# def get_discovery_scan_id_from_orchestration(scan_run_id: str) -> Optional[str]:
-#     """Query scan_orchestration table to get discovery_scan_id for a given scan_run_id."""
+# def get_discovery_scan_run_id_from_orchestration(scan_run_id: str) -> Optional[str]:
+#     """Query scan_orchestration table to get discovery_scan_run_id for a given scan_run_id."""
 #     # This function is no longer used - use get_orchestration_metadata() instead
 #     # which returns ALL metadata (tenant_id, account_id, provider_type, etc.)
 #     pass
 
 
 class CheckRequest(BaseModel):
-    discovery_scan_id: Optional[str] = None  # Direct discovery_scan_id (ad-hoc mode)
-    scan_run_id: Optional[str] = None  # Orchestration ID (pipeline mode)
-    orchestration_id: Optional[str] = None  # Alias for scan_run_id
+    discovery_scan_run_id: Optional[str] = None  # Direct discovery_scan_run_id (ad-hoc mode)
+    scan_run_id: Optional[str] = None  # Pipeline scan_run_id (pipeline mode)
     customer_id: Optional[str] = None
     tenant_id: Optional[str] = None
     provider: str = "aws"
-    hierarchy_id: Optional[str] = None
+    account_id: Optional[str] = None
     hierarchy_type: str = "account"
     include_services: Optional[List[str]] = None
     check_source: str = "default"
@@ -90,7 +89,7 @@ class CheckRequest(BaseModel):
 
 
 class CheckResponse(BaseModel):
-    check_scan_id: str
+    scan_run_id: str
     status: str
     message: str
 
@@ -98,35 +97,35 @@ class CheckResponse(BaseModel):
 @app.post("/api/v1/scan", response_model=CheckResponse)
 async def create_check(request: CheckRequest, background_tasks: BackgroundTasks):
     """Run check scan on discoveries - runs compliance checks"""
-    check_scan_id = str(uuid.uuid4())
+    scan_run_id = str(uuid.uuid4())
 
-    # Determine which discovery_scan_id to use and get metadata
-    # Priority: direct discovery_scan_id (ad-hoc) > orchestration_id (pipeline)
+    # Determine which discovery_scan_run_id to use and get metadata
+    # Priority: direct discovery_scan_run_id (ad-hoc) > orchestration_id (pipeline)
     discovery_query_scan_id = None
     tenant_id = None
     customer_id = None
     provider = None
-    hierarchy_id = None
+    account_id = None
 
-    if request.discovery_scan_id:
+    if request.discovery_scan_run_id:
         # MODE 1: Ad-hoc mode - use provided parameters
-        discovery_query_scan_id = request.discovery_scan_id
+        discovery_query_scan_id = request.discovery_scan_run_id
         tenant_id = request.tenant_id or "default-tenant"
         customer_id = request.customer_id or "default"
         provider = request.provider
-        hierarchy_id = request.hierarchy_id or discovery_query_scan_id
-        logger.info(f"Ad-hoc mode: Using direct discovery_scan_id: {discovery_query_scan_id}")
+        account_id = request.account_id or discovery_query_scan_id
+        logger.info(f"Ad-hoc mode: Using direct discovery_scan_run_id: {discovery_query_scan_id}")
 
-    elif request.orchestration_id or request.scan_run_id:
+    elif request.scan_run_id:
         # MODE 2: Pipeline mode - query scan_orchestration for ALL metadata
-        orchestration_id = request.orchestration_id or request.scan_run_id
+        orchestration_id = request.scan_run_id
 
         try:
             metadata = get_orchestration_metadata(orchestration_id)
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e))
 
-        discovery_query_scan_id = metadata.get("discovery_scan_id")
+        discovery_query_scan_id = metadata.get("discovery_scan_run_id")
         if not discovery_query_scan_id:
             raise HTTPException(status_code=400, detail=f"Discovery not completed yet for orchestration_id={orchestration_id}")
 
@@ -134,30 +133,30 @@ async def create_check(request: CheckRequest, background_tasks: BackgroundTasks)
         tenant_id = metadata.get("tenant_id")
         customer_id = request.customer_id or "default"  # Not in orchestration table yet
         provider = metadata.get("provider_type", "aws")
-        hierarchy_id = metadata.get("account_id") or discovery_query_scan_id
+        account_id = metadata.get("account_id") or discovery_query_scan_id
 
         logger.info(f"Pipeline mode: Got metadata from orchestration_id={orchestration_id}", extra={
             "extra_fields": {
-                "discovery_scan_id": discovery_query_scan_id,
+                "discovery_scan_run_id": discovery_query_scan_id,
                 "tenant_id": tenant_id,
                 "provider": provider
             }
         })
     else:
-        raise HTTPException(status_code=400, detail="Either discovery_scan_id OR orchestration_id must be provided")
+        raise HTTPException(status_code=400, detail="Either discovery_scan_run_id OR scan_run_id must be provided")
 
     # Update request object with resolved metadata
-    request.discovery_scan_id = discovery_query_scan_id
+    request.discovery_scan_run_id = discovery_query_scan_id
     request.tenant_id = tenant_id
     request.customer_id = customer_id
     request.provider = provider
-    request.hierarchy_id = hierarchy_id
+    request.account_id = account_id
 
-    with LogContext(tenant_id=tenant_id, scan_run_id=check_scan_id):
+    with LogContext(tenant_id=tenant_id, scan_run_id=scan_run_id):
         logger.info("Received check request", extra={
             "extra_fields": {
-                "discovery_scan_id": discovery_query_scan_id,
-                "check_scan_id": check_scan_id,
+                "discovery_scan_run_id": discovery_query_scan_id,
+                "scan_run_id": scan_run_id,
                 "provider": provider,
                 "tenant_id": tenant_id,
                 "services": request.include_services
@@ -165,10 +164,10 @@ async def create_check(request: CheckRequest, background_tasks: BackgroundTasks)
         })
 
     # Store check scan info
-    scans[check_scan_id] = {
+    scans[scan_run_id] = {
         "status": "running",
         "type": "check",
-        "discovery_scan_id": discovery_query_scan_id,  # Use resolved discovery_scan_id
+        "discovery_scan_run_id": discovery_query_scan_id,  # Use resolved discovery_scan_run_id
         "results": None,
         "error": None,
         "started_at": datetime.now(timezone.utc),
@@ -183,19 +182,19 @@ async def create_check(request: CheckRequest, background_tasks: BackgroundTasks)
     metrics["total_scans"] += 1
 
     # Run check in background with resolved metadata
-    task = background_tasks.add_task(run_check, check_scan_id, request)
-    scan_tasks[check_scan_id] = task
+    task = background_tasks.add_task(run_check, scan_run_id, request)
+    scan_tasks[scan_run_id] = task
     
     return CheckResponse(
-        check_scan_id=check_scan_id,
+        scan_run_id=scan_run_id,
         status="running",
         message="Check scan started"
     )
 
 
-def _run_check_sync(check_scan_id: str, request: CheckRequest):
+def _run_check_sync(scan_run_id: str, request: CheckRequest):
     """Run check scan synchronously (called in a thread pool)"""
-    with LogContext(tenant_id=request.tenant_id, scan_run_id=check_scan_id):
+    with LogContext(tenant_id=request.tenant_id, scan_run_id=scan_run_id):
         try:
             # Initialize database manager and check engine
             db_manager = None
@@ -217,30 +216,30 @@ def _run_check_sync(check_scan_id: str, request: CheckRequest):
             # Run checks
             customer_id = request.customer_id or "default"
             tenant_id = request.tenant_id or "default-tenant"
-            hierarchy_id = request.hierarchy_id or request.discovery_scan_id
+            account_id = request.account_id or request.discovery_scan_run_id
 
             check_results = check_engine.run_check_scan(
-                discovery_scan_id=request.discovery_scan_id,
-                check_scan_id=check_scan_id,
+                discovery_scan_run_id=request.discovery_scan_run_id,
+                scan_run_id=scan_run_id,
                 customer_id=customer_id,
                 tenant_id=tenant_id,
                 provider=request.provider,
-                hierarchy_id=hierarchy_id,
+                account_id=account_id,
                 hierarchy_type=request.hierarchy_type,
                 services=services,
                 check_source=request.check_source,
                 use_ndjson=request.use_ndjson
             )
 
-            scans[check_scan_id]["status"] = "completed"
-            scans[check_scan_id]["check_scan_id"] = check_results.get('check_scan_id', check_scan_id)
-            scans[check_scan_id]["results"] = check_results
-            scans[check_scan_id]["completed_at"] = datetime.now(timezone.utc)
+            scans[scan_run_id]["status"] = "completed"
+            scans[scan_run_id]["scan_run_id"] = check_results.get('scan_run_id', scan_run_id)
+            scans[scan_run_id]["results"] = check_results
+            scans[scan_run_id]["completed_at"] = datetime.now(timezone.utc)
             metrics["successful_scans"] += 1
 
             logger.info("Check scan completed", extra={
                 "extra_fields": {
-                    "check_scan_id": check_scan_id,
+                    "scan_run_id": scan_run_id,
                     "total_checks": check_results.get('total_checks', 0)
                 }
             })
@@ -249,29 +248,29 @@ def _run_check_sync(check_scan_id: str, request: CheckRequest):
             logger.error("Check scan failed", exc_info=True, extra={
                 "extra_fields": {"error": str(e)}
             })
-            scans[check_scan_id]["status"] = "failed"
-            scans[check_scan_id]["error"] = str(e)
-            scans[check_scan_id]["completed_at"] = datetime.now(timezone.utc)
+            scans[scan_run_id]["status"] = "failed"
+            scans[scan_run_id]["error"] = str(e)
+            scans[scan_run_id]["completed_at"] = datetime.now(timezone.utc)
             metrics["failed_scans"] += 1
 
 
-async def run_check(check_scan_id: str, request: CheckRequest):
+async def run_check(scan_run_id: str, request: CheckRequest):
     """Run check scan in a thread pool to avoid blocking the event loop"""
-    await asyncio.to_thread(_run_check_sync, check_scan_id, request)
+    await asyncio.to_thread(_run_check_sync, scan_run_id, request)
 
 
-@app.get("/api/v1/check/{check_scan_id}/status")
-async def get_check_status(check_scan_id: str):
+@app.get("/api/v1/check/{scan_run_id}/status")
+async def get_check_status(scan_run_id: str):
     """Get check scan status"""
-    if check_scan_id not in scans:
+    if scan_run_id not in scans:
         raise HTTPException(status_code=404, detail="Check scan not found")
     
-    scan_data = scans[check_scan_id]
+    scan_data = scans[scan_run_id]
     return {
-        "check_scan_id": check_scan_id,
+        "scan_run_id": scan_run_id,
         "status": scan_data["status"],
         "type": scan_data.get("type", "check"),
-        "discovery_scan_id": scan_data.get("discovery_scan_id"),
+        "discovery_scan_run_id": scan_data.get("discovery_scan_run_id"),
         "error": scan_data.get("error"),
         "started_at": scan_data.get("started_at"),
         "completed_at": scan_data.get("completed_at"),
@@ -283,7 +282,7 @@ async def get_check_status(check_scan_id: str):
 async def list_checks(
     tenant_id: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
-    discovery_scan_id: Optional[str] = Query(None),
+    discovery_scan_run_id: Optional[str] = Query(None),
     limit: int = Query(50, ge=1, le=1000)
 ):
     """List all check scans"""
@@ -295,11 +294,11 @@ async def list_checks(
             continue
         if status and scan_data.get("status") != status:
             continue
-        if discovery_scan_id and scan_data.get("discovery_scan_id") != discovery_scan_id:
+        if discovery_scan_run_id and scan_data.get("discovery_scan_run_id") != discovery_scan_run_id:
             continue
         filtered_scans.append({
-            "check_scan_id": scan_id,
-            "discovery_scan_id": scan_data.get("discovery_scan_id"),
+            "scan_run_id": scan_id,
+            "discovery_scan_run_id": scan_data.get("discovery_scan_run_id"),
             "status": scan_data.get("status"),
             "started_at": scan_data.get("started_at"),
             "completed_at": scan_data.get("completed_at")

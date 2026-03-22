@@ -13,7 +13,7 @@ export const ROUTE_CAPABILITIES = {
   '/assets': 'view_assets',
   '/inventory': 'view_assets',
   '/threats': 'view_threats',
-  '/threats/analytics': 'view_threats',
+  '/threats/attack-paths': 'view_threats',
   '/compliance': 'view_compliance',
   '/compliance/[framework]': 'view_compliance',
   '/iam': 'view_iam',

@@ -182,9 +182,10 @@ Onboarding → Discovery → Check → Inventory → Threat/Compliance
 ```
 
 ### Database Design
-- **scan_orchestration**: Central coordination hub (all engines read this)
+- **scan_orchestration**: Central coordination hub — uses `scan_run_id` (was `orchestration_id`)
 - **Engine-specific tables**: Each engine writes to its own schema
-- **Cross-engine linking**: Via scan_id fields in orchestration table
+- **Cross-engine linking**: ALL engines use `scan_run_id` (single UUID per pipeline run). No per-engine scan IDs.
+- **Standard columns** (same name in ALL finding tables): `finding_id`, `scan_run_id`, `tenant_id`, `account_id`, `credential_ref`, `credential_type`, `provider`, `region`, `resource_uid`, `resource_type`, `severity`, `status`, `first_seen_at`, `last_seen_at`
 - **Versioning**: `config_hash` for drift detection
 
 ### API Patterns
@@ -220,9 +221,9 @@ Onboarding → Discovery → Check → Inventory → Threat/Compliance
 1. Create directory: `/Users/apple/Desktop/threat-engine/engines/newtype/`
 2. Copy template: Use `engines/compliance/` as reference
 3. Implement API server: Follow FastAPI pattern from `api_server.py`
-4. Create database schema: Add to `shared/database/schemas/`
+4. Create database schema: Use standard columns (`finding_id`, `scan_run_id`, `tenant_id`, `account_id`, `credential_ref`, `credential_type`, `provider`, `region`, `resource_uid`, `resource_type`, `severity`, `status`, `first_seen_at`, `last_seen_at`)
 5. Create K8s manifest: `deployment/aws/eks/engines/engine-newtype.yaml`
-6. Update orchestration: Add `newtype_scan_id` to `scan_orchestration` table
+6. Engine receives `scan_run_id` from orchestration — no per-engine scan IDs needed
 7. Test locally: Build Docker image and run
 8. Deploy: `kubectl apply -f` the manifest
 
@@ -275,12 +276,12 @@ kubectl port-forward svc/engine-compliance 8000:8000 -n threat-engine-engines
 3. Review logs: `kubectl logs -f -l app=engine-discoveries`
 
 **Check scan returns no results:**
-1. Verify discovery_scan_id exists in orchestration table
-2. Check discovery_findings table for resources
+1. Verify scan_run_id exists in scan_orchestration table
+2. Check discovery_findings table for resources with that scan_run_id
 3. Validate rule definitions in rule_metadata table
 
 **Compliance report empty:**
-1. Ensure check_findings exist for check_scan_id
+1. Ensure check_findings exist for that scan_run_id
 2. Verify rule_control_mapping has mappings for framework
 3. Check compliance_frameworks table for framework definition
 

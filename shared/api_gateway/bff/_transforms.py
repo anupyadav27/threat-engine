@@ -110,14 +110,20 @@ def normalize_threat(t: dict) -> dict:
     # detection_id (new) or finding_id/threat_id (legacy)
     det_id = t.get("detection_id") or t.get("threat_id") or t.get("finding_id") or t.get("id", "")
     risk_score = t.get("risk_score") or risk_map.get(severity, 50)
+    mitre_technique = _first(t.get("mitre_techniques")) or t.get("mitre_technique", "")
+    mitre_tactic = _first(t.get("mitre_tactics")) or t.get("mitre_tactic", "")
+    resource_type = t.get("resource_type", "")
     return {
         "id": det_id,
         "detection_id": det_id,
         "title": t.get("title") or t.get("rule_name") or t.get("recommendation") or t.get("resource_uid", "Unknown").rsplit("/", 1)[-1],
         "detection_type": t.get("detection_type") or t.get("threat_category", ""),
         "threat_category": t.get("threat_category") or t.get("detection_type", ""),
-        "mitre_technique": _first(t.get("mitre_techniques")) or t.get("mitre_technique", ""),
-        "mitre_tactic": _first(t.get("mitre_tactics")) or t.get("mitre_tactic", ""),
+        # Snake_case + camelCase aliases (UI expects camelCase)
+        "mitre_technique": mitre_technique,
+        "mitreTechnique": mitre_technique,
+        "mitre_tactic": mitre_tactic,
+        "mitreTactic": mitre_tactic,
         "severity": severity,
         "affected_resources": t.get("finding_count") or _count_resources(t),
         "finding_count": t.get("finding_count", 0),
@@ -125,9 +131,12 @@ def normalize_threat(t: dict) -> dict:
         "account": account,
         "region": region,
         "resource_uid": t.get("resource_uid", ""),
-        "resource_type": t.get("resource_type", ""),
+        "resource_type": resource_type,
+        "resourceType": resource_type,
         "status": t.get("status", "active"),
         "detected": t.get("detected_at") or t.get("first_seen_at"),
+        "detected_at": t.get("detected_at") or t.get("first_seen_at"),
+        "lastSeen": t.get("last_seen_at") or t.get("detected_at"),
         "assignee": t.get("assignee", ""),
         "riskScore": risk_score,
         "risk_score": risk_score,
@@ -135,6 +144,8 @@ def normalize_threat(t: dict) -> dict:
         "blast_radius": t.get("blast_radius", 0),
         "attack_chain": t.get("attack_chain", []),
         "recommendations": t.get("recommendations", []),
+        # Remediation steps for the detail flyout
+        "remediationSteps": t.get("recommendations", []),
     }
 
 
@@ -488,7 +499,7 @@ def normalize_scan(s: dict, idx: int = 0) -> dict:
         duration = "--"
     return {
         "id": idx + 1,
-        "scan_id": s.get("orchestration_id") or s.get("scan_run_id") or f"scan-{idx}",
+        "scan_id": s.get("scan_run_id") or f"scan-{idx}",
         "scan_type": s.get("scan_type") or s.get("type", "Full"),
         "provider": _safe_upper(s.get("provider") or s.get("cloud")),
         "account_id": s.get("account_id") or s.get("tenant_id", ""),

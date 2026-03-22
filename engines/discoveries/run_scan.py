@@ -8,7 +8,7 @@ Usage::
 
     python -m run_scan \
         --orchestration-id 337a7425-5a53-4664-8569-04c1f0d6abf0 \
-        --discovery-scan-id disc_abc123
+        --scan-run-id disc_abc123
 
 Environment:
     Same as the Discovery API pod (DB config, AWS creds, PYTHONPATH=/app).
@@ -41,7 +41,6 @@ from providers.kubernetes.scanner.service_scanner import K8sDiscoveryScanner
 # Orchestration helpers
 from consolidated_services.database.orchestration_client import (
     get_scan_context as get_orchestration_metadata,
-    update_engine_scan_id,
 )
 
 # Credential retrieval
@@ -107,16 +106,14 @@ def _get_scanner(provider: str, credentials: dict) -> DiscoveryScanner:
 
 def main():
     parser = argparse.ArgumentParser(description="Run a discovery scan (K8s Job entry point)")
-    parser.add_argument("--orchestration-id", required=True, help="Orchestration UUID from scan_orchestration")
-    parser.add_argument("--discovery-scan-id", required=True, help="Pre-assigned discovery_scan_id")
+    parser.add_argument("--scan-run-id", required=True, help="Pipeline scan_run_id from scan_orchestration")
     args = parser.parse_args()
 
-    orchestration_id = args.orchestration_id
-    discovery_scan_id = args.discovery_scan_id
+    scan_run_id = args.scan_run_id
 
     logger.info(
-        "Discovery scanner starting orchestration_id=%s scan_id=%s",
-        orchestration_id, discovery_scan_id,
+        "Discovery scanner starting scan_run_id=%s",
+        scan_run_id,
     )
 
     db_manager = DatabaseManager()
@@ -125,7 +122,7 @@ def main():
     def _handle_sigterm(signum, frame):
         logger.warning("SIGTERM received — marking scan as failed (timeout/preemption)")
         try:
-            db_manager.update_scan_status(discovery_scan_id, "failed")
+            db_manager.update_scan_status(scan_run_id, "failed")
         except Exception:
             pass
         sys.exit(1)
@@ -135,9 +132,9 @@ def main():
     try:
         # 1. Get orchestration metadata
         logger.info("Resolving orchestration metadata...")
-        metadata = get_orchestration_metadata(orchestration_id)
+        metadata = get_orchestration_metadata(scan_run_id)
         if not metadata:
-            raise ValueError(f"No orchestration metadata for {orchestration_id}")
+            raise ValueError(f"No orchestration metadata for {scan_run_id}")
 
         provider = metadata.get("provider", "aws")
         account_id = metadata.get("account_id")
@@ -158,12 +155,12 @@ def main():
 
         # 4. Build scan metadata (same shape as api_server.py passes to DiscoveryEngine)
         scan_metadata = {
-            "discovery_scan_id": discovery_scan_id,
-            "orchestration_id": orchestration_id,
+            "scan_run_id": scan_run_id,
+            "scan_run_id": scan_run_id,
             "provider": provider,
             "tenant_id": metadata.get("tenant_id", "default-tenant"),
             "customer_id": metadata.get("customer_id", "default"),
-            "hierarchy_id": metadata.get("hierarchy_id") or account_id,
+            "account_id": metadata.get("account_id") or account_id,
             "hierarchy_type": metadata.get("hierarchy_type", "account"),
             "include_services": metadata.get("include_services"),
             "include_regions": metadata.get("include_regions"),
@@ -176,22 +173,14 @@ def main():
         logger.info("Starting discovery scan...")
         asyncio.run(discovery_engine.run_scan(metadata=scan_metadata))
 
-        # 6. Update orchestration table
-        try:
-            update_engine_scan_id(
-                orchestration_id=orchestration_id,
-                engine="discovery",
-                scan_id=discovery_scan_id,
-            )
-        except Exception as exc:
-            logger.warning("Failed to update orchestration table: %s", exc)
+        # 6. Orchestration table uses scan_run_id directly (no per-engine scan IDs)
 
-        logger.info("Discovery scan COMPLETED scan_id=%s", discovery_scan_id)
+        logger.info("Discovery scan COMPLETED scan_id=%s", scan_run_id)
 
     except (AuthenticationError, DiscoveryError, ValueError) as exc:
         logger.error("Discovery scan FAILED: %s", exc)
         try:
-            db_manager.update_scan_status(discovery_scan_id, "failed")
+            db_manager.update_scan_status(scan_run_id, "failed")
         except Exception:
             pass
         sys.exit(1)
@@ -199,7 +188,7 @@ def main():
     except Exception as exc:
         logger.error("Discovery scan FAILED (unexpected): %s\n%s", exc, traceback.format_exc())
         try:
-            db_manager.update_scan_status(discovery_scan_id, "failed")
+            db_manager.update_scan_status(scan_run_id, "failed")
         except Exception:
             pass
         sys.exit(1)

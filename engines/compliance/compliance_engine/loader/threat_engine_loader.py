@@ -149,7 +149,7 @@ class ThreatEngineLoader:
         # Extract metadata from first record
         first_record = check_results[0]
         scan_id = first_record.get('scan_id', '')
-        account_id = first_record.get('hierarchy_id', '')  # hierarchy_id is typically account_id
+        account_id = first_record.get('account_id', '')
         scanned_at = first_record.get('scan_timestamp', datetime.now(timezone.utc).isoformat() + 'Z')
         
         # Convert timestamp if it's a string

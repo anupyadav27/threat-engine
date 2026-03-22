@@ -55,7 +55,7 @@ class PipelineEvent(BaseModel):
     Attributes:
         event_id: UUID used as the SQS ``MessageDeduplicationId`` (FIFO).
         event_type: Routing key for the pipeline worker.
-        orchestration_id: UUID from ``scan_orchestration`` table.
+        scan_run_id: UUID from ``scan_orchestration`` table.
         tenant_id: Tenant identifier (VARCHAR 255).
         account_id: Cloud account identifier.
         provider: Cloud provider slug (``"aws"`` / ``"azure"`` / …).
@@ -68,7 +68,7 @@ class PipelineEvent(BaseModel):
 
     event_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     event_type: EventType
-    orchestration_id: str
+    scan_run_id: str
     tenant_id: str
     account_id: str
     provider: str = "aws"
@@ -116,7 +116,7 @@ class PipelineEvent(BaseModel):
 
 
 def scan_requested(
-    orchestration_id: str,
+    scan_run_id: str,
     tenant_id: str,
     account_id: str,
     provider: str = "aws",
@@ -125,7 +125,7 @@ def scan_requested(
     """Create a ``scan_requested`` event (published by onboarding)."""
     return PipelineEvent(
         event_type="scan_requested",
-        orchestration_id=orchestration_id,
+        scan_run_id=scan_run_id,
         tenant_id=tenant_id,
         account_id=account_id,
         provider=provider,
@@ -135,7 +135,7 @@ def scan_requested(
 
 
 def stage_complete(
-    orchestration_id: str,
+    scan_run_id: str,
     tenant_id: str,
     account_id: str,
     provider: str,
@@ -146,7 +146,7 @@ def stage_complete(
     """Create a ``stage_complete`` event (published by the pipeline worker)."""
     return PipelineEvent(
         event_type="stage_complete",
-        orchestration_id=orchestration_id,
+        scan_run_id=scan_run_id,
         tenant_id=tenant_id,
         account_id=account_id,
         provider=provider,
@@ -157,7 +157,7 @@ def stage_complete(
 
 
 def stage_failed(
-    orchestration_id: str,
+    scan_run_id: str,
     tenant_id: str,
     account_id: str,
     provider: str,
@@ -167,7 +167,7 @@ def stage_failed(
     """Create a ``stage_failed`` event."""
     return PipelineEvent(
         event_type="stage_failed",
-        orchestration_id=orchestration_id,
+        scan_run_id=scan_run_id,
         tenant_id=tenant_id,
         account_id=account_id,
         provider=provider,
@@ -177,7 +177,7 @@ def stage_failed(
 
 
 def scan_complete(
-    orchestration_id: str,
+    scan_run_id: str,
     tenant_id: str,
     account_id: str,
     provider: str,
@@ -185,7 +185,7 @@ def scan_complete(
     """Create a ``scan_complete`` event (published when all stages finish)."""
     return PipelineEvent(
         event_type="scan_complete",
-        orchestration_id=orchestration_id,
+        scan_run_id=scan_run_id,
         tenant_id=tenant_id,
         account_id=account_id,
         provider=provider,

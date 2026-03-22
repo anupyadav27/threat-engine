@@ -494,9 +494,9 @@ discovery:
         Path: '{{ item.Path }}'
         UserId: '{{ item.UserId }}'
         UserName: '{{ item.UserName }}'
-  # ── GetGroupPolicy ──
+  # ── GetGroupPolicy ── (FIXED: for_each list_group_policies, proper emit)
   - discovery_id: aws.iam.get_group_policy
-    for_each: aws.iam.list_groups
+    for_each: aws.iam.list_group_policies
     calls:
       - action: get_group_policy
         params:
@@ -506,9 +506,10 @@ discovery:
         on_error: continue
     emit:
       as: item
-      items_for: '{{ response.GroupName }}'
       item:
-        PolicyDocument: '{{ item.PolicyDocument }}'
+        PolicyDocument: '{{ response.PolicyDocument }}'
+        PolicyName: '{{ response.PolicyName }}'
+        GroupName: '{{ response.GroupName }}'
   # ── GetHumanReadableSummary ──
   - discovery_id: aws.iam.get_human_readable_summary
     calls:
@@ -607,22 +608,24 @@ discovery:
         PolicyId: '{{ item.PolicyId }}'
         PolicyName: '{{ item.PolicyName }}'
         UpdateDate: '{{ item.UpdateDate }}'
-  # ── GetPolicyVersion ──
+  # ── GetPolicyVersion ── (FIXED: was missing for_each + params)
   - discovery_id: aws.iam.get_policy_version
+    for_each: aws.iam.list_policies
     calls:
       - action: get_policy_version
+        params:
+          PolicyArn: '{{ item.Arn }}'
+          VersionId: '{{ item.DefaultVersionId }}'
         save_as: response
         on_error: continue
     emit:
       as: item
-      items_for: '{{ response.UserDetailList }}'
       item:
-        CreateDate: '{{ item.CreateDate }}'
-        Document: '{{ item.Document }}'
-        IsDefaultVersion: '{{ item.IsDefaultVersion }}'
-        PolicyVersion: '{{ item.PolicyVersion }}'
-        VersionId: '{{ item.VersionId }}'
-  # ── GetRole ──
+        Document: '{{ response.PolicyVersion.Document }}'
+        VersionId: '{{ response.PolicyVersion.VersionId }}'
+        IsDefaultVersion: '{{ response.PolicyVersion.IsDefaultVersion }}'
+        CreateDate: '{{ response.PolicyVersion.CreateDate }}'
+  # ── GetRole ── (FIXED: items_for was UserDetailList, should be Role)
   - discovery_id: aws.iam.get_role
     for_each: aws.iam.list_roles
     calls:
@@ -633,7 +636,7 @@ discovery:
         on_error: continue
     emit:
       as: item
-      items_for: '{{ response.UserDetailList }}'
+      items_for: '{{ response.Role }}'
       item:
         Arn: '{{ item.Arn }}'
         AssumeRolePolicyDocument: '{{ item.AssumeRolePolicyDocument }}'
@@ -643,13 +646,12 @@ discovery:
         Description: '{{ item.Description }}'
         MaxSessionDuration: '{{ item.MaxSessionDuration }}'
         Path: '{{ item.Path }}'
-        Role: '{{ item.Role }}'
         RoleId: '{{ item.RoleId }}'
         RoleLastUsed: '{{ item.RoleLastUsed }}'
         RoleName: '{{ item.RoleName }}'
-  # ── GetRolePolicy ──
+  # ── GetRolePolicy ── (FIXED: was for_each list_policies, now list_role_policies)
   - discovery_id: aws.iam.get_role_policy
-    for_each: aws.iam.list_policies
+    for_each: aws.iam.list_role_policies
     calls:
       - action: get_role_policy
         params:
@@ -756,9 +758,9 @@ discovery:
       item:
         Reason: '{{ item.Reason }}'
         RoleUsageList: '{{ item.RoleUsageList }}'
-  # ── GetUserPolicy ──
+  # ── GetUserPolicy ── (FIXED: was for_each auth_details, now list_user_policies)
   - discovery_id: aws.iam.get_user_policy
-    for_each: aws.iam.get_account_authorization_details
+    for_each: aws.iam.list_user_policies
     calls:
       - action: get_user_policy
         params:
@@ -802,9 +804,9 @@ discovery:
       item:
         PolicyArn: '{{ item.PolicyArn }}'
         PolicyName: '{{ item.PolicyName }}'
-  # ── ListAttachedUserPolicies ──
+  # ── ListAttachedUserPolicies ── (FIXED: was for_each auth_details, now list_users)
   - discovery_id: aws.iam.list_attached_user_policies
-    for_each: aws.iam.get_account_authorization_details
+    for_each: aws.iam.list_users
     calls:
       - action: list_attached_user_policies
         params:
@@ -817,19 +819,22 @@ discovery:
       item:
         PolicyArn: '{{ item.PolicyArn }}'
         PolicyName: '{{ item.PolicyName }}'
-  # ── ListEntitiesForPolicy ──
+  # ── ListEntitiesForPolicy ── (FIXED: was missing for_each + params)
   - discovery_id: aws.iam.list_entities_for_policy
+    for_each: aws.iam.list_policies
     calls:
       - action: list_entities_for_policy
+        params:
+          PolicyArn: '{{ item.Arn }}'
         save_as: response
         on_error: continue
     emit:
       as: item
-      items_for: '{{ response.PolicyGroups }}'
+      items_for: '{{ response.PolicyRoles }}'
       item:
-        GroupId: '{{ item.GroupId }}'
-        GroupName: '{{ item.GroupName }}'
-  # ── ListGroupPolicies ──
+        RoleId: '{{ item.RoleId }}'
+        RoleName: '{{ item.RoleName }}'
+  # ── ListGroupPolicies ── (FIXED: emit structured items with GroupName)
   - discovery_id: aws.iam.list_group_policies
     for_each: aws.iam.list_groups
     calls:
@@ -839,11 +844,14 @@ discovery:
         save_as: response
         on_error: continue
     emit:
-      as: item
+      as: policy
       items_for: '{{ response.PolicyNames }}'
-  # ── ListGroupsForUser ──
+      item:
+        PolicyName: '{{ policy }}'
+        GroupName: '{{ item.GroupName }}'
+  # ── ListGroupsForUser ── (FIXED: for_each list_users instead of auth_details)
   - discovery_id: aws.iam.list_groups_for_user
-    for_each: aws.iam.get_account_authorization_details
+    for_each: aws.iam.list_users
     calls:
       - action: list_groups_for_user
         params:
@@ -963,7 +971,7 @@ discovery:
         Document: '{{ item.Document }}'
         IsDefaultVersion: '{{ item.IsDefaultVersion }}'
         VersionId: '{{ item.VersionId }}'
-  # ── ListRolePolicies ──
+  # ── ListRolePolicies ── (FIXED: emit structured items with RoleName)
   - discovery_id: aws.iam.list_role_policies
     for_each: aws.iam.list_roles
     calls:
@@ -973,8 +981,11 @@ discovery:
         save_as: response
         on_error: continue
     emit:
-      as: item
+      as: policy
       items_for: '{{ response.PolicyNames }}'
+      item:
+        PolicyName: '{{ policy }}'
+        RoleName: '{{ item.RoleName }}'
   # ── ListRoleTags ──
   - discovery_id: aws.iam.list_role_tags
     for_each: aws.iam.list_roles
@@ -1017,9 +1028,9 @@ discovery:
       item:
         Key: '{{ item.Key }}'
         Value: '{{ item.Value }}'
-  # ── ListUserPolicies ──
+  # ── ListUserPolicies ── (FIXED: for_each list_users, emit structured items)
   - discovery_id: aws.iam.list_user_policies
-    for_each: aws.iam.get_account_authorization_details
+    for_each: aws.iam.list_users
     calls:
       - action: list_user_policies
         params:
@@ -1027,11 +1038,14 @@ discovery:
         save_as: response
         on_error: continue
     emit:
-      as: item
+      as: policy
       items_for: '{{ response.PolicyNames }}'
+      item:
+        PolicyName: '{{ policy }}'
+        UserName: '{{ item.UserName }}'
   # ── ListUserTags ──
   - discovery_id: aws.iam.list_user_tags
-    for_each: aws.iam.get_account_authorization_details
+    for_each: aws.iam.list_users
     calls:
       - action: list_user_tags
         params:
@@ -1044,3 +1058,46 @@ discovery:
       item:
         Key: '{{ item.Key }}'
         Value: '{{ item.Value }}'
+  # ── NEW: GetAccountAuthorizationDetails (Roles) ──
+  # Extracts RoleDetailList with inline policies (RolePolicyList) and attached policies
+  - discovery_id: aws.iam.get_account_authorization_details_roles
+    calls:
+      - action: get_account_authorization_details
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.RoleDetailList }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        RoleName: '{{ item.RoleName }}'
+        RoleId: '{{ item.RoleId }}'
+        AssumeRolePolicyDocument: '{{ item.AssumeRolePolicyDocument }}'
+        RolePolicyList: '{{ item.RolePolicyList }}'
+        AttachedManagedPolicies: '{{ item.AttachedManagedPolicies }}'
+        InstanceProfileList: '{{ item.InstanceProfileList }}'
+        Tags: '{{ item.Tags }}'
+        Path: '{{ item.Path }}'
+        CreateDate: '{{ item.CreateDate }}'
+        RoleLastUsed: '{{ item.RoleLastUsed }}'
+        PermissionsBoundary: '{{ item.PermissionsBoundary }}'
+  # ── NEW: GetAccountAuthorizationDetails (Policies) ──
+  # Extracts Policies with PolicyVersionList containing full Document
+  - discovery_id: aws.iam.get_account_authorization_details_policies
+    calls:
+      - action: get_account_authorization_details
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Policies }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        PolicyName: '{{ item.PolicyName }}'
+        PolicyId: '{{ item.PolicyId }}'
+        PolicyVersionList: '{{ item.PolicyVersionList }}'
+        AttachmentCount: '{{ item.AttachmentCount }}'
+        IsAttachable: '{{ item.IsAttachable }}'
+        Path: '{{ item.Path }}'
+        CreateDate: '{{ item.CreateDate }}'
+        UpdateDate: '{{ item.UpdateDate }}'

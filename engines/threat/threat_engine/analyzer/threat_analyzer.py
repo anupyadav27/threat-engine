@@ -78,7 +78,7 @@ _ATTACK_PATH_CATEGORIES: Dict[str, Optional[str]] = {
     "allows_traffic_from": "lateral_movement", "attached_to": "lateral_movement",
     "runs_on": "lateral_movement",
     "assumes": "privilege_escalation", "has_policy": "privilege_escalation",
-    "grants_access_to": "privilege_escalation",
+    "grants_access_to": "privilege_escalation", "provides_identity_for": "privilege_escalation",
     "stores_data_in": "data_access", "backs_up_to": "data_access",
     "replicates_to": "data_access", "cached_by": "data_access",
     "triggers": "execution", "invokes": "execution", "uses": "execution",
@@ -773,38 +773,12 @@ class ThreatAnalyzer:
 
     # ── Scan ID resolution ──────────────────────────────────────────────
 
-    def _resolve_inventory_scan_id(self, orchestration_id: str) -> Optional[str]:
-        """Look up inventory_scan_id from scan_orchestration table in shared DB.
+    def _resolve_inventory_scan_id(self, scan_run_id: str) -> Optional[str]:
+        """Return scan_run_id directly — all engines share the same ID.
 
-        Uses orchestration_id to find the inventory_scan_id that was generated
-        during the same pipeline run. Returns None if not found.
+        The scan_orchestration table no longer has per-engine scan ID columns.
         """
-        import psycopg2
-        from psycopg2.extras import RealDictCursor
-
-        try:
-            conn = psycopg2.connect(self._shared_conn_str())
-            try:
-                with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                    cur.execute("""
-                        SELECT inventory_scan_id
-                        FROM scan_orchestration
-                        WHERE orchestration_id = %s::uuid
-                    """, (orchestration_id,))
-                    row = cur.fetchone()
-                    if row and row.get("inventory_scan_id"):
-                        inv_id = str(row["inventory_scan_id"])
-                        logger.info(f"Resolved inventory_scan_id={inv_id} "
-                                    f"from orchestration_id={orchestration_id}")
-                        return inv_id
-                    logger.warning(f"No inventory_scan_id in scan_orchestration "
-                                   f"for orchestration_id={orchestration_id}")
-                    return None
-            finally:
-                conn.close()
-        except Exception as e:
-            logger.warning(f"Could not resolve inventory_scan_id from shared DB: {e}")
-            return None
+        return scan_run_id
 
     # ── Data loaders ─────────────────────────────────────────────────────
 
@@ -887,13 +861,13 @@ class ThreatAnalyzer:
     def _load_relationships(
         self,
         tenant_id: str,
-        inventory_scan_id: Optional[str] = None,
+        scan_run_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Load inventory_relationships for adjacency graph.
 
         Args:
             tenant_id: Tenant isolation filter (always required).
-            inventory_scan_id: If provided, only load relationships from this
+            scan_run_id: If provided, only load relationships from this
                 specific inventory scan (scoped to the pipeline run).
                 If None, loads ALL relationships for the tenant (full snapshot).
         """
@@ -903,8 +877,8 @@ class ThreatAnalyzer:
         conn = psycopg2.connect(self._inventory_conn_str())
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                if inventory_scan_id:
-                    logger.info(f"Loading relationships for inventory_scan_id={inventory_scan_id}")
+                if scan_run_id:
+                    logger.info(f"Loading relationships for scan_run_id={scan_run_id}")
                     cur.execute("""
                         SELECT
                             from_uid, to_uid, relation_type,
@@ -912,10 +886,10 @@ class ThreatAnalyzer:
                             relationship_strength, bidirectional,
                             properties
                         FROM inventory_relationships
-                        WHERE tenant_id = %s AND inventory_scan_id = %s
-                    """, (tenant_id, inventory_scan_id))
+                        WHERE tenant_id = %s AND scan_run_id = %s
+                    """, (tenant_id, scan_run_id))
                 else:
-                    logger.info("Loading ALL relationships for tenant (no inventory_scan_id filter)")
+                    logger.info("Loading ALL relationships for tenant (no scan_run_id filter)")
                     cur.execute("""
                         SELECT
                             from_uid, to_uid, relation_type,
@@ -934,7 +908,7 @@ class ThreatAnalyzer:
     def _load_internet_reachable(
         self,
         tenant_id: str,
-        inventory_scan_id: Optional[str] = None,
+        scan_run_id: Optional[str] = None,
     ) -> Set[str]:
         """
         Identify internet-reachable resources from two sources:
@@ -946,7 +920,7 @@ class ThreatAnalyzer:
 
         Args:
             tenant_id: Tenant isolation filter.
-            inventory_scan_id: If provided, scope inventory query to this scan.
+            scan_run_id: If provided, scope inventory query to this scan.
         """
         import psycopg2
         from psycopg2.extras import RealDictCursor
@@ -971,9 +945,9 @@ class ThreatAnalyzer:
                             OR COALESCE(relationship_type, relation_type) LIKE '%%public%%'
                           )
                     """
-                    if inventory_scan_id:
-                        base_query += " AND inventory_scan_id = %s"
-                        cur.execute(base_query, (tenant_id, inventory_scan_id))
+                    if scan_run_id:
+                        base_query += " AND scan_run_id = %s"
+                        cur.execute(base_query, (tenant_id, scan_run_id))
                     else:
                         cur.execute(base_query, (tenant_id,))
                     for row in cur.fetchall():
@@ -1063,8 +1037,12 @@ class ThreatAnalyzer:
                     for row in cur.fetchall():
                         categories[row["relation_type"]] = row.get("attack_path_category")
                     if categories:
-                        logger.info(f"Loaded attack_path_category for {len(categories)} relation types from DB")
-                        return categories
+                        # Merge: inline fallback first, then DB overrides
+                        merged = dict(_ATTACK_PATH_CATEGORIES)
+                        merged.update(categories)
+                        logger.info(f"Loaded attack_path_category for {len(categories)} relation types from DB, "
+                                    f"merged with {len(_ATTACK_PATH_CATEGORIES)} inline → {len(merged)} total")
+                        return merged
             finally:
                 conn.close()
         except Exception as e:
@@ -1132,19 +1110,13 @@ class ThreatAnalyzer:
         self,
         tenant_id: str,
         scan_run_id: str,
-        orchestration_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Analyze all threat_detections for a scan.
 
         Args:
             tenant_id: Tenant isolation filter.
-            scan_run_id: The threat scan's scan_run_id (for loading detections).
-            orchestration_id: Pipeline-wide UUID. If provided, we look up
-                inventory_scan_id from scan_orchestration so we load ONLY the
-                relationships from this specific pipeline run (not the full
-                tenant snapshot). This is important for incremental scans
-                that cover a subset of accounts/services.
+            scan_run_id: The scan_run_id shared by all engines in this pipeline run.
 
         Returns a list of analysis result dicts (one per detection) matching
         the threat_analysis table schema.
@@ -1152,7 +1124,6 @@ class ThreatAnalyzer:
         logger.info("Starting threat analysis", extra={"extra_fields": {
             "tenant_id": tenant_id,
             "scan_run_id": scan_run_id,
-            "orchestration_id": orchestration_id,
         }})
 
         # 1. Load detections
@@ -1163,18 +1134,9 @@ class ThreatAnalyzer:
 
         logger.info(f"Loaded {len(detections)} detections for analysis")
 
-        # 1b. Resolve inventory_scan_id from orchestration_id
-        #     This lets us filter inventory relationships to the specific scan
-        #     rather than loading the entire tenant snapshot.
-        inventory_scan_id: Optional[str] = None
-        if orchestration_id:
-            inventory_scan_id = self._resolve_inventory_scan_id(orchestration_id)
-            if not inventory_scan_id:
-                logger.warning(
-                    f"orchestration_id={orchestration_id} provided but no "
-                    f"inventory_scan_id found in scan_orchestration. "
-                    f"Will load full tenant inventory snapshot."
-                )
+        # 1b. All engines share the same scan_run_id — use it directly
+        #     to filter inventory relationships to this specific scan.
+        inventory_scan_id: Optional[str] = scan_run_id
 
         # 1c. Load MITRE guidance from mitre_technique_reference table.
         #     Used for: severity_base → impact weights, detection/remediation recs.
@@ -1193,7 +1155,7 @@ class ThreatAnalyzer:
             # Load attack_path_category classification from DB
             attack_path_cats = self._load_attack_path_categories()
 
-            relationships = self._load_relationships(tenant_id, inventory_scan_id)
+            relationships = self._load_relationships(tenant_id, scan_run_id)
             # Build adjacency with attack-path filtering
             adjacency = _build_adjacency(relationships, attack_path_cats, attack_only=True)
             inventory_available = True
@@ -1216,7 +1178,7 @@ class ThreatAnalyzer:
         if inventory_available:
             try:
                 internet_reachable = self._load_internet_reachable(
-                    tenant_id, inventory_scan_id
+                    tenant_id, scan_run_id
                 )
                 logger.info(f"Internet-reachable resources: {len(internet_reachable)}")
             except Exception as e:
@@ -1335,6 +1297,7 @@ class ThreatAnalyzer:
                 "blast_radius": {
                     "reachable_count": blast["reachable_count"],
                     "reachable_resources": blast["reachable_resources"][:20],
+                    "path_edges": blast.get("path_edges", [])[:30],
                     "depth_distribution": blast["depth_distribution"],
                 },
                 "attack_paths": attack_paths[:10],  # Top 10 paths by score

@@ -71,7 +71,7 @@ def _get_discovery_db_pool():
 
 
 def get_check_findings_from_db(
-    check_scan_id: str,
+    scan_run_id: str,
     tenant_id: str,
     status_filter: Optional[List[str]] = None
 ) -> List[Dict[str, Any]]:
@@ -81,7 +81,7 @@ def get_check_findings_from_db(
     Used by: Compliance, Threat engines
 
     Args:
-        check_scan_id: Check scan identifier
+        scan_run_id: Check scan identifier
         tenant_id: Tenant identifier
         status_filter: Optional list of statuses to filter (e.g., ['FAIL', 'WARN'])
 
@@ -96,11 +96,11 @@ def get_check_findings_from_db(
             query = """
                 SELECT
                     cf.id,
-                    cf.check_scan_id,
+                    cf.scan_run_id,
                     cf.customer_id,
                     cf.tenant_id,
                     cf.provider,
-                    cf.hierarchy_id,
+                    cf.account_id,
                     cf.hierarchy_type,
                     cf.rule_id,
                     cf.status,
@@ -122,11 +122,11 @@ def get_check_findings_from_db(
                     rm.remediation_guidance
                 FROM check_findings cf
                 LEFT JOIN rule_metadata rm ON cf.rule_id = rm.rule_id
-                WHERE cf.check_scan_id = %s
+                WHERE cf.scan_run_id = %s
                   AND cf.tenant_id = %s
             """
 
-            params = [check_scan_id, tenant_id]
+            params = [scan_run_id, tenant_id]
 
             if status_filter:
                 query += " AND cf.status = ANY(%s)"
@@ -137,7 +137,7 @@ def get_check_findings_from_db(
             cur.execute(query, params)
             results = cur.fetchall()
 
-            logger.info(f"Retrieved {len(results)} check findings from database for scan_id={check_scan_id}")
+            logger.info(f"Retrieved {len(results)} check findings from database for scan_id={scan_run_id}")
 
             return [dict(row) for row in results]
 
@@ -150,7 +150,7 @@ def get_check_findings_from_db(
 
 
 def get_threat_findings_from_db(
-    threat_scan_id: str,
+    scan_run_id: str,
     tenant_id: str,
     severity_filter: Optional[List[str]] = None
 ) -> List[Dict[str, Any]]:
@@ -160,7 +160,7 @@ def get_threat_findings_from_db(
     Used by: IAM, DataSec engines
 
     Args:
-        threat_scan_id: Threat scan identifier
+        scan_run_id: Threat scan identifier
         tenant_id: Tenant identifier
         severity_filter: Optional list of severities to filter (e.g., ['CRITICAL', 'HIGH'])
 
@@ -194,7 +194,7 @@ def get_threat_findings_from_db(
                   AND tenant_id = %s
             """
 
-            params = [threat_scan_id, tenant_id]
+            params = [scan_run_id, tenant_id]
 
             if severity_filter:
                 query += " AND severity = ANY(%s)"
@@ -205,7 +205,7 @@ def get_threat_findings_from_db(
             cur.execute(query, params)
             results = cur.fetchall()
 
-            logger.info(f"Retrieved {len(results)} threat findings from database for scan_id={threat_scan_id}")
+            logger.info(f"Retrieved {len(results)} threat findings from database for scan_id={scan_run_id}")
 
             return [dict(row) for row in results]
 
@@ -218,7 +218,7 @@ def get_threat_findings_from_db(
 
 
 def get_discovery_resources_from_db(
-    discovery_scan_id: str,
+    scan_run_id: str,
     tenant_id: str,
     resource_type_filter: Optional[List[str]] = None
 ) -> List[Dict[str, Any]]:
@@ -228,7 +228,7 @@ def get_discovery_resources_from_db(
     Used by: Check, Inventory engines
 
     Args:
-        discovery_scan_id: Discovery scan identifier
+        scan_run_id: Discovery scan identifier
         tenant_id: Tenant identifier
         resource_type_filter: Optional list of resource types to filter
 
@@ -258,7 +258,7 @@ def get_discovery_resources_from_db(
                   AND tenant_id = %s
             """
 
-            params = [discovery_scan_id, tenant_id]
+            params = [scan_run_id, tenant_id]
 
             if resource_type_filter:
                 query += " AND resource_type = ANY(%s)"
@@ -269,7 +269,7 @@ def get_discovery_resources_from_db(
             cur.execute(query, params)
             results = cur.fetchall()
 
-            logger.info(f"Retrieved {len(results)} discovery resources from database for scan_id={discovery_scan_id}")
+            logger.info(f"Retrieved {len(results)} discovery resources from database for scan_id={scan_run_id}")
 
             return [dict(row) for row in results]
 
@@ -306,7 +306,7 @@ def format_check_findings_for_compliance(check_findings: List[Dict[str, Any]]) -
             findings_by_status[status].append(finding)
 
     return {
-        'scan_id': check_findings[0]['check_scan_id'] if check_findings else None,
+        'scan_id': check_findings[0]['scan_run_id'] if check_findings else None,
         'tenant_id': check_findings[0]['tenant_id'] if check_findings else None,
         'total_checks': len(check_findings),
         'findings_by_status': findings_by_status,

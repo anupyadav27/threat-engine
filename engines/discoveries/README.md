@@ -25,7 +25,7 @@ onboarding → discoveries → check → inventory → threat / compliance / IAM
 scan_orchestration (onboarding DB)
         ↓
   api_server.py (POST /api/v1/discovery)
-        ↓ orchestration_id lookup
+        ↓ scan_run_id lookup
   SecretsManagerStorage    ← retrieves CSP credentials from AWS Secrets Manager
         ↓
   CSP Scanner (per provider)  ← AWSDiscoveryScanner / AzureDiscoveryScanner / GCPDiscoveryScanner / OCIDiscoveryScanner
@@ -34,7 +34,7 @@ scan_orchestration (onboarding DB)
         ↓
   DatabaseManager          ← writes discovery_report + discovery_findings to discoveries DB
         ↓
-  scan_orchestration       ← updates discovery_scan_id for downstream engines
+  scan_orchestration       ← updates scan_run_id for downstream engines
 ```
 
 **Service configuration** is loaded from the `rule_discoveries` table in `threat_engine_check` DB. Set `is_active = FALSE` to suppress a service without code changes.
@@ -93,7 +93,7 @@ engine_discoveries/
 curl -X POST http://engine-discoveries/api/v1/discovery \
   -H "Content-Type: application/json" \
   -d '{
-    "orchestration_id": "337a7425-5a53-4664-8569-04c1f0d6abf0"
+    "scan_run_id": "337a7425-5a53-4664-8569-04c1f0d6abf0"
   }'
 
 # Ad-hoc mode — provide credentials and account info directly
@@ -102,7 +102,7 @@ curl -X POST http://engine-discoveries/api/v1/discovery \
   -d '{
     "provider": "aws",
     "tenant_id": "tenant-uuid",
-    "hierarchy_id": "588989875114",
+    "account_id": "588989875114",
     "include_services": ["s3", "ec2", "iam"],
     "include_regions": ["ap-south-1"],
     "credentials": {
@@ -117,9 +117,9 @@ curl -X POST http://engine-discoveries/api/v1/discovery \
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `orchestration_id` | One of these | Pipeline mode — resolves tenant, account, credentials, CSP automatically |
+| `scan_run_id` | One of these | Pipeline mode — resolves tenant, account, credentials, CSP automatically |
 | `provider` | One of these | Ad-hoc mode — CSP (`aws`, `azure`, `gcp`, `oci`) |
-| `hierarchy_id` | Ad-hoc | Account/subscription/project ID |
+| `account_id` | Ad-hoc | Account/subscription/project ID |
 | `tenant_id` | Ad-hoc | Tenant identifier |
 | `include_services` | No | Services to scan; if omitted, all active services |
 | `include_regions` | No | Regions to scan; if omitted, all regions |
@@ -129,10 +129,10 @@ curl -X POST http://engine-discoveries/api/v1/discovery \
 **Response:**
 ```json
 {
-  "discovery_scan_id": "a1b2c3d4-...",
+  "scan_run_id": "a1b2c3d4-...",
   "status": "running",
   "message": "Discovery scan started for provider: aws",
-  "orchestration_id": "337a7425-...",
+  "scan_run_id": "337a7425-...",
   "provider": "aws"
 }
 ```
@@ -141,13 +141,13 @@ The scan runs asynchronously. Poll `GET /api/v1/discovery/{scan_id}` to check co
 
 ### Pipeline Mode Flow
 
-When `orchestration_id` is provided:
+When `scan_run_id` is provided:
 1. Reads `cloud_accounts` from onboarding DB to get `account_id`, `provider`, `credential_ref`
 2. Retrieves CSP credentials from AWS Secrets Manager using `credential_ref`
 3. Selects CSP-specific scanner based on provider
 4. Runs discovery across all active services and regions in parallel
 5. Writes `discovery_report` + `discovery_findings` to discoveries DB
-6. Updates `scan_orchestration.discovery_scan_id` for downstream engines
+6. Updates `scan_orchestration.scan_run_id` for downstream engines
 
 ---
 
@@ -165,7 +165,7 @@ When `orchestration_id` is provided:
 
 | Column | Description |
 |--------|-------------|
-| `discovery_scan_id` | Links to discovery_report |
+| `scan_run_id` | Links to discovery_report |
 | `resource_uid` | Unique resource identifier (ARN-derived) |
 | `resource_arn` | Full resource ARN |
 | `resource_type` | Service resource type (e.g. `ec2.instance`, `s3.bucket`) |
@@ -318,10 +318,10 @@ kubectl logs -f -l app=engine-discoveries -n threat-engine-engines
 ## Triggering a Scan
 
 ```bash
-# Pipeline mode (orchestration_id resolves all context)
+# Pipeline mode (scan_run_id resolves all context)
 curl -X POST http://engine-discoveries/api/v1/discovery \
   -H "Content-Type: application/json" \
-  -d '{"orchestration_id": "337a7425-5a53-4664-8569-04c1f0d6abf0"}'
+  -d '{"scan_run_id": "337a7425-5a53-4664-8569-04c1f0d6abf0"}'
 
 # Poll for completion
 curl http://engine-discoveries/api/v1/discovery/a1b2c3d4-.../

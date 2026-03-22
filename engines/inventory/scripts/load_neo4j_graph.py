@@ -74,7 +74,7 @@ def _run_batch(session, cypher: str, batch: List[Dict]) -> int:
 
 SCHEMA_QUERIES = [
     # Uniqueness constraints (also create backing indexes)
-    "CREATE CONSTRAINT asset_id IF NOT EXISTS FOR (a:Asset) REQUIRE a.asset_id IS UNIQUE",
+    "CREATE CONSTRAINT finding_id IF NOT EXISTS FOR (a:Asset) REQUIRE a.finding_id IS UNIQUE",
     "CREATE CONSTRAINT account_id IF NOT EXISTS FOR (a:Account) REQUIRE a.id IS UNIQUE",
     "CREATE CONSTRAINT tenant_id IF NOT EXISTS FOR (t:Tenant) REQUIRE t.id IS UNIQUE",
     "CREATE CONSTRAINT region_id IF NOT EXISTS FOR (r:Region) REQUIRE r.id IS UNIQUE",
@@ -119,18 +119,18 @@ def _load_findings(
     if provider:
         conditions.append("provider = %s"); params.append(provider)
     if scan_id:
-        conditions.append("inventory_scan_id = %s"); params.append(scan_id)
+        conditions.append("scan_run_id = %s"); params.append(scan_id)
 
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
         cur.execute(f"""
-            SELECT asset_id::text, tenant_id, inventory_scan_id,
+            SELECT finding_id::text, tenant_id, scan_run_id,
                    resource_uid, resource_type, provider,
                    account_id, region, name, display_name, description,
                    tags, labels, properties, configuration,
                    compliance_status, risk_score, criticality,
                    environment, cost_center, owner, business_unit,
-                   first_discovered_at::text, last_modified_at::text, updated_at::text
+                   first_seen_at::text, last_seen_at::text, updated_at::text
             FROM inventory_findings
             {where}
         """, params)
@@ -148,7 +148,7 @@ def _load_relationships(
     if provider:
         conditions.append("provider = %s"); params.append(provider)
     if scan_id:
-        conditions.append("inventory_scan_id = %s"); params.append(scan_id)
+        conditions.append("scan_run_id = %s"); params.append(scan_id)
 
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
@@ -188,14 +188,14 @@ def _flatten_finding(row: Dict[str, Any]) -> Dict[str, Any]:
     emitted = props.get("emitted_fields") or {} if isinstance(props, dict) else {}
 
     return {
-        "asset_id":          row["asset_id"],
+        "finding_id":          row["finding_id"],
         "resource_uid":      row["resource_uid"] or "",
         "resource_type":     row["resource_type"] or "",
         "provider":          row["provider"] or "",
         "csp":               row["provider"] or "",
         "account_id":        row["account_id"] or "",
         "tenant_id":         row["tenant_id"] or "",
-        "inventory_scan_id": row["inventory_scan_id"] or "",
+        "scan_run_id": row["scan_run_id"] or "",
         "region":            row["region"] or "",
         "name":              row.get("name") or emitted.get("resource_name") or "",
         "display_name":      row.get("display_name") or "",
@@ -207,8 +207,8 @@ def _flatten_finding(row: Dict[str, Any]) -> Dict[str, Any]:
         "cost_center":       row.get("cost_center") or "",
         "owner":             row.get("owner") or "",
         "business_unit":     row.get("business_unit") or "",
-        "first_discovered_at": row.get("first_discovered_at") or "",
-        "last_modified_at":    row.get("last_modified_at") or "",
+        "first_seen_at": row.get("first_seen_at") or "",
+        "last_seen_at":    row.get("last_seen_at") or "",
         # Serialise complex fields as JSON strings for Neo4j
         "tags":              _safe_json(row.get("tags")) or "{}",
         "labels":            _safe_json(row.get("labels")) or "{}",
@@ -223,7 +223,7 @@ def load_asset_nodes(driver, findings: List[Dict[str, Any]]) -> int:
 
     cypher = """
     UNWIND $rows AS row
-    MERGE (a:Asset {asset_id: row.asset_id})
+    MERGE (a:Asset {finding_id: row.finding_id})
     SET a += row
     """
     total = 0
@@ -299,28 +299,28 @@ def load_hierarchy_nodes(driver, findings: List[Dict[str, Any]]) -> None:
 
         # Asset  → BELONGS_TO → Account
         asset_account = [
-            {"asset_id": f["asset_id"],
+            {"finding_id": f["finding_id"],
              "account_key": f"{f.get('provider') or ''}:{f.get('account_id') or ''}"}
             for f in findings if f.get("account_id")
         ]
         for i in range(0, len(asset_account), _BATCH_SIZE):
             session.run("""
                 UNWIND $rows AS row
-                MATCH (a:Asset {asset_id: row.asset_id})
+                MATCH (a:Asset {finding_id: row.finding_id})
                 MATCH (acc:Account {id: row.account_key})
                 MERGE (a)-[:BELONGS_TO]->(acc)
             """, rows=asset_account[i: i + _BATCH_SIZE])
 
         # Asset → IN_REGION → Region
         asset_region = [
-            {"asset_id": f["asset_id"],
+            {"finding_id": f["finding_id"],
              "region_key": f"{f.get('provider') or ''}:{f.get('region') or ''}"}
             for f in findings if f.get("region")
         ]
         for i in range(0, len(asset_region), _BATCH_SIZE):
             session.run("""
                 UNWIND $rows AS row
-                MATCH (a:Asset {asset_id: row.asset_id})
+                MATCH (a:Asset {finding_id: row.finding_id})
                 MATCH (r:Region {id: row.region_key})
                 MERGE (a)-[:IN_REGION]->(r)
             """, rows=asset_region[i: i + _BATCH_SIZE])
@@ -516,7 +516,7 @@ if __name__ == "__main__":
     parser.add_argument("--neo4j-password", default=None)
     parser.add_argument("--account",  help="Scope to account_id")
     parser.add_argument("--provider", help="Scope to provider")
-    parser.add_argument("--scan-id",  dest="scan_id", help="Scope to inventory_scan_id")
+    parser.add_argument("--scan-id",  dest="scan_id", help="Scope to scan_run_id")
     parser.add_argument("--clear",    action="store_true", help="Delete existing nodes first")
     args = parser.parse_args()
 

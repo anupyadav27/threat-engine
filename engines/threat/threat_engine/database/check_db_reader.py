@@ -61,11 +61,11 @@ class CheckDBReader:
         try:
             with self.conn.cursor() as cur:
                 cur.execute("""
-                    SELECT check_scan_id FROM check_report
+                    SELECT scan_run_id FROM check_report
                     WHERE tenant_id = %s
                       AND status = 'completed'
                       AND scan_type IN ('check', 'full')
-                    ORDER BY scan_timestamp DESC
+                    ORDER BY first_seen_at DESC
                     LIMIT 1
                 """, (tenant_id,))
                 result = cur.fetchone()
@@ -89,7 +89,7 @@ class CheckDBReader:
         Args:
             scan_id: Scan ID or "latest" for auto-detect
             tenant_id: Tenant identifier (uses instance tenant_id if not provided)
-            account_id: Optional filter by account ID (hierarchy_id)
+            account_id: Optional filter by account ID (account_id)
             region: Optional filter by region
             service: Optional filter by service name (extracted from resource_type)
             status_filter: Optional filter by status ("FAIL", "WARN", or None for all)
@@ -111,17 +111,17 @@ class CheckDBReader:
         # Build query with filters
         query = """
             SELECT
-                check_scan_id, customer_id, tenant_id, provider,
-                hierarchy_id, hierarchy_type, rule_id,
+                scan_run_id, customer_id, tenant_id, provider,
+                account_id, hierarchy_type, rule_id,
                 resource_uid, resource_arn, resource_id, resource_type,
                 status, checked_fields, finding_data, created_at
             FROM check_findings
-            WHERE check_scan_id = %s AND tenant_id = %s
+            WHERE scan_run_id = %s AND tenant_id = %s
         """
         params = [scan_id, tenant_id]
         
         if account_id:
-            query += " AND hierarchy_id = %s"
+            query += " AND account_id = %s"
             params.append(account_id)
         
         if region:
@@ -188,16 +188,16 @@ class CheckDBReader:
             with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute("""
                     SELECT
-                        check_scan_id,
-                        scan_timestamp,
+                        scan_run_id,
+                        first_seen_at,
                         status,
                         scan_type,
                         provider,
                         metadata,
-                        (SELECT COUNT(*) FROM check_findings WHERE check_findings.check_scan_id = check_report.check_scan_id) as total_results
+                        (SELECT COUNT(*) FROM check_findings WHERE check_findings.scan_run_id = check_report.scan_run_id) as total_results
                     FROM check_report
                     WHERE tenant_id = %s
-                    ORDER BY scan_timestamp DESC
+                    ORDER BY first_seen_at DESC
                     LIMIT 50
                 """, (tenant_id,))
 
@@ -205,8 +205,8 @@ class CheckDBReader:
                 for row in cur.fetchall():
                     scan_dict = dict(row)
                     scans.append({
-                        "scan_id": scan_dict["check_scan_id"],
-                        "scan_timestamp": scan_dict["scan_timestamp"].isoformat() if scan_dict["scan_timestamp"] else None,
+                        "scan_id": scan_dict["scan_run_id"],
+                        "first_seen_at": scan_dict["first_seen_at"].isoformat() if scan_dict["first_seen_at"] else None,
                         "status": scan_dict["status"],
                         "metadata": scan_dict.get("metadata", {}),
                         "total_results": scan_dict.get("total_results", 0)

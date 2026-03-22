@@ -132,7 +132,7 @@ class InventoryDBLoader:
         params = [tenant_id]
         
         if scan_run_id:
-            where_parts.append("inventory_scan_id = %s")
+            where_parts.append("scan_run_id = %s")
             params.append(scan_run_id)
 
         if provider:
@@ -176,9 +176,9 @@ class InventoryDBLoader:
         # Get paginated results
         query = f"""
             SELECT
-                asset_id, tenant_id, resource_uid, provider, account_id,
+                finding_id, tenant_id, resource_uid, provider, account_id,
                 region, resource_type, resource_id, name, tags,
-                inventory_scan_id, latest_scan_run_id, updated_at,
+                scan_run_id, latest_scan_run_id, updated_at,
                 properties
             FROM inventory_findings
             WHERE {where_clause}
@@ -217,7 +217,7 @@ class InventoryDBLoader:
         return {
             "schema_version": "cspm_asset.v1",
             "tenant_id": row["tenant_id"],
-            "scan_run_id": row.get("inventory_scan_id") or row.get("latest_scan_run_id"),
+            "scan_run_id": row.get("scan_run_id") or row.get("latest_scan_run_id"),
             "provider": row["provider"],
             "account_id": row["account_id"],
             "region": row["region"] or "global",
@@ -239,7 +239,7 @@ class InventoryDBLoader:
         """Resolve last_scanned for assets where updated_at was NULL.
 
         Looks up scan_orchestration.completed_at (or started_at) in the
-        onboarding DB using each asset's inventory_scan_id.  A single
+        onboarding DB using each asset's scan_run_id.  A single
         batch query covers all distinct scan IDs in the page.
         """
         need = {
@@ -293,16 +293,16 @@ class InventoryDBLoader:
         params = [tenant_id, resource_uid]
         
         if scan_run_id:
-            where_parts.append("inventory_scan_id = %s")
+            where_parts.append("scan_run_id = %s")
             params.append(scan_run_id)
 
         where_clause = " AND ".join(where_parts)
 
         query = f"""
             SELECT
-                asset_id, tenant_id, resource_uid, provider, account_id,
+                finding_id, tenant_id, resource_uid, provider, account_id,
                 region, resource_type, resource_id, name, tags,
-                inventory_scan_id, latest_scan_run_id, updated_at,
+                scan_run_id, latest_scan_run_id, updated_at,
                 configuration, properties
             FROM inventory_findings
             WHERE {where_clause}
@@ -347,12 +347,12 @@ class InventoryDBLoader:
         if effective_scan:
             with self.conn.cursor() as cur:
                 cur.execute(
-                    "SELECT COUNT(*) FROM inventory_relationships WHERE tenant_id = %s AND inventory_scan_id = %s",
+                    "SELECT COUNT(*) FROM inventory_relationships WHERE tenant_id = %s AND scan_run_id = %s",
                     (tenant_id, effective_scan),
                 )
                 if cur.fetchone()[0] == 0:
                     cur.execute(
-                        "SELECT inventory_scan_id FROM inventory_relationships WHERE tenant_id = %s "
+                        "SELECT scan_run_id FROM inventory_relationships WHERE tenant_id = %s "
                         "ORDER BY created_at DESC LIMIT 1",
                         (tenant_id,),
                     )
@@ -360,7 +360,7 @@ class InventoryDBLoader:
                     effective_scan = row[0] if row else None
 
         if effective_scan:
-            where_parts.append("inventory_scan_id = %s")
+            where_parts.append("scan_run_id = %s")
             params.append(effective_scan)
 
         if from_uid:
@@ -386,7 +386,7 @@ class InventoryDBLoader:
         # Get paginated results
         query = f"""
             SELECT
-                relationship_id, tenant_id, inventory_scan_id, provider,
+                relationship_id, tenant_id, scan_run_id, provider,
                 account_id, region, relation_type, from_uid, to_uid,
                 properties, created_at
             FROM inventory_relationships
@@ -406,7 +406,7 @@ class InventoryDBLoader:
             relationships.append({
                 "schema_version": "cspm_relationship.v1",
                 "tenant_id": row["tenant_id"],
-                "scan_run_id": row["inventory_scan_id"],
+                "scan_run_id": row["scan_run_id"],
                 "provider": row["provider"],
                 "account_id": row["account_id"],
                 "region": row["region"] or "global",
@@ -431,13 +431,13 @@ class InventoryDBLoader:
         """
         query = """
             SELECT
-                inventory_scan_id, tenant_id, started_at, completed_at, status,
+                scan_run_id, tenant_id, started_at, completed_at, status,
                 total_assets, total_relationships,
                 assets_by_provider, assets_by_resource_type, assets_by_region,
                 providers_scanned, accounts_scanned, regions_scanned,
                 errors_count
             FROM inventory_report
-            WHERE tenant_id = %s AND inventory_scan_id = %s
+            WHERE tenant_id = %s AND scan_run_id = %s
         """
 
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -454,7 +454,7 @@ class InventoryDBLoader:
             drift_query = """
                 SELECT change_type, COUNT(*) AS cnt
                 FROM inventory_drift
-                WHERE tenant_id = %s AND inventory_scan_id = %s
+                WHERE tenant_id = %s AND scan_run_id = %s
                 GROUP BY change_type
             """
             with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -489,9 +489,9 @@ class InventoryDBLoader:
         return result
 
     def get_latest_scan_id(self, tenant_id: str) -> Optional[str]:
-        """Get latest completed inventory_scan_id for tenant"""
+        """Get latest completed scan_run_id for tenant"""
         query = """
-            SELECT inventory_scan_id FROM inventory_report
+            SELECT scan_run_id FROM inventory_report
             WHERE tenant_id = %s AND status = 'completed'
             ORDER BY completed_at DESC LIMIT 1
         """
@@ -508,7 +508,7 @@ class InventoryDBLoader:
     ) -> Dict[str, Any]:
         """Load drift history for a specific asset from inventory_drift table."""
         query = """
-            SELECT drift_id, inventory_scan_id, previous_scan_id,
+            SELECT drift_id, scan_run_id, previous_scan_id,
                    change_type, previous_state, current_state,
                    changes_summary, severity, detected_at
             FROM inventory_drift
@@ -565,7 +565,7 @@ class InventoryDBLoader:
         params: list = [tenant_id]
 
         if scan_run_id:
-            where_parts.append("d.inventory_scan_id = %s")
+            where_parts.append("d.scan_run_id = %s")
             params.append(scan_run_id)
         if provider:
             where_parts.append("d.provider = %s")
@@ -669,12 +669,12 @@ class InventoryDBLoader:
             with self.conn.cursor() as cur:
                 cur.execute(
                     "SELECT COUNT(*) FROM inventory_relationships "
-                    "WHERE tenant_id = %s AND inventory_scan_id = %s",
+                    "WHERE tenant_id = %s AND scan_run_id = %s",
                     (tenant_id, effective_scan),
                 )
                 if cur.fetchone()[0] == 0:
                     cur.execute(
-                        "SELECT inventory_scan_id FROM inventory_relationships "
+                        "SELECT scan_run_id FROM inventory_relationships "
                         "WHERE tenant_id = %s ORDER BY created_at DESC LIMIT 1",
                         (tenant_id,),
                     )
@@ -683,7 +683,7 @@ class InventoryDBLoader:
         else:
             with self.conn.cursor() as cur:
                 cur.execute(
-                    "SELECT inventory_scan_id FROM inventory_relationships "
+                    "SELECT scan_run_id FROM inventory_relationships "
                     "WHERE tenant_id = %s ORDER BY created_at DESC LIMIT 1",
                     (tenant_id,),
                 )
@@ -693,7 +693,7 @@ class InventoryDBLoader:
         if not effective_scan:
             return self._empty_blast_response(resource_uid, max_depth)
 
-        sf = "AND ir.inventory_scan_id = %(scan_id)s"
+        sf = "AND ir.scan_run_id = %(scan_id)s"
 
         # REVERSE traversal: find resources that DEPEND ON the origin.
         # We query WHERE to_uid = origin, and walk from_uid (the dependent)
@@ -956,7 +956,7 @@ class InventoryDBLoader:
                        ARRAY[resource_uid] AS path
                 FROM inventory_findings
                 WHERE tenant_id = %(tenant_id)s
-                  AND inventory_scan_id = %(scan_id)s
+                  AND scan_run_id = %(scan_id)s
                   AND resource_type = ANY(%(root_types)s)
 
                 UNION ALL
@@ -971,7 +971,7 @@ class InventoryDBLoader:
                 FROM graph_walk gw
                 JOIN inventory_relationships ir
                   ON ir.tenant_id = %(tenant_id)s
-                 AND ir.inventory_scan_id = %(scan_id)s
+                 AND ir.scan_run_id = %(scan_id)s
                  AND (ir.from_uid = gw.node_uid OR ir.to_uid = gw.node_uid)
                  AND ir.relation_type = ANY(%(structural_types)s)
                 WHERE gw.depth < %(max_depth)s
@@ -1033,7 +1033,7 @@ class InventoryDBLoader:
                            from_resource_type, to_resource_type,
                            provider, account_id, region, properties
                     FROM inventory_relationships
-                    WHERE tenant_id = %s AND inventory_scan_id = %s
+                    WHERE tenant_id = %s AND scan_run_id = %s
                       AND from_uid = ANY(%s) AND to_uid = ANY(%s)""",
                     (tenant_id, effective_scan, discovered_uids, discovered_uids),
                 )
@@ -1054,7 +1054,7 @@ class InventoryDBLoader:
                     WHERE f.tenant_id = %s
                       AND f.resource_uid IN (
                           SELECT DISTINCT to_uid FROM inventory_relationships
-                          WHERE tenant_id = %s AND inventory_scan_id = %s
+                          WHERE tenant_id = %s AND scan_run_id = %s
                             AND from_uid = ANY(%s)
                             AND to_resource_type LIKE ANY(%s)
                       )
@@ -1082,7 +1082,7 @@ class InventoryDBLoader:
                                from_resource_type, to_resource_type,
                                provider, account_id, region, properties
                         FROM inventory_relationships
-                        WHERE tenant_id = %s AND inventory_scan_id = %s
+                        WHERE tenant_id = %s AND scan_run_id = %s
                           AND from_uid = ANY(%s) AND to_uid = ANY(%s)""",
                         (tenant_id, effective_scan, discovered_uids, global_uids),
                     )
@@ -1097,7 +1097,7 @@ class InventoryDBLoader:
                 cur.execute(
                     """SELECT from_uid, to_uid, relation_type, properties
                     FROM inventory_relationships
-                    WHERE tenant_id = %s AND inventory_scan_id = %s
+                    WHERE tenant_id = %s AND scan_run_id = %s
                       AND from_uid = ANY(%s)
                       AND relation_type IN ('internet_connected', 'internet_accessible',
                                             'exposed_through')""",
@@ -1155,7 +1155,7 @@ class InventoryDBLoader:
                                    from_resource_type, to_resource_type,
                                    provider, account_id, region, properties
                             FROM inventory_relationships
-                            WHERE tenant_id = %s AND inventory_scan_id = %s
+                            WHERE tenant_id = %s AND scan_run_id = %s
                               AND from_uid = ANY(%s) AND to_uid = ANY(%s)
                               AND NOT (from_uid = ANY(%s) AND to_uid = ANY(%s))""",
                             (
@@ -1187,7 +1187,7 @@ class InventoryDBLoader:
             with self.conn.cursor() as cur:
                 cur.execute(
                     "SELECT COUNT(*) FROM inventory_relationships "
-                    "WHERE tenant_id = %s AND inventory_scan_id = %s",
+                    "WHERE tenant_id = %s AND scan_run_id = %s",
                     (tenant_id, effective_scan),
                 )
                 if cur.fetchone()[0] == 0:
@@ -1196,7 +1196,7 @@ class InventoryDBLoader:
         if not effective_scan or effective_scan == "latest":
             with self.conn.cursor() as cur:
                 cur.execute(
-                    "SELECT inventory_scan_id FROM inventory_relationships "
+                    "SELECT scan_run_id FROM inventory_relationships "
                     "WHERE tenant_id = %s ORDER BY created_at DESC LIMIT 1",
                     (tenant_id,),
                 )

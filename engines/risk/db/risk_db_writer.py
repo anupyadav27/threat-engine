@@ -40,7 +40,7 @@ class RiskDBWriter:
 
         sql = """
             INSERT INTO risk_input_transformed (
-                risk_scan_id, tenant_id, orchestration_id,
+                risk_scan_id, tenant_id, scan_run_id,
                 source_finding_id, source_engine, source_scan_id,
                 rule_id, severity, title, finding_type,
                 asset_id, asset_type, asset_arn, asset_criticality, is_public,
@@ -49,7 +49,7 @@ class RiskDBWriter:
                 epss_score, cve_id, exposure_factor,
                 account_id, region, csp
             ) VALUES (
-                %(risk_scan_id)s, %(tenant_id)s, %(orchestration_id)s,
+                %(risk_scan_id)s, %(tenant_id)s, %(scan_run_id)s,
                 %(source_finding_id)s, %(source_engine)s, %(source_scan_id)s,
                 %(rule_id)s, %(severity)s, %(title)s, %(finding_type)s,
                 %(asset_id)s, %(asset_type)s, %(asset_arn)s, %(asset_criticality)s, %(is_public)s,
@@ -74,7 +74,7 @@ class RiskDBWriter:
         return {
             "risk_scan_id": row.get("risk_scan_id"),
             "tenant_id": row.get("tenant_id"),
-            "orchestration_id": row.get("orchestration_id"),
+            "scan_run_id": row.get("scan_run_id"),
             "source_finding_id": row.get("source_finding_id"),
             "source_engine": row.get("source_engine"),
             "source_scan_id": row.get("source_scan_id"),
@@ -106,14 +106,14 @@ class RiskDBWriter:
     # ------------------------------------------------------------------
 
     def batch_insert_scenarios(self, rows: List[Dict[str, Any]], scan_id: str,
-                                tenant_id: str, orchestration_id: str) -> int:
+                                tenant_id: str, scan_run_id: str) -> int:
         """Insert FAIR model scenarios into risk_scenarios."""
         if not rows:
             return 0
 
         sql = """
             INSERT INTO risk_scenarios (
-                scenario_id, risk_scan_id, tenant_id, orchestration_id,
+                scenario_id, risk_scan_id, tenant_id, scan_run_id,
                 source_finding_id, source_engine,
                 asset_id, asset_type, asset_arn,
                 scenario_type,
@@ -126,7 +126,7 @@ class RiskDBWriter:
                 risk_tier, calculation_model,
                 account_id, region, csp
             ) VALUES (
-                %(scenario_id)s, %(risk_scan_id)s, %(tenant_id)s, %(orchestration_id)s,
+                %(scenario_id)s, %(risk_scan_id)s, %(tenant_id)s, %(scan_run_id)s,
                 %(source_finding_id)s, %(source_engine)s,
                 %(asset_id)s, %(asset_type)s, %(asset_arn)s,
                 %(scenario_type)s,
@@ -145,7 +145,7 @@ class RiskDBWriter:
         for i in range(0, len(rows), BATCH_SIZE):
             batch = rows[i : i + BATCH_SIZE]
             prepared = [
-                self._prepare_scenario_row(r, scan_id, tenant_id, orchestration_id)
+                self._prepare_scenario_row(r, scan_id, tenant_id, scan_run_id)
                 for r in batch
             ]
             count += self._batch_execute(sql, prepared)
@@ -154,7 +154,7 @@ class RiskDBWriter:
         return count
 
     def _prepare_scenario_row(self, row: Dict[str, Any], scan_id: str,
-                               tenant_id: str, orchestration_id: str) -> Dict[str, Any]:
+                               tenant_id: str, scan_run_id: str) -> Dict[str, Any]:
         """Prepare a scenario row for insertion."""
         calc_model = row.get("calculation_model", {})
         if isinstance(calc_model, dict):
@@ -164,7 +164,7 @@ class RiskDBWriter:
             "scenario_id": str(uuid4()),
             "risk_scan_id": scan_id,
             "tenant_id": tenant_id,
-            "orchestration_id": orchestration_id,
+            "scan_run_id": scan_run_id,
             "source_finding_id": row.get("source_finding_id"),
             "source_engine": row.get("source_engine"),
             "asset_id": row.get("asset_id"),
@@ -199,7 +199,7 @@ class RiskDBWriter:
         """Insert or update the risk_report row for a scan."""
         sql = """
             INSERT INTO risk_report (
-                risk_scan_id, orchestration_id, tenant_id, account_id, provider,
+                risk_scan_id, scan_run_id, tenant_id, account_id, provider,
                 total_scenarios, critical_scenarios, high_scenarios,
                 medium_scenarios, low_scenarios,
                 total_exposure_min, total_exposure_max, total_exposure_likely,
@@ -210,7 +210,7 @@ class RiskDBWriter:
                 currency, started_at, completed_at, scan_duration_ms,
                 status, error_message
             ) VALUES (
-                %(risk_scan_id)s, %(orchestration_id)s, %(tenant_id)s,
+                %(risk_scan_id)s, %(scan_run_id)s, %(tenant_id)s,
                 %(account_id)s, %(provider)s,
                 %(total_scenarios)s, %(critical_scenarios)s, %(high_scenarios)s,
                 %(medium_scenarios)s, %(low_scenarios)s,
@@ -266,7 +266,7 @@ class RiskDBWriter:
 
         return {
             "risk_scan_id": report.get("risk_scan_id"),
-            "orchestration_id": report.get("orchestration_id"),
+            "scan_run_id": report.get("scan_run_id"),
             "tenant_id": report.get("tenant_id"),
             "account_id": report.get("account_id"),
             "provider": report.get("provider", "aws"),
@@ -304,12 +304,12 @@ class RiskDBWriter:
 
         sql = """
             INSERT INTO risk_summary (
-                risk_scan_id, tenant_id, orchestration_id,
+                risk_scan_id, tenant_id, scan_run_id,
                 source_engine, scenario_count, critical_count, high_count,
                 total_exposure_likely, total_regulatory_exposure,
                 top_finding_types
             ) VALUES (
-                %(risk_scan_id)s, %(tenant_id)s, %(orchestration_id)s,
+                %(risk_scan_id)s, %(tenant_id)s, %(scan_run_id)s,
                 %(source_engine)s, %(scenario_count)s, %(critical_count)s, %(high_count)s,
                 %(total_exposure_likely)s, %(total_regulatory_exposure)s,
                 %(top_finding_types)s
@@ -324,7 +324,7 @@ class RiskDBWriter:
             prepared.append({
                 "risk_scan_id": s.get("risk_scan_id"),
                 "tenant_id": s.get("tenant_id"),
-                "orchestration_id": s.get("orchestration_id"),
+                "scan_run_id": s.get("scan_run_id"),
                 "source_engine": s.get("source_engine"),
                 "scenario_count": s.get("scenario_count", 0),
                 "critical_count": s.get("critical_count", 0),
@@ -379,25 +379,14 @@ class RiskDBWriter:
     # Stage 4 — Update orchestration
     # ------------------------------------------------------------------
 
-    def update_orchestration(self, orchestration_id: str, scan_id: str, conn=None) -> None:
-        """Update scan_orchestration with risk_scan_id."""
-        target_conn = conn or self._conn
-        cursor = target_conn.cursor()
-        try:
-            cursor.execute("""
-                UPDATE scan_orchestration
-                SET risk_scan_id = %s::uuid
-                WHERE orchestration_id = %s::uuid
-            """, (scan_id, orchestration_id))
-            target_conn.commit()
-            logger.info("Updated orchestration %s with risk_scan_id %s",
-                        orchestration_id, scan_id)
-        except Exception as exc:
-            target_conn.rollback()
-            logger.error("Failed to update orchestration: %s", exc)
-            raise
-        finally:
-            cursor.close()
+    def update_orchestration(self, scan_run_id: str, scan_id: str, conn=None) -> None:
+        """No-op: scan_orchestration no longer has per-engine scan_id columns.
+
+        Kept for backward compatibility — callers still invoke this but
+        risk_scan_id is only stored in the risk DB tables themselves.
+        """
+        logger.info("Orchestration %s — risk_scan_id %s (no orchestration update needed)",
+                     scan_run_id, scan_id)
 
     # ------------------------------------------------------------------
     # Helpers

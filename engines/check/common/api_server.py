@@ -10,9 +10,9 @@ No cloud API credentials are needed.  The only provider-specific work is
 parsing resource identifiers from the emitted_fields JSON already in the DB.
 
 Request modes:
-  1. Pipeline  — supply orchestration_id; tenant/hierarchy/discovery_scan_id
+  1. Pipeline  — supply orchestration_id; tenant/hierarchy/discovery_scan_run_id
                  are fetched from scan_orchestration table.
-  2. Ad-hoc    — supply discovery_scan_id + tenant_id + hierarchy_id directly.
+  2. Ad-hoc    — supply discovery_scan_run_id + tenant_id + account_id directly.
 """
 
 import os
@@ -108,14 +108,13 @@ class CheckRequest(BaseModel):
     """Check scan request — no credentials required."""
 
     # Pipeline mode: fetch metadata from scan_orchestration table
-    orchestration_id: Optional[str] = None
-    scan_run_id: Optional[str] = None       # alias for backward compat
+    scan_run_id: Optional[str] = None
 
     # Ad-hoc mode: supply these directly
-    discovery_scan_id: Optional[str] = None
+    discovery_scan_run_id: Optional[str] = None
     tenant_id: Optional[str] = None
     customer_id: Optional[str] = None
-    hierarchy_id: Optional[str] = None
+    account_id: Optional[str] = None
     hierarchy_type: str = "account"
     provider: str = "aws"
 
@@ -125,7 +124,7 @@ class CheckRequest(BaseModel):
 
 
 class CheckResponse(BaseModel):
-    check_scan_id: str
+    scan_run_id: str
     status: str
     message: str
     orchestration_id: Optional[str] = None
@@ -183,27 +182,27 @@ async def create_check(request: CheckRequest):
     **Pipeline mode** — provide `orchestration_id`:
       Fetches metadata from scan_orchestration table.
 
-    **Ad-hoc mode** — provide `discovery_scan_id`:
-      Uses the supplied discovery_scan_id with optional overrides.
+    **Ad-hoc mode** — provide `discovery_scan_run_id`:
+      Uses the supplied discovery_scan_run_id with optional overrides.
     """
-    orch_id = request.orchestration_id or request.scan_run_id
-    check_scan_id = orch_id
+    orch_id = request.scan_run_id
+    scan_run_id = orch_id
 
     if orch_id:
         meta = await _fetch_orchestration(orch_id)
 
-        discovery_scan_id = meta.get("discovery_scan_id")
-        if not discovery_scan_id:
+        discovery_scan_run_id = meta.get("discovery_scan_run_id")
+        if not discovery_scan_run_id:
             raise HTTPException(
                 status_code=400,
                 detail=f"Discovery scan not yet completed for orchestration_id={orch_id}",
             )
 
         provider = meta.get("provider") or meta.get("provider_type", "aws")
-        logger.info("Pipeline mode: orch=%s disc=%s provider=%s", orch_id, discovery_scan_id, provider)
+        logger.info("Pipeline mode: orch=%s disc=%s provider=%s", orch_id, discovery_scan_run_id, provider)
 
-    elif request.discovery_scan_id:
-        logger.info("Ad-hoc mode: discovery_scan_id=%s", request.discovery_scan_id)
+    elif request.discovery_scan_run_id:
+        logger.info("Ad-hoc mode: discovery_scan_run_id=%s", request.discovery_scan_run_id)
         if not orch_id:
             raise HTTPException(
                 status_code=400,
@@ -228,8 +227,8 @@ async def create_check(request: CheckRequest):
     # Resolve metadata for report row
     tenant_id = request.tenant_id or "default-tenant"
     customer_id = request.customer_id or "default"
-    disc_scan_id = request.discovery_scan_id or ""
-    hierarchy_id = request.hierarchy_id or ""
+    disc_scan_id = request.discovery_scan_run_id or ""
+    account_id = request.account_id or ""
 
     # Pre-create check_report row in DB (so status endpoint works immediately)
     try:
@@ -238,13 +237,13 @@ async def create_check(request: CheckRequest):
         with conn.cursor() as cur:
             cur.execute(
                 """INSERT INTO check_report
-                   (check_scan_id, customer_id, tenant_id, provider, discovery_scan_id,
-                    hierarchy_id, status, scan_timestamp, metadata)
+                   (scan_run_id, customer_id, tenant_id, provider, discovery_scan_run_id,
+                    account_id, status, first_seen_at, metadata)
                    VALUES (%s, %s, %s, %s, %s, %s, 'running', NOW(), %s)
-                   ON CONFLICT (check_scan_id) DO UPDATE SET status = 'running'""",
-                (check_scan_id, customer_id, tenant_id, provider,
-                 disc_scan_id, hierarchy_id,
-                 _json.dumps({"orchestration_id": orch_id, "mode": "job"})),
+                   ON CONFLICT (scan_run_id) DO UPDATE SET status = 'running'""",
+                (scan_run_id, customer_id, tenant_id, provider,
+                 disc_scan_id, account_id,
+                 _json.dumps({"scan_run_id": orch_id, "mode": "job"})),
             )
         conn.commit()
         conn.close()
@@ -255,8 +254,8 @@ async def create_check(request: CheckRequest):
     try:
         job_name = create_engine_job(
             engine_name="check",
-            scan_id=check_scan_id,
-            orchestration_id=orch_id,
+            scan_id=scan_run_id,
+            scan_run_id=orch_id,
             image=SCANNER_IMAGE,
             cpu_request=SCANNER_CPU_REQUEST,
             mem_request=SCANNER_MEM_REQUEST,
@@ -271,7 +270,7 @@ async def create_check(request: CheckRequest):
     metrics["total_scans"] += 1
 
     return CheckResponse(
-        check_scan_id=check_scan_id,
+        scan_run_id=scan_run_id,
         status="running",
         message=f"Scanner Job '{job_name}' created on spot node (image={SCANNER_IMAGE})",
         orchestration_id=orch_id,
@@ -279,17 +278,17 @@ async def create_check(request: CheckRequest):
     )
 
 
-@app.get("/api/v1/check/{check_scan_id}/status")
-async def get_check_status(check_scan_id: str):
+@app.get("/api/v1/check/{scan_run_id}/status")
+async def get_check_status(scan_run_id: str):
     """Get check scan status from check_report DB table."""
     from psycopg2.extras import RealDictCursor
     try:
         conn = _get_check_conn()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
-                "SELECT check_scan_id, status, provider, discovery_scan_id, scan_timestamp, metadata "
-                "FROM check_report WHERE check_scan_id = %s",
-                (check_scan_id,),
+                "SELECT scan_run_id, status, provider, discovery_scan_run_id, first_seen_at, metadata "
+                "FROM check_report WHERE scan_run_id = %s",
+                (scan_run_id,),
             )
             row = cur.fetchone()
         conn.close()
@@ -300,11 +299,11 @@ async def get_check_status(check_scan_id: str):
         raise HTTPException(status_code=404, detail="Check scan not found")
 
     return {
-        "check_scan_id": row["check_scan_id"],
+        "scan_run_id": row["scan_run_id"],
         "status": row["status"],
         "provider": row.get("provider"),
-        "discovery_scan_id": row.get("discovery_scan_id"),
-        "started_at": str(row.get("scan_timestamp", "")),
+        "discovery_scan_run_id": row.get("discovery_scan_run_id"),
+        "started_at": str(row.get("first_seen_at", "")),
     }
 
 
@@ -330,8 +329,8 @@ async def list_checks(
         where = " AND ".join(conditions)
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
-                f"SELECT check_scan_id, status, provider, discovery_scan_id, scan_timestamp "
-                f"FROM check_report WHERE {where} ORDER BY scan_timestamp DESC LIMIT %s",
+                f"SELECT scan_run_id, status, provider, discovery_scan_run_id, first_seen_at "
+                f"FROM check_report WHERE {where} ORDER BY first_seen_at DESC LIMIT %s",
                 params + [limit],
             )
             rows = cur.fetchall()
@@ -414,7 +413,7 @@ def _get_check_conn():
 async def get_findings_summary(
     tenant_id: str = Query(...),
     provider: Optional[str] = Query(None),
-    hierarchy_id: Optional[str] = Query(None),
+    account_id: Optional[str] = Query(None),
     region: Optional[str] = Query(None),
     service: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
@@ -422,14 +421,14 @@ async def get_findings_summary(
     domain: Optional[str] = Query(None),
     posture_category: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
-    check_scan_id: Optional[str] = Query(None),
+    scan_run_id: Optional[str] = Query(None),
 ):
     """
     Aggregated summary for the misconfigurations dashboard.
 
     Returns severity counts, top failing rules, service breakdown,
     posture category breakdown, and provider distribution.
-    Supports multi-CSP filtering by provider, account (hierarchy_id), region.
+    Supports multi-CSP filtering by provider, account (account_id), region.
     """
     from psycopg2.extras import RealDictCursor
 
@@ -446,9 +445,9 @@ async def get_findings_summary(
         if provider:
             conditions.append("cf.provider = %s")
             params.append(provider.lower())
-        if hierarchy_id:
-            conditions.append("cf.hierarchy_id = %s")
-            params.append(hierarchy_id)
+        if account_id:
+            conditions.append("cf.account_id = %s")
+            params.append(account_id)
         if region:
             conditions.append("cf.region = %s")
             params.append(region)
@@ -478,9 +477,9 @@ async def get_findings_summary(
             conditions.append("(rm.title ILIKE %s OR cf.rule_id ILIKE %s OR cf.resource_uid ILIKE %s)")
             like_val = f"%{search}%"
             params.extend([like_val, like_val, like_val])
-        if check_scan_id:
-            conditions.append("cf.check_scan_id = %s")
-            params.append(check_scan_id)
+        if scan_run_id:
+            conditions.append("cf.scan_run_id = %s")
+            params.append(scan_run_id)
 
         where = " AND ".join(conditions)
         base_join = """
@@ -616,7 +615,7 @@ async def get_findings_summary(
 async def list_findings(
     tenant_id: str = Query(...),
     provider: Optional[str] = Query(None),
-    hierarchy_id: Optional[str] = Query(None),
+    account_id: Optional[str] = Query(None),
     region: Optional[str] = Query(None),
     service: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
@@ -624,7 +623,7 @@ async def list_findings(
     domain: Optional[str] = Query(None),
     posture_category: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
-    check_scan_id: Optional[str] = Query(None),
+    scan_run_id: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
     sort_by: str = Query("severity"),
@@ -633,7 +632,7 @@ async def list_findings(
     """
     List all check findings with filtering, pagination, and sorting.
 
-    Multi-CSP: filter by provider, hierarchy_id (account), region.
+    Multi-CSP: filter by provider, account_id (account), region.
     Security: filter by severity, status, service, domain, posture_category.
     Enriches each finding with rule_metadata (title, severity, remediation, etc.).
     """
@@ -652,9 +651,9 @@ async def list_findings(
         if provider:
             conditions.append("cf.provider = %s")
             params.append(provider.lower())
-        if hierarchy_id:
-            conditions.append("cf.hierarchy_id = %s")
-            params.append(hierarchy_id)
+        if account_id:
+            conditions.append("cf.account_id = %s")
+            params.append(account_id)
         if region:
             conditions.append("cf.region = %s")
             params.append(region)
@@ -684,9 +683,9 @@ async def list_findings(
             conditions.append("(rm.title ILIKE %s OR cf.rule_id ILIKE %s OR cf.resource_uid ILIKE %s)")
             like_val = f"%{search}%"
             params.extend([like_val, like_val, like_val])
-        if check_scan_id:
-            conditions.append("cf.check_scan_id = %s")
-            params.append(check_scan_id)
+        if scan_run_id:
+            conditions.append("cf.scan_run_id = %s")
+            params.append(scan_run_id)
 
         where = " AND ".join(conditions)
         base_join = f"""
@@ -706,7 +705,7 @@ async def list_findings(
                 CASE WHEN cf.resource_uid LIKE 'arn:aws:%%:%%'
                      THEN split_part(cf.resource_uid, ':', 3) ELSE NULL END,
                 rm.resource_service, rm.service, cf.resource_service, cf.service)""",
-            "created_at": "cf.created_at",
+            "first_seen_at": "cf.first_seen_at",
             "region": "cf.region",
             "resource": "cf.resource_uid",
         }
@@ -724,9 +723,9 @@ async def list_findings(
                 SELECT
                     cf.id,
                     cf.rule_id,
-                    cf.check_scan_id,
+                    cf.scan_run_id,
                     cf.provider,
-                    cf.hierarchy_id,
+                    cf.account_id,
                     cf.resource_uid,
                     cf.resource_id,
                     cf.resource_type,
@@ -738,7 +737,7 @@ async def list_findings(
                     ) AS service,
                     cf.region,
                     cf.status,
-                    cf.created_at,
+                    cf.first_seen_at,
                     rm.title,
                     LOWER(COALESCE(rm.severity, 'medium')) AS severity,
                     rm.description,
@@ -754,14 +753,14 @@ async def list_findings(
                     cf.checked_fields,
                     cf.actual_values
                 {base_join}
-                ORDER BY {order_col} {order_dir}, cf.created_at DESC
+                ORDER BY {order_col} {order_dir}, cf.first_seen_at DESC
                 LIMIT %s OFFSET %s
             """, (*params, page_size, offset))
             rows = cur.fetchall()
 
         findings = []
         for r in rows:
-            created = r.get("created_at")
+            created = r.get("first_seen_at")
             # Parse compliance_frameworks if present
             frameworks = r.get("compliance_frameworks")
             if isinstance(frameworks, str):
@@ -782,7 +781,7 @@ async def list_findings(
                 "service": r.get("service") or "",
                 "region": r.get("region") or "",
                 "provider": r.get("provider") or "",
-                "hierarchy_id": r.get("hierarchy_id") or "",
+                "account_id": r.get("account_id") or "",
                 "domain": r.get("domain") or "",
                 "posture_category": r.get("posture_category") or "configuration",
                 "description": r.get("description") or "",
@@ -794,7 +793,7 @@ async def list_findings(
                 "risk_score": r.get("risk_score"),
                 "checked_fields": r.get("checked_fields"),
                 "actual_values": r.get("actual_values"),
-                "created_at": created.isoformat() if created else None,
+                "first_seen_at": created.isoformat() if created else None,
             })
 
         return {
@@ -847,11 +846,11 @@ async def get_findings_for_resource(
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             # Exact match
             cur.execute("""
-                SELECT resource_uid AS uid, check_scan_id
+                SELECT resource_uid AS uid, scan_run_id
                 FROM check_findings
                 WHERE resource_uid = %s
                   AND tenant_id = %s
-                ORDER BY created_at DESC
+                ORDER BY first_seen_at DESC
                 LIMIT 1
             """, (resource_uid, tenant_id))
             row = cur.fetchone()
@@ -859,18 +858,18 @@ async def get_findings_for_resource(
             if not row and '/' not in resource_uid and ':' not in resource_uid:
                 # Short-name → try suffix match
                 cur.execute("""
-                    SELECT resource_uid AS uid, check_scan_id
+                    SELECT resource_uid AS uid, scan_run_id
                     FROM check_findings
                     WHERE resource_uid LIKE %s
                       AND tenant_id = %s
-                    ORDER BY created_at DESC
+                    ORDER BY first_seen_at DESC
                     LIMIT 1
                 """, (f'%/{resource_uid}', tenant_id))
                 row = cur.fetchone()
 
             if row:
                 resolved_uid = row["uid"]
-                latest_scan_id = row["check_scan_id"]
+                latest_scan_id = row["scan_run_id"]
             else:
                 latest_scan_id = None
 
@@ -879,7 +878,7 @@ async def get_findings_for_resource(
         scan_filter = ""
         base_params: list = [resolved_uid, tenant_id]
         if latest_scan_id:
-            scan_filter = " AND cf.check_scan_id = %s"
+            scan_filter = " AND cf.scan_run_id = %s"
             base_params = [resolved_uid, tenant_id, latest_scan_id]
 
         # Severity counts (FAIL only)
@@ -950,7 +949,7 @@ async def get_findings_for_resource(
                     cf.status,
                     cf.region,
                     cf.resource_type,
-                    cf.created_at,
+                    cf.first_seen_at,
                     rm.domain,
                     COALESCE(rm.posture_category, 'configuration') AS posture_category
                 FROM check_findings cf
@@ -963,14 +962,14 @@ async def get_findings_for_resource(
                         WHEN 'critical' THEN 1 WHEN 'high' THEN 2
                         WHEN 'medium' THEN 3 WHEN 'low' THEN 4 ELSE 5
                     END,
-                    cf.created_at DESC
+                    cf.first_seen_at DESC
                 LIMIT %s
             """, (*base_params, limit))
             detail_rows = cur.fetchall()
 
         findings = []
         for r in detail_rows:
-            created = r.get("created_at")
+            created = r.get("first_seen_at")
             findings.append({
                 "rule_id": r["rule_id"],
                 "title": r.get("title") or r["rule_id"],
@@ -981,7 +980,7 @@ async def get_findings_for_resource(
                 "resource_type": r.get("resource_type") or "",
                 "domain": r.get("domain") or "",
                 "posture_category": r.get("posture_category") or "configuration",
-                "created_at": created.isoformat() if created else None,
+                "first_seen_at": created.isoformat() if created else None,
             })
 
         return {

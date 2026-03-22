@@ -1448,8 +1448,30 @@ export default function ArchitectureDiagramV2Page() {
         </div>
       )}
 
+      {/* Empty state — no data or empty accounts */}
+      {!loading && !error && (!data || data.accounts?.length === 0) && (
+        <div className="flex items-center justify-center p-20">
+          <div className="text-center">
+            <LucideIcon name="LayoutGrid" size={40} color="var(--text-tertiary)" className="mx-auto mb-3" />
+            <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
+              No infrastructure data available
+            </p>
+            <p className="text-xs mt-1.5 max-w-xs mx-auto" style={{ color: 'var(--text-tertiary)' }}>
+              Run a discovery scan to populate the architecture diagram, or check that your cloud accounts are onboarded.
+            </p>
+            <button
+              onClick={() => router.push('/inventory')}
+              className="mt-4 px-4 py-2 rounded-lg text-xs font-medium transition-colors"
+              style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}
+            >
+              Back to Inventory
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Architecture Diagram */}
-      {!loading && !error && data && (
+      {!loading && !error && data && data.accounts?.length > 0 && (
         <div
           className="rounded-xl border overflow-auto"
           style={{

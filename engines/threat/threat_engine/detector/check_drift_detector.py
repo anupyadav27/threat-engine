@@ -29,7 +29,7 @@ class CheckDriftDetector:
     def detect_check_status_drift(
         self,
         tenant_id: str,
-        hierarchy_id: Optional[str] = None,
+        account_id: Optional[str] = None,
         service: Optional[str] = None,
         current_scan_id: Optional[str] = None,
         region: Optional[str] = None,
@@ -42,7 +42,7 @@ class CheckDriftDetector:
         if not current_scan_id:
             latest = self.check_queries.get_latest_scan(
                 tenant_id=tenant_id,
-                hierarchy_id=hierarchy_id,
+                account_id=account_id,
                 service=service,
                 start_time=start_time,
                 end_time=end_time
@@ -54,7 +54,7 @@ class CheckDriftDetector:
         previous = self.check_queries.get_previous_scan(
             tenant_id=tenant_id,
             current_scan_id=current_scan_id,
-            hierarchy_id=hierarchy_id,
+            account_id=account_id,
             service=service,
             start_time=start_time,
             end_time=end_time
@@ -66,14 +66,14 @@ class CheckDriftDetector:
         current_results = self.check_queries.get_check_results_for_scan(
             scan_id=current_scan_id,
             tenant_id=tenant_id,
-            hierarchy_id=hierarchy_id,
+            account_id=account_id,
             service=service,
             include_metadata=True
         )
         previous_results = self.check_queries.get_check_results_for_scan(
             scan_id=baseline_scan_id,
             tenant_id=tenant_id,
-            hierarchy_id=hierarchy_id,
+            account_id=account_id,
             service=service,
             include_metadata=True
         )
@@ -99,7 +99,7 @@ class CheckDriftDetector:
 
             resource_uid = curr.get("resource_uid") or curr.get("resource_arn") or curr.get("resource_id")
             resource_arn = curr.get("resource_arn")
-            account = curr.get("hierarchy_id") or "unknown"
+            account = curr.get("account_id") or "unknown"
             extracted_region = self._extract_region(resource_arn)
             if region and extracted_region != region:
                 continue
@@ -122,8 +122,8 @@ class CheckDriftDetector:
                 severity=severity,
                 confidence=Confidence.MEDIUM,
                 status=ThreatStatus.OPEN,
-                first_seen_at=curr.get("scan_timestamp") or datetime.now(timezone.utc),
-                last_seen_at=curr.get("scan_timestamp") or datetime.now(timezone.utc),
+                first_seen_at=curr.get("first_seen_at") or datetime.now(timezone.utc),
+                last_seen_at=curr.get("first_seen_at") or datetime.now(timezone.utc),
                 correlations=ThreatCorrelation(
                     misconfig_finding_refs=[],
                     affected_assets=[]

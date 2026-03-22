@@ -127,9 +127,9 @@ class NDJSONCheckReader:
             scan_error = sum(1 for r in scan_records if r.get('status') == 'ERROR')
             
             # Get timestamp from first record
-            scan_timestamp = None
+            first_seen_at = None
             if scan_records:
-                scan_timestamp = scan_records[0].get('scan_timestamp')
+                first_seen_at = scan_records[0].get('first_seen_at')
             
             recent_scans.append({
                 'scan_id': scan_id,
@@ -137,11 +137,11 @@ class NDJSONCheckReader:
                 'passed': scan_passed,
                 'failed': scan_failed,
                 'error': scan_error,
-                'scan_timestamp': scan_timestamp
+                'first_seen_at': first_seen_at
             })
         
         # Sort by timestamp descending
-        recent_scans.sort(key=lambda x: x.get('scan_timestamp') or '', reverse=True)
+        recent_scans.sort(key=lambda x: x.get('first_seen_at') or '', reverse=True)
         
         return {
             'total_checks': total,
@@ -153,7 +153,7 @@ class NDJSONCheckReader:
             'accounts_scanned': 1,
             'top_failing_services': top_services,
             'recent_scans': recent_scans,
-            'last_scan_timestamp': recent_scans[0].get('scan_timestamp') if recent_scans else None
+            'last_first_seen_at': recent_scans[0].get('first_seen_at') if recent_scans else None
         }
     
     def list_scans(self, tenant_id: str, customer_id: Optional[str] = None,
@@ -168,7 +168,7 @@ class NDJSONCheckReader:
             'customer_id': None,
             'tenant_id': None,
             'provider': None,
-            'hierarchy_id': None,
+            'account_id': None,
             'hierarchy_type': None,
             'records': []
         })
@@ -184,7 +184,7 @@ class NDJSONCheckReader:
                     'customer_id': record.get('customer_id'),
                     'tenant_id': record.get('tenant_id'),
                     'provider': record.get('provider'),
-                    'hierarchy_id': record.get('hierarchy_id'),
+                    'account_id': record.get('account_id'),
                     'hierarchy_type': record.get('hierarchy_type')
                 })
             
@@ -199,15 +199,15 @@ class NDJSONCheckReader:
             failed = sum(1 for r in scan_records if r.get('status') == 'FAIL')
             error = sum(1 for r in scan_records if r.get('status') == 'ERROR')
             services = len(set(r.get('resource_type') for r in scan_records))
-            timestamp = scan_records[0].get('scan_timestamp') if scan_records else None
+            timestamp = scan_records[0].get('first_seen_at') if scan_records else None
             
             scans.append({
                 'scan_id': scan_id,
-                'discovery_scan_id': scan_records[0].get('finding_data', {}).get('discovery_id') if scan_records else None,
+                'scan_run_id': scan_records[0].get('finding_data', {}).get('discovery_id') if scan_records else None,
                 'customer_id': scan_data['customer_id'],
                 'tenant_id': scan_data['tenant_id'],
                 'provider': scan_data['provider'],
-                'hierarchy_id': scan_data['hierarchy_id'],
+                'account_id': scan_data['account_id'],
                 'hierarchy_type': scan_data['hierarchy_type'],
                 'total_checks': total_checks,
                 'passed': passed,
@@ -215,11 +215,11 @@ class NDJSONCheckReader:
                 'error': error,
                 'pass_rate': round((passed / total_checks * 100) if total_checks > 0 else 0.0, 2),
                 'services_scanned': services,
-                'scan_timestamp': timestamp
+                'first_seen_at': timestamp
             })
         
         # Sort by timestamp descending
-        scans.sort(key=lambda x: x.get('scan_timestamp') or '', reverse=True)
+        scans.sort(key=lambda x: x.get('first_seen_at') or '', reverse=True)
         
         # Paginate
         total = len(scans)
@@ -252,7 +252,7 @@ class NDJSONCheckReader:
             'customer_id': sample.get('customer_id'),
             'tenant_id': sample.get('tenant_id'),
             'provider': sample.get('provider'),
-            'hierarchy_id': sample.get('hierarchy_id'),
+            'account_id': sample.get('account_id'),
             'hierarchy_type': sample.get('hierarchy_type'),
             'total_checks': total,
             'passed': passed,
@@ -260,7 +260,7 @@ class NDJSONCheckReader:
             'error': error,
             'pass_rate': round((passed / total * 100) if total > 0 else 0.0, 2),
             'services_scanned': services,
-            'scan_timestamp': sample.get('scan_timestamp')
+            'first_seen_at': sample.get('first_seen_at')
         }
     
     def get_service_stats(self, scan_id: str, tenant_id: str) -> List[Dict]:
@@ -378,7 +378,7 @@ class NDJSONCheckReader:
             filtered = [r for r in filtered if r.get('resource_arn') == resource_arn]
         
         # Sort by timestamp descending
-        filtered.sort(key=lambda x: x.get('scan_timestamp') or '', reverse=True)
+        filtered.sort(key=lambda x: x.get('first_seen_at') or '', reverse=True)
         
         # Paginate
         total = len(filtered)
@@ -391,11 +391,11 @@ class NDJSONCheckReader:
             formatted.append({
                 'id': None,  # No DB ID
                 'scan_id': record.get('scan_id'),
-                'discovery_scan_id': record.get('finding_data', {}).get('discovery_id'),
+                'scan_run_id': record.get('finding_data', {}).get('discovery_id'),
                 'customer_id': record.get('customer_id'),
                 'tenant_id': record.get('tenant_id'),
                 'provider': record.get('provider'),
-                'hierarchy_id': record.get('hierarchy_id'),
+                'account_id': record.get('account_id'),
                 'hierarchy_type': record.get('hierarchy_type'),
                 'rule_id': record.get('rule_id'),
                 'resource_arn': record.get('resource_arn'),
@@ -404,7 +404,7 @@ class NDJSONCheckReader:
                 'status': record.get('status'),
                 'checked_fields': record.get('checked_fields', []),
                 'finding_data': record.get('finding_data', {}),
-                'scan_timestamp': record.get('scan_timestamp')
+                'first_seen_at': record.get('first_seen_at')
             })
         
         return formatted, total

@@ -26,7 +26,7 @@ Supported frameworks: CIS AWS Foundations, CIS Azure, CIS GCP, ISO 27001, NIST C
 ```
 Check DB (check_findings / rule_findings)
         ↓
-  CheckDBLoader            ← reads findings for check_scan_id from threat_engine_check DB
+  CheckDBLoader            ← reads findings for scan_run_id from threat_engine_check DB
         ↓
   RuleMapper               ← maps rule_id → compliance framework controls
         ↓
@@ -88,7 +88,7 @@ Check DB (check_findings / rule_findings)
 **Primary scan request body (`POST /api/v1/scan`):**
 ```json
 {
-  "orchestration_id": "337a7425-...",
+  "scan_run_id": "337a7425-...",
   "tenant_id": "5a8b072b-...",
   "csp": "aws",
   "frameworks": ["CIS", "ISO27001", "NIST", "PCI-DSS", "HIPAA"],
@@ -98,8 +98,8 @@ Check DB (check_findings / rule_findings)
 ```
 
 Supports two modes:
-- **Pipeline mode** (recommended): provide `orchestration_id` — engine looks up `check_scan_id` + `tenant_id` + `csp` from `scan_orchestration`
-- **Ad-hoc mode**: provide `scan_id` (direct `check_scan_id`, must also provide `csp` and `tenant_id`)
+- **Pipeline mode** (recommended): provide `scan_run_id` — engine looks up `scan_run_id` + `tenant_id` + `csp` from `scan_orchestration`
+- **Ad-hoc mode**: provide `scan_id` (direct `scan_run_id`, must also provide `csp` and `tenant_id`)
 
 ### Report Queries
 
@@ -252,11 +252,11 @@ The pod runs two containers:
 ## Triggering a Scan (Pipeline Mode)
 
 ```bash
-# Via orchestration_id (preferred in pipeline)
+# Via scan_run_id (preferred in pipeline)
 curl -X POST http://engine-compliance/api/v1/scan \
   -H "Content-Type: application/json" \
   -d '{
-    "orchestration_id": "337a7425-5a53-4664-8569-04c1f0d6abf0",
+    "scan_run_id": "337a7425-5a53-4664-8569-04c1f0d6abf0",
     "tenant_id": "5a8b072b-8867-4476-a52f-f331b1cbacb3",
     "csp": "aws",
     "frameworks": ["CIS", "ISO27001", "NIST", "PCI-DSS"]
@@ -264,10 +264,10 @@ curl -X POST http://engine-compliance/api/v1/scan \
 ```
 
 The engine will:
-1. Look up `check_scan_id` + `tenant_id` from `scan_orchestration`
+1. Look up `scan_run_id` + `tenant_id` from `scan_orchestration`
 2. Load check findings from `threat_engine_check` DB
 3. Map each `rule_id` to its framework controls
 4. Aggregate pass/fail counts per control per framework
 5. Calculate compliance scores (0-100%) per framework
 6. Write report to `compliance_reports` + `compliance_findings` tables
-7. Write `compliance_scan_id` back to `scan_orchestration`
+7. Write `scan_run_id` back to `scan_orchestration`

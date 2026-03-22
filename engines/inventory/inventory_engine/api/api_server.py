@@ -168,7 +168,7 @@ class ScanRequest(BaseModel):
     previous_scan_id: Optional[str] = None
     # DB-first inputs
     discovery_scan_id: Optional[str] = Field(default="latest", description="Discovery scan id from Discoveries DB (or 'latest') - for ad-hoc mode")
-    orchestration_id: Optional[str] = Field(default=None, description="Orchestration ID - for pipeline mode")
+    scan_run_id: Optional[str] = Field(default=None, description="Pipeline scan_run_id - for pipeline mode")
     check_scan_id: Optional[str] = Field(default=None, description="Optional check scan id to enrich assets with posture")
 
 
@@ -176,7 +176,7 @@ class DiscoveryScanRequest(BaseModel):
     """Request model for discovery-based inventory scan"""
     tenant_id: str
     discovery_scan_id: Optional[str] = Field(default=None, alias="configscan_scan_id", description="Discovery scan ID - for ad-hoc mode")
-    orchestration_id: Optional[str] = Field(default=None, description="Orchestration ID - for pipeline mode")
+    scan_run_id: Optional[str] = Field(default=None, description="Pipeline scan_run_id - for pipeline mode")
     providers: Optional[List[str]] = None
     accounts: Optional[List[str]] = None
     previous_scan_id: Optional[str] = None
@@ -187,10 +187,10 @@ class DiscoveryScanRequest(BaseModel):
 
 class ScanResponse(BaseModel):
     """Response model for Job-based scan execution."""
-    inventory_scan_id: str
+    scan_run_id: str
     status: str
     message: str
-    orchestration_id: Optional[str] = None
+    scan_run_id_ref: Optional[str] = None
     provider: Optional[str] = None
 
 
@@ -274,14 +274,14 @@ async def run_inventory_scan(request: ScanRequest):
     """
     Start an inventory scan by creating a K8s Job on a spot node.
 
-    **Pipeline mode** -- provide `orchestration_id`:
+    **Pipeline mode** -- provide `scan_run_id`:
       Fetches metadata from scan_orchestration table.
 
-    **Ad-hoc mode** -- provide `discovery_scan_id`:
-      Uses the supplied discovery_scan_id with optional overrides.
+    **Ad-hoc mode** -- provide `scan_run_id`:
+      Uses the supplied scan_run_id with optional overrides.
     """
-    orch_id = request.orchestration_id
-    inventory_scan_id = orch_id
+    orch_id = request.scan_run_id
+    scan_run_id = orch_id
 
     if orch_id:
         # Pipeline mode
@@ -294,7 +294,7 @@ async def run_inventory_scan(request: ScanRequest):
         if not discovery_scan_id:
             raise HTTPException(
                 status_code=400,
-                detail=f"Discovery scan not completed yet for orchestration_id={orch_id}",
+                detail=f"Discovery scan not completed yet for scan_run_id={orch_id}",
             )
 
         provider = (meta.get("provider") or meta.get("provider_type", "aws")).lower()
@@ -303,16 +303,16 @@ async def run_inventory_scan(request: ScanRequest):
             f"Pipeline mode: orch={orch_id} disc={discovery_scan_id} provider={provider}"
         )
     elif request.discovery_scan_id:
-        # Ad-hoc mode — still need orchestration_id for Job-based execution
+        # Ad-hoc mode — still need scan_run_id for Job-based execution
         if not orch_id:
             raise HTTPException(
                 status_code=400,
-                detail="orchestration_id is required for Job-based execution",
+                detail="scan_run_id is required for Job-based execution",
             )
     else:
         raise HTTPException(
             status_code=400,
-            detail="orchestration_id is required",
+            detail="scan_run_id is required",
         )
 
     tenant_id = request.tenant_id
@@ -325,11 +325,11 @@ async def run_inventory_scan(request: ScanRequest):
         with conn.cursor() as cur:
             cur.execute(
                 """INSERT INTO inventory_report
-                   (inventory_scan_id, tenant_id, status, started_at, scan_metadata)
+                   (scan_run_id, tenant_id, status, started_at, scan_metadata)
                    VALUES (%s, %s, 'running', NOW(), %s)
-                   ON CONFLICT (inventory_scan_id) DO UPDATE SET status = 'running'""",
-                (inventory_scan_id, tenant_id,
-                 _json.dumps({"orchestration_id": orch_id, "mode": "job"})),
+                   ON CONFLICT (scan_run_id) DO UPDATE SET status = 'running'""",
+                (scan_run_id, tenant_id,
+                 _json.dumps({"scan_run_id": orch_id, "mode": "job"})),
             )
         conn.commit()
         conn.close()
@@ -340,8 +340,8 @@ async def run_inventory_scan(request: ScanRequest):
     try:
         job_name = create_engine_job(
             engine_name="inventory",
-            scan_id=inventory_scan_id,
-            orchestration_id=orch_id,
+            scan_id=scan_run_id,
+            scan_run_id=scan_run_id,
             image=SCANNER_IMAGE,
             cpu_request=SCANNER_CPU_REQUEST,
             mem_request=SCANNER_MEM_REQUEST,
@@ -354,10 +354,9 @@ async def run_inventory_scan(request: ScanRequest):
         raise HTTPException(status_code=500, detail=f"Failed to create scanner Job: {e}")
 
     return ScanResponse(
-        inventory_scan_id=inventory_scan_id,
+        scan_run_id=scan_run_id,
         status="running",
         message=f"Scanner Job '{job_name}' created on spot node (image={SCANNER_IMAGE})",
-        orchestration_id=orch_id,
         provider=provider,
     )
 
@@ -369,14 +368,14 @@ async def run_discovery_scan(request: DiscoveryScanRequest):
 
     Same behaviour as POST /api/v1/scan — kept for backward compatibility.
     """
-    orch_id = request.orchestration_id
+    orch_id = request.scan_run_id
     if not orch_id:
         raise HTTPException(
             status_code=400,
-            detail="orchestration_id is required for Job-based execution",
+            detail="scan_run_id is required for Job-based execution",
         )
 
-    inventory_scan_id = orch_id
+    scan_run_id = orch_id
 
     try:
         meta = get_orchestration_metadata(orch_id)
@@ -387,7 +386,7 @@ async def run_discovery_scan(request: DiscoveryScanRequest):
     if not discovery_scan_id:
         raise HTTPException(
             status_code=400,
-            detail=f"Discovery scan not completed yet for orchestration_id={orch_id}",
+            detail=f"Discovery scan not completed yet for scan_run_id={orch_id}",
         )
 
     tenant_id = meta.get("tenant_id") or request.tenant_id
@@ -400,11 +399,11 @@ async def run_discovery_scan(request: DiscoveryScanRequest):
         with conn.cursor() as cur:
             cur.execute(
                 """INSERT INTO inventory_report
-                   (inventory_scan_id, tenant_id, status, started_at, scan_metadata)
+                   (scan_run_id, tenant_id, status, started_at, scan_metadata)
                    VALUES (%s, %s, 'running', NOW(), %s)
-                   ON CONFLICT (inventory_scan_id) DO UPDATE SET status = 'running'""",
-                (inventory_scan_id, tenant_id,
-                 _json.dumps({"orchestration_id": orch_id, "mode": "job"})),
+                   ON CONFLICT (scan_run_id) DO UPDATE SET status = 'running'""",
+                (scan_run_id, tenant_id,
+                 _json.dumps({"scan_run_id": orch_id, "mode": "job"})),
             )
         conn.commit()
         conn.close()
@@ -415,8 +414,8 @@ async def run_discovery_scan(request: DiscoveryScanRequest):
     try:
         job_name = create_engine_job(
             engine_name="inventory",
-            scan_id=inventory_scan_id,
-            orchestration_id=orch_id,
+            scan_id=scan_run_id,
+            scan_run_id=scan_run_id,
             image=SCANNER_IMAGE,
             cpu_request=SCANNER_CPU_REQUEST,
             mem_request=SCANNER_MEM_REQUEST,
@@ -429,25 +428,24 @@ async def run_discovery_scan(request: DiscoveryScanRequest):
         raise HTTPException(status_code=500, detail=f"Failed to create scanner Job: {e}")
 
     return ScanResponse(
-        inventory_scan_id=inventory_scan_id,
+        scan_run_id=scan_run_id,
         status="running",
         message=f"Scanner Job '{job_name}' created on spot node (image={SCANNER_IMAGE})",
-        orchestration_id=orch_id,
         provider=provider,
     )
 
 
-@app.get("/api/v1/inventory/scan/{inventory_scan_id}/status")
-async def get_inventory_scan_status(inventory_scan_id: str):
+@app.get("/api/v1/inventory/scan/{scan_run_id}/status")
+async def get_inventory_scan_status(scan_run_id: str):
     """Get inventory scan status from inventory_report DB table."""
     from psycopg2.extras import RealDictCursor
     try:
         conn = _get_inventory_conn()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
-                "SELECT inventory_scan_id, status, tenant_id, started_at, completed_at, scan_metadata "
-                "FROM inventory_report WHERE inventory_scan_id = %s",
-                (inventory_scan_id,),
+                "SELECT scan_run_id, status, tenant_id, started_at, completed_at, scan_metadata "
+                "FROM inventory_report WHERE scan_run_id = %s",
+                (scan_run_id,),
             )
             row = cur.fetchone()
         conn.close()
@@ -455,7 +453,7 @@ async def get_inventory_scan_status(inventory_scan_id: str):
         raise HTTPException(status_code=503, detail=f"Database error: {e}")
 
     if not row:
-        raise HTTPException(status_code=404, detail=f"Scan {inventory_scan_id} not found")
+        raise HTTPException(status_code=404, detail=f"Scan {scan_run_id} not found")
 
     # Normalise datetime columns for JSON serialisation
     result = dict(row)
@@ -1975,7 +1973,7 @@ async def get_architecture_diagram(
                 # dropping unknown types silently).
                 params.append(max_priority)
                 cur.execute(f"""
-                    SELECT i.asset_id, i.resource_uid, i.provider,
+                    SELECT i.finding_id, i.resource_uid, i.provider,
                            i.account_id, i.region, i.resource_type,
                            i.resource_id, i.name, i.display_name,
                            i.tags, i.risk_score, i.criticality,

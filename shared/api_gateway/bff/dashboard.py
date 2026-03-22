@@ -21,7 +21,6 @@ Returns UI-ready JSON for every widget:
 - 90-Day Security Score Trend
 """
 
-import random
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, List
 
@@ -300,15 +299,16 @@ async def view_dashboard(
                 )
                 threat_activity_trend.append({"date": t.get("date", ""), "threats": threats_val})
 
-    # Synthetic fallback
-    if not threat_activity_trend and total_threats > 0:
-        daily_avg = max(1, total_threats // 30)
-        for days_ago in range(30, -1, -1):
-            date_str = (now - timedelta(days=days_ago)).strftime("%Y-%m-%d")
-            scale = 0.4 + 0.6 * ((30 - days_ago) / 30)
-            noise = random.randint(-max(1, daily_avg // 3), max(1, daily_avg // 3))
-            val = max(0, round(daily_avg * scale + noise))
-            threat_activity_trend.append({"date": date_str, "threats": val})
+    # Derive trend from threat detection timestamps if engine returned no trend
+    if not threat_activity_trend and raw_threats:
+        date_counts: Dict[str, int] = {}
+        for t in raw_threats:
+            ts = t.get("detected_at") or t.get("first_seen_at") or t.get("detected") or ""
+            if isinstance(ts, str) and len(ts) >= 10:
+                d = ts[:10]
+                date_counts[d] = date_counts.get(d, 0) + 1
+        for d in sorted(date_counts.keys()):
+            threat_activity_trend.append({"date": d, "threats": date_counts[d]})
 
     # ── Compliance frameworks ─────────────────────────────────────────────
     frameworks: List[dict] = []
@@ -638,16 +638,13 @@ async def view_dashboard(
                     "event": day.get("event"),
                 })
 
+    # If no trend data but we have a current score, return a single data point
     if not security_score_trend and compliance_score and compliance_score > 0:
-        base = compliance_score
-        for days_ago in range(90, -1, -7):
-            date = (now - timedelta(days=days_ago)).strftime("%Y-%m-%d")
-            noise = random.uniform(-3, 3) if days_ago > 0 else 0
-            security_score_trend.append({
-                "date": date,
-                "score": round(max(0, min(100, base + noise - (days_ago * 0.05))), 1),
-                "event": None,
-            })
+        security_score_trend.append({
+            "date": now.strftime("%Y-%m-%d"),
+            "score": round(compliance_score, 1),
+            "event": None,
+        })
 
     # ── Build final response ──────────────────────────────────────────────
     response = {

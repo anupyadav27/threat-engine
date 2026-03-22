@@ -2,7 +2,7 @@
 Compliance Database Writer
 
 Writes compliance reports to RDS tables:
-- compliance_report (main report metadata, PK: compliance_scan_id)
+- compliance_report (main report metadata, PK: scan_run_id)
 - compliance_findings (individual findings)
 """
 
@@ -32,11 +32,11 @@ def _insert_findings_batch(conn, batch: list):
     with conn.cursor() as cur:
         execute_values(cur, """
             INSERT INTO compliance_findings (
-                finding_id, compliance_scan_id, tenant_id, scan_run_id,
+                finding_id, scan_run_id, tenant_id, scan_run_id,
                 rule_id, rule_version, category,
                 severity, confidence, status,
                 first_seen_at, last_seen_at,
-                resource_type, resource_id, resource_arn, region,
+                resource_type, resource_id, resource_uid, region,
                 finding_data,
                 compliance_framework, control_id, control_name
             )
@@ -53,7 +53,7 @@ def save_compliance_report_to_db(compliance_report: Dict[str, Any]) -> str:
         compliance_report: Full compliance report dict
 
     Returns:
-        compliance_scan_id string
+        scan_run_id string
     """
     try:
         import psycopg2
@@ -65,7 +65,7 @@ def save_compliance_report_to_db(compliance_report: Dict[str, Any]) -> str:
 
     try:
         # Extract metadata
-        compliance_scan_id = compliance_report.get('compliance_scan_id') or compliance_report.get('report_id') or str(uuid.uuid4())
+        scan_run_id = compliance_report.get('scan_run_id') or compliance_report.get('report_id') or str(uuid.uuid4())
         scan_id = compliance_report.get('scan_id', '')
         tenant_id = compliance_report.get('tenant_id', '')
         csp = compliance_report.get('csp', 'aws')
@@ -109,14 +109,14 @@ def save_compliance_report_to_db(compliance_report: Dict[str, Any]) -> str:
         with conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO compliance_report (
-                    compliance_scan_id, tenant_id, scan_run_id, cloud,
+                    scan_run_id, tenant_id, scan_run_id, cloud,
                     trigger_type, collection_mode,
                     started_at, completed_at,
                     total_controls, controls_passed, controls_failed,
                     total_findings, report_data
                 )
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)
-                ON CONFLICT (compliance_scan_id) DO UPDATE SET
+                ON CONFLICT (scan_run_id) DO UPDATE SET
                     completed_at = EXCLUDED.completed_at,
                     total_controls = EXCLUDED.total_controls,
                     controls_passed = EXCLUDED.controls_passed,
@@ -124,7 +124,7 @@ def save_compliance_report_to_db(compliance_report: Dict[str, Any]) -> str:
                     total_findings = EXCLUDED.total_findings,
                     report_data = EXCLUDED.report_data
             """, (
-                str(compliance_scan_id),
+                str(scan_run_id),
                 tenant_id or 'default',
                 scan_id,
                 csp,
@@ -159,7 +159,7 @@ def save_compliance_report_to_db(compliance_report: Dict[str, Any]) -> str:
 
                         batch.append((
                             finding_id,
-                            str(compliance_scan_id),
+                            str(scan_run_id),
                             tenant_id or 'default',
                             scan_id,
                             check.get('rule_id'),
@@ -196,7 +196,7 @@ def save_compliance_report_to_db(compliance_report: Dict[str, Any]) -> str:
 
         conn.commit()
         print(f"Saved to DB: 1 report, {findings_inserted} findings")
-        return str(compliance_scan_id)
+        return str(scan_run_id)
 
     except Exception as e:
         conn.rollback()
@@ -205,7 +205,7 @@ def save_compliance_report_to_db(compliance_report: Dict[str, Any]) -> str:
         conn.close()
 
 
-def get_compliance_scan_summary(tenant_id: str, compliance_scan_id: str) -> Optional[Dict[str, Any]]:
+def get_compliance_scan_summary(tenant_id: str, scan_run_id: str) -> Optional[Dict[str, Any]]:
     """Retrieve compliance report from database."""
     try:
         import psycopg2
@@ -219,8 +219,8 @@ def get_compliance_scan_summary(tenant_id: str, compliance_scan_id: str) -> Opti
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("""
                 SELECT * FROM compliance_report
-                WHERE compliance_scan_id = %s AND tenant_id = %s
-            """, (compliance_scan_id, tenant_id))
+                WHERE scan_run_id = %s AND tenant_id = %s
+            """, (scan_run_id, tenant_id))
             report = cur.fetchone()
 
         if not report:
@@ -246,7 +246,7 @@ def list_compliance_scans(tenant_id: str, limit: int = 100) -> List[Dict[str, An
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("""
                 SELECT
-                    compliance_scan_id,
+                    scan_run_id,
                     scan_run_id,
                     cloud,
                     total_controls,

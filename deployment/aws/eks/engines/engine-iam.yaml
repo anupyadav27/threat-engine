@@ -25,7 +25,7 @@ spec:
       serviceAccountName: engine-sa
       containers:
       - name: engine-iam
-        image: yadavanup84/engine-iam:v-refactor
+        image: yadavanup84/engine-iam:v-std-cols
         imagePullPolicy: Always
         ports:
         - containerPort: 8003
@@ -42,7 +42,7 @@ spec:
           value: "INFO"
         # ── Scanner Job config ─────────────────────────────────────────────
         - name: IAM_SCANNER_IMAGE
-          value: "yadavanup84/engine-iam:v-refactor"
+          value: "yadavanup84/engine-iam:v-policy-parser"
         - name: SCANNER_CPU_REQUEST
           value: "100m"
         - name: SCANNER_MEM_REQUEST
@@ -50,7 +50,7 @@ spec:
         - name: SCANNER_CPU_LIMIT
           value: "250m"
         - name: SCANNER_MEM_LIMIT
-          value: "1Gi"
+          value: "2Gi"
         - name: SCANNER_NAMESPACE
           value: "threat-engine-engines"
         - name: SCANNER_SERVICE_ACCOUNT
@@ -69,6 +69,32 @@ spec:
             secretKeyRef:
               name: threat-engine-db-passwords
               key: ONBOARDING_DB_PASSWORD
+              optional: true
+        # ── Discoveries DB (for IAM policy parsing) ──────────────────────
+        - name: DISCOVERIES_DB_HOST
+          value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+        - name: DISCOVERIES_DB_PORT
+          value: "5432"
+        - name: DISCOVERIES_DB_USER
+          value: "postgres"
+        - name: DISCOVERIES_DB_NAME
+          value: "threat_engine_discoveries"
+        - name: DISCOVERIES_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: DISCOVERIES_DB_PASSWORD
+              optional: true
+        # ── Neo4j (for IAM graph edges) ──────────────────────────────────
+        - name: NEO4J_URI
+          value: "neo4j+s://17ec5cbb.databases.neo4j.io"
+        - name: NEO4J_USER
+          value: "neo4j"
+        - name: NEO4J_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: NEO4J_PASSWORD
               optional: true
         # ── OpenTelemetry ─────────────────────────────────────────────────
         - name: OTEL_SERVICE_NAME

@@ -34,7 +34,7 @@ class AWSCheckEvaluator(CheckEvaluator):
         service: str,
         discovery_id: str,
         region: str,
-        hierarchy_id: str,
+        account_id: str,
     ) -> Dict[str, str]:
         """
         Extract or generate AWS resource identifiers from already-fetched DB data.
@@ -53,9 +53,9 @@ class AWSCheckEvaluator(CheckEvaluator):
             service = item_record.get("service", "")
         if not region:
             region = item_record.get("region", "")
-        if not hierarchy_id:
-            hierarchy_id = (
-                item_record.get("hierarchy_id")
+        if not account_id:
+            account_id = (
+                item_record.get("account_id")
                 or item_record.get("account_id")
                 or ""
             )
@@ -67,16 +67,16 @@ class AWSCheckEvaluator(CheckEvaluator):
             )
 
         # Step 2: discovery_resource_mapper (service_list.json driven)
-        if not resource_arn and discovery_id and service and hierarchy_id:
+        if not resource_arn and discovery_id and service and account_id:
             resource_arn, resource_id, resource_type = self._apply_discovery_mapping(
-                emitted_fields, discovery_id, service, region, hierarchy_id,
+                emitted_fields, discovery_id, service, region, account_id,
                 resource_arn, resource_id, resource_type,
             )
 
         # Step 3: Account-level ARN for account-scope configurations
-        if not resource_arn and discovery_id and hierarchy_id:
+        if not resource_arn and discovery_id and account_id:
             resource_arn = self._build_account_arn(
-                discovery_id, service, region, hierarchy_id, resource_id
+                discovery_id, service, region, account_id, resource_id
             )
 
         return {
@@ -145,7 +145,7 @@ class AWSCheckEvaluator(CheckEvaluator):
 
     @staticmethod
     def _apply_discovery_mapping(
-        emitted_fields, discovery_id, service, region, hierarchy_id,
+        emitted_fields, discovery_id, service, region, account_id,
         resource_arn, resource_id, resource_type,
     ):
         """Use service_list.json-driven mapper for ARN extraction and generation."""
@@ -181,7 +181,7 @@ class AWSCheckEvaluator(CheckEvaluator):
                 resource_arn = generate_arn(
                     service=service,
                     region=arn_region,
-                    account_id=hierarchy_id,
+                    account_id=account_id,
                     resource_id=str(resource_id),
                     resource_type=resource_type,
                 )
@@ -197,7 +197,7 @@ class AWSCheckEvaluator(CheckEvaluator):
 
     @staticmethod
     def _build_account_arn(
-        discovery_id: str, service: str, region: str, hierarchy_id: str,
+        discovery_id: str, service: str, region: str, account_id: str,
         resource_id: Optional[str],
     ) -> Optional[str]:
         """Generate account-level ARN for account-scope configurations."""
@@ -221,7 +221,7 @@ class AWSCheckEvaluator(CheckEvaluator):
                 cfg = "configuration"
 
             cid = resource_id or "default"
-            arn = f"arn:aws:{service}:{region or ''}:{hierarchy_id}:{cfg}/{cid}"
+            arn = f"arn:aws:{service}:{region or ''}:{account_id}:{cfg}/{cid}"
             logger.debug("[ARN-ACCOUNT] %s", arn)
             return arn
 

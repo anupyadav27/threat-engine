@@ -77,13 +77,13 @@ class CheckDBReader:
 
         query = """
             SELECT
-                cr.check_scan_id, cr.tenant_id, cr.rule_id,
+                cr.scan_run_id, cr.tenant_id, cr.rule_id,
                 cr.resource_uid, cr.resource_arn, cr.resource_id, cr.resource_type,
                 cr.status, cr.checked_fields, cr.finding_data,
-                cr.hierarchy_id as account_id, cr.provider,
-                cr.created_at as scan_timestamp
+                cr.account_id, cr.provider,
+                cr.created_at as first_seen_at
             FROM check_findings cr
-            WHERE cr.check_scan_id = %s AND cr.tenant_id = %s
+            WHERE cr.scan_run_id = %s AND cr.tenant_id = %s
         """
         params = [scan_id, tenant_id]
 
@@ -92,7 +92,7 @@ class CheckDBReader:
             query += " AND cr.rule_id = ANY(%s)"
             params.append(list(datasec_rule_ids))
 
-        query += " ORDER BY cr.scan_timestamp DESC"
+        query += " ORDER BY cr.first_seen_at DESC"
 
         rows = []
         try:

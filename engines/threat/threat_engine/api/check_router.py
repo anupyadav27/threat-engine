@@ -97,18 +97,18 @@ async def get_dashboard(
         passed = scan['passed']
         recent.append(ScanSummary(
             scan_id=scan['scan_id'],
-            discovery_scan_id=None,  # Not available in aggregation
+            scan_run_id=None,  # Not available in aggregation
             customer_id=tenant_id,  # From aggregation
             tenant_id=tenant_id,
             provider="aws",  # Default
-            hierarchy_id="",  # Not in aggregation
+            account_id="",  # Not in aggregation
             hierarchy_type="account",
             total_checks=total,
             passed=passed,
             failed=scan['failed'],
             error=scan.get('error', 0),
             services_scanned=0,  # Not in aggregation
-            scan_timestamp=scan['scan_timestamp']
+            first_seen_at=scan['first_seen_at']
         ))
     
     return CheckDashboard(
@@ -121,7 +121,7 @@ async def get_dashboard(
         accounts_scanned=stats.get('accounts_scanned', 1),
         top_failing_services=top_services,
         recent_scans=recent,
-        last_scan_timestamp=recent[0].scan_timestamp if recent else None
+        last_first_seen_at=recent[0].first_seen_at if recent else None
     )
 
 
@@ -151,18 +151,18 @@ async def list_scans(
         passed = scan['passed']
         scan_items.append(ScanListItem(
             scan_id=scan['scan_id'],
-            discovery_scan_id=scan.get('discovery_scan_id'),
+            scan_run_id=scan.get('scan_run_id'),
             customer_id=scan['customer_id'],
             tenant_id=scan['tenant_id'],
             provider=scan['provider'],
-            hierarchy_id=scan['hierarchy_id'],
+            account_id=scan['account_id'],
             total_checks=total_checks,
             passed=passed,
             failed=scan['failed'],
             error=scan.get('error', 0),
             pass_rate=scan['pass_rate'],
             services_scanned=scan['services_scanned'],
-            scan_timestamp=scan['scan_timestamp']
+            first_seen_at=scan['first_seen_at']
         ))
     
     return ScanList(
@@ -195,18 +195,18 @@ async def get_scan(
     
     return ScanSummary(
         scan_id=scan['scan_id'],
-        discovery_scan_id=None,  # TODO: Extract from finding_data
+        scan_run_id=None,  # TODO: Extract from finding_data
         customer_id=scan['customer_id'],
         tenant_id=scan['tenant_id'],
         provider=scan['provider'],
-        hierarchy_id=scan['hierarchy_id'],
+        account_id=scan['account_id'],
         hierarchy_type=scan['hierarchy_type'],
         total_checks=scan['total_checks'],
         passed=scan['passed'],
         failed=scan['failed'],
         error=scan.get('error', 0),
         services_scanned=scan['services_scanned'],
-        scan_timestamp=scan['scan_timestamp']
+        first_seen_at=scan['first_seen_at']
     )
 
 
@@ -293,11 +293,11 @@ async def get_scan_findings(
         finding_details.append(FindingDetail(
             id=f.get('id'),
             scan_id=f['scan_id'],
-            discovery_scan_id=f.get('discovery_scan_id'),
+            scan_run_id=f.get('scan_run_id'),
             customer_id=f['customer_id'],
             tenant_id=f['tenant_id'],
             provider=f['provider'],
-            hierarchy_id=f['hierarchy_id'],
+            account_id=f['account_id'],
             hierarchy_type=f['hierarchy_type'],
             rule_id=f['rule_id'],
             resource_arn=f.get('resource_arn'),
@@ -306,7 +306,7 @@ async def get_scan_findings(
             status=CheckStatus(f['status']),
             checked_fields=f.get('checked_fields', []),
             finding_data=f.get('finding_data', {}),
-            scan_timestamp=f['scan_timestamp']
+            first_seen_at=f['first_seen_at']
         ))
     
     return FindingList(
@@ -354,11 +354,11 @@ async def search_findings(
         finding_details.append(FindingDetail(
             id=f.get('id'),
             scan_id=f['scan_id'],
-            discovery_scan_id=f.get('discovery_scan_id'),
+            scan_run_id=f.get('scan_run_id'),
             customer_id=f['customer_id'],
             tenant_id=f['tenant_id'],
             provider=f['provider'],
-            hierarchy_id=f['hierarchy_id'],
+            account_id=f['account_id'],
             hierarchy_type=f['hierarchy_type'],
             rule_id=f['rule_id'],
             resource_arn=f.get('resource_arn'),
@@ -367,7 +367,7 @@ async def search_findings(
             status=CheckStatus(f['status']),
             checked_fields=f.get('checked_fields', []),
             finding_data=f.get('finding_data', {}),
-            scan_timestamp=f['scan_timestamp']
+            first_seen_at=f['first_seen_at']
         ))
     
     return FindingList(
@@ -409,11 +409,11 @@ async def get_resource_findings(
         findings.append(FindingDetail(
             id=f.get('id'),
             scan_id=f['scan_id'],
-            discovery_scan_id=f.get('discovery_scan_id'),
+            scan_run_id=f.get('scan_run_id'),
             customer_id=f['customer_id'],
             tenant_id=f['tenant_id'],
             provider=f['provider'],
-            hierarchy_id=f['hierarchy_id'],
+            account_id=f['account_id'],
             hierarchy_type=f['hierarchy_type'],
             rule_id=f['rule_id'],
             resource_arn=f.get('resource_arn'),
@@ -422,7 +422,7 @@ async def get_resource_findings(
             status=CheckStatus(f['status']),
             checked_fields=f.get('checked_fields', []),
             finding_data=f.get('finding_data', {}),
-            scan_timestamp=f['scan_timestamp']
+            first_seen_at=f['first_seen_at']
         ))
     
     return ResourceFindings(
@@ -463,11 +463,11 @@ async def get_rule_findings(
         findings.append(FindingDetail(
             id=f.get('id'),
             scan_id=f['scan_id'],
-            discovery_scan_id=f.get('discovery_scan_id'),
+            scan_run_id=f.get('scan_run_id'),
             customer_id=f['customer_id'],
             tenant_id=f['tenant_id'],
             provider=f['provider'],
-            hierarchy_id=f['hierarchy_id'],
+            account_id=f['account_id'],
             hierarchy_type=f.get('hierarchy_type', 'account'),
             rule_id=f['rule_id'],
             resource_arn=f.get('resource_arn'),
@@ -476,7 +476,7 @@ async def get_rule_findings(
             status=CheckStatus(f['status']),
             checked_fields=f.get('checked_fields', []),
             finding_data=f.get('finding_data', {}),
-            scan_timestamp=f['scan_timestamp']
+            first_seen_at=f['first_seen_at']
         ))
     
     return RuleFindings(
@@ -625,7 +625,7 @@ async def export_scan(
         output = io.StringIO()
         writer = csv.DictWriter(output, fieldnames=[
             'scan_id', 'rule_id', 'resource_arn', 'resource_id', 'resource_type',
-            'status', 'checked_fields', 'scan_timestamp'
+            'status', 'checked_fields', 'first_seen_at'
         ])
         writer.writeheader()
         
@@ -638,7 +638,7 @@ async def export_scan(
                 'resource_type': f['resource_type'],
                 'status': f['status'],
                 'checked_fields': ','.join(f.get('checked_fields', [])),
-                'scan_timestamp': f['scan_timestamp']
+                'first_seen_at': f['first_seen_at']
             })
         
         output.seek(0)

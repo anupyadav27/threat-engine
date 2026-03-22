@@ -35,8 +35,8 @@ DEFAULT_BASE_URL = (
 
 # Known test data from previous pipeline runs
 TENANT_ID = "5a8b072b-8867-4476-a52f-f331b1cbacb3"
-ORCHESTRATION_ID = "337a7425-5a53-4664-8569-04c1f0d6abf0"
-THREAT_SCAN_ID = "threat_bfed9ebc-68e7-4f9d-83e1-24ce75e21d01"
+SCAN_RUN_ID_LEGACY = "337a7425-5a53-4664-8569-04c1f0d6abf0"  # was orchestration_id
+THREAT_SCAN_ID = "threat_bfed9ebc-68e7-4f9d-83e1-24ce75e21d01"  # scan_run_id for threat engine
 SCAN_RUN_ID = "bfed9ebc-68e7-4f9d-83e1-24ce75e21d01"
 CSP = "aws"
 
@@ -421,11 +421,11 @@ def test_discoveries(base_url: str, timeout: int):
 
     # ── Data routes ──────────────────────────────────────────────────────────
     # Discoveries engine: POST /api/v1/discovery (start scan), GET /api/v1/discovery/{scan_id} (poll status).
-    # The scan_id is the discovery_scan_id written to scan_orchestration, not the orchestration_id.
+    # The scan_id is the scan_run_id written to scan_orchestration.
     # We don't have the discovery_scan_id without a DB query, so we verify the endpoint exists
     # by checking that a lookup returns 404 (scan not found) vs connection error.
     run_test("discoveries", "discovery API reachable (404=no active scan expected)",
-             "GET", f"/api/v1/discovery/{ORCHESTRATION_ID}",
+             "GET", f"/api/v1/discovery/{SCAN_RUN_ID_LEGACY}",
              base_url, timeout, expect_status=404)
 
 

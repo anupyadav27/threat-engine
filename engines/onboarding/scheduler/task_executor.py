@@ -207,12 +207,11 @@ class TaskExecutor:
             # Trigger downstream engines (non-blocking)
             try:
                 orchestration_task = asyncio.create_task(
-                    self.orchestrator.trigger_downstream_engines(
+                    self.orchestrator.run_pipeline(
                         scan_run_id=scan_run_id,
                         tenant_id=tenant_id,
                         account_id=account_id,
                         provider_type=provider_type,
-                        scan_id=scan_id
                     )
                 )
                 # Send webhook notification after orchestration completes
@@ -334,12 +333,11 @@ class TaskExecutor:
             # Trigger downstream engines (non-blocking)
             try:
                 asyncio.create_task(
-                    self.orchestrator.trigger_downstream_engines(
+                    self.orchestrator.run_pipeline(
                         scan_run_id=execution_id,
                         tenant_id=tenant_id,
                         account_id=account_id,
                         provider_type=provider_type,
-                        scan_id=scan_id
                     )
                 )
             except Exception as e:

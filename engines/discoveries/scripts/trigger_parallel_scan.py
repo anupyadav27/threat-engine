@@ -10,7 +10,7 @@ exactly one chunk of services.
 
 Usage:
   python trigger_parallel_scan.py \
-    --orchestration-id 337a7425-5a53-4664-8569-04c1f0d6abf0 \
+    --scan-run-id 337a7425-5a53-4664-8569-04c1f0d6abf0 \
     --chunks 5
 """
 
@@ -70,8 +70,8 @@ def chunk_list(lst: List[str], n: int) -> List[List[str]]:
 def trigger_scan_on_pod(
     pod_name: str,
     namespace: str,
-    orchestration_id: str,
-    hierarchy_id: str,
+    scan_run_id: str,
+    account_id: str,
     services: List[str],
     chunk_id: int,
 ) -> dict:
@@ -81,9 +81,9 @@ def trigger_scan_on_pod(
     """
     # Pre-serialize the payload as a JSON string to embed in the Python code
     payload_json_str = json.dumps({
-        "orchestration_id": orchestration_id,
+        "scan_run_id": scan_run_id,
         "provider": "aws",
-        "hierarchy_id": hierarchy_id,
+        "account_id": account_id,
         "hierarchy_type": "account",
         "include_services": services,
         "use_database": True,
@@ -125,8 +125,8 @@ def trigger_scan_on_pod(
 def main():
     parser = argparse.ArgumentParser(description="Trigger parallel discovery scans")
     parser.add_argument(
-        "--orchestration-id", required=True,
-        help="Orchestration ID from scan_orchestration table",
+        "--scan-run-id", required=True,
+        help="scan_run_id from scan_orchestration table",
     )
     parser.add_argument(
         "--hierarchy-id", default="588989875114",
@@ -143,8 +143,8 @@ def main():
     args = parser.parse_args()
 
     print("=== Parallel Discovery Scan Trigger ===")
-    print(f"Orchestration ID: {args.orchestration_id}")
-    print(f"Hierarchy ID:     {args.hierarchy_id}")
+    print(f"scan_run_id:  {args.scan_run_id}")
+    print(f"Account ID:   {args.hierarchy_id}")
     print(f"Chunks:           {args.chunks}")
     print()
 
@@ -179,7 +179,7 @@ def main():
         futures = [
             pool.submit(
                 trigger_scan_on_pod,
-                pods[i], args.namespace, args.orchestration_id,
+                pods[i], args.namespace, args.scan_run_id,
                 args.hierarchy_id, chunk, i,
             )
             for i, chunk in enumerate(chunks)
@@ -197,7 +197,7 @@ def main():
         chunk_id = r["chunk"]
         pod = r["pod"]
         if r["status"] == "ok":
-            scan_id = r["response"].get("discovery_scan_id", "?")
+            scan_id = r["response"].get("scan_run_id", "?")
             scan_ids.append(scan_id)
             status = r["response"].get("status", "?")
             print(f"  Chunk {chunk_id + 1} [{pod[:30]}...]: {scan_id} ({status})")
@@ -212,7 +212,7 @@ def main():
         ids_str = "', '".join(scan_ids)
         print("=== Check DB Progress ===")
         print(f"SELECT COUNT(DISTINCT service), COUNT(*) FROM discovery_findings")
-        print(f"WHERE discovery_scan_id IN ('{ids_str}');")
+        print(f"WHERE scan_run_id IN ('{ids_str}');")
 
 
 if __name__ == "__main__":

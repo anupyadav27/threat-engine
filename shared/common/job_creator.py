@@ -11,7 +11,7 @@ Usage:
     job_name = create_engine_job(
         engine_name="check",
         scan_id=check_scan_id,
-        orchestration_id=orch_id,
+        scan_run_id=orch_id,
         image="yadavanup84/engine-check:v-job",
     )
 """
@@ -33,7 +33,7 @@ DEFAULT_BACKOFF_LIMIT = 0  # no retries — pipeline handles retry logic
 def create_engine_job(
     engine_name: str,
     scan_id: str,
-    orchestration_id: str,
+    scan_run_id: str,
     image: str,
     cpu_request: str = "500m",
     mem_request: str = "1Gi",
@@ -49,8 +49,8 @@ def create_engine_job(
 
     Args:
         engine_name: Engine identifier (e.g., "check", "threat", "discoveries")
-        scan_id: Engine-specific scan ID (e.g., check_scan_id)
-        orchestration_id: Pipeline orchestration ID
+        scan_id: Scan ID (used for Job naming)
+        scan_run_id: Pipeline scan_run_id (passed as --scan-run-id to the Job)
         image: Docker image for the scanner pod
         cpu_request: CPU request for the scanner pod
         mem_request: Memory request for the scanner pod
@@ -75,13 +75,11 @@ def create_engine_job(
     ns = namespace or DEFAULT_NAMESPACE
     sa = service_account or DEFAULT_SERVICE_ACCOUNT
     job_name = f"{engine_name}-scan-{scan_id[:12]}"
-    scan_id_arg = f"--{engine_name}-scan-id"
 
-    # Build command
+    # Build command — all engines now use --scan-run-id only
     command = [
         "python", "-m", "run_scan",
-        "--orchestration-id", orchestration_id,
-        scan_id_arg, scan_id,
+        "--scan-run-id", scan_run_id or scan_id,
     ]
     if extra_args:
         command.extend(extra_args)

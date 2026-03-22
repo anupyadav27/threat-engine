@@ -23,21 +23,15 @@
 
 ---
 
-## Pipeline Flow (Scan ID Chain)
+## Pipeline Flow (Scan ID Architecture)
+
+All engines share a single `scan_run_id` (UUID) generated at the start of the pipeline.
+This ID is the PK or FK in every engine's `*_report` table and ties the full pipeline
+run together. Per-engine scan ID columns have been removed.
 
 ```
-Discovery Engine                 Check Engine                  Threat Engine
-  discovery_scan_id ──────────► check_report.discovery_scan_id
-                                 check_scan_id ──────────────► threat_report.check_scan_id
-                                                                threat_scan_id ──► IAM / DataSec / Compliance
+scan_run_id (UUID) ──► ALL engine report tables use this as their identifier
 ```
-
-Each engine's `*_report` table links upstream via FK-like columns:
-- `check_report.discovery_scan_id` → `discovery_report.discovery_scan_id`
-- `threat_report.check_scan_id` → `check_report.check_scan_id`
-- `compliance_report.check_scan_id` → `check_report.check_scan_id`
-- `iam_report.threat_scan_id` → `threat_report.threat_scan_id`
-- `datasec_report.threat_scan_id` → `threat_report.threat_scan_id`
 
 ---
 
@@ -48,15 +42,15 @@ Scan-level discovery report metadata.
 
 | Column | Type | PK/FK | Description |
 |--------|------|-------|-------------|
-| discovery_scan_id | varchar(255) | PK | UUID from API server |
+| scan_run_id | varchar(255) | PK | Pipeline-wide UUID |
 | customer_id | varchar(255) | FK | Customer ID |
 | tenant_id | varchar(255) | FK | Tenant isolation key |
 | provider | varchar(50) | | Cloud provider (aws/azure/gcp) |
-| hierarchy_id | varchar(255) | | Account/subscription ID |
+| account_id | varchar(255) | | Account/subscription ID |
 | hierarchy_type | varchar(50) | | account/subscription/project |
 | region | varchar(50) | | Target region |
 | service | varchar(100) | | Target service |
-| scan_timestamp | timestamptz | | Scan start time |
+| first_seen_at | timestamptz | | Scan start time |
 | scan_type | varchar(50) | | Default: 'discovery' |
 | status | varchar(50) | | running/completed/failed |
 | metadata | jsonb | | Scan metadata |
@@ -67,11 +61,11 @@ Individual discovered resources (one row per resource per discovery function).
 | Column | Type | PK/FK | Description |
 |--------|------|-------|-------------|
 | id | serial | PK | Auto-increment ID |
-| discovery_scan_id | varchar(255) | FK | Links to discovery_report |
+| scan_run_id | varchar(255) | FK | Links to discovery_report |
 | customer_id | varchar(255) | FK | Customer ID |
 | tenant_id | varchar(255) | FK | Tenant isolation key |
 | provider | varchar(50) | | Cloud provider |
-| hierarchy_id | varchar(255) | | Account/subscription ID |
+| account_id | varchar(255) | | Account/subscription ID |
 | hierarchy_type | varchar(50) | | account/subscription/project |
 | discovery_id | varchar(255) | | Discovery function ID (e.g., aws.s3.list_buckets) |
 | resource_uid | text | | Primary resource identifier (ARN for AWS) |
@@ -84,7 +78,7 @@ Individual discovered resources (one row per resource per discovery function).
 | raw_response | jsonb | | Full API response |
 | config_hash | varchar(64) | | SHA256 of config for drift detection |
 | version | integer | | Schema version (default: 1) |
-| scan_timestamp | timestamptz | | Scan timestamp |
+| first_seen_at | timestamptz | | Scan timestamp |
 
 ### discovery_history
 Configuration drift tracking across scans.
@@ -92,7 +86,7 @@ Configuration drift tracking across scans.
 | Column | Type | Description |
 |--------|------|-------------|
 | id | serial | PK |
-| discovery_scan_id | varchar(255) | FK to discovery_report |
+| scan_run_id | varchar(255) | FK to discovery_report |
 | discovery_id | varchar(255) | Discovery function ID |
 | resource_uid | text | Resource identifier |
 | config_hash | varchar(64) | Current config hash |
@@ -123,16 +117,15 @@ Check scan metadata with link to discovery scan.
 
 | Column | Type | PK/FK | Description |
 |--------|------|-------|-------------|
-| check_scan_id | varchar(255) | PK | UUID from API server |
+| scan_run_id | varchar(255) | PK | Pipeline-wide UUID |
 | customer_id | varchar(255) | FK | Customer ID |
 | tenant_id | varchar(255) | FK | Tenant isolation key |
 | provider | varchar(50) | | Cloud provider |
-| hierarchy_id | varchar(255) | | Account/subscription ID |
+| account_id | varchar(255) | | Account/subscription ID |
 | hierarchy_type | varchar(50) | | account/subscription/project |
-| scan_timestamp | timestamptz | | Scan time |
+| first_seen_at | timestamptz | | Scan time |
 | scan_type | varchar(50) | | Default: 'check' |
 | status | varchar(50) | | running/completed/failed |
-| discovery_scan_id | varchar(255) | | Links to discovery_report |
 | metadata | jsonb | | Scan metadata |
 
 ### check_findings
@@ -141,11 +134,11 @@ Individual check results (PASS/FAIL per rule per resource).
 | Column | Type | PK/FK | Description |
 |--------|------|-------|-------------|
 | id | serial | PK | Auto-increment ID |
-| check_scan_id | varchar(255) | FK | Links to check_report |
+| scan_run_id | varchar(255) | FK | Links to check_report |
 | customer_id | varchar(255) | FK | Customer ID |
 | tenant_id | varchar(255) | FK | Tenant isolation key |
 | provider | varchar(50) | | Cloud provider |
-| hierarchy_id | varchar(255) | | Account/subscription ID |
+| account_id | varchar(255) | | Account/subscription ID |
 | rule_id | varchar(255) | | Rule that generated finding |
 | resource_uid | text | | Resource identifier |
 | resource_arn | text | | AWS ARN |
@@ -153,7 +146,7 @@ Individual check results (PASS/FAIL per rule per resource).
 | status | varchar(50) | | PASS/FAIL/ERROR |
 | checked_fields | jsonb | | Fields that were checked |
 | finding_data | jsonb | | Full finding details |
-| scan_timestamp | timestamptz | | Scan timestamp |
+| first_seen_at | timestamptz | | Scan timestamp |
 | metadata_source | varchar(50) | | Rule source (default) |
 
 ### rule_metadata
@@ -192,9 +185,8 @@ Scan-level inventory report metadata.
 
 | Column | Type | PK/FK | Description |
 |--------|------|-------|-------------|
-| inventory_scan_id | varchar(255) | PK | Inventory scan identifier |
+| scan_run_id | varchar(255) | PK | Pipeline-wide UUID |
 | tenant_id | varchar(255) | FK | Tenant isolation key |
-| discovery_scan_id | varchar(255) | | Links to upstream discovery scan |
 | customer_id | varchar(255) | | Customer ID |
 | execution_id | varchar(255) | | Pipeline execution ID |
 | started_at | timestamptz | | Scan start time |
@@ -214,7 +206,6 @@ Lightweight scan tracking.
 |--------|------|-------------|
 | scan_run_id | varchar(255) | PK |
 | tenant_id | varchar(255) | FK |
-| discovery_scan_id | varchar(255) | Upstream discovery scan |
 | status | varchar(50) | Scan status |
 | total_assets | integer | Asset count |
 | total_relationships | integer | Relationship count |
@@ -240,7 +231,7 @@ Cloud resource inventory (latest state per resource_uid).
 | risk_score | integer | | 0-100 |
 | criticality | varchar(20) | | low/medium/high/critical |
 | environment | varchar(50) | | production/staging/development |
-| inventory_scan_id | varchar(255) | | Links to inventory_report |
+| scan_run_id | varchar(255) | | Links to inventory_report |
 
 ### inventory_relationships
 Connections between cloud resources.
@@ -249,7 +240,7 @@ Connections between cloud resources.
 |--------|------|-------------|
 | relationship_id | uuid | PK |
 | tenant_id | varchar(255) | FK |
-| inventory_scan_id | varchar(255) | Links to scan |
+| scan_run_id | varchar(255) | Links to scan |
 | relation_type | varchar(100) | attached_to/member_of/depends_on/contains |
 | from_uid | text | Source resource UID |
 | to_uid | text | Target resource UID |
@@ -263,7 +254,7 @@ Configuration drift between scans.
 |--------|------|-------------|
 | id | serial | PK |
 | drift_id | uuid | Drift event ID |
-| inventory_scan_id | varchar(255) | Current scan |
+| scan_run_id | varchar(255) | Current scan |
 | previous_scan_id | varchar(255) | Previous scan |
 | change_type | varchar(50) | added/removed/modified |
 | previous_state | jsonb | Before state |
@@ -286,10 +277,8 @@ Scan-level threat report summary.
 
 | Column | Type | PK/FK | Description |
 |--------|------|-------|-------------|
-| threat_scan_id | varchar(255) | PK | Threat scan identifier |
+| scan_run_id | varchar(255) | PK | Pipeline-wide UUID |
 | execution_id | varchar(255) | | Pipeline execution ID |
-| discovery_scan_id | varchar(255) | | Upstream discovery scan |
-| check_scan_id | varchar(255) | | Upstream check scan |
 | tenant_id | varchar(255) | FK | Tenant isolation key |
 | customer_id | varchar(255) | | Customer ID |
 | provider | varchar(50) | | Cloud provider |
@@ -312,7 +301,7 @@ Individual threat findings with MITRE ATT&CK mapping.
 |--------|------|-------|-------------|
 | id | serial | PK | Auto-increment |
 | finding_id | varchar(255) | | Finding identifier |
-| threat_scan_id | varchar(255) | | Links to threat_report |
+| scan_run_id | varchar(255) | | Links to threat_report |
 | tenant_id | varchar(255) | FK | Tenant isolation key |
 | rule_id | varchar(255) | | Rule that generated finding |
 | threat_category | varchar(100) | | misconfiguration/exposure/etc. |
@@ -386,12 +375,9 @@ Compliance scan metadata with links to check/discovery scans.
 
 | Column | Type | PK/FK | Description |
 |--------|------|-------|-------------|
-| compliance_scan_id | varchar(255) | PK | Compliance scan identifier |
+| scan_run_id | varchar(255) | PK | Pipeline-wide UUID |
 | tenant_id | varchar(255) | FK | Tenant isolation key |
-| scan_run_id | varchar(255) | | External scan run ID |
 | cloud | varchar(50) | | Cloud provider |
-| check_scan_id | varchar(255) | | Upstream check scan |
-| discovery_scan_id | varchar(255) | | Upstream discovery scan |
 | customer_id | varchar(255) | | Customer ID |
 | provider | varchar(50) | | Cloud provider |
 | status | varchar(50) | | completed/failed/running |
@@ -407,7 +393,7 @@ Individual compliance findings mapped to frameworks.
 | Column | Type | PK/FK | Description |
 |--------|------|-------|-------------|
 | finding_id | varchar(255) | PK | Finding identifier |
-| compliance_scan_id | varchar(255) | | Links to compliance_report |
+| scan_run_id | varchar(255) | | Links to compliance_report |
 | tenant_id | varchar(255) | FK | Tenant isolation key |
 | rule_id | varchar(255) | | Check rule ID |
 | severity | varchar(20) | | critical/high/medium/low |
@@ -445,13 +431,9 @@ IAM security scan metadata.
 
 | Column | Type | PK/FK | Description |
 |--------|------|-------|-------------|
-| iam_scan_id | varchar(255) | PK | IAM scan identifier |
+| scan_run_id | varchar(255) | PK | Pipeline-wide UUID |
 | tenant_id | varchar(255) | FK | Tenant isolation key |
-| scan_run_id | varchar(255) | | External scan run ID |
 | cloud | varchar(50) | | Cloud provider |
-| check_scan_id | varchar(255) | | Upstream check scan |
-| threat_scan_id | varchar(255) | | Upstream threat scan |
-| discovery_scan_id | varchar(255) | | Upstream discovery scan |
 | customer_id | varchar(255) | | Customer ID |
 | provider | varchar(50) | | Cloud provider |
 | status | varchar(50) | | completed/failed/running |
@@ -469,7 +451,7 @@ Individual IAM security findings.
 | Column | Type | PK/FK | Description |
 |--------|------|-------|-------------|
 | finding_id | varchar(255) | PK | Finding identifier |
-| iam_scan_id | varchar(255) | | Links to iam_report |
+| scan_run_id | varchar(255) | | Links to iam_report |
 | tenant_id | varchar(255) | FK | Tenant isolation key |
 | rule_id | varchar(255) | | Check rule ID |
 | iam_modules | text[] | | IAM modules (least_privilege, mfa, etc.) |
@@ -489,13 +471,9 @@ Data security scan metadata.
 
 | Column | Type | PK/FK | Description |
 |--------|------|-------|-------------|
-| datasec_scan_id | varchar(255) | PK | DataSec scan identifier |
+| scan_run_id | varchar(255) | PK | Pipeline-wide UUID |
 | tenant_id | varchar(255) | FK | Tenant isolation key |
-| scan_run_id | varchar(255) | | External scan run ID |
 | cloud | varchar(50) | | Cloud provider |
-| check_scan_id | varchar(255) | | Upstream check scan |
-| threat_scan_id | varchar(255) | | Upstream threat scan |
-| discovery_scan_id | varchar(255) | | Upstream discovery scan |
 | customer_id | varchar(255) | | Customer ID |
 | provider | varchar(50) | | Cloud provider |
 | status | varchar(50) | | completed/failed/running |
@@ -514,7 +492,7 @@ Individual data security findings.
 | Column | Type | PK/FK | Description |
 |--------|------|-------|-------------|
 | finding_id | varchar(255) | PK | Finding identifier |
-| datasec_scan_id | varchar(255) | | Links to datasec_report |
+| scan_run_id | varchar(255) | | Links to datasec_report |
 | tenant_id | varchar(255) | FK | Tenant isolation key |
 | rule_id | varchar(255) | | Check rule ID |
 | datasec_modules | text[] | | Modules (data_protection, classification, etc.) |
@@ -678,19 +656,14 @@ Pre-built classification indexes per CSP.
 ## Cross-Database Relationships
 
 ```
-threat_engine_discoveries                 threat_engine_check
-  discovery_report                          check_report
-    .discovery_scan_id ──────────────────► .discovery_scan_id
-                                            .check_scan_id ──────────► threat_report.check_scan_id
-                                                                       compliance_report.check_scan_id
+All engines share a single scan_run_id (UUID) that links all report and finding tables:
 
-threat_engine_threat                      threat_engine_iam / threat_engine_datasec
-  threat_report                             iam_report / datasec_report
-    .threat_scan_id ─────────────────────► .threat_scan_id
-
-threat_engine_inventory
-  inventory_report
-    .discovery_scan_id ──────────────────► discovery_report.discovery_scan_id
+  discovery_report.scan_run_id ═══════ check_report.scan_run_id
+                               ═══════ threat_report.scan_run_id
+                               ═══════ compliance_report.scan_run_id
+                               ═══════ iam_report.scan_run_id
+                               ═══════ datasec_report.scan_run_id
+                               ═══════ inventory_report.scan_run_id
 
 Cross-engine resource linking:
   inventory_findings.resource_uid ═══════ check_findings.resource_uid
@@ -730,8 +703,7 @@ All engines follow a consistent naming pattern:
 |---------|---------|
 | Report table | `{engine}_report` |
 | Findings table | `{engine}_findings` |
-| Scan ID column | `{engine}_scan_id` |
-| Cross-reference | `{upstream_engine}_scan_id` |
+| Scan ID column | `scan_run_id` (same across ALL engines) |
 | Env vars | `{ENGINE}_DB_HOST`, `{ENGINE}_DB_PORT`, etc. |
 
 Pipeline order: **Discovery** → **Check** → **Inventory** → **Threat** → **Compliance** + **IAM** + **DataSec** (parallel)

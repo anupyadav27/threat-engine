@@ -22,14 +22,14 @@ logger = logging.getLogger(__name__)
 # All engine finding tables to aggregate
 ENGINE_FINDING_TABLES: List[Tuple[str, str, str]] = [
     # (table_name, scan_id_column, engine_name)
-    ("threat_findings", "threat_scan_id", "threat"),
-    ("iam_findings", "iam_scan_id", "iam"),
-    ("datasec_findings", "datasec_scan_id", "datasec"),
-    ("container_findings", "container_scan_id", "container"),
-    ("network_findings", "network_scan_id", "network"),
-    ("supplychain_findings", "supplychain_scan_id", "supplychain"),
-    ("api_findings", "api_scan_id", "api"),
-    ("check_findings", "check_scan_id", "check"),
+    ("threat_findings", "scan_run_id", "threat"),
+    ("iam_findings", "scan_run_id", "iam"),
+    ("datasec_findings", "scan_run_id", "datasec"),
+    ("container_findings", "scan_run_id", "container"),
+    ("network_findings", "scan_run_id", "network"),
+    ("supplychain_findings", "scan_run_id", "supplychain"),
+    ("api_findings", "scan_run_id", "api"),
+    ("check_findings", "scan_run_id", "check"),
 ]
 
 
@@ -54,7 +54,7 @@ class RiskETL:
     def run(
         self,
         scan_id: str,
-        orchestration_id: str,
+        scan_run_id: str,
         tenant_id: str,
         account_id: str,
         provider: str = "aws",
@@ -70,11 +70,11 @@ class RiskETL:
         # 1. Load enrichment data
         tenant_config = self._load_tenant_config(tenant_id)
         epss_cache = self._load_epss_cache()
-        asset_metadata = self._load_asset_metadata(orchestration_id)
-        datasec_metadata = self._load_datasec_metadata(orchestration_id)
+        asset_metadata = self._load_asset_metadata(scan_run_id)
+        datasec_metadata = self._load_datasec_metadata(scan_run_id)
 
         # 2. Collect CRITICAL/HIGH findings from all engines
-        all_findings = self._collect_findings(orchestration_id)
+        all_findings = self._collect_findings(scan_run_id)
         logger.info("Collected %d CRITICAL/HIGH findings across all engines", len(all_findings))
 
         # 3. Enrich each finding
@@ -83,7 +83,7 @@ class RiskETL:
             row = self._enrich_finding(
                 finding, tenant_config, epss_cache,
                 asset_metadata, datasec_metadata,
-                scan_id, orchestration_id, tenant_id,
+                scan_id, scan_run_id, tenant_id,
             )
             transformed_rows.append(row)
 
@@ -96,7 +96,7 @@ class RiskETL:
     # Data loading
     # ------------------------------------------------------------------
 
-    def _collect_findings(self, orchestration_id: str) -> List[Dict[str, Any]]:
+    def _collect_findings(self, scan_run_id: str) -> List[Dict[str, Any]]:
         """UNION CRITICAL/HIGH findings from all engine tables."""
         findings: List[Dict[str, Any]] = []
 
@@ -122,11 +122,10 @@ class RiskETL:
                             COALESCE(f.region, '') AS region,
                             COALESCE(f.csp, 'aws') AS csp
                         FROM {table_name} f
-                        JOIN scan_orchestration so ON so.{scan_id_col} = f.{scan_id_col}
-                        WHERE so.orchestration_id = %s::uuid
+                        WHERE f.scan_run_id = %s::uuid
                           AND f.result = 'FAIL'
                           AND f.severity IN ('critical', 'high')
-                    """, (orchestration_id,))
+                    """, (scan_run_id,))
 
                     for row in cursor.fetchall():
                         findings.append({
@@ -228,7 +227,7 @@ class RiskETL:
 
         return epss
 
-    def _load_asset_metadata(self, orchestration_id: str) -> Dict[str, Dict]:
+    def _load_asset_metadata(self, scan_run_id: str) -> Dict[str, Dict]:
         """Load asset criticality and exposure from inventory_findings."""
         assets: Dict[str, Dict] = {}
         cursor = self._discovery_conn.cursor()
@@ -236,9 +235,8 @@ class RiskETL:
             cursor.execute("""
                 SELECT resource_arn, resource_type, is_public, criticality
                 FROM inventory_findings
-                JOIN scan_orchestration so ON so.inventory_scan_id = inventory_findings.inventory_scan_id
-                WHERE so.orchestration_id = %s::uuid
-            """, (orchestration_id,))
+                WHERE inventory_findings.scan_run_id = %s::uuid
+            """, (scan_run_id,))
             for row in cursor.fetchall():
                 assets[row[0]] = {
                     "asset_type": row[1],
@@ -252,7 +250,7 @@ class RiskETL:
 
         return assets
 
-    def _load_datasec_metadata(self, orchestration_id: str) -> Dict[str, Dict]:
+    def _load_datasec_metadata(self, scan_run_id: str) -> Dict[str, Dict]:
         """Load data sensitivity and record counts from datasec_findings."""
         datasec: Dict[str, Dict] = {}
         cursor = self._discovery_conn.cursor()
@@ -261,10 +259,9 @@ class RiskETL:
                 SELECT resource_arn, data_sensitivity, data_types,
                        estimated_record_count
                 FROM datasec_findings
-                JOIN scan_orchestration so ON so.datasec_scan_id = datasec_findings.datasec_scan_id
-                WHERE so.orchestration_id = %s::uuid
+                WHERE datasec_findings.scan_run_id = %s::uuid
                   AND data_sensitivity IS NOT NULL
-            """, (orchestration_id,))
+            """, (scan_run_id,))
             for row in cursor.fetchall():
                 datasec[row[0]] = {
                     "data_sensitivity": row[1] or "internal",
@@ -290,7 +287,7 @@ class RiskETL:
         asset_metadata: Dict[str, Dict],
         datasec_metadata: Dict[str, Dict],
         scan_id: str,
-        orchestration_id: str,
+        scan_run_id: str,
         tenant_id: str,
     ) -> Dict[str, Any]:
         """Enrich a finding with asset, data, tenant, and EPSS context."""
@@ -309,7 +306,7 @@ class RiskETL:
         return {
             "risk_scan_id": scan_id,
             "tenant_id": tenant_id,
-            "orchestration_id": orchestration_id,
+            "scan_run_id": scan_run_id,
             "source_finding_id": finding.get("source_finding_id"),
             "source_engine": finding.get("source_engine"),
             "source_scan_id": finding.get("source_scan_id"),

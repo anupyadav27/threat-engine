@@ -266,14 +266,7 @@ const ASSIGNEE_OPTIONS = [
   { value: '', label: 'Unassign' },
 ];
 
-const TABS = [
-  { key: 'overview', label: 'Overview' },
-  { key: 'attack-path', label: 'Attack Path' },
-  { key: 'blast-radius', label: 'Blast Radius' },
-  { key: 'evidence', label: 'Evidence' },
-  { key: 'remediation', label: 'Remediation' },
-  { key: 'timeline', label: 'Timeline' },
-];
+// Tabs removed — detail page now shows content directly (no tab switching)
 
 const RESOURCE_TYPE_ICONS = {
   internet: <Globe className="w-5 h-5" />,
@@ -299,10 +292,8 @@ export default function ThreatDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
-  const [activeTab, setActiveTab] = useState('overview');
   const [actionLoading, setActionLoading] = useState(false);
   const [toast, setToast] = useState(null);
-  const tabListRef = useRef(null);
 
   // Fetch threat detail from BFF
   const fetchData = useCallback(async () => {
@@ -376,34 +367,6 @@ export default function ThreatDetailPage() {
       router.push('/threats');
     }
   }, [router]);
-
-  // Keyboard navigation for tabs
-  const handleTabKeyDown = useCallback(
-    (e) => {
-      const tabKeys = TABS.map((t) => t.key);
-      const currentIndex = tabKeys.indexOf(activeTab);
-
-      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-        e.preventDefault();
-        let nextIndex;
-        if (e.key === 'ArrowRight') {
-          nextIndex = (currentIndex + 1) % tabKeys.length;
-        } else {
-          nextIndex = (currentIndex - 1 + tabKeys.length) % tabKeys.length;
-        }
-        setActiveTab(tabKeys[nextIndex]);
-        // Focus the new tab button
-        const tabList = tabListRef.current;
-        if (tabList) {
-          const buttons = tabList.querySelectorAll('[role="tab"]');
-          buttons[nextIndex]?.focus();
-        }
-      } else if (e.key === 'Escape') {
-        handleBackNavigation();
-      }
-    },
-    [activeTab, handleBackNavigation]
-  );
 
   // Global Escape key handler
   useEffect(() => {
@@ -528,7 +491,7 @@ export default function ThreatDetailPage() {
     );
   }
 
-  const { threat, exposure, mitre, affectedResources, supportingFindings, attackPath, blastRadius, remediation, timeline } = data;
+  const { threat, exposure, mitre, affectedResources, supportingFindings, attackPath, blastRadius, remediation, timeline, evidence, riskBreakdown } = data;
 
   return (
     <div className="space-y-6 p-6">
@@ -556,52 +519,47 @@ export default function ThreatDetailPage() {
         style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}
       >
         <div className="p-6">
-          {/* Badges row */}
+          {/* Badges row — severity + status only (MITRE is shown in overview section) */}
           <div className="flex items-center gap-3 mb-3 flex-wrap">
             <SeverityBadge severity={threat.severity} />
-            {mitre?.techniqueId && (
-              <span
-                className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium"
-                style={{ backgroundColor: 'rgba(59,130,246,0.15)', color: '#3b82f6' }}
-              >
-                {mitre.techniqueId}
-                {mitre.tacticName && <span className="opacity-70">  {mitre.tacticName}</span>}
-              </span>
-            )}
-            {threat.environment && (
+            <span
+              className="text-xs font-medium px-2 py-0.5 rounded capitalize"
+              style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-secondary)' }}
+            >
+              {threat.status || 'open'}
+            </span>
+            {threat.threatCategory && (
               <span
                 className="text-xs px-2 py-0.5 rounded"
-                style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-muted)' }}
+                style={{ backgroundColor: 'rgba(139,92,246,0.10)', color: '#a78bfa' }}
               >
-                {threat.environment}
+                {threat.threatCategory.replace(/_/g, ' ')}
               </span>
             )}
           </div>
 
           {/* Title + description */}
-          <h1 className="text-xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>
+          <h1 className="text-xl font-bold mb-1" style={{ color: 'var(--text-primary)' }}>
             {threat.title}
           </h1>
-          <p className="text-sm leading-relaxed mb-6" style={{ color: 'var(--text-secondary)' }}>
+          <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--text-secondary)' }}>
             {threat.description}
           </p>
 
-          {/* 5 Metadata cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+          {/* Compact inline metadata — single row instead of big cards */}
+          <div
+            className="flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-2.5 rounded-lg mb-4"
+            style={{ backgroundColor: 'var(--bg-secondary)' }}
+          >
             {/* Risk Score */}
-            <div
-              className="rounded-lg p-4 border"
-              style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)' }}
-            >
-              <p className="text-xs mb-1.5" style={{ color: 'var(--text-muted)' }}>
-                Risk Score
-              </p>
-              <p className="text-2xl font-bold mb-2" style={{ color: riskScoreColor(threat.riskScore) }}>
+            <div className="flex items-center gap-2">
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Risk</span>
+              <span className="text-sm font-bold tabular-nums" style={{ color: riskScoreColor(threat.riskScore) }}>
                 {threat.riskScore ?? '--'}
-              </p>
-              <div className="w-full h-1.5 rounded-full" style={{ backgroundColor: 'var(--bg-primary)' }}>
+              </span>
+              <div className="w-12 h-1.5 rounded-full" style={{ backgroundColor: 'var(--bg-primary)' }}>
                 <div
-                  className="h-full rounded-full transition-all duration-500"
+                  className="h-full rounded-full"
                   style={{
                     width: `${Math.min(threat.riskScore || 0, 100)}%`,
                     backgroundColor: riskScoreColor(threat.riskScore),
@@ -609,180 +567,99 @@ export default function ThreatDetailPage() {
                 />
               </div>
             </div>
-
+            <span style={{ color: 'var(--border-primary)' }}>|</span>
             {/* Provider */}
-            <div
-              className="rounded-lg p-4 border"
-              style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)' }}
-            >
-              <p className="text-xs mb-1.5" style={{ color: 'var(--text-muted)' }}>Provider</p>
-              <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                {threat.provider || '--'}
-              </p>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Provider</span>
+              <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
+                {(threat.provider || '--').toUpperCase()}
+              </span>
             </div>
-
+            <span style={{ color: 'var(--border-primary)' }}>|</span>
             {/* Account */}
-            <div
-              className="rounded-lg p-4 border"
-              style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)' }}
-            >
-              <p className="text-xs mb-1.5" style={{ color: 'var(--text-muted)' }}>Account</p>
-              <p
-                className="text-sm font-semibold truncate"
-                style={{ color: 'var(--text-primary)' }}
-                title={threat.account}
-              >
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Account</span>
+              <span className="text-xs font-mono font-medium truncate max-w-[140px]" style={{ color: 'var(--text-primary)' }} title={threat.account}>
                 {threat.account || '--'}
-              </p>
+              </span>
             </div>
-
+            <span style={{ color: 'var(--border-primary)' }}>|</span>
             {/* Region */}
-            <div
-              className="rounded-lg p-4 border"
-              style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)' }}
-            >
-              <p className="text-xs mb-1.5" style={{ color: 'var(--text-muted)' }}>Region</p>
-              <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Region</span>
+              <span className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
                 {threat.region || '--'}
-              </p>
+              </span>
             </div>
-
-            {/* Status */}
-            <div
-              className="rounded-lg p-4 border"
-              style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)' }}
-            >
-              <p className="text-xs mb-1.5" style={{ color: 'var(--text-muted)' }}>Status</p>
-              <p className="text-sm font-semibold capitalize" style={{ color: 'var(--text-primary)' }}>
-                {threat.status || '--'}
-              </p>
+            <span style={{ color: 'var(--border-primary)' }}>|</span>
+            {/* Resource */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Resource</span>
+              <span className="text-xs font-mono font-medium truncate max-w-[200px]" style={{ color: 'var(--text-primary)' }} title={threat.resourceUid}>
+                {threat.resourceUid ? threat.resourceUid.split('/').pop() : '--'}
+              </span>
             </div>
+            {threat.lastSeen && (
+              <>
+                <span style={{ color: 'var(--border-primary)' }}>|</span>
+                <div className="flex items-center gap-1.5">
+                  <Clock className="w-3 h-3" style={{ color: 'var(--text-muted)' }} />
+                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{formatDate(threat.lastSeen)}</span>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Action buttons */}
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
             <ActionDropdown
               label="Assign"
-              icon={<UserPlus className="w-4 h-4" />}
+              icon={<UserPlus className="w-3.5 h-3.5" />}
               options={ASSIGNEE_OPTIONS}
               onSelect={handleAssigneeChange}
             />
             <ActionDropdown
-              label="Change Status"
-              icon={<RefreshCw className="w-4 h-4" />}
+              label="Status"
+              icon={<RefreshCw className="w-3.5 h-3.5" />}
               options={STATUS_OPTIONS}
               onSelect={handleStatusChange}
             />
             <button
               onClick={handleSuppress}
               disabled={actionLoading}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium hover:opacity-80 transition-opacity disabled:opacity-50"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium hover:opacity-80 transition-opacity disabled:opacity-50"
               style={{
                 backgroundColor: 'var(--bg-secondary)',
                 borderColor: 'var(--border-primary)',
                 color: 'var(--text-secondary)',
               }}
             >
-              <EyeOff className="w-4 h-4" />
+              <EyeOff className="w-3.5 h-3.5" />
               Suppress
             </button>
             <button
               onClick={handleExport}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium hover:opacity-80 transition-opacity"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium hover:opacity-80 transition-opacity"
               style={{
                 backgroundColor: 'var(--bg-secondary)',
                 borderColor: 'var(--border-primary)',
                 color: 'var(--text-secondary)',
               }}
             >
-              <Download className="w-4 h-4" />
+              <Download className="w-3.5 h-3.5" />
               Export
             </button>
           </div>
         </div>
       </div>
 
-      {/* ── TAB BAR ── */}
-      <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-        <div
-          ref={tabListRef}
-          role="tablist"
-          aria-label="Threat details"
-          className="flex items-center gap-1 rounded-lg p-1 min-w-max"
-          style={{ backgroundColor: 'var(--bg-secondary)' }}
-          onKeyDown={handleTabKeyDown}
-        >
-          {TABS.map((tab) => (
-            <button
-              key={tab.key}
-              role="tab"
-              id={`tab-${tab.key}`}
-              aria-selected={activeTab === tab.key}
-              aria-controls={`panel-${tab.key}`}
-              tabIndex={activeTab === tab.key ? 0 : -1}
-              onClick={() => setActiveTab(tab.key)}
-              className="px-4 py-2 rounded-md text-sm font-medium whitespace-nowrap transition-all duration-150"
-              style={{
-                backgroundColor: activeTab === tab.key ? 'var(--bg-card)' : 'transparent',
-                color: activeTab === tab.key ? 'var(--text-primary)' : 'var(--text-muted)',
-                boxShadow: activeTab === tab.key ? '0 1px 3px rgba(0,0,0,0.3)' : 'none',
-              }}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* ── TAB CONTENT ── */}
-      {activeTab === 'overview' && (
-        <div role="tabpanel" id="panel-overview" aria-labelledby="tab-overview">
-          <SafeSection fallbackMessage="Failed to load overview data">
-            <OverviewTab
-              exposure={exposure}
-              affectedResources={affectedResources}
-              supportingFindings={supportingFindings}
-              mitre={mitre}
-              router={router}
-            />
-          </SafeSection>
-        </div>
-      )}
-      {activeTab === 'attack-path' && (
-        <div role="tabpanel" id="panel-attack-path" aria-labelledby="tab-attack-path">
-          <SafeSection fallbackMessage="Failed to load attack path data">
-            <AttackPathTab attackPath={attackPath} />
-          </SafeSection>
-        </div>
-      )}
-      {activeTab === 'blast-radius' && (
-        <div role="tabpanel" id="panel-blast-radius" aria-labelledby="tab-blast-radius">
-          <SafeSection fallbackMessage="Failed to load blast radius data">
-            <BlastRadiusTab blastRadius={blastRadius} resourceUid={threat.resourceUid} router={router} />
-          </SafeSection>
-        </div>
-      )}
-      {activeTab === 'evidence' && (
-        <div role="tabpanel" id="panel-evidence" aria-labelledby="tab-evidence">
-          <SafeSection fallbackMessage="Failed to load evidence data">
-            <EvidenceTab threat={threat} />
-          </SafeSection>
-        </div>
-      )}
-      {activeTab === 'remediation' && (
-        <div role="tabpanel" id="panel-remediation" aria-labelledby="tab-remediation">
-          <SafeSection fallbackMessage="Failed to load remediation data">
-            <RemediationTab remediation={remediation} />
-          </SafeSection>
-        </div>
-      )}
-      {activeTab === 'timeline' && (
-        <div role="tabpanel" id="panel-timeline" aria-labelledby="tab-timeline">
-          <SafeSection fallbackMessage="Failed to load timeline data">
-            <TimelineTab timeline={timeline} />
-          </SafeSection>
-        </div>
-      )}
+      {/* ── DETAIL CONTENT (no tabs — direct layout) ── */}
+      <SafeSection fallbackMessage="Failed to load detail data">
+        <OverviewTab
+          supportingFindings={supportingFindings}
+          router={router}
+        />
+      </SafeSection>
     </div>
   );
 }
@@ -790,60 +667,77 @@ export default function ThreatDetailPage() {
 // ===========================================================================
 // TAB: OVERVIEW
 // ===========================================================================
-function OverviewTab({ exposure, affectedResources, supportingFindings, mitre, router }) {
-  // Affected resources table columns
-  const resourceColumns = useMemo(
+function OverviewTab({ supportingFindings, router }) {
+  // Affected resources table columns — no redundant Account/Region (shown in header)
+  // Misconfig rule columns — shows rule_id + resource so user can drill into inventory
+  const findingColumns = useMemo(
     () => [
       {
-        accessorKey: 'resourceName',
-        header: 'Resource',
-        cell: ({ getValue, row }) => (
-          <div>
-            <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-              {getValue() || '--'}
-            </p>
-            <p className="text-xs truncate max-w-xs" style={{ color: 'var(--text-muted)' }}>
-              {row.original.resourceUid}
-            </p>
-          </div>
-        ),
+        id: 'provider',
+        header: 'Provider',
+        size: 80,
+        cell: ({ row }) => {
+          const p = row.original.provider || '';
+          return p ? (
+            <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
+              {p.toUpperCase()}
+            </span>
+          ) : <span className="text-xs" style={{ color: 'var(--text-muted)' }}>--</span>;
+        },
       },
       {
-        accessorKey: 'resourceType',
-        header: 'Type',
-        cell: ({ getValue }) => (
-          <span
-            className="text-xs px-2 py-1 rounded"
-            style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-secondary)' }}
-          >
-            {getValue()}
-          </span>
-        ),
-      },
-      { accessorKey: 'account', header: 'Account' },
-      { accessorKey: 'region', header: 'Region' },
-      {
-        accessorKey: 'riskScore',
-        header: 'Risk',
-        cell: ({ getValue }) => {
-          const v = getValue();
+        id: 'account',
+        header: 'Account',
+        size: 130,
+        cell: ({ row }) => {
+          const a = row.original.account_id || row.original.hierarchy_id || '';
           return (
-            <span className="text-sm font-semibold" style={{ color: riskScoreColor(v) }}>
-              {v ?? '--'}
+            <span className="text-xs font-mono" style={{ color: 'var(--text-secondary)' }} title={a}>
+              {a || '--'}
             </span>
           );
         },
       },
-    ],
-    []
-  );
-
-  // Supporting findings columns
-  const findingColumns = useMemo(
-    () => [
+      {
+        accessorKey: 'region',
+        header: 'Region',
+        size: 110,
+        cell: ({ getValue }) => (
+          <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+            {getValue() || '--'}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'ruleId',
+        header: 'Rule ID',
+        cell: ({ getValue, row }) => {
+          const v = getValue() || row.original.rule_id || '';
+          const service = row.original.service || '';
+          return (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                router.push(`/misconfig?rule_id=${encodeURIComponent(v)}`);
+              }}
+              className="text-left hover:underline"
+              style={{ color: 'var(--accent-primary)' }}
+            >
+              <span className="text-xs font-mono font-medium">
+                {v || '--'}
+              </span>
+              {service && (
+                <span className="text-[10px] ml-2 px-1.5 py-0.5 rounded" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}>
+                  {service}
+                </span>
+              )}
+            </button>
+          );
+        },
+      },
       {
         accessorKey: 'status',
-        header: 'Status',
+        header: 'Result',
         size: 80,
         cell: ({ getValue }) => {
           const s = getValue();
@@ -859,107 +753,65 @@ function OverviewTab({ exposure, affectedResources, supportingFindings, mitre, r
           );
         },
       },
-      { accessorKey: 'ruleId', header: 'Rule ID' },
-      { accessorKey: 'title', header: 'Finding' },
       {
         accessorKey: 'severity',
         header: 'Severity',
+        size: 100,
         cell: ({ getValue }) => <SeverityBadge severity={getValue()} />,
       },
       {
-        accessorKey: 'framework',
-        header: 'Framework',
-        cell: ({ getValue }) => (
-          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            {getValue() || '--'}
-          </span>
-        ),
+        id: 'affected_resource',
+        header: 'Impacted Resource',
+        cell: ({ row }) => {
+          const uid = row.original.resource_uid || row.original.resourceUid || '';
+          const resourceId = row.original.resource_id || '';
+          if (!uid) return <span className="text-xs" style={{ color: 'var(--text-muted)' }}>--</span>;
+          const name = resourceId || uid.split('/').pop() || uid.split(':').pop() || uid;
+          return (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                router.push(`/inventory/${encodeURIComponent(uid)}`);
+              }}
+              className="text-left hover:underline group"
+              title={uid}
+            >
+              <p className="text-xs font-medium" style={{ color: 'var(--accent-primary)' }}>
+                {name}
+              </p>
+              <p
+                className="text-[10px] font-mono truncate max-w-[340px] mt-0.5 px-1.5 py-0.5 rounded inline-block"
+                style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}
+              >
+                {uid}
+              </p>
+            </button>
+          );
+        },
       },
     ],
-    []
+    [router]
   );
 
   return (
     <div className="space-y-6">
-      {/* ── Exposure Context ── */}
-      {exposure && (
-        <CollapsibleSection title="Exposure Analysis" icon={<Globe className="w-5 h-5" />}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <ExposureCard
-              icon={<Globe className="w-5 h-5" />}
-              label="Internet Exposed"
-              value={exposure.internetExposed}
-              reason={exposure.internetExposedReason}
-            />
-            <ExposureCard
-              icon={<Lock className="w-5 h-5" />}
-              label="Public Access"
-              value={exposure.publicAccess}
-              reason={exposure.publicAccessReason}
-            />
-            <ExposureCard
-              icon={<Key className="w-5 h-5" />}
-              label="Trust Exposure"
-              value={exposure.trustExposure}
-              reason={exposure.trustExposureReason}
-            />
-            <ExposureCard
-              icon={<Database className="w-5 h-5" />}
-              label="Sensitive Data"
-              value={exposure.sensitiveData}
-              reason={exposure.sensitiveDataReason}
-            />
-          </div>
-        </CollapsibleSection>
-      )}
-
-      {/* ── Affected Resources ── */}
+      {/* ── Misconfig Rules (rule_ids mapped to this threat detection) ── */}
       <CollapsibleSection
-        title="Affected Resources"
-        icon={<Target className="w-5 h-5" />}
-        badge={affectedResources?.length || 0}
-      >
-        {affectedResources && affectedResources.length > 0 ? (
-          <>
-            <DataTable
-              data={affectedResources}
-              columns={resourceColumns}
-              pageSize={5}
-              emptyMessage="No affected resources found"
-            />
-            <div className="mt-3">
-              <button
-                onClick={() => router.push('/inventory')}
-                className="text-xs font-medium flex items-center gap-1 hover:underline"
-                style={{ color: 'var(--accent-primary)' }}
-              >
-                View in Inventory <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </>
-        ) : (
-          <EmptyState
-            icon={<Server className="w-10 h-10" />}
-            title="No affected resources"
-            description="No resources have been linked to this threat."
-          />
-        )}
-      </CollapsibleSection>
-
-      {/* ── Supporting Findings ── */}
-      <CollapsibleSection
-        title="Supporting Findings"
+        title="Misconfig Rules"
         icon={<Search className="w-5 h-5" />}
         badge={supportingFindings?.length || 0}
-        defaultOpen={false}
+        defaultOpen={true}
       >
         {supportingFindings && supportingFindings.length > 0 ? (
           <>
+            <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
+              Misconfiguration rules (rule_id) from the check engine that were correlated to produce this threat detection.
+            </p>
             <DataTable
               data={supportingFindings}
               columns={findingColumns}
-              pageSize={5}
-              emptyMessage="No supporting findings"
+              pageSize={10}
+              emptyMessage="No misconfig rules"
             />
             <div className="mt-3">
               <button
@@ -967,101 +819,20 @@ function OverviewTab({ exposure, affectedResources, supportingFindings, mitre, r
                 className="text-xs font-medium flex items-center gap-1 hover:underline"
                 style={{ color: 'var(--accent-primary)' }}
               >
-                View in Findings <ArrowRight className="w-3.5 h-3.5" />
+                View All Misconfigs <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
           </>
         ) : (
           <EmptyState
             icon={<Search className="w-10 h-10" />}
-            title="No supporting findings"
-            description="No check findings are linked to this threat."
+            title="No misconfig rules"
+            description="No check engine rules are linked to this threat detection."
           />
         )}
       </CollapsibleSection>
 
-      {/* ── MITRE ATT&CK Context ── */}
-      {mitre && mitre.techniqueId && (
-        <CollapsibleSection title="MITRE ATT&CK Mapping" icon={<Crosshair className="w-5 h-5" />}>
-          <div className="space-y-4">
-            <div className="flex items-center gap-3 flex-wrap">
-              <span
-                className="text-sm font-semibold px-3 py-1 rounded-lg"
-                style={{ backgroundColor: 'rgba(59,130,246,0.15)', color: '#3b82f6' }}
-              >
-                {mitre.techniqueId}
-              </span>
-              <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                {mitre.techniqueName}
-              </span>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>
-                  Tactic
-                </p>
-                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                  {mitre.tacticName || '--'}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>
-                  Platforms
-                </p>
-                <div className="flex gap-1.5 flex-wrap">
-                  {(mitre.platforms || []).map((p) => (
-                    <span
-                      key={p}
-                      className="text-xs px-2 py-0.5 rounded"
-                      style={{
-                        backgroundColor: 'var(--bg-secondary)',
-                        color: 'var(--text-secondary)',
-                      }}
-                    >
-                      {p}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {mitre.description && (
-              <div>
-                <p className="text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>
-                  Description
-                </p>
-                <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-                  {mitre.description}
-                </p>
-              </div>
-            )}
-
-            {mitre.detectionGuidance && (
-              <div>
-                <p className="text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>
-                  Detection Guidance
-                </p>
-                <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-                  {mitre.detectionGuidance}
-                </p>
-              </div>
-            )}
-
-            {mitre.url && (
-              <a
-                href={mitre.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs font-medium hover:underline"
-                style={{ color: 'var(--accent-primary)' }}
-              >
-                View on MITRE <ExternalLink className="w-3.5 h-3.5" />
-              </a>
-            )}
-          </div>
-        </CollapsibleSection>
-      )}
     </div>
   );
 }
@@ -1074,28 +845,30 @@ function ExposureCard({ icon, label, value, reason }) {
 
   return (
     <div
-      className="rounded-lg p-4 border"
+      className="rounded-lg px-3 py-2.5 border"
       style={{
         backgroundColor: 'var(--bg-secondary)',
         borderColor: isYes ? 'rgba(239,68,68,0.3)' : 'var(--border-primary)',
       }}
     >
-      <div className="flex items-center gap-2 mb-2">
-        <span style={{ color: isYes ? 'var(--accent-danger)' : 'var(--accent-success)' }}>
-          {icon}
-        </span>
-        <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
-          {label}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <span style={{ color: isYes ? 'var(--accent-danger)' : 'var(--accent-success)' }}>
+            {icon}
+          </span>
+          <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+            {label}
+          </span>
+        </div>
+        <span
+          className="text-xs font-bold"
+          style={{ color: isYes ? 'var(--accent-danger)' : 'var(--accent-success)' }}
+        >
+          {isYes ? 'YES' : 'NO'}
         </span>
       </div>
-      <p
-        className="text-lg font-bold mb-1"
-        style={{ color: isYes ? 'var(--accent-danger)' : 'var(--accent-success)' }}
-      >
-        {isYes ? 'YES' : 'NO'}
-      </p>
       {reason && (
-        <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+        <p className="text-[10px] mt-1 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
           {reason}
         </p>
       )}
@@ -1577,9 +1350,27 @@ function BlastRadiusTab({ blastRadius, resourceUid, router }) {
 // ===========================================================================
 // TAB: EVIDENCE
 // ===========================================================================
-function EvidenceTab({ threat }) {
-  // Extract evidence-like fields from threat object
+function EvidenceTab({ threat, evidence }) {
+  // Use BFF-provided evidence array first, then extract from threat object
   const evidenceData = useMemo(() => {
+    // If we have evidence from the BFF (from detection's JSONB evidence field)
+    if (evidence && Array.isArray(evidence) && evidence.length > 0) {
+      // Flatten evidence array into a displayable object
+      const merged = {};
+      evidence.forEach((entry, idx) => {
+        if (typeof entry === 'object' && entry !== null) {
+          Object.entries(entry).forEach(([k, v]) => {
+            if (v !== null && v !== undefined && v !== '') {
+              merged[k] = v;
+            }
+          });
+        } else {
+          merged[`evidence_${idx}`] = entry;
+        }
+      });
+      return merged;
+    }
+    // Fallback: extract evidence-like fields from threat object
     const fields = {};
     const skipKeys = new Set([
       'id', 'title', 'description', 'severity', 'riskScore', 'status', 'assignee',
@@ -1592,7 +1383,7 @@ function EvidenceTab({ threat }) {
       }
     });
     return fields;
-  }, [threat]);
+  }, [threat, evidence]);
 
   const keys = Object.keys(evidenceData);
 

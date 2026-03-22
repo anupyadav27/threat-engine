@@ -170,7 +170,7 @@ class CheckEngine:
         return False  # Default to database mode
     
     def _load_discoveries_from_ndjson(self, scan_id: str, discovery_id: str, 
-                                     service: str, hierarchy_id: str) -> List[Dict]:
+                                     service: str, account_id: str) -> List[Dict]:
         """
         Load discoveries from NDJSON files (local mode)
         
@@ -178,7 +178,7 @@ class CheckEngine:
             scan_id: Discovery scan ID
             discovery_id: Discovery ID to filter (e.g., 'aws.s3.list_buckets')
             service: Service name (e.g., 's3')
-            hierarchy_id: Hierarchy ID (account_id, etc.)
+            account_id: Hierarchy ID (account_id, etc.)
         
         Returns:
             List of discovery items with emitted_fields
@@ -203,12 +203,12 @@ class CheckEngine:
             return []
         
         # Find matching NDJSON files
-        # Pattern: {hierarchy_id}_{region}_{service}.ndjson or {hierarchy_id}_global_{service}.ndjson
-        pattern = f"{hierarchy_id}_*_{service}.ndjson"
+        # Pattern: {account_id}_{region}_{service}.ndjson or {account_id}_global_{service}.ndjson
+        pattern = f"{account_id}_*_{service}.ndjson"
         files = list(discoveries_dir.glob(pattern))
         
         # Also check for global services (no region)
-        global_pattern = f"{hierarchy_id}_global_{service}.ndjson"
+        global_pattern = f"{account_id}_global_{service}.ndjson"
         global_files = list(discoveries_dir.glob(global_pattern))
         files.extend(global_files)
         
@@ -228,8 +228,8 @@ class CheckEngine:
                             if record.get('discovery_id') != discovery_id:
                                 continue
                             
-                            # Filter by hierarchy_id
-                            if record.get('hierarchy_id') != hierarchy_id:
+                            # Filter by account_id
+                            if record.get('account_id') != account_id:
                                 continue
                             
                             # Extract emitted_fields
@@ -245,7 +245,7 @@ class CheckEngine:
                                 'region': record.get('region'),
                                 'discovery_id': record.get('discovery_id'),
                                 'emitted_fields': emitted_fields,
-                                'scan_timestamp': record.get('scan_timestamp')
+                                'first_seen_at': record.get('first_seen_at')
                             }
                             
                             items.append(item_record)
@@ -265,14 +265,14 @@ class CheckEngine:
         return items
     
     def _load_discoveries_from_database(self, discovery_id: str, tenant_id: str,
-                                       hierarchy_id: str, scan_id: str, service: str = None) -> List[Dict]:
+                                       account_id: str, scan_id: str, service: str = None) -> List[Dict]:
         """
         Load discoveries from discoveries database (cross-engine integration)
         
         Args:
             discovery_id: Discovery ID to query
             tenant_id: Tenant ID
-            hierarchy_id: Hierarchy ID
+            account_id: Hierarchy ID
             scan_id: Scan ID
             service: Optional service name to filter
         
@@ -283,7 +283,7 @@ class CheckEngine:
         items = self.discovery_reader.read_discovery_records(
             discovery_id=discovery_id,
             tenant_id=tenant_id,
-            hierarchy_id=hierarchy_id,
+            account_id=account_id,
             scan_id=scan_id,
             service=service
         )
@@ -296,7 +296,7 @@ class CheckEngine:
             logger.info(f"[DB] Loaded {len(items)} discovery records for {discovery_id}")
         return items
     
-    def _load_discoveries(self, discovery_id: str, tenant_id: str, hierarchy_id: str,
+    def _load_discoveries(self, discovery_id: str, tenant_id: str, account_id: str,
                          scan_id: str, service: str) -> List[Dict]:
         """
         Load discoveries from either NDJSON or database based on mode
@@ -309,19 +309,19 @@ class CheckEngine:
                 scan_id=scan_id,
                 discovery_id=discovery_id,
                 service=service,
-                hierarchy_id=hierarchy_id
+                account_id=account_id
             )
         else:
             return self._load_discoveries_from_database(
                 discovery_id=discovery_id,
                 tenant_id=tenant_id,
-                hierarchy_id=hierarchy_id,
+                account_id=account_id,
                 scan_id=scan_id,
                 service=service
             )
     
     def _extract_resource_identifiers(self, item_record: Dict, emitted_fields: Dict,
-                                     hierarchy_id: str = None, 
+                                     account_id: str = None, 
                                      service: str = None,
                                      discovery_id: str = None,
                                      rule_id: str = None,
@@ -339,7 +339,7 @@ class CheckEngine:
         Args:
             item_record: Discovery item record with top-level fields
             emitted_fields: Parsed emitted_fields dictionary
-            hierarchy_id: Account ID or hierarchy identifier
+            account_id: Account ID or hierarchy identifier
             service: Service name (extracted from rule_id if not provided)
             discovery_id: Discovery ID (e.g., aws.ec2.describe_fpga_images)
             rule_id: Rule ID (e.g., aws.ec2.ami.not_publicly_shared_configured)
@@ -359,9 +359,9 @@ class CheckEngine:
         if not region:
             region = item_record.get('region', '')
         
-        # Get hierarchy_id from item_record if not provided
-        if not hierarchy_id:
-            hierarchy_id = item_record.get('hierarchy_id') or item_record.get('account_id')
+        # Get account_id from item_record if not provided
+        if not account_id:
+            account_id = item_record.get('account_id') or item_record.get('account_id')
         
         # Step 1: Extract service from rule_id if not provided
         if not service and rule_id:
@@ -424,7 +424,7 @@ class CheckEngine:
         
         # Step 3: Use discovery_id to determine resource_type and extract ARN/ID
         # GENERIC APPROACH: Use discovery_resource_mapper (no hardcoding)
-        if not resource_arn and discovery_id and service and hierarchy_id:
+        if not resource_arn and discovery_id and service and account_id:
             from utils.discovery_resource_mapper import (
                 get_discovery_mapping,
                 extract_resource_id_from_emitted,
@@ -445,8 +445,8 @@ class CheckEngine:
                 resource_id = extract_resource_id_from_emitted(emitted_fields, id_patterns)
                 logger.debug(f"[ID-EXTRACT] Tried ID patterns {id_patterns[:3]} for {discovery_id}, found: {resource_id}")
             
-            # Generate ARN if we have service, resource_id, and hierarchy_id
-            if not resource_arn and service and resource_id and hierarchy_id and resource_type:
+            # Generate ARN if we have service, resource_id, and account_id
+            if not resource_arn and service and resource_id and account_id and resource_type:
                 try:
                     from utils.reporting_manager import generate_arn
                     from utils.discovery_resource_mapper import load_service_config
@@ -468,7 +468,7 @@ class CheckEngine:
                     resource_arn = generate_arn(
                         service=service,
                         region=arn_region,
-                        account_id=hierarchy_id,
+                        account_id=account_id,
                         resource_id=str(resource_id),
                         resource_type=resource_type
                     )
@@ -478,7 +478,7 @@ class CheckEngine:
         
         # Step 4: Account ARN for truly account-level configurations
         # GENERIC APPROACH: Use is_account_level_configuration (no hardcoding)
-        if not resource_arn and discovery_id and hierarchy_id:
+        if not resource_arn and discovery_id and account_id:
             from utils.discovery_resource_mapper import is_account_level_configuration
             
             if is_account_level_configuration(discovery_id):
@@ -513,12 +513,12 @@ class CheckEngine:
                     
                     config_id = resource_id or 'default'
                     
-                    resource_arn = f"arn:aws:{service}:{region or ''}:{hierarchy_id}:{config_type}/{config_id}"
+                    resource_arn = f"arn:aws:{service}:{region or ''}:{account_id}:{config_type}/{config_id}"
                     logger.debug(f"[ARN-ACCOUNT] Generated account-level ARN: {resource_arn} (type: {config_type})")
                 else:
                     # Fallback to generic account ARN
-                    resource_arn = f"arn:aws:::{hierarchy_id}:account/{hierarchy_id}"
-                    resource_id = hierarchy_id
+                    resource_arn = f"arn:aws:::{account_id}:account/{account_id}"
+                    resource_id = account_id
                     logger.debug(f"[ARN-ACCOUNT] Using generic account ARN: {resource_arn}")
         
         return {
@@ -526,8 +526,8 @@ class CheckEngine:
             'resource_id': resource_id
         }
     
-    def _store_check_result(self, check_scan_id: str, customer_id: str, tenant_id: str,
-                            provider: str, hierarchy_id: str, hierarchy_type: str,
+    def _store_check_result(self, scan_run_id: str, customer_id: str, tenant_id: str,
+                            provider: str, account_id: str, hierarchy_type: str,
                             rule_id: str, item_record: Dict, status: str,
                             checked_fields: List[str], finding_data: Dict,
                             service: str = None, discovery_id: str = None,
@@ -542,11 +542,11 @@ class CheckEngine:
 
             # Store in database
             self.db.store_check_result(
-                scan_id=check_scan_id,
+                scan_id=scan_run_id,
                 customer_id=customer_id,
                 tenant_id=tenant_id,
                 provider=provider,
-                hierarchy_id=hierarchy_id,
+                account_id=account_id,
                 hierarchy_type=hierarchy_type,
                 rule_id=rule_id,
                 resource_arn=resource_arn,
@@ -591,42 +591,42 @@ class CheckEngine:
                 fields.append(var.replace('item.', ''))
         return list(set(fields))  # Remove duplicates
     
-    def run_check_scan(self, discovery_scan_id: str, customer_id: str, tenant_id: str,
-                      provider: str, hierarchy_id: str, hierarchy_type: str,
+    def run_check_scan(self, discovery_scan_run_id: str, customer_id: str, tenant_id: str,
+                      provider: str, account_id: str, hierarchy_type: str,
                       services: List[str], check_source: str = 'default',
                       use_ndjson: Optional[bool] = None,
-                      check_scan_id: str = None,
+                      scan_run_id: str = None,
                       scan_id: str = None) -> Dict[str, Any]:
         """
         Run checks against discoveries (hybrid: NDJSON or database)
 
         Args:
-            discovery_scan_id: Discovery scan ID to check against
+            discovery_scan_run_id: Discovery scan ID to check against
             customer_id: Customer ID
             tenant_id: Tenant ID
             provider: CSP provider
-            hierarchy_id: Hierarchy ID
+            account_id: Hierarchy ID
             hierarchy_type: Hierarchy type
             services: List of services to check
             check_source: 'default' or 'custom' (loads from different folders)
             use_ndjson: Override mode (None = use instance default)
-            check_scan_id: UUID from API server (if None, generates one)
-            scan_id: Deprecated alias for discovery_scan_id
+            scan_run_id: UUID from API server (if None, generates one)
+            scan_id: Deprecated alias for discovery_scan_run_id
 
         Returns:
             Dict with scan results summary
         """
         # Support legacy 'scan_id' parameter
-        if discovery_scan_id is None and scan_id is not None:
-            discovery_scan_id = scan_id
+        if discovery_scan_run_id is None and scan_id is not None:
+            discovery_scan_run_id = scan_id
 
         # Override mode if specified
         use_ndjson_mode = use_ndjson if use_ndjson is not None else self.use_ndjson
 
-        # Use API-provided check_scan_id or generate one
+        # Use API-provided scan_run_id or generate one
         import uuid as _uuid
-        if not check_scan_id:
-            check_scan_id = str(_uuid.uuid4())
+        if not scan_run_id:
+            scan_run_id = str(_uuid.uuid4())
 
         # Setup phase logger
         output_base = os.getenv("OUTPUT_DIR")
@@ -634,30 +634,30 @@ class CheckEngine:
             base_output_dir = Path(output_base).parent
         else:
             base_output_dir = _project_root() / "engine_output" / "engine_configscan_aws" / "output"
-        output_dir = base_output_dir / "checks" / check_scan_id
-        self.phase_logger = PhaseLogger(check_scan_id, 'checks', output_dir)
+        output_dir = base_output_dir / "checks" / scan_run_id
+        self.phase_logger = PhaseLogger(scan_run_id, 'checks', output_dir)
 
         mode_str = "NDJSON" if use_ndjson_mode else "DATABASE"
-        self.phase_logger.info(f"Starting check scan (mode: {mode_str}) against discovery scan: {discovery_scan_id}")
+        self.phase_logger.info(f"Starting check scan (mode: {mode_str}) against discovery scan: {discovery_scan_run_id}")
         self.phase_logger.info(f"  Services: {len(services)}, Check source: {check_source}")
 
         # Create check scan record (only if database available)
         if not use_ndjson_mode and self.db:
             self.db.create_scan(
-                scan_id=check_scan_id,
+                scan_id=scan_run_id,
                 customer_id=customer_id,
                 tenant_id=tenant_id,
                 provider=provider,
-                hierarchy_id=hierarchy_id,
+                account_id=account_id,
                 hierarchy_type=hierarchy_type,
                 scan_type='check',
                 metadata={
-                    'discovery_scan_id': discovery_scan_id,
+                    'discovery_scan_run_id': discovery_scan_run_id,
                     'services': services,
                     'check_source': check_source,
                     'mode': mode_str
                 },
-                discovery_scan_id=discovery_scan_id
+                discovery_scan_run_id=discovery_scan_run_id
             )
         
         # Store results in memory for NDJSON mode
@@ -733,8 +733,8 @@ class CheckEngine:
                     items = self._load_discoveries(
                         discovery_id=did,
                         tenant_id=tenant_id,
-                        hierarchy_id=hierarchy_id,
-                        scan_id=discovery_scan_id,
+                        account_id=account_id,
+                        scan_id=discovery_scan_run_id,
                         service=service
                     )
                     discovery_cache[did] = items
@@ -813,7 +813,7 @@ class CheckEngine:
                             resource_info = self._extract_resource_identifiers(
                                 item_record, 
                                 item_data,
-                                hierarchy_id=hierarchy_id,
+                                account_id=account_id,
                                 service=service,
                                 discovery_id=for_each,
                                 rule_id=rule_id,
@@ -852,12 +852,12 @@ class CheckEngine:
                             if use_ndjson_mode:
                                 # Store in memory for later file export
                                 check_results.append({
-                                    'check_scan_id': check_scan_id,
-                                    'discovery_scan_id': discovery_scan_id,
+                                    'scan_run_id': scan_run_id,
+                                    'discovery_scan_run_id': discovery_scan_run_id,
                                     'customer_id': customer_id,
                                     'tenant_id': tenant_id,
                                     'provider': provider,
-                                    'hierarchy_id': hierarchy_id,
+                                    'account_id': account_id,
                                     'hierarchy_type': hierarchy_type,
                                     'rule_id': rule_id,
                                     'service': service,
@@ -869,16 +869,16 @@ class CheckEngine:
                                     'status': status,
                                     'checked_fields': checked_fields,
                                     'finding_data': finding_data,
-                                    'scan_timestamp': datetime.now().isoformat()
+                                    'first_seen_at': datetime.now().isoformat()
                                 })
                             else:
                                 # Store in database
                                 self._store_check_result(
-                                    check_scan_id=check_scan_id,
+                                    scan_run_id=scan_run_id,
                                     customer_id=customer_id,
                                     tenant_id=tenant_id,
                                     provider=provider,
-                                    hierarchy_id=hierarchy_id,
+                                    account_id=account_id,
                                     hierarchy_type=hierarchy_type,
                                     rule_id=rule_id,
                                     item_record=item_record,
@@ -912,7 +912,7 @@ class CheckEngine:
                                     resource_info = self._extract_resource_identifiers(
                                         item_record, 
                                         emitted_fields,
-                                        hierarchy_id=hierarchy_id,
+                                        account_id=account_id,
                                         service=service,
                                         discovery_id=for_each,
                                         rule_id=rule_id,
@@ -925,28 +925,28 @@ class CheckEngine:
                                     error_resource_id = item_record.get('resource_id')
                                 
                                 check_results.append({
-                                    'check_scan_id': check_scan_id,
-                                    'discovery_scan_id': discovery_scan_id,
+                                    'scan_run_id': scan_run_id,
+                                    'discovery_scan_run_id': discovery_scan_run_id,
                                     'customer_id': customer_id,
                                     'tenant_id': tenant_id,
                                     'provider': provider,
-                                    'hierarchy_id': hierarchy_id,
+                                    'account_id': account_id,
                                     'hierarchy_type': hierarchy_type,
                                     'rule_id': rule_id,
                                     'resource_arn': error_resource_arn,
                                     'resource_id': error_resource_id,
                                     'status': 'ERROR',
                                     'finding_data': error_finding,
-                                    'scan_timestamp': datetime.now().isoformat()
+                                    'first_seen_at': datetime.now().isoformat()
                                 })
                             else:
                                 if self.db:
                                     self.db.store_check_result(
-                                        scan_id=check_scan_id,
+                                        scan_id=scan_run_id,
                                         customer_id=customer_id,
                                         tenant_id=tenant_id,
                                         provider=provider,
-                                        hierarchy_id=hierarchy_id,
+                                        account_id=account_id,
                                         hierarchy_type=hierarchy_type,
                                         rule_id=rule_id,
                                         resource_arn=item_record.get('resource_arn'),
@@ -968,30 +968,30 @@ class CheckEngine:
         
         # Update scan status (database mode only)
         if not use_ndjson_mode and self.db:
-            self.db.update_scan_status(check_scan_id, 'completed')
+            self.db.update_scan_status(scan_run_id, 'completed')
         
         # Export check results to local files
         output_path = self._export_check_results_to_file(
-            check_scan_id=check_scan_id,
-            discovery_scan_id=discovery_scan_id,
+            scan_run_id=scan_run_id,
+            discovery_scan_run_id=discovery_scan_run_id,
             customer_id=customer_id,
             tenant_id=tenant_id,
             provider=provider,
-            hierarchy_id=hierarchy_id,
+            account_id=account_id,
             services=services,
             check_results=check_results if use_ndjson_mode else None,
             output_dir=output_dir
         )
         
-        self.phase_logger.info(f"Check scan completed: {check_scan_id}")
+        self.phase_logger.info(f"Check scan completed: {scan_run_id}")
         self.phase_logger.info(f"  Mode: {mode_str}")
         self.phase_logger.info(f"  Total checks: {total_checks}")
         self.phase_logger.info(f"  Passed: {total_passed}, Failed: {total_failed}, Errors: {total_errors}")
         self.phase_logger.info(f"  Output saved to: {output_path}")
         
         return {
-            'check_scan_id': check_scan_id,
-            'discovery_scan_id': discovery_scan_id,
+            'scan_run_id': scan_run_id,
+            'discovery_scan_run_id': discovery_scan_run_id,
             'mode': mode_str,
             'total_checks': total_checks,
             'passed': total_passed,
@@ -1000,9 +1000,9 @@ class CheckEngine:
             'output_path': output_path
         }
     
-    def _export_check_results_to_file(self, check_scan_id: str, discovery_scan_id: str,
+    def _export_check_results_to_file(self, scan_run_id: str, discovery_scan_run_id: str,
                                       customer_id: str, tenant_id: str,
-                                      provider: str, hierarchy_id: str,
+                                      provider: str, account_id: str,
                                       services: List[str],
                                       check_results: Optional[List[Dict]] = None,
                                       output_dir: Optional[Path] = None) -> str:
@@ -1023,7 +1023,7 @@ class CheckEngine:
         if output_dir is None:
             base_output_dir = _project_root() / "engine_output" / "engine_configscan_aws" / "output"
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_dir = base_output_dir / "checks" / check_scan_id
+            output_dir = base_output_dir / "checks" / scan_run_id
         output_dir.mkdir(parents=True, exist_ok=True)
         
         logger.info(f"Exporting check results to: {output_dir}")
@@ -1037,7 +1037,7 @@ class CheckEngine:
             if not self.db:
                 logger.warning("No database and no pre-loaded results, skipping export")
                 return str(output_dir)
-            results = self.db.export_check_results(check_scan_id)
+            results = self.db.export_check_results(scan_run_id)
         
         # Export as NDJSON
         checks_file = output_dir / "checks.ndjson"
@@ -1060,12 +1060,12 @@ class CheckEngine:
                         checked_fields = []
                 
                 record = {
-                    'scan_id': check_scan_id,
-                    'discovery_scan_id': discovery_scan_id,
+                    'scan_id': scan_run_id,
+                    'discovery_scan_run_id': discovery_scan_run_id,
                     'customer_id': result.get('customer_id'),
                     'tenant_id': result.get('tenant_id'),
                     'provider': result.get('provider'),
-                    'hierarchy_id': result.get('hierarchy_id'),
+                    'account_id': result.get('account_id'),
                     'hierarchy_type': result.get('hierarchy_type'),
                     'rule_id': result.get('rule_id'),
                     'resource_arn': result.get('resource_arn'),
@@ -1074,12 +1074,12 @@ class CheckEngine:
                     'status': result.get('status'),
                     'checked_fields': checked_fields,
                     'finding_data': finding_data,
-                    'scan_timestamp': result.get('scan_timestamp')
+                    'first_seen_at': result.get('first_seen_at')
                 }
                 
                 # Handle datetime objects
-                if isinstance(record.get('scan_timestamp'), datetime):
-                    record['scan_timestamp'] = record['scan_timestamp'].isoformat()
+                if isinstance(record.get('first_seen_at'), datetime):
+                    record['first_seen_at'] = record['first_seen_at'].isoformat()
                 
                 f.write(json.dumps(record, default=str) + "\n")
         
@@ -1089,14 +1089,14 @@ class CheckEngine:
         errors = len([r for r in results if r.get('status') == 'ERROR'])
         
         summary = {
-            'check_scan_id': check_scan_id,
-            'discovery_scan_id': discovery_scan_id,
+            'scan_run_id': scan_run_id,
+            'discovery_scan_run_id': discovery_scan_run_id,
             'customer_id': customer_id,
             'tenant_id': tenant_id,
             'provider': provider,
-            'hierarchy_id': hierarchy_id,
+            'account_id': account_id,
             'services': services,
-            'scan_timestamp': datetime.now().isoformat(),
+            'first_seen_at': datetime.now().isoformat(),
             'total_checks': len(results),
             'passed': passed,
             'failed': failed,
@@ -1116,7 +1116,7 @@ class CheckEngine:
     
     def run_checks_for_all_services(self, scan_id: str, customer_id: str,
                                     tenant_id: str, provider: str,
-                                    hierarchy_id: str, hierarchy_type: str,
+                                    account_id: str, hierarchy_type: str,
                                     check_source: str = 'default',
                                     use_ndjson: Optional[bool] = None) -> Dict[str, Any]:
         """
@@ -1142,11 +1142,11 @@ class CheckEngine:
         logger.info(f"Found {len(services)} services with checks")
         
         return self.run_check_scan(
-            discovery_scan_id=scan_id,
+            discovery_scan_run_id=scan_id,
             customer_id=customer_id,
             tenant_id=tenant_id,
             provider=provider,
-            hierarchy_id=hierarchy_id,
+            account_id=account_id,
             hierarchy_type=hierarchy_type,
             services=services,
             check_source=check_source,

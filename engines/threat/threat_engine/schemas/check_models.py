@@ -40,34 +40,34 @@ class ServiceStats(BaseModel):
 class ScanSummary(BaseModel):
     """Summary of a check scan"""
     scan_id: str = Field(..., description="Check scan identifier")
-    discovery_scan_id: Optional[str] = Field(None, description="Associated discovery scan ID")
+    scan_run_id: Optional[str] = Field(None, description="Associated discovery scan ID")
     customer_id: str
     tenant_id: str
     provider: str = Field(default="aws", description="Cloud provider")
-    hierarchy_id: str = Field(..., description="Account/Project/Org ID")
+    account_id: str = Field(..., description="Account/Project/Org ID")
     hierarchy_type: str = Field(default="account", description="Hierarchy type")
     total_checks: int = Field(..., description="Total checks executed")
     passed: int = Field(..., description="Checks that passed")
     failed: int = Field(..., description="Checks that failed")
     error: int = Field(default=0, description="Checks with errors")
     services_scanned: int = Field(..., description="Number of services scanned")
-    scan_timestamp: datetime = Field(..., description="Scan execution time")
+    first_seen_at: datetime = Field(..., description="Scan execution time")
     
     class Config:
         json_schema_extra = {
             "example": {
                 "scan_id": "check_20260122_210506",
-                "discovery_scan_id": "discovery_20260122_080533",
+                "scan_run_id": "discovery_20260122_080533",
                 "customer_id": "test_customer",
                 "tenant_id": "test_tenant",
                 "provider": "aws",
-                "hierarchy_id": "039612851381",
+                "account_id": "039612851381",
                 "total_checks": 70988,
                 "passed": 7836,
                 "failed": 63152,
                 "error": 0,
                 "services_scanned": 100,
-                "scan_timestamp": "2026-01-22T21:05:06Z"
+                "first_seen_at": "2026-01-22T21:05:06Z"
             }
         }
 
@@ -76,11 +76,11 @@ class FindingDetail(BaseModel):
     """Detailed check finding"""
     id: Optional[int] = Field(None, description="Database ID (if from database)")
     scan_id: str = Field(..., description="Check scan identifier")
-    discovery_scan_id: Optional[str] = Field(None, description="Discovery scan ID")
+    scan_run_id: Optional[str] = Field(None, description="Discovery scan ID")
     customer_id: str
     tenant_id: str
     provider: str
-    hierarchy_id: str
+    account_id: str
     hierarchy_type: str
     rule_id: str = Field(..., description="Rule identifier (e.g., aws.s3.bucket.versioning_enabled)")
     resource_arn: Optional[str] = Field(None, description="Resource ARN")
@@ -89,7 +89,7 @@ class FindingDetail(BaseModel):
     status: CheckStatus = Field(..., description="Check result status")
     checked_fields: List[str] = Field(default_factory=list, description="Fields that were evaluated")
     finding_data: Dict[str, Any] = Field(default_factory=dict, description="Additional finding context")
-    scan_timestamp: datetime = Field(..., description="When check was executed")
+    first_seen_at: datetime = Field(..., description="When check was executed")
     
     class Config:
         json_schema_extra = {
@@ -145,7 +145,7 @@ class CheckDashboard(BaseModel):
         default_factory=list,
         description="Recent check scans"
     )
-    last_scan_timestamp: Optional[datetime] = Field(None, description="Most recent scan time")
+    last_first_seen_at: Optional[datetime] = Field(None, description="Most recent scan time")
     
     class Config:
         json_schema_extra = {
@@ -249,18 +249,18 @@ class RuleFindings(BaseModel):
 class ScanListItem(BaseModel):
     """Summary item for scan list"""
     scan_id: str
-    discovery_scan_id: Optional[str]
+    scan_run_id: Optional[str]
     customer_id: str
     tenant_id: str
     provider: str
-    hierarchy_id: str
+    account_id: str
     total_checks: int
     passed: int
     failed: int
     error: int = Field(default=0)
     pass_rate: float
     services_scanned: int
-    scan_timestamp: datetime
+    first_seen_at: datetime
 
 
 class ScanList(BaseModel):

@@ -11,26 +11,7 @@ import {
 import { useGlobalFilter } from '@/lib/global-filter-context';
 import DataTable from '@/components/shared/DataTable';
 import { SEVERITY_COLORS, CLOUD_PROVIDERS, TENANT_ID } from '@/lib/constants';
-
-// ── Direct check engine API calls (bypass gateway) ────────────────────────
-// Next.js rewrites proxy /check/* → NLB → check engine ingress
-async function checkApi(path, params = {}) {
-  const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
-  const url = new URL(`/check${path}`, origin);
-  Object.entries(params).forEach(([k, v]) => {
-    if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, String(v));
-  });
-  if (TENANT_ID && !url.searchParams.has('tenant_id')) {
-    url.searchParams.set('tenant_id', TENANT_ID);
-  }
-  try {
-    const res = await fetch(url.toString(), { headers: { 'Content-Type': 'application/json' } });
-    if (!res.ok) return { error: `API error: ${res.status} ${res.statusText}` };
-    return await res.json();
-  } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Network error' };
-  }
-}
+import { fetchView } from '@/lib/api';
 
 // ── Posture category styling ────────────────────────────────────────────────
 const POSTURE_COLORS = {
@@ -190,7 +171,7 @@ function FindingDetailPanel({ finding, onClose }) {
                 { label: 'Type', value: finding.resource_type },
                 { label: 'Service', value: finding.service?.toUpperCase() },
                 { label: 'Region', value: finding.region },
-                { label: 'Account', value: finding.hierarchy_id },
+                { label: 'Account', value: finding.account_id },
                 { label: 'Provider', value: finding.provider?.toUpperCase() },
               ].filter(r => r.value).map(r => (
                 <div key={r.label} className="flex items-start justify-between gap-4">
@@ -373,16 +354,21 @@ function escapeCSV(val) {
   return s;
 }
 
-async function exportCSV(buildParams) {
-  const params = { ...buildParams(), page: 1, page_size: 500 };
-  const data = await checkApi('/api/v1/check/findings', params);
+async function exportCSV() {
+  const data = await fetchView('misconfig');
   if (data.error) { alert(`Export failed: ${data.error}`); return; }
 
+  const allFindings = (data.findings || []).map(f => ({
+    ...f,
+    account_id: f.account_id || '',
+    resource_uid: f.resource_id || f.resource_uid || '',
+  }));
+
   const headers = ['Severity','Status','Finding','Rule ID','Resource','Resource ARN','Service','Security Posture','Provider','Account','Region','Domain','Risk Score','Detected'];
-  const rows = (data.findings || []).map(f => [
-    f.severity, f.status, f.title, f.rule_id, f.resource_uid,
-    f.resource_arn, f.service, f.posture_category, f.provider,
-    f.hierarchy_id, f.region, f.domain, f.risk_score ?? '', f.created_at ?? '',
+  const rows = allFindings.map(f => [
+    f.severity, f.status, f.title || f.rule_id, f.rule_id, f.resource_uid,
+    f.resource_arn || '', f.service, f.posture_category || '', f.provider,
+    f.account_id, f.region, f.domain || '', f.risk_score ?? '', f.created_at ?? '',
   ]);
   const csv = [headers.map(escapeCSV).join(','), ...rows.map(r => r.map(escapeCSV).join(','))].join('\n');
   const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
@@ -411,7 +397,7 @@ function exportPDF(findings, summary, filters) {
       <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;font-size:11px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${f.title || f.rule_id}</td>
       <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;font-size:11px;text-transform:uppercase;">${f.service || ''}</td>
       <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;font-size:11px;text-transform:uppercase;">${f.provider || ''}</td>
-      <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;font-size:11px;">${f.hierarchy_id || ''}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;font-size:11px;">${f.account_id || ''}</td>
       <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;font-size:11px;">${f.region || ''}</td>
     </tr>
   `).join('');
@@ -489,7 +475,7 @@ export default function MisconfigurationsPage() {
   // Filters — includes scope (provider/account/region) + security filters
   const [filters, setFilters] = useState({
     provider: '',
-    hierarchy_id: '',
+    account_id: '',
     region: '',
     severity: '',
     status: '',
@@ -511,65 +497,133 @@ export default function MisconfigurationsPage() {
     setFilters(prev => ({
       ...prev,
       provider: globalProvider ? globalProvider.toLowerCase() : '',
-      hierarchy_id: globalAccount || '',
+      account_id: globalAccount || '',
       region: globalRegion || '',
     }));
   }, [globalProvider, globalAccount, globalRegion]);
 
-  // Build query params
-  const buildParams = useCallback(() => {
-    const params = {};
-    if (filters.provider) params.provider = filters.provider.toLowerCase();
-    if (filters.hierarchy_id) params.hierarchy_id = filters.hierarchy_id;
-    if (filters.region) params.region = filters.region;
-    if (filters.severity) params.severity = filters.severity;
-    if (filters.status) params.status = filters.status;
-    if (filters.service) params.service = filters.service;
-    if (filters.posture_category) params.posture_category = filters.posture_category;
-    if (debouncedSearch) params.search = debouncedSearch;
-    return params;
-  }, [filters, debouncedSearch]);
-
-  // Fetch summary
-  const fetchSummary = useCallback(async () => {
-    const params = buildParams();
-    const data = await checkApi('/api/v1/check/findings/summary', params);
-    if (!data.error) setSummary(data);
-  }, [buildParams]);
-
-  // Fetch findings list
-  const fetchFindings = useCallback(async () => {
+  // Fetch all data from BFF
+  const fetchData = useCallback(async () => {
     setLoading(true);
-    const params = {
-      ...buildParams(),
-      page,
-      page_size: pageSize,
-      sort_by: sortBy,
-      sort_order: sortOrder,
-    };
-    const data = await checkApi('/api/v1/check/findings', params);
+    const data = await fetchView('misconfig', {
+      provider: filters.provider || undefined,
+      account: filters.account_id || undefined,
+      region: filters.region || undefined,
+    });
     if (data.error) {
       setError(data.error);
-    } else {
-      setFindings(data.findings || []);
-      setTotalRows(data.total || 0);
-      setError(null);
+      setLoading(false);
+      return;
     }
-    setLoading(false);
-  }, [buildParams, page, pageSize, sortBy, sortOrder]);
 
-  // Fetch on mount & filter/pagination changes
-  useEffect(() => { fetchSummary(); }, [fetchSummary]);
-  useEffect(() => { fetchFindings(); }, [fetchFindings]);
+    // Map BFF kpi → summary shape expected by the page
+    const kpi = data.kpi || {};
+
+    // Process findings for the table — map BFF field names to what the table expects
+    let allFindings = (data.findings || []).map(f => ({
+      ...f,
+      account_id: f.account_id || '',
+      resource_uid: f.resource_id || f.resource_uid || '',
+      title: f.title || f.rule_name || f.rule_id || '',
+      created_at: f.detected_at || f.created_at || '',
+    }));
+
+    // Client-side filter by severity, status, service, posture_category, search
+    if (filters.severity) {
+      allFindings = allFindings.filter(f => f.severity === filters.severity);
+    }
+    if (filters.status) {
+      allFindings = allFindings.filter(f => f.status === filters.status);
+    }
+    if (filters.service) {
+      allFindings = allFindings.filter(f => f.service === filters.service);
+    }
+    if (filters.posture_category) {
+      allFindings = allFindings.filter(f => f.posture_category === filters.posture_category);
+    }
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase();
+      allFindings = allFindings.filter(f =>
+        (f.title || '').toLowerCase().includes(q) ||
+        (f.rule_id || '').toLowerCase().includes(q) ||
+        (f.resource_uid || '').toLowerCase().includes(q)
+      );
+    }
+
+    // Client-side sorting
+    if (sortBy) {
+      allFindings.sort((a, b) => {
+        const aVal = (a[sortBy] || '');
+        const bVal = (b[sortBy] || '');
+        if (sortBy === 'severity') {
+          const order = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+          const diff = (order[aVal] ?? 5) - (order[bVal] ?? 5);
+          return sortOrder === 'desc' ? -diff : diff;
+        }
+        const cmp = String(aVal).localeCompare(String(bVal));
+        return sortOrder === 'desc' ? -cmp : cmp;
+      });
+    }
+
+    // Derive top_rules from findings
+    const ruleCounts = {};
+    allFindings.forEach(f => {
+      const key = f.rule_id || f.title;
+      if (!ruleCounts[key]) ruleCounts[key] = { rule_id: f.rule_id, title: f.title, severity: f.severity, count: 0 };
+      ruleCounts[key].count++;
+    });
+    const topRules = Object.values(ruleCounts).sort((a, b) => b.count - a.count).slice(0, 10);
+
+    // Derive by_service from byService dict
+    const byServiceList = Object.entries(data.byService || {}).map(([service, count]) => ({
+      service,
+      total: count,
+      fail: count,
+    })).sort((a, b) => b.total - a.total);
+
+    // Derive filter options from findings
+    const providers = [...new Set(allFindings.map(f => f.provider).filter(Boolean))].sort();
+    const accounts = [...new Set(allFindings.map(f => f.account_id).filter(Boolean))].sort();
+    const regions = [...new Set(allFindings.map(f => f.region).filter(Boolean))].sort();
+    const services = [...new Set(allFindings.map(f => f.service).filter(Boolean))].sort();
+    const postures = [...new Set(allFindings.map(f => f.posture_category).filter(Boolean))].sort();
+
+    setSummary({
+      total: kpi.total || 0,
+      severity_counts: {
+        critical: kpi.critical || 0,
+        high: kpi.high || 0,
+        medium: kpi.medium || 0,
+        low: kpi.low || 0,
+      },
+      status_counts: {
+        FAIL: kpi.failed || 0,
+        PASS: kpi.passed || 0,
+      },
+      top_rules: topRules,
+      by_service: byServiceList,
+      by_provider: providers.map(p => ({ provider: p })),
+      by_account: accounts.map(a => ({ account: a })),
+      by_region: regions.map(r => ({ region: r })),
+      by_posture: postures.map(p => ({ category: p })),
+    });
+
+    // Client-side pagination
+    setTotalRows(allFindings.length);
+    const start = (page - 1) * pageSize;
+    setFindings(allFindings.slice(start, start + pageSize));
+    setError(null);
+    setLoading(false);
+  }, [filters, debouncedSearch, page, pageSize, sortBy, sortOrder]);
+
+  // Fetch on mount & filter/pagination/sort changes
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   // Reset page on filter change
   useEffect(() => { setPage(1); }, [filters, debouncedSearch]);
 
   // Refresh handler
-  const handleRefresh = () => {
-    fetchSummary();
-    fetchFindings();
-  };
+  const handleRefresh = () => { fetchData(); };
 
   // Filter change
   const handleFilterChange = (key, value) => {
@@ -578,7 +632,7 @@ export default function MisconfigurationsPage() {
 
   // Clear all filters
   const clearFilters = () => {
-    setFilters({ provider: '', hierarchy_id: '', region: '', severity: '', status: '', service: '', posture_category: '' });
+    setFilters({ provider: '', account_id: '', region: '', severity: '', status: '', service: '', posture_category: '' });
     setSearchTerm('');
   };
 
@@ -587,7 +641,7 @@ export default function MisconfigurationsPage() {
   // Export handlers
   const handleExportCSV = async () => {
     setExporting(true);
-    try { await exportCSV(buildParams); } finally { setExporting(false); }
+    try { await exportCSV(); } finally { setExporting(false); }
   };
   const handleExportPDF = () => {
     exportPDF(findings, summary, filters);
@@ -630,7 +684,7 @@ export default function MisconfigurationsPage() {
       cell: (info) => <ProviderBadge provider={info.getValue()} />,
     },
     {
-      accessorKey: 'hierarchy_id',
+      accessorKey: 'account_id',
       header: 'Account',
       size: 130,
       cell: (info) => (
@@ -884,7 +938,7 @@ export default function MisconfigurationsPage() {
           </FilterSelect>
 
           {/* Account */}
-          <FilterSelect value={filters.hierarchy_id} onChange={(v) => handleFilterChange('hierarchy_id', v)} label="All Accounts">
+          <FilterSelect value={filters.account_id} onChange={(v) => handleFilterChange('account_id', v)} label="All Accounts">
             {accountOptions.map(a => (
               <option key={a} value={a}>{a}</option>
             ))}

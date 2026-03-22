@@ -61,7 +61,7 @@ class ScanRequest(BaseModel):
     """Request to generate IAM security report."""
     csp: str = Field(..., description="Cloud service provider (e.g., 'aws')")
     scan_id: Optional[str] = Field(default=None, description="Threat scan_run_id (from Threat engine) - for ad-hoc mode")
-    orchestration_id: Optional[str] = Field(default=None, description="Orchestration ID - for pipeline mode")
+    scan_run_id: Optional[str] = Field(default=None, description="Pipeline scan_run_id - for pipeline mode")
     tenant_id: str = Field(default="default-tenant", description="Tenant ID")
     max_findings: Optional[int] = Field(default=None, description="Max findings to process")
 
@@ -138,36 +138,35 @@ async def generate_report(request: ScanRequest):
     """
     Start an IAM security scan by creating a K8s Job on a spot node.
 
-    **Pipeline mode** -- provide `orchestration_id`:
+    **Pipeline mode** -- provide `scan_run_id`:
       Fetches metadata from scan_orchestration table.
 
     **Ad-hoc mode** -- provide `scan_id`:
-      Uses the supplied threat_scan_id.
+      Uses the supplied scan_run_id.
 
-    Returns immediately with iam_scan_id. Poll status via
-    GET /api/v1/iam-security/{iam_scan_id}/status.
+    Returns immediately with scan_run_id. Poll status via
+    GET /api/v1/iam-security/{scan_run_id}/status.
     """
-    if not request.orchestration_id and not request.scan_id:
-        raise HTTPException(status_code=400, detail="Either scan_id OR orchestration_id must be provided")
+    if not request.scan_run_id and not request.scan_id:
+        raise HTTPException(status_code=400, detail="Either scan_id OR scan_run_id must be provided")
 
-    if request.orchestration_id:
-        orch_id = request.orchestration_id
+    if request.scan_run_id:
+        orch_id = request.scan_run_id
         iam_scan_id = orch_id
         try:
             metadata = get_orchestration_metadata(orch_id)
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e))
 
-        threat_scan_id = metadata.get("threat_scan_id")
-        if not threat_scan_id:
-            raise HTTPException(status_code=400, detail=f"Threat scan not completed yet for orchestration_id={orch_id}")
+        # All engines share the same scan_run_id
+        threat_scan_id = orch_id
 
         tenant_id = metadata.get("tenant_id") or request.tenant_id
         csp = (metadata.get("provider") or metadata.get("provider_type", "aws")).lower()
-        logger.info(f"Pipeline mode: orch={orch_id} threat={threat_scan_id} csp={csp}")
+        logger.info(f"Pipeline mode: scan_run_id={orch_id} threat={threat_scan_id} csp={csp}")
     else:
-        # Ad-hoc: orchestration_id is required for Job-based execution
-        raise HTTPException(status_code=400, detail="orchestration_id is required for Job-based execution")
+        # Ad-hoc: scan_run_id is required for Job-based execution
+        raise HTTPException(status_code=400, detail="scan_run_id is required for Job-based execution")
 
     # Pre-create iam_report row in DB (so status endpoint works immediately)
     try:
@@ -175,11 +174,11 @@ async def generate_report(request: ScanRequest):
         with conn.cursor() as cur:
             cur.execute(
                 """INSERT INTO iam_report
-                   (iam_scan_id, tenant_id, provider, threat_scan_id, status, generated_at, metadata)
+                   (scan_run_id, tenant_id, provider, threat_scan_id, status, generated_at, metadata)
                    VALUES (%s, %s, %s, %s, 'running', NOW(), %s)
-                   ON CONFLICT (iam_scan_id) DO UPDATE SET status = 'running'""",
+                   ON CONFLICT (scan_run_id) DO UPDATE SET status = 'running'""",
                 (iam_scan_id, tenant_id, csp, threat_scan_id,
-                 json.dumps({"orchestration_id": orch_id, "mode": "job"})),
+                 json.dumps({"scan_run_id": orch_id, "mode": "job"})),
             )
         conn.commit()
         conn.close()
@@ -191,7 +190,7 @@ async def generate_report(request: ScanRequest):
         job_name = create_engine_job(
             engine_name="iam",
             scan_id=iam_scan_id,
-            orchestration_id=orch_id,
+            scan_run_id=orch_id,
             image=SCANNER_IMAGE,
             cpu_request=SCANNER_CPU_REQUEST,
             mem_request=SCANNER_MEM_REQUEST,
@@ -207,7 +206,7 @@ async def generate_report(request: ScanRequest):
         "iam_scan_id": iam_scan_id,
         "status": "running",
         "message": f"Scanner Job '{job_name}' created on spot node (image={SCANNER_IMAGE})",
-        "orchestration_id": orch_id,
+        "scan_run_id": orch_id,
     }
 
 
@@ -219,8 +218,8 @@ async def get_iam_status(iam_scan_id: str):
         conn = _get_iam_conn()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
-                "SELECT iam_scan_id, status, provider, threat_scan_id, generated_at, metadata "
-                "FROM iam_report WHERE iam_scan_id = %s",
+                "SELECT scan_run_id, status, provider, threat_scan_id, generated_at, metadata "
+                "FROM iam_report WHERE scan_run_id = %s",
                 (iam_scan_id,),
             )
             row = cur.fetchone()
@@ -232,7 +231,7 @@ async def get_iam_status(iam_scan_id: str):
         raise HTTPException(status_code=404, detail=f"IAM scan {iam_scan_id} not found")
 
     return {
-        "iam_scan_id": row["iam_scan_id"],
+        "iam_scan_id": row["scan_run_id"],
         "status": row["status"],
         "provider": row.get("provider"),
         "threat_scan_id": row.get("threat_scan_id"),

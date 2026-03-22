@@ -63,7 +63,7 @@ class CheckDBReader:
         *,
         scan_id: str,
         tenant_id: str,
-        hierarchy_id: Optional[str] = None,
+        account_id: Optional[str] = None,
     ) -> Dict[str, Dict[str, Any]]:
         """
         Return a posture summary per resource_uid for a given check scan.
@@ -87,12 +87,12 @@ class CheckDBReader:
                 COUNT(*) FILTER (WHERE status = 'FAIL') AS failed,
                 COUNT(*) FILTER (WHERE status = 'ERROR') AS errors
             FROM check_findings
-            WHERE check_scan_id = %s AND tenant_id = %s
+            WHERE scan_run_id = %s AND tenant_id = %s
         """
         params = [scan_id, tenant_id]
-        if hierarchy_id:
-            query += " AND hierarchy_id = %s"
-            params.append(hierarchy_id)
+        if account_id:
+            query += " AND account_id = %s"
+            params.append(account_id)
         query += " GROUP BY resource_uid"
 
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:

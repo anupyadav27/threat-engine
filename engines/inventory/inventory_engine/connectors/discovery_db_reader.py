@@ -10,13 +10,13 @@ Env: DISCOVERIES_DB_HOST / DISCOVERIES_DB_PORT / DISCOVERIES_DB_NAME / DISCOVERI
      (constructed in discovery_reader_factory.py)
 
 Tables READ:
-  - discovery_report   : get_latest_scan_id()  — SELECT discovery_scan_id WHERE status='completed' ORDER BY scan_timestamp DESC
+  - discovery_report   : get_latest_scan_id()  — SELECT scan_run_id WHERE status='completed' ORDER BY first_seen_at DESC
                          list_available_scans() — SELECT + COUNT(*) FROM discovery_findings
-  - discovery_findings : read_discovery_records() — SELECT discovery_scan_id, customer_id, tenant_id, provider,
-                           hierarchy_id, hierarchy_type, discovery_id, region, service,
+  - discovery_findings : read_discovery_records() — SELECT scan_run_id, customer_id, tenant_id, provider,
+                           account_id, hierarchy_type, discovery_id, region, service,
                            resource_uid, resource_id, emitted_fields, raw_response, config_hash,
-                           scan_timestamp, version
-                         Filters: discovery_scan_id, tenant_id, hierarchy_id, region, service
+                           first_seen_at, version
+                         Filters: scan_run_id, tenant_id, account_id, region, service
 
 Tables WRITTEN: None (read-only connector)
 ===
@@ -73,11 +73,11 @@ class DiscoveryDBReader:
         try:
             with self.conn.cursor() as cur:
                 cur.execute("""
-                    SELECT discovery_scan_id FROM discovery_report
+                    SELECT scan_run_id FROM discovery_report
                     WHERE tenant_id = %s
                       AND status = 'completed'
                       AND scan_type IN ('discovery', 'full')
-                    ORDER BY scan_timestamp DESC
+                    ORDER BY first_seen_at DESC
                     LIMIT 1
                 """, (tenant_id,))
                 result = cur.fetchone()
@@ -123,14 +123,14 @@ class DiscoveryDBReader:
         # Build query with filters
         query = """
             SELECT
-                discovery_scan_id, customer_id, tenant_id, provider,
-                hierarchy_id, hierarchy_type, discovery_id,
+                scan_run_id, customer_id, tenant_id, provider,
+                account_id, hierarchy_type, discovery_id,
                 region, service,
                 resource_uid, resource_id,
                 emitted_fields, raw_response, config_hash,
-                scan_timestamp, version
+                first_seen_at, version
             FROM discovery_findings
-            WHERE discovery_scan_id = %s AND tenant_id = %s
+            WHERE scan_run_id = %s AND tenant_id = %s
         """
         params: list = [scan_id, tenant_id]
 
@@ -142,10 +142,10 @@ class DiscoveryDBReader:
             effective_account_ids = [account_id]
 
         if effective_account_ids and len(effective_account_ids) == 1:
-            query += " AND hierarchy_id = %s"
+            query += " AND account_id = %s"
             params.append(effective_account_ids[0])
         elif effective_account_ids:
-            query += " AND hierarchy_id = ANY(%s::text[])"
+            query += " AND account_id = ANY(%s::text[])"
             params.append(effective_account_ids)
 
         if region is not None:
@@ -187,16 +187,16 @@ class DiscoveryDBReader:
             with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute("""
                     SELECT
-                        discovery_scan_id,
-                        scan_timestamp,
+                        scan_run_id,
+                        first_seen_at,
                         status,
                         scan_type,
                         provider,
                         metadata,
-                        (SELECT COUNT(*) FROM discovery_findings WHERE discovery_findings.discovery_scan_id = discovery_report.discovery_scan_id) as total_records
+                        (SELECT COUNT(*) FROM discovery_findings WHERE discovery_findings.scan_run_id = discovery_report.scan_run_id) as total_records
                     FROM discovery_report
                     WHERE tenant_id = %s
-                    ORDER BY scan_timestamp DESC
+                    ORDER BY first_seen_at DESC
                     LIMIT 50
                 """, (tenant_id,))
                 
@@ -204,8 +204,8 @@ class DiscoveryDBReader:
                 for row in cur.fetchall():
                     scan_dict = dict(row)
                     scans.append({
-                        "scan_id": scan_dict["discovery_scan_id"],
-                        "scan_timestamp": scan_dict["scan_timestamp"].isoformat() if scan_dict["scan_timestamp"] else None,
+                        "scan_id": scan_dict["scan_run_id"],
+                        "first_seen_at": scan_dict["first_seen_at"].isoformat() if scan_dict["first_seen_at"] else None,
                         "status": scan_dict["status"],
                         "metadata": scan_dict.get("metadata", {}),
                         "total_records": scan_dict.get("total_records", 0)
@@ -218,7 +218,7 @@ class DiscoveryDBReader:
     
     def get_discovery_path(self, scan_id: str) -> str:
         """Compatibility method - returns database indicator"""
-        return f"database://discovery_findings?discovery_scan_id={scan_id}"
+        return f"database://discovery_findings?scan_run_id={scan_id}"
     
     def close(self):
         """Close database connection"""

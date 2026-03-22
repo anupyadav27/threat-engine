@@ -215,7 +215,7 @@ class GCPDiscoveryScanner(DiscoveryScanner):
         # Extract project_id from top level or nested credentials
         self.project_id = (
             credentials.get('project_id')
-            or credentials.get('hierarchy_id')
+            or credentials.get('account_id')
             or (credentials.get('credentials') or {}).get('project_id')
         )
 

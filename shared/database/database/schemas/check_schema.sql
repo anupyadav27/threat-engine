@@ -14,22 +14,20 @@ CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS check_report (
-    check_scan_id   VARCHAR(255)    PRIMARY KEY,
+    scan_run_id     VARCHAR(255)    PRIMARY KEY,
     customer_id     VARCHAR(255)    NOT NULL,
     tenant_id       VARCHAR(255)    NOT NULL,
     provider        VARCHAR(50)     NOT NULL,
-    hierarchy_id    VARCHAR(255),
+    account_id      VARCHAR(255),
     hierarchy_type  VARCHAR(50),
     region          VARCHAR(50),
     service         VARCHAR(100),
-    scan_timestamp  TIMESTAMP WITH TIME ZONE    DEFAULT NOW(),
+    first_seen_at   TIMESTAMP WITH TIME ZONE    DEFAULT NOW(),
     scan_type       VARCHAR(50)     DEFAULT 'check',
     status          VARCHAR(50),
     metadata        JSONB,
-    execution_id    VARCHAR(255),
-    discovery_scan_id VARCHAR(255)
+    execution_id    VARCHAR(255)
     -- NOTE: No FK constraints — customers/tenants tables don't exist in check DB
-    -- NOTE: orchestration_id not in RDS (removed from local schema to match)
 );
 
 -- ============================================================================
@@ -38,11 +36,11 @@ CREATE TABLE IF NOT EXISTS check_report (
 
 CREATE TABLE IF NOT EXISTS check_findings (
     id SERIAL PRIMARY KEY,
-    check_scan_id VARCHAR(255) NOT NULL,
+    scan_run_id VARCHAR(255) NOT NULL,
     customer_id VARCHAR(255) NOT NULL,
     tenant_id VARCHAR(255) NOT NULL,
     provider VARCHAR(50) NOT NULL,
-    hierarchy_id VARCHAR(255),
+    account_id VARCHAR(255),
     hierarchy_type VARCHAR(50),
     rule_id VARCHAR(255) NOT NULL,
     service VARCHAR(100),
@@ -56,7 +54,7 @@ CREATE TABLE IF NOT EXISTS check_findings (
     checked_fields JSONB,
     actual_values JSONB,
     finding_data JSONB NOT NULL,
-    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+    first_seen_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
     -- NOTE: No FK constraints — no FK to check_report or customers/tenants in RDS
 );
 
@@ -157,13 +155,11 @@ CREATE TABLE IF NOT EXISTS rule_discoveries (
 -- ============================================================================
 
 CREATE INDEX IF NOT EXISTS idx_cr_customer_tenant ON check_report(customer_id, tenant_id);
-CREATE INDEX IF NOT EXISTS idx_cr_timestamp ON check_report(scan_timestamp DESC);
-CREATE INDEX IF NOT EXISTS idx_cr_discovery_scan ON check_report(discovery_scan_id);
--- idx_cr_orchestration removed: orchestration_id column not in RDS
+CREATE INDEX IF NOT EXISTS idx_cr_timestamp ON check_report(first_seen_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_cf_scan ON check_findings(check_scan_id, rule_id);
-CREATE INDEX IF NOT EXISTS idx_cf_tenant ON check_findings(tenant_id, hierarchy_id);
-CREATE INDEX IF NOT EXISTS idx_cf_status ON check_findings(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_cf_scan ON check_findings(scan_run_id, rule_id);
+CREATE INDEX IF NOT EXISTS idx_cf_tenant ON check_findings(tenant_id, account_id);
+CREATE INDEX IF NOT EXISTS idx_cf_status ON check_findings(status, first_seen_at DESC);
 CREATE INDEX IF NOT EXISTS idx_cf_rule_id ON check_findings(rule_id, status);
 CREATE INDEX IF NOT EXISTS idx_cf_resource_uid ON check_findings(resource_uid);
 CREATE INDEX IF NOT EXISTS idx_cf_tenant_uid ON check_findings(tenant_id, resource_uid);
@@ -187,7 +183,7 @@ CREATE INDEX IF NOT EXISTS idx_rm_resource_service ON rule_metadata(resource_ser
 -- COMMENTS
 -- ============================================================================
 
-COMMENT ON TABLE check_report IS 'Check scan metadata with link to discovery_scan_id';
+COMMENT ON TABLE check_report IS 'Check scan metadata — PK is scan_run_id';
 COMMENT ON TABLE check_findings IS 'Security check findings from check scans';
 COMMENT ON TABLE rule_metadata IS 'Parsed rule metadata for enriching check findings';
 COMMENT ON TABLE rule_checks IS 'Check rule configurations loaded from YAML or custom';

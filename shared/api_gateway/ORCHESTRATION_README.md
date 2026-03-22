@@ -8,8 +8,8 @@ The orchestration API runs the full CSPM pipeline in order:
 2. **Check** → Reads discoveries, runs compliance checks, stores in `threat_engine_check`
 3. **Threat** → Reads check results, runs threat analysis (incl. drift), writes threat report
 4. **Compliance, IAM, DataSec** → Run in parallel after Threat:
-   - **Compliance** reads from Check DB (`check_scan_id`)
-   - **IAM** and **DataSec** read from Threat/Check DB (`threat_report_id`)
+   - **Compliance** reads from Check DB (via `scan_run_id`)
+   - **IAM** and **DataSec** read from Threat/Check DB (via `scan_run_id`)
 5. **Inventory** → Reads discoveries, builds assets/relationships, stores in `threat_engine_inventory`
 
 ## Endpoint
@@ -25,7 +25,7 @@ POST /gateway/orchestrate
   "customer_id": "customer-123",
   "tenant_id": "tenant-456",
   "provider": "aws",
-  "hierarchy_id": "588989875114",
+  "account_id": "588989875114",
   "hierarchy_type": "account",
   "include_services": ["s3", "iam"],
   "include_regions": ["us-east-1"],
@@ -42,21 +42,17 @@ POST /gateway/orchestrate
 
 ```json
 {
-  "orchestration_id": "orch_20260127_124500",
+  "scan_run_id": "550e8400-e29b-41d4-a716-446655440000",
   "customer_id": "customer-123",
   "tenant_id": "tenant-456",
   "provider": "aws",
-  "hierarchy_id": "588989875114",
+  "account_id": "588989875114",
   "started_at": "2026-01-27T12:45:00",
   "completed_at": "2026-01-27T12:50:00",
   "status": "completed",
-  "discovery_scan_id": "discovery_20260127_124501",
-  "check_scan_id": "check_20260127_124503",
-  "threat_report_id": "check_20260127_124503",
-  "inventory_scan_id": "inv_abc123",
   "steps": {
-    "discovery": { "status": "completed", "discovery_scan_id": "..." },
-    "check": { "status": "completed", "check_scan_id": "..." },
+    "discovery": { "status": "completed", "scan_run_id": "..." },
+    "check": { "status": "completed", "scan_run_id": "..." },
     "threat": { "status": "completed", "report_id": "...", "total_threats": 42 },
     "compliance": { "status": "completed", "report_id": "..." },
     "iam_security": { "status": "completed", "findings_count": 10 },
@@ -80,7 +76,7 @@ async def trigger_orchestration(self, scan_run_id, tenant_id, account_id, provid
                 "customer_id": customer_id,
                 "tenant_id": tenant_id,
                 "provider": provider_type,
-                "hierarchy_id": account_id,
+                "account_id": account_id,
                 "hierarchy_type": "account",
                 "use_database": True
             }
@@ -107,26 +103,24 @@ INVENTORY_ENGINE_URL=http://inventory-engine:8022
 1. Discovery Engine
    └─> POST /api/v1/discovery
    └─> Stores in threat_engine_discoveries.discoveries
-   └─> Returns discovery_scan_id
+   └─> Uses scan_run_id
 
 2. Check Engine
-   └─> POST /api/v1/check (discovery_scan_id)
+   └─> POST /api/v1/check (scan_run_id)
    └─> Reads threat_engine_discoveries, runs checks
    └─> Stores in threat_engine_check.check_results
-   └─> Returns check_scan_id
 
 3. Threat Engine
-   └─> POST /api/v1/threat/generate (check_scan_id, discovery_scan_id)
+   └─> POST /api/v1/threat/generate (scan_run_id)
    └─> Reads check DB, writes threat report
-   └─> Returns report_id (used as threat_report_id)
 
 4. Compliance / IAM / DataSec (parallel)
-   └─> Compliance: POST /api/v1/compliance/generate/from-check-db (check_scan_id)
-   └─> IAM:       POST /api/v1/iam-security/scan (threat_report_id)
-   └─> DataSec:   POST /api/v1/data-security/scan (threat_report_id)
+   └─> Compliance: POST /api/v1/compliance/generate/from-check-db (scan_run_id)
+   └─> IAM:       POST /api/v1/iam-security/scan (scan_run_id)
+   └─> DataSec:   POST /api/v1/data-security/scan (scan_run_id)
 
 5. Inventory Engine
-   └─> POST /api/v1/inventory/scan/discovery (discovery_scan_id)
+   └─> POST /api/v1/inventory/scan/discovery (scan_run_id)
    └─> Reads threat_engine_discoveries
    └─> Stores in threat_engine_inventory
 ```

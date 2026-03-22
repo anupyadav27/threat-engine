@@ -235,7 +235,7 @@ class IBMDiscoveryScanner(DiscoveryScanner):
         self.authenticator = None
         self.account_id = (
             credentials.get('account_id')
-            or credentials.get('hierarchy_id')
+            or credentials.get('account_id')
             or (credentials.get('credentials') or {}).get('account_id')
         )
 

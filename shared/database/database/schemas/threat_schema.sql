@@ -24,15 +24,11 @@ CREATE TABLE IF NOT EXISTS tenants (
 
 -- Threat Report (scan-level metadata)
 CREATE TABLE IF NOT EXISTS threat_report (
-    threat_scan_id VARCHAR(255) PRIMARY KEY,
-    orchestration_id VARCHAR(255),  -- PLANNED: not yet deployed to RDS
+    scan_run_id VARCHAR(255) PRIMARY KEY,
     execution_id VARCHAR(255),
-    discovery_scan_id VARCHAR(255),
-    check_scan_id VARCHAR(255),
     tenant_id VARCHAR(255) NOT NULL,
     customer_id VARCHAR(255),
     provider VARCHAR(50) NOT NULL,
-    scan_run_id VARCHAR(255) NOT NULL,
     started_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     completed_at TIMESTAMP WITH TIME ZONE,
     status VARCHAR(50) DEFAULT 'completed',
@@ -50,10 +46,9 @@ CREATE TABLE IF NOT EXISTS threat_report (
 CREATE TABLE IF NOT EXISTS threat_findings (
     id SERIAL PRIMARY KEY,
     finding_id VARCHAR(255) NOT NULL UNIQUE,
-    threat_scan_id VARCHAR(255) NOT NULL,
+    scan_run_id VARCHAR(255) NOT NULL,
     tenant_id VARCHAR(255) NOT NULL,
     customer_id VARCHAR(255),
-    scan_run_id VARCHAR(255) NOT NULL,
     rule_id VARCHAR(255) NOT NULL,
     threat_category VARCHAR(100),
     severity VARCHAR(20) NOT NULL,
@@ -234,14 +229,13 @@ CREATE TABLE IF NOT EXISTS threat_hunt_results (
 
 -- Threat Report indexes
 CREATE INDEX IF NOT EXISTS idx_tr_tenant ON threat_report(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_tr_check_scan ON threat_report(check_scan_id);
-CREATE INDEX IF NOT EXISTS idx_tr_discovery_scan ON threat_report(discovery_scan_id);
+-- Removed: idx_tr_check_scan and idx_tr_discovery_scan (columns removed)
 CREATE INDEX IF NOT EXISTS idx_tr_status ON threat_report(status);
 CREATE INDEX IF NOT EXISTS idx_tr_completed_at ON threat_report(completed_at DESC);
 
 -- Threat Findings indexes
 CREATE INDEX IF NOT EXISTS idx_tf_tenant ON threat_findings(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_tf_threat_scan ON threat_findings(threat_scan_id);
+CREATE INDEX IF NOT EXISTS idx_tf_scan_run ON threat_findings(scan_run_id);
 CREATE INDEX IF NOT EXISTS idx_tf_severity ON threat_findings(severity);
 CREATE INDEX IF NOT EXISTS idx_tf_rule_id ON threat_findings(rule_id);
 CREATE INDEX IF NOT EXISTS idx_tf_resource_uid ON threat_findings(resource_uid);

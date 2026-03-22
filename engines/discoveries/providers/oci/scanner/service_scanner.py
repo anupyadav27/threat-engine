@@ -236,7 +236,7 @@ class OCIDiscoveryScanner(DiscoveryScanner):
         self.tenancy_id = (
             credentials.get('tenancy_id')
             or credentials.get('tenancy_ocid')
-            or credentials.get('hierarchy_id')
+            or credentials.get('account_id')
             or (credentials.get('credentials') or {}).get('tenancy_id')
             or (credentials.get('credentials') or {}).get('tenancy_ocid')
         )

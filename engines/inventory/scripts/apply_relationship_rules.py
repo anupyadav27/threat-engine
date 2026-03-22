@@ -12,7 +12,7 @@ Usage:
 
     # Scope to specific accounts or scan
     python apply_relationship_rules.py --account 588989875114 --provider aws
-    python apply_relationship_rules.py --scan-id <inventory_scan_id>
+    python apply_relationship_rules.py --scan-id <scan_run_id>
     python apply_relationship_rules.py --dry-run
 """
 
@@ -239,12 +239,12 @@ def _load_findings(
             conditions.append("provider = %s")
             params.append(provider)
         if scan_id:
-            conditions.append("inventory_scan_id = %s")
+            conditions.append("scan_run_id = %s")
             params.append(scan_id)
 
         where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
         cur.execute(f"""
-            SELECT asset_id, tenant_id, inventory_scan_id,
+            SELECT finding_id, tenant_id, scan_run_id,
                    resource_uid, resource_type, provider,
                    account_id, region, name,
                    properties, configuration, tags
@@ -338,7 +338,7 @@ def apply_rules(
                 relationships.append({
                     "relationship_id":     str(uuid.uuid4()),
                     "tenant_id":           asset.get("tenant_id") or target.get("tenant_id"),
-                    "inventory_scan_id":   asset.get("inventory_scan_id"),
+                    "scan_run_id":   asset.get("scan_run_id"),
                     "provider":            csp,
                     "account_id":          asset.get("account_id"),
                     "region":              asset.get("region"),
@@ -354,7 +354,7 @@ def apply_rules(
                     "source_resource_uid": asset["resource_uid"],
                     "target_resource_uid": target["resource_uid"],
                     "relationship_type":   relation,
-                    "first_discovered_at": datetime.now(timezone.utc).isoformat(),
+                    "first_seen_at": datetime.now(timezone.utc).isoformat(),
                     "last_confirmed_at":   datetime.now(timezone.utc).isoformat(),
                     "created_at":          datetime.now(timezone.utc).isoformat(),
                 })
@@ -387,23 +387,23 @@ def apply_rules(
 
     sql = """
         INSERT INTO inventory_relationships (
-            relationship_id, tenant_id, inventory_scan_id,
+            relationship_id, tenant_id, scan_run_id,
             provider, account_id, region,
             relation_type, from_uid, to_uid,
             from_resource_type, to_resource_type,
             relationship_strength, bidirectional,
             properties, metadata,
             source_resource_uid, target_resource_uid, relationship_type,
-            first_discovered_at, last_confirmed_at, created_at
+            first_seen_at, last_confirmed_at, created_at
         ) VALUES (
-            %(relationship_id)s, %(tenant_id)s, %(inventory_scan_id)s,
+            %(relationship_id)s, %(tenant_id)s, %(scan_run_id)s,
             %(provider)s, %(account_id)s, %(region)s,
             %(relation_type)s, %(from_uid)s, %(to_uid)s,
             %(from_resource_type)s, %(to_resource_type)s,
             %(relationship_strength)s, %(bidirectional)s,
             %(properties)s::jsonb, %(metadata)s::jsonb,
             %(source_resource_uid)s, %(target_resource_uid)s, %(relationship_type)s,
-            %(first_discovered_at)s, %(last_confirmed_at)s, %(created_at)s
+            %(first_seen_at)s, %(last_confirmed_at)s, %(created_at)s
         )
         ON CONFLICT DO NOTHING
     """
@@ -421,7 +421,7 @@ if __name__ == "__main__":
     parser.add_argument("dsn", nargs="?", help="PostgreSQL DSN (or set INVENTORY_DB_URL)")
     parser.add_argument("--account", help="Filter by account_id")
     parser.add_argument("--provider", help="Filter by provider (aws/azure/gcp)")
-    parser.add_argument("--scan-id", dest="scan_id", help="Filter by inventory_scan_id")
+    parser.add_argument("--scan-id", dest="scan_id", help="Filter by scan_run_id")
     parser.add_argument("--dry-run", action="store_true", help="Preview without writing")
     args = parser.parse_args()
 

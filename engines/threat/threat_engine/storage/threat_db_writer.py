@@ -80,8 +80,7 @@ def save_report_to_db(report: ThreatReport) -> str:
     cloud = c.value if hasattr(c, "value") else str(c)
     generated_at = _ts_with_tz(report.generated_at)
 
-    # Use scan_run_id directly as threat_scan_id (set by caller / orchestration)
-    threat_scan_id = scan_run_id
+    # scan_run_id is now the primary key for threat_report
 
     conn = psycopg2.connect(_connection_string())
 
@@ -104,15 +103,14 @@ def save_report_to_db(report: ThreatReport) -> str:
         with conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO threat_report (
-                    threat_scan_id, tenant_id, customer_id, provider,
-                    scan_run_id, check_scan_id,
+                    scan_run_id, tenant_id, customer_id, provider,
                     started_at, completed_at, status,
                     total_findings, critical_findings, high_findings,
                     medium_findings, low_findings, threat_score,
                     report_data
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (threat_scan_id) DO UPDATE SET
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (scan_run_id) DO UPDATE SET
                     total_findings = EXCLUDED.total_findings,
                     critical_findings = EXCLUDED.critical_findings,
                     high_findings = EXCLUDED.high_findings,
@@ -123,12 +121,10 @@ def save_report_to_db(report: ThreatReport) -> str:
                     completed_at = EXCLUDED.completed_at,
                     status = EXCLUDED.status
             """, (
-                threat_scan_id,
+                scan_run_id,
                 tenant_id,
                 customer_id,
                 cloud,
-                scan_run_id,
-                scan_run_id,  # check_scan_id = scan_run_id
                 _ts_with_tz(report.scan_context.started_at),
                 _ts_with_tz(report.scan_context.completed_at) or generated_at,
                 "completed",
@@ -185,7 +181,7 @@ def save_report_to_db(report: ThreatReport) -> str:
 
             # Build context JSONB
             context = {
-                "threat_scan_id": threat_scan_id,
+                "scan_run_id": scan_run_id,
                 "risk_score": threat.risk_score,
                 "correlations": {
                     "misconfig_finding_refs": finding_refs,
@@ -245,12 +241,12 @@ def save_report_to_db(report: ThreatReport) -> str:
                 ))
 
         # 3. Write individual findings to threat_findings
-        # Delete existing findings for this threat_scan_id first (ensures clean re-run
+        # Delete existing findings for this scan_run_id first (ensures clean re-run
         # and fixes any stale rows from old account_id representations)
         with conn.cursor() as cur:
             cur.execute(
-                "DELETE FROM threat_findings WHERE threat_scan_id = %s",
-                (threat_scan_id,)
+                "DELETE FROM threat_findings WHERE scan_run_id = %s",
+                (scan_run_id,)
             )
 
         for finding in report.misconfig_findings:
@@ -280,8 +276,8 @@ def save_report_to_db(report: ThreatReport) -> str:
             with conn.cursor() as cur:
                 cur.execute("""
                     INSERT INTO threat_findings (
-                        finding_id, threat_scan_id, tenant_id, customer_id,
-                        scan_run_id, rule_id, threat_category,
+                        finding_id, scan_run_id, tenant_id, customer_id,
+                        rule_id, threat_category,
                         severity, status,
                         resource_type, resource_id, resource_uid,
                         account_id, region,
@@ -289,9 +285,8 @@ def save_report_to_db(report: ThreatReport) -> str:
                         evidence, finding_data,
                         first_seen_at, last_seen_at
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (finding_id) DO UPDATE SET
-                        threat_scan_id = EXCLUDED.threat_scan_id,
                         scan_run_id = EXCLUDED.scan_run_id,
                         tenant_id = EXCLUDED.tenant_id,
                         status = EXCLUDED.status,
@@ -301,10 +296,9 @@ def save_report_to_db(report: ThreatReport) -> str:
                         finding_data = EXCLUDED.finding_data
                 """, (
                     finding.misconfig_finding_id,
-                    threat_scan_id,
+                    scan_run_id,
                     tenant_id,
                     customer_id,
-                    scan_run_id,
                     finding.rule_id,
                     threat_category,
                     severity_val,
@@ -325,7 +319,7 @@ def save_report_to_db(report: ThreatReport) -> str:
         conn.commit()
         logger.info("Threat report saved to DB",
                      extra={"extra_fields": {
-                         "threat_scan_id": threat_scan_id,
+                         "scan_run_id": scan_run_id,
                          "threats": len(report.threats),
                          "findings": len(report.misconfig_findings),
                      }})
@@ -356,12 +350,12 @@ def get_report_from_db(tenant_id: str, scan_run_id: str) -> Optional[Dict[str, A
     conn = psycopg2.connect(_connection_string())
 
     try:
-        # Get report summary — match by scan_run_id or threat_scan_id (both could be the same)
+        # Get report summary by scan_run_id
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("""
                 SELECT * FROM threat_report
-                WHERE tenant_id = %s AND (scan_run_id = %s OR threat_scan_id = %s)
-            """, (tenant_id, scan_run_id, scan_run_id))
+                WHERE tenant_id = %s AND scan_run_id = %s
+            """, (tenant_id, scan_run_id))
             scan = cur.fetchone()
 
         if not scan:
@@ -380,9 +374,9 @@ def get_report_from_db(tenant_id: str, scan_run_id: str) -> Optional[Dict[str, A
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("""
                 SELECT * FROM threat_findings
-                WHERE tenant_id = %s AND threat_scan_id = %s
+                WHERE tenant_id = %s AND scan_run_id = %s
                 ORDER BY severity, rule_id
-            """, (tenant_id, scan['threat_scan_id']))
+            """, (tenant_id, scan['scan_run_id']))
             finding_rows = cur.fetchall()
 
         # Reconstruct threats
@@ -546,11 +540,10 @@ def update_report_in_db(tenant_id: str, scan_run_id: str, report_dict: Dict[str,
             cur.execute("""
                 UPDATE threat_report
                 SET report_data = %s
-                WHERE tenant_id = %s AND (threat_scan_id = %s OR scan_run_id = %s)
+                WHERE tenant_id = %s AND scan_run_id = %s
             """, (
                 Json(report_dict, dumps=lambda o: json.dumps(o, default=_default_json)),
                 tenant_id,
-                scan_run_id,
                 scan_run_id,
             ))
         conn.commit()

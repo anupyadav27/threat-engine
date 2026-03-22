@@ -1,97 +1,114 @@
 """BFF view: /threats/toxic-combinations page.
 
-Retrieves toxic combinations and co-occurrence matrix from the threat
-engine graph endpoints.
+PostgreSQL-based — groups threat_detections by resource_uid to find
+resources with multiple overlapping threats. Orca-style view.
 """
 
-from typing import Optional, List
+from collections import defaultdict
+from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Query
 
 from ._shared import fetch_many, safe_get
-from ._transforms import _safe_lower
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
+
+
+def _build_cooccurrence_matrix(combos: List[dict]) -> dict:
+    """Build a MITRE technique co-occurrence matrix from combinations.
+
+    Counts how often pairs of techniques appear together on the same
+    resource, producing a heatmap-ready data structure.
+    """
+    pair_counts: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    all_categories: set = set()
+
+    for c in combos:
+        techniques = c.get("mitreTechniques") or c.get("mitre_techniques") or []
+        all_categories.update(techniques)
+
+        for i, a in enumerate(techniques):
+            for b in techniques[i:]:
+                pair_counts[a][b] += 1
+                if a != b:
+                    pair_counts[b][a] += 1
+
+    categories = sorted(all_categories)
+    data: Dict[str, Dict[str, int]] = {}
+    for cat in categories:
+        data[cat] = {c: pair_counts.get(cat, {}).get(c, 0) for c in categories}
+
+    return {"categories": categories, "data": data}
 
 
 @router.get("/threats/toxic-combinations")
 async def view_threat_toxic_combos(
     tenant_id: str = Query(...),
-    min_threats: int = Query(2, ge=1),
+    scan_run_id: Optional[str] = Query(None),
+    min_threats: int = Query(2, ge=2),
 ):
-    """BFF view for the toxic combinations page.
+    """BFF view for the toxic combinations page — Orca-style.
 
-    Fans out to the toxic-combinations list and matrix endpoints in
-    parallel and returns KPIs, the combination list, and the
-    co-occurrence matrix.
+    Reads from PostgreSQL: groups threat_detections by resource_uid
+    to find resources with 2+ overlapping threats.
     """
 
+    params: Dict[str, str] = {
+        "tenant_id": tenant_id,
+        "min_threats": str(min_threats),
+        "limit": "500",
+    }
+    if scan_run_id:
+        params["scan_run_id"] = scan_run_id
+
     results = await fetch_many([
-        ("threat", "/api/v1/graph/toxic-combinations", {
-            "tenant_id": tenant_id,
-            "min_threats": str(min_threats),
-        }),
-        ("threat", "/api/v1/graph/toxic-combinations/matrix", {
-            "tenant_id": tenant_id,
-            "min_threats": str(min_threats),
-        }),
+        ("threat", "/api/v1/threat/analysis/toxic-combinations", params),
     ])
 
-    combos_data, matrix_data = results
+    raw = results[0]
+    if not isinstance(raw, dict):
+        raw = {}
 
-    # Safely handle None
-    if not isinstance(combos_data, (dict, list)):
-        combos_data = {}
-    if not isinstance(matrix_data, (dict, list)):
-        matrix_data = {}
-
-    # Extract combinations list
-    if isinstance(combos_data, list):
-        raw_combos = combos_data
-    else:
-        raw_combos = (
-            safe_get(combos_data, "combinations", [])
-            or safe_get(combos_data, "toxic_combinations", [])
-            or safe_get(combos_data, "data", [])
-        )
+    raw_combos = safe_get(raw, "toxic_combinations", [])
     if not isinstance(raw_combos, list):
         raw_combos = []
+    summary = safe_get(raw, "summary", {})
 
-    # Normalize combinations
+    # Normalize for UI
     combos: List[dict] = []
     for c in raw_combos:
+        severities = c.get("severities") or []
+        # Worst severity
+        combo_severity = c.get("combo_severity", "low")
+
         combos.append({
-            "id": c.get("id") or c.get("combination_id", ""),
-            "name": c.get("name") or c.get("combination_name", ""),
-            "severity": _safe_lower(c.get("severity") or c.get("risk_level")),
-            "threats": c.get("threats") or c.get("threat_ids", []),
-            "threatCount": c.get("threat_count") or len(c.get("threats") or c.get("threat_ids") or []),
-            "resourceUid": c.get("resource_uid") or c.get("resource_id", ""),
+            "id": c.get("resource_uid", ""),
+            "resourceUid": c.get("resource_uid", ""),
+            "resourceName": c.get("resource_name", ""),
             "resourceType": c.get("resource_type", ""),
-            "description": c.get("description", ""),
-            "riskScore": c.get("risk_score", 0),
+            "provider": (c.get("provider") or "").upper() or "--",
+            "accountId": c.get("account_id", ""),
+            "region": c.get("region", ""),
+            "severity": combo_severity,
+            "threatCount": c.get("threat_count", 0),
+            "maxRiskScore": c.get("max_risk_score", 0),
+            "toxicityScore": c.get("toxicity_score", 0),
+            "detectionIds": c.get("detection_ids", []),
+            "severities": severities,
+            "ruleNames": c.get("rule_names") or [],
+            "categories": c.get("categories") or [],
+            "mitreTechniques": c.get("mitre_techniques") or [],
         })
 
     # KPIs
     total = len(combos)
-    critical = sum(1 for c in combos if c.get("severity") == "critical")
-    high = sum(1 for c in combos if c.get("severity") == "high")
-    avg_threats = (
-        round(sum(c.get("threatCount", 0) for c in combos) / total, 1)
-        if total else 0
-    )
+    severity_counts = safe_get(summary, "severity_counts", {})
+    critical = severity_counts.get("critical", 0)
+    high = severity_counts.get("high", 0)
+    avg_threats = safe_get(summary, "avg_threats_per_resource", 0)
 
-    # Co-occurrence matrix
-    if isinstance(matrix_data, list):
-        matrix = matrix_data
-    elif isinstance(matrix_data, dict):
-        matrix = (
-            safe_get(matrix_data, "matrix", None)
-            or safe_get(matrix_data, "co_occurrence", None)
-            or matrix_data
-        )
-    else:
-        matrix = {}
+    # Build co-occurrence matrix from MITRE techniques
+    matrix = _build_cooccurrence_matrix(combos)
 
     return {
         "kpi": {

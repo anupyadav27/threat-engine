@@ -148,11 +148,11 @@ class DiscoveryEngine:
         2. Build (service, region) work items
         3. Process all via single Semaphore(MAX_CONCURRENT_TASKS)
         """
-        scan_id = metadata['discovery_scan_id']
+        scan_id = metadata['scan_run_id']
         provider = metadata['provider']
         customer_id = metadata.get('customer_id', 'default')
         tenant_id = metadata.get('tenant_id', 'default-tenant')
-        hierarchy_id = metadata['hierarchy_id']
+        account_id = metadata['account_id']
         hierarchy_type = metadata.get('hierarchy_type', 'account')
         include_services = metadata.get('include_services')
         include_regions = metadata.get('include_regions')
@@ -172,7 +172,7 @@ class DiscoveryEngine:
         self.output_writer = ProgressiveOutputWriter(scan_id, output_dir, 'discovery')
 
         self.phase_logger.info(f"Starting discovery scan: {scan_id}")
-        self.phase_logger.info(f"  Provider: {provider}, Hierarchy: {hierarchy_id}")
+        self.phase_logger.info(f"  Provider: {provider}, Hierarchy: {account_id}")
 
         # ── Step 1: Batch-load all service configs ──────────────────────
         all_configs = self._get_all_configs(provider, include_services)
@@ -190,11 +190,11 @@ class DiscoveryEngine:
                 customer_id=customer_id,
                 tenant_id=tenant_id,
                 provider=provider,
-                hierarchy_id=hierarchy_id,
+                account_id=account_id,
                 hierarchy_type=hierarchy_type,
             )
 
-        account_id = getattr(self.scanner, 'account_id', None) or hierarchy_id
+        account_id = getattr(self.scanner, 'account_id', None) or account_id
 
         # ── Step 2: Resolve regions ─────────────────────────────────────
         if include_regions:
@@ -278,16 +278,18 @@ class DiscoveryEngine:
                                     provider=provider,
                                     discovery_id=did,
                                     items=group_items,
-                                    hierarchy_id=hierarchy_id,
-                                    hierarchy_type=hierarchy_type,
                                     account_id=account_id,
+                                    hierarchy_type=hierarchy_type,
                                     region=region,
                                     service=service,
                                 )
                             )
                         )
                     if store_futures:
-                        await asyncio.gather(*store_futures, return_exceptions=True)
+                        store_results = await asyncio.gather(*store_futures, return_exceptions=True)
+                        for i, r in enumerate(store_results):
+                            if isinstance(r, Exception):
+                                logger.error(f"DB write failed for {service}/{region}: {r}")
 
                 completed += 1
                 total_discoveries += count

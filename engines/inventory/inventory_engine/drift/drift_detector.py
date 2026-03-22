@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 # Keys inside metadata that change every scan (timestamps, transient IDs).
 # Differences in these keys are noise — skip them so we surface real drift.
 _METADATA_IGNORE_KEYS: Set[str] = {
-    "scan_timestamp", "created_at", "discovery_id", "emitted_fields",
+    "first_seen_at", "created_at", "discovery_id", "emitted_fields",
     "enriched_from", "raw_refs", "last_scanned",
 }
 

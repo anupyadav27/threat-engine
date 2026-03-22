@@ -25,9 +25,8 @@ CREATE TABLE IF NOT EXISTS tenants (
 
 -- Inventory Report (scan-level metadata)
 CREATE TABLE IF NOT EXISTS inventory_report (
-    inventory_scan_id VARCHAR(255) PRIMARY KEY,
-    orchestration_id VARCHAR(255),  -- PLANNED: not yet deployed to RDS
-    execution_id VARCHAR(255),      -- exists in RDS
+    scan_run_id VARCHAR(255) PRIMARY KEY,
+    execution_id VARCHAR(255),
     tenant_id VARCHAR(255) NOT NULL,
     started_at TIMESTAMP WITH TIME ZONE NOT NULL,
     completed_at TIMESTAMP WITH TIME ZONE,
@@ -43,7 +42,6 @@ CREATE TABLE IF NOT EXISTS inventory_report (
     errors_count INTEGER NOT NULL DEFAULT 0,
     scan_metadata JSONB DEFAULT '{}',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    discovery_scan_id VARCHAR(255),
     customer_id VARCHAR(255),
 
     CONSTRAINT fk_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE
@@ -53,7 +51,6 @@ CREATE TABLE IF NOT EXISTS inventory_report (
 CREATE TABLE IF NOT EXISTS inventory_scans (
     scan_run_id VARCHAR(255) PRIMARY KEY,
     tenant_id VARCHAR(255) NOT NULL,
-    discovery_scan_id VARCHAR(255),
     status VARCHAR(50) NOT NULL,
     total_assets INTEGER DEFAULT 0,
     total_relationships INTEGER DEFAULT 0,
@@ -93,10 +90,10 @@ CREATE TABLE IF NOT EXISTS inventory_findings (
     owner VARCHAR(255),
     business_unit VARCHAR(100),
     latest_scan_run_id VARCHAR(255),
-    first_discovered_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    last_modified_at TIMESTAMP WITH TIME ZONE,
+    first_seen_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    last_seen_at TIMESTAMP WITH TIME ZONE,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    inventory_scan_id VARCHAR(255),
+    scan_run_id VARCHAR(255),
     customer_id VARCHAR(255),
 
     CONSTRAINT fk_tenant_asset FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
@@ -110,7 +107,7 @@ CREATE TABLE IF NOT EXISTS inventory_findings (
 CREATE TABLE IF NOT EXISTS inventory_relationships (
     relationship_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     tenant_id VARCHAR(255) NOT NULL,
-    inventory_scan_id VARCHAR(255) NOT NULL,
+    scan_run_id VARCHAR(255) NOT NULL,
     provider VARCHAR(50) NOT NULL,
     account_id VARCHAR(255) NOT NULL,
     region VARCHAR(100),
@@ -142,7 +139,7 @@ CREATE TABLE IF NOT EXISTS inventory_asset_history (
     asset_id UUID NOT NULL,
     tenant_id VARCHAR(255) NOT NULL,
     resource_uid TEXT NOT NULL,
-    inventory_scan_id VARCHAR(255),
+    scan_run_id VARCHAR(255),
     change_type VARCHAR(50) NOT NULL,  -- 'created', 'modified', 'deleted', 'discovered'
     previous_state JSONB,
     current_state JSONB NOT NULL,
@@ -156,7 +153,7 @@ CREATE TABLE IF NOT EXISTS inventory_asset_history (
 CREATE TABLE IF NOT EXISTS inventory_drift (
     id SERIAL PRIMARY KEY,
     drift_id UUID DEFAULT uuid_generate_v4(),
-    inventory_scan_id VARCHAR(255) NOT NULL,
+    scan_run_id VARCHAR(255) NOT NULL,
     previous_scan_id VARCHAR(255),
     tenant_id VARCHAR(255) NOT NULL,
     customer_id VARCHAR(255),
@@ -188,7 +185,7 @@ CREATE TABLE IF NOT EXISTS inventory_asset_tags_index (
     tag_source VARCHAR(50) DEFAULT 'provider',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     resource_uid TEXT,
-    inventory_scan_id VARCHAR(255),
+    scan_run_id VARCHAR(255),
 
     CONSTRAINT fk_asset_tag FOREIGN KEY (asset_id) REFERENCES inventory_findings(asset_id) ON DELETE CASCADE,
     CONSTRAINT fk_tenant_tag FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE,
@@ -258,10 +255,7 @@ CREATE TABLE IF NOT EXISTS inventory_asset_metrics (
 CREATE INDEX IF NOT EXISTS idx_ir_tenant ON inventory_report(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_ir_completed_at ON inventory_report(completed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_ir_status ON inventory_report(status);
-CREATE INDEX IF NOT EXISTS idx_ir_discovery_scan ON inventory_report(discovery_scan_id);
-
 CREATE INDEX IF NOT EXISTS idx_is_tenant ON inventory_scans(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_is_discovery_scan ON inventory_scans(discovery_scan_id);
 
 CREATE INDEX IF NOT EXISTS idx_if_tenant ON inventory_findings(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_if_resource_uid ON inventory_findings(resource_uid);
@@ -274,7 +268,7 @@ CREATE INDEX IF NOT EXISTS idx_if_criticality ON inventory_findings(criticality)
 CREATE INDEX IF NOT EXISTS idx_if_compliance ON inventory_findings(compliance_status);
 CREATE INDEX IF NOT EXISTS idx_if_risk_score ON inventory_findings(risk_score DESC);
 CREATE INDEX IF NOT EXISTS idx_if_owner ON inventory_findings(owner);
-CREATE INDEX IF NOT EXISTS idx_if_inventory_scan ON inventory_findings(inventory_scan_id);
+CREATE INDEX IF NOT EXISTS idx_if_inventory_scan ON inventory_findings(scan_run_id);
 
 CREATE INDEX IF NOT EXISTS idx_iah_asset ON inventory_asset_history(asset_id, detected_at DESC);
 CREATE INDEX IF NOT EXISTS idx_iah_tenant ON inventory_asset_history(tenant_id, detected_at DESC);
@@ -284,19 +278,19 @@ CREATE INDEX IF NOT EXISTS idx_irel_tenant ON inventory_relationships(tenant_id)
 CREATE INDEX IF NOT EXISTS idx_irel_from_uid ON inventory_relationships(from_uid);
 CREATE INDEX IF NOT EXISTS idx_irel_to_uid ON inventory_relationships(to_uid);
 CREATE INDEX IF NOT EXISTS idx_irel_type ON inventory_relationships(relation_type);
-CREATE INDEX IF NOT EXISTS idx_irel_scan ON inventory_relationships(inventory_scan_id);
-CREATE INDEX IF NOT EXISTS idx_irel_tenant_scan ON inventory_relationships(tenant_id, inventory_scan_id);
+CREATE INDEX IF NOT EXISTS idx_irel_scan ON inventory_relationships(scan_run_id);
+CREATE INDEX IF NOT EXISTS idx_irel_tenant_scan ON inventory_relationships(tenant_id, scan_run_id);
 -- Composite index for BFS graph traversal: speeds up CTE joins
-CREATE INDEX IF NOT EXISTS idx_irel_tenant_scan_from_to ON inventory_relationships(tenant_id, inventory_scan_id, from_uid, to_uid);
+CREATE INDEX IF NOT EXISTS idx_irel_tenant_scan_from_to ON inventory_relationships(tenant_id, scan_run_id, from_uid, to_uid);
 -- Index for relation_type filtering in BFS walk
-CREATE INDEX IF NOT EXISTS idx_irel_tenant_scan_reltype ON inventory_relationships(tenant_id, inventory_scan_id, relation_type);
+CREATE INDEX IF NOT EXISTS idx_irel_tenant_scan_reltype ON inventory_relationships(tenant_id, scan_run_id, relation_type);
 
 CREATE INDEX IF NOT EXISTS idx_itag_asset ON inventory_asset_tags_index(asset_id);
 CREATE INDEX IF NOT EXISTS idx_itag_key_value ON inventory_asset_tags_index(tag_key, tag_value);
 CREATE INDEX IF NOT EXISTS idx_itag_tenant ON inventory_asset_tags_index(tenant_id);
 
 CREATE INDEX IF NOT EXISTS idx_idrift_tenant ON inventory_drift(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_idrift_scan ON inventory_drift(inventory_scan_id);
+CREATE INDEX IF NOT EXISTS idx_idrift_scan ON inventory_drift(scan_run_id);
 CREATE INDEX IF NOT EXISTS idx_idrift_severity ON inventory_drift(severity);
 
 CREATE INDEX IF NOT EXISTS idx_icol_tenant ON inventory_asset_collections(tenant_id);
@@ -392,7 +386,7 @@ CREATE TABLE IF NOT EXISTS resource_inventory_identifier (
                                                   --   "arn:${Partition}:appsync:${Region}:${Account}:api/${GraphqlApiArn}"
                                                   -- Placeholders resolved from discovery_findings at runtime:
                                                   --   ${Region}    → discovery_findings.region
-                                                  --   ${Account}   → discovery_findings.hierarchy_id (account_id)
+                                                  --   ${Account}   → discovery_findings.account_id
                                                   --   ${Partition} → "aws" (default)
     canonical_type        VARCHAR(255),            -- Normalized resource_type as used by discovery/inventory engines
                                                   -- e.g. "security-group", "instance", "vpc"

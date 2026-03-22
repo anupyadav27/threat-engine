@@ -3,7 +3,7 @@ ARG NODE_VERSION=22-alpine
 # ── deps ────────────────────────────────────────────────────────────
 FROM node:${NODE_VERSION} AS deps
 WORKDIR /app
-COPY package.json package-lock.json ./
+COPY ui_samples/package.json ui_samples/package-lock.json ./
 RUN npm ci
 
 # ── builder ─────────────────────────────────────────────────────────
@@ -11,7 +11,7 @@ FROM node:${NODE_VERSION} AS builder
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+COPY ui_samples/ .
 
 # Bake env at build time (NEXT_PUBLIC_* are client-visible, safe to embed)
 ARG NEXT_PUBLIC_API_BASE=http://a248499a3e9da47248ad0adca7dac106-365a099e4a3b2214.elb.ap-south-1.amazonaws.com

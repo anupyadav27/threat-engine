@@ -33,13 +33,13 @@ class DiscoveryScanSummary(BaseModel):
     customer_id: str
     tenant_id: str
     provider: str = Field(default="aws", description="Cloud provider")
-    hierarchy_id: str = Field(..., description="Account/Project/Org ID")
+    account_id: str = Field(..., description="Account/Project/Org ID")
     hierarchy_type: str = Field(default="account", description="Hierarchy type")
     total_discoveries: int = Field(..., description="Total discovery records")
     unique_resources: int = Field(..., description="Unique resources discovered")
     services_scanned: int = Field(..., description="Number of services scanned")
     regions_scanned: int = Field(..., description="Number of regions scanned")
-    scan_timestamp: datetime = Field(..., description="Scan execution time")
+    first_seen_at: datetime = Field(..., description="Scan execution time")
     
     class Config:
         json_schema_extra = {
@@ -48,12 +48,12 @@ class DiscoveryScanSummary(BaseModel):
                 "customer_id": "test_customer",
                 "tenant_id": "test_tenant",
                 "provider": "aws",
-                "hierarchy_id": "039612851381",
+                "account_id": "039612851381",
                 "total_discoveries": 50000,
                 "unique_resources": 12000,
                 "services_scanned": 100,
                 "regions_scanned": 27,
-                "scan_timestamp": "2026-01-22T08:05:33Z"
+                "first_seen_at": "2026-01-22T08:05:33Z"
             }
         }
 
@@ -65,7 +65,7 @@ class DiscoveryDetail(BaseModel):
     customer_id: str
     tenant_id: str
     provider: str
-    hierarchy_id: str
+    account_id: str
     hierarchy_type: str
     discovery_id: str = Field(..., description="Discovery function ID (e.g., aws.s3.list_buckets)")
     region: Optional[str] = Field(None, description="AWS region (or 'global')")
@@ -75,7 +75,7 @@ class DiscoveryDetail(BaseModel):
     raw_response: Dict[str, Any] = Field(default_factory=dict, description="Full API response")
     emitted_fields: Dict[str, Any] = Field(default_factory=dict, description="Extracted/emitted fields")
     config_hash: Optional[str] = Field(None, description="Configuration hash for drift detection")
-    scan_timestamp: datetime = Field(..., description="When discovery was executed")
+    first_seen_at: datetime = Field(..., description="When discovery was executed")
     version: int = Field(default=1, description="Schema version")
     
     class Config:
@@ -129,7 +129,7 @@ class DiscoveryDashboard(BaseModel):
         default_factory=list,
         description="Recent discovery scans"
     )
-    last_scan_timestamp: Optional[datetime] = Field(None, description="Most recent scan time")
+    last_first_seen_at: Optional[datetime] = Field(None, description="Most recent scan time")
     
     class Config:
         json_schema_extra = {
@@ -223,12 +223,12 @@ class DiscoveryScanListItem(BaseModel):
     customer_id: str
     tenant_id: str
     provider: str
-    hierarchy_id: str
+    account_id: str
     total_discoveries: int
     unique_resources: int
     services_scanned: int
     regions_scanned: int
-    scan_timestamp: datetime
+    first_seen_at: datetime
 
 
 class DiscoveryScanList(BaseModel):

@@ -5,7 +5,6 @@ Adds resilience: score computation from passed/failed ratio, trend fallback,
 framework score derivation when engine returns all zeros.
 """
 
-import random
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 
@@ -119,14 +118,10 @@ async def view_compliance(
         trend_data_raw = []
     trend_data_out = trend_data_raw
 
+    # If no trend data but we have a current score, return a single data point
     if not trend_data_out and overall_score and overall_score > 0:
         now = datetime.now(timezone.utc)
-        base = overall_score
-        trend_data_out = []
-        for days_ago in range(90, -1, -7):
-            date = (now - timedelta(days=days_ago)).strftime("%Y-%m-%d")
-            noise = random.uniform(-3, 3) if days_ago > 0 else 0
-            trend_data_out.append({"date": date, "score": round(max(0, min(100, base + noise - (days_ago * 0.03))), 1)})
+        trend_data_out = [{"date": now.strftime("%Y-%m-%d"), "score": round(overall_score, 1)}]
 
     audit_deadlines = compliance_data.get("audit_deadlines", [])
     exceptions = compliance_data.get("exceptions", [])

@@ -23,7 +23,7 @@ ENGINE_URLS: Dict[str, str] = {
     "compliance": os.getenv("COMPLIANCE_ENGINE_URL",  "http://engine-compliance:8010"),
     "iam":        os.getenv("IAM_ENGINE_URL",         "http://engine-iam:8003"),
     "datasec":    os.getenv("DATASEC_ENGINE_URL",     "http://engine-datasec:8004"),
-    "secops":     os.getenv("SECOPS_ENGINE_URL",      "http://engine-secops:8000"),
+    "secops":     os.getenv("SECOPS_ENGINE_URL",      "http://engine-secops:8009"),
     "risk":       os.getenv("RISK_ENGINE_URL",        "http://engine-risk:8009"),
     "onboarding": os.getenv("ONBOARDING_ENGINE_URL",  "http://engine-onboarding:8008"),
     "rule":       os.getenv("RULE_ENGINE_URL",        "http://engine-rule:8000"),
@@ -78,7 +78,15 @@ async def _fetch_engine(
     try:
         resp = await client.get(url, params=params or {}, timeout=t)
         if resp.status_code == 200:
-            return resp.json()
+            data = resp.json()
+            # Validate that "latest" scan_run_id resolved to actual data
+            if params and params.get("scan_run_id") == "latest":
+                if isinstance(data, dict) and not data:
+                    logger.warning(
+                        "BFF %s %s: 'latest' scan_run_id resolved to empty response",
+                        engine, path,
+                    )
+            return data
         logger.warning("BFF fetch %s %s -> %s", engine, path, resp.status_code)
     except httpx.TimeoutException:
         logger.warning("BFF fetch %s %s timed out (%.1fs)", engine, path, t)

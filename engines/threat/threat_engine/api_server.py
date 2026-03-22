@@ -42,7 +42,7 @@ from .detector.drift_detector import DriftDetector
 from .detector.check_drift_detector import CheckDriftDetector
 from .reporter.threat_reporter import ThreatReporter
 from .storage.threat_storage import ThreatStorage
-from .storage.threat_db_writer import save_analyses_to_db, get_analyses_from_db
+from .storage.threat_db_writer import save_analyses_to_db, get_analyses_from_db, _connection_string as _threat_db_conn_str
 from .storage.threat_intel_writer import (
     save_intel, save_intel_batch, get_intel, correlate_intel_with_threats,
     save_hunt_query, get_hunt_queries, get_hunt_query,
@@ -125,9 +125,6 @@ class ThreatReportRequest(BaseModel):
     completed_at: Optional[str] = None
     engine_version: Optional[str] = None
     scan_context: Optional[Dict[str, Any]] = None
-    discovery_scan_id: Optional[str] = None
-    orchestration_id: Optional[str] = None
-    check_scan_id: Optional[str] = None
 
 
 #
@@ -208,10 +205,10 @@ async def api_health():
 
 
 class ThreatScanResponse(BaseModel):
-    threat_scan_id: str
+    scan_run_id: str
     status: str
     message: str
-    orchestration_id: Optional[str] = None
+    scan_run_id_ref: Optional[str] = None
     provider: Optional[str] = None
 
 
@@ -220,19 +217,19 @@ async def create_threat_scan(request: ThreatReportRequest):
     """
     Start a threat scan by creating a K8s Job on a spot node.
 
-    **Pipeline mode** — provide `orchestration_id` (or `scan_run_id`):
+    **Pipeline mode** — provide `scan_run_id`:
       Fetches metadata from scan_orchestration table.
 
-    **Ad-hoc mode** — provide `check_scan_id` directly:
-      Uses the supplied check_scan_id with optional overrides.
+    **Ad-hoc mode** — provide `scan_run_id` directly:
+      Uses the supplied scan_run_id with optional overrides.
     """
-    orch_id = request.orchestration_id or request.scan_run_id
-    threat_scan_id = orch_id
+    orch_id = request.scan_run_id
+    scan_run_id_val = orch_id
 
     if not orch_id:
         raise HTTPException(
             status_code=400,
-            detail="orchestration_id (or scan_run_id) is required for Job-based execution",
+            detail="scan_run_id is required for Job-based execution",
         )
 
     # Validate orchestration exists and check scan is done
@@ -241,21 +238,17 @@ async def create_threat_scan(request: ThreatReportRequest):
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-    check_scan_id = meta.get("check_scan_id") or request.check_scan_id
-    if not check_scan_id:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Check scan not yet completed for orchestration_id={orch_id}",
-        )
+    # All engines share the same scan_run_id
+    check_scan_run_id = orch_id
 
     provider = (meta.get("provider") or meta.get("provider_type", "aws")).lower()
     tenant_id = meta.get("tenant_id") or request.tenant_id or "default-tenant"
 
     logger.info("Creating threat scanner Job", extra={
         "extra_fields": {
-            "orchestration_id": orch_id,
-            "check_scan_id": check_scan_id,
-            "threat_scan_id": threat_scan_id,
+            "scan_run_id": orch_id,
+            "check_scan_run_id": check_scan_run_id,
+            "scan_run_id": scan_run_id_val,
             "provider": provider,
         }
     })
@@ -272,12 +265,12 @@ async def create_threat_scan(request: ThreatReportRequest):
             )
             cur.execute(
                 """INSERT INTO threat_report
-                   (threat_scan_id, tenant_id, provider, check_scan_id,
-                    scan_run_id, status, started_at, report_data)
-                   VALUES (%s, %s, %s, %s, %s, 'running', NOW(), %s)
-                   ON CONFLICT (threat_scan_id) DO UPDATE SET status = 'running'""",
-                (threat_scan_id, tenant_id, provider, check_scan_id,
-                 orch_id, json.dumps({"orchestration_id": orch_id, "mode": "job"})),
+                   (scan_run_id, tenant_id, provider,
+                    status, started_at, report_data)
+                   VALUES (%s, %s, %s, 'running', NOW(), %s)
+                   ON CONFLICT (scan_run_id) DO UPDATE SET status = 'running'""",
+                (scan_run_id_val, tenant_id, provider,
+                 json.dumps({"scan_run_id": orch_id, "mode": "job"})),
             )
         conn.commit()
         conn.close()
@@ -288,8 +281,8 @@ async def create_threat_scan(request: ThreatReportRequest):
     try:
         job_name = create_engine_job(
             engine_name="threat",
-            scan_id=threat_scan_id,
-            orchestration_id=orch_id,
+            scan_id=scan_run_id_val,
+            scan_run_id=orch_id,
             image=SCANNER_IMAGE,
             cpu_request=SCANNER_CPU_REQUEST,
             mem_request=SCANNER_MEM_REQUEST,
@@ -302,26 +295,26 @@ async def create_threat_scan(request: ThreatReportRequest):
         raise HTTPException(status_code=500, detail=f"Failed to create scanner Job: {e}")
 
     return ThreatScanResponse(
-        threat_scan_id=threat_scan_id,
+        scan_run_id=scan_run_id_val,
         status="running",
         message=f"Scanner Job '{job_name}' created on spot node (image={SCANNER_IMAGE})",
-        orchestration_id=orch_id,
+        scan_run_id_ref=orch_id,
         provider=provider,
     )
 
 
-@app.get("/api/v1/threat/{threat_scan_id}/status")
-async def get_threat_scan_status(threat_scan_id: str):
+@app.get("/api/v1/threat/{scan_run_id}/status")
+async def get_threat_scan_status(scan_run_id: str):
     """Get threat scan status from threat_report DB table."""
     from psycopg2.extras import RealDictCursor
     try:
         conn = _get_threat_conn()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
-                "SELECT threat_scan_id, status, provider, check_scan_id, "
-                "scan_run_id, started_at, completed_at, total_findings "
-                "FROM threat_report WHERE threat_scan_id = %s",
-                (threat_scan_id,),
+                "SELECT scan_run_id, status, provider, "
+                "started_at, completed_at, total_findings "
+                "FROM threat_report WHERE scan_run_id = %s",
+                (scan_run_id,),
             )
             row = cur.fetchone()
         conn.close()
@@ -332,11 +325,9 @@ async def get_threat_scan_status(threat_scan_id: str):
         raise HTTPException(status_code=404, detail="Threat scan not found")
 
     return {
-        "threat_scan_id": row["threat_scan_id"],
+        "scan_run_id": row["scan_run_id"],
         "status": row["status"],
         "provider": row.get("provider"),
-        "check_scan_id": row.get("check_scan_id"),
-        "scan_run_id": row.get("scan_run_id"),
         "started_at": str(row.get("started_at", "")),
         "completed_at": str(row.get("completed_at", "")) if row.get("completed_at") else None,
         "total_findings": row.get("total_findings", 0),
@@ -356,7 +347,6 @@ async def generate_threat_report_from_ndjson(
     started_at: str = Body(...),
     completed_at: Optional[str] = Body(None),
     engine_version: Optional[str] = Body(None),
-    discovery_scan_id: Optional[str] = Body(None),
     ndjson_content: str = Body(..., description="NDJSON content as string")
 ):
     """
@@ -382,15 +372,15 @@ async def generate_threat_report_from_ndjson(
         check_drift_detector = CheckDriftDetector()
         drift_threats = drift_detector.detect_configuration_drift(
             tenant_id=tenant_id,
-            hierarchy_id=accounts[0] if accounts else None,
+            account_id=accounts[0] if accounts else None,
             service=services[0] if services else None,
-            current_scan_id=discovery_scan_id
+            current_scan_id=None
         )
         check_drift_threats = check_drift_detector.detect_check_status_drift(
             tenant_id=tenant_id,
-            hierarchy_id=accounts[0] if accounts else None,
+            account_id=accounts[0] if accounts else None,
             service=services[0] if services else None,
-            current_scan_id=scan_run_id  # This is the check_scan_id
+            current_scan_id=scan_run_id  # Same scan_run_id used by all engines
         )
         threats.extend(drift_threats)
         threats.extend(check_drift_threats)
@@ -509,7 +499,7 @@ async def get_drift_threats(
 
         configuration_drift = drift_detector.detect_configuration_drift(
             tenant_id=tenant_id,
-            hierarchy_id=account_id,
+            account_id=account_id,
             service=service,
             current_scan_id=None,
             region=region,
@@ -518,7 +508,7 @@ async def get_drift_threats(
         )
         check_status_drift = check_drift_detector.detect_check_status_drift(
             tenant_id=tenant_id,
-            hierarchy_id=account_id,
+            account_id=account_id,
             service=service,
             current_scan_id=None
         )
@@ -604,7 +594,6 @@ async def list_threats(
 async def run_threat_analysis(
     tenant_id: str = Body(...),
     scan_run_id: str = Body(...),
-    orchestration_id: Optional[str] = Body(None),
 ):
     """
     Run threat analysis (blast radius, risk scoring, attack chains) for a scan.
@@ -613,8 +602,8 @@ async def run_threat_analysis(
     Reads threat_detections for the scan, cross-references inventory_relationships,
     and writes results to threat_analysis table.
 
-    If orchestration_id is provided, inventory relationships are scoped to
-    the specific pipeline run (via inventory_scan_id lookup in scan_orchestration).
+    Inventory relationships are loaded for the scan_run_id (all engines share
+    the same scan_run_id, so no separate lookup is needed).
     """
     import time as _time
     start = _time.time()
@@ -624,7 +613,6 @@ async def run_threat_analysis(
         analyses = analyzer.analyze_scan(
             tenant_id=tenant_id,
             scan_run_id=scan_run_id,
-            orchestration_id=orchestration_id,
         )
 
         if not analyses:
@@ -688,6 +676,376 @@ async def get_prioritized_threats(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get prioritized threats: {str(e)}")
+
+
+# ============================================================================
+# PostgreSQL-based Analysis Views (blast radius, attack paths, toxic combos)
+# Aggregates data from threat_analysis.analysis_results JSONB and
+# threat_detections for UI pages — no Neo4j dependency.
+# ============================================================================
+
+@app.get("/api/v1/threat/analysis/blast-radius")
+async def get_blast_radius_view(
+    tenant_id: str = Query(...),
+    scan_run_id: Optional[str] = Query(None),
+    min_reachable: int = Query(0, ge=0),
+    limit: int = Query(200, ge=1, le=1000),
+):
+    """
+    Aggregated blast radius view from threat_analysis JSONB.
+
+    Returns per-detection blast radius data sorted by reachable_count desc.
+    """
+    try:
+        import psycopg2
+        from psycopg2.extras import RealDictCursor
+
+        conn = psycopg2.connect(_threat_db_conn_str())
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            if scan_run_id and scan_run_id != "latest":
+                cur.execute("""
+                    SELECT
+                        a.detection_id,
+                        a.risk_score,
+                        a.verdict,
+                        a.analysis_results->'blast_radius' AS blast_radius,
+                        a.analysis_results->'attack_paths_summary' AS attack_paths_summary,
+                        a.analysis_results->'reachability' AS reachability,
+                        d.resource_uid,
+                        d.resource_type,
+                        d.rule_name,
+                        d.severity,
+                        d.mitre_techniques,
+                        d.account_id,
+                        d.region,
+                        d.provider
+                    FROM threat_analysis a
+                    JOIN threat_detections d ON a.detection_id = d.detection_id
+                    WHERE a.tenant_id = %s AND d.scan_id = %s
+                    ORDER BY (a.analysis_results->'blast_radius'->>'reachable_count')::int DESC NULLS LAST
+                    LIMIT %s
+                """, (tenant_id, scan_run_id, limit))
+            else:
+                # Latest scan or all
+                cur.execute("""
+                    SELECT
+                        a.detection_id,
+                        a.risk_score,
+                        a.verdict,
+                        a.analysis_results->'blast_radius' AS blast_radius,
+                        a.analysis_results->'attack_paths_summary' AS attack_paths_summary,
+                        a.analysis_results->'reachability' AS reachability,
+                        d.resource_uid,
+                        d.resource_type,
+                        d.rule_name,
+                        d.severity,
+                        d.mitre_techniques,
+                        d.account_id,
+                        d.region,
+                        d.provider
+                    FROM threat_analysis a
+                    JOIN threat_detections d ON a.detection_id = d.detection_id
+                    WHERE a.tenant_id = %s
+                    ORDER BY (a.analysis_results->'blast_radius'->>'reachable_count')::int DESC NULLS LAST
+                    LIMIT %s
+                """, (tenant_id, limit))
+
+            rows = [dict(r) for r in cur.fetchall()]
+        conn.close()
+
+        # Build response
+        items = []
+        total_reachable = 0
+        total_with_blast = 0
+        for r in rows:
+            blast = r.get("blast_radius") or {}
+            if isinstance(blast, str):
+                import json as _json
+                blast = _json.loads(blast)
+            reachable_count = blast.get("reachable_count", 0)
+            if reachable_count < min_reachable:
+                continue
+            if reachable_count > 0:
+                total_with_blast += 1
+            total_reachable += reachable_count
+
+            reachability = r.get("reachability") or {}
+            if isinstance(reachability, str):
+                import json as _json
+                reachability = _json.loads(reachability)
+
+            items.append({
+                "detection_id": str(r["detection_id"]),
+                "resource_uid": r.get("resource_uid", ""),
+                "resource_type": r.get("resource_type", ""),
+                "rule_name": r.get("rule_name", ""),
+                "severity": r.get("severity", ""),
+                "risk_score": r.get("risk_score", 0),
+                "verdict": r.get("verdict", ""),
+                "provider": r.get("provider", ""),
+                "account_id": r.get("account_id", ""),
+                "region": r.get("region", ""),
+                "reachable_count": reachable_count,
+                "reachable_resources": blast.get("reachable_resources", []),
+                "path_edges": blast.get("path_edges", []),
+                "depth_distribution": blast.get("depth_distribution", {}),
+                "is_internet_reachable": reachability.get("is_internet_reachable", False),
+            })
+
+        return {
+            "items": items,
+            "total": len(items),
+            "summary": {
+                "total_detections": len(rows),
+                "detections_with_blast": total_with_blast,
+                "total_reachable_resources": total_reachable,
+            },
+        }
+
+    except Exception as e:
+        logger.exception("Failed to get blast radius view")
+        raise HTTPException(status_code=500, detail=f"Blast radius view failed: {str(e)}")
+
+
+@app.get("/api/v1/threat/analysis/attack-paths")
+async def get_attack_paths_view(
+    tenant_id: str = Query(...),
+    scan_run_id: Optional[str] = Query(None),
+    min_path_score: int = Query(0, ge=0, le=100),
+    limit: int = Query(200, ge=1, le=1000),
+):
+    """
+    Aggregated attack paths view from threat_analysis JSONB.
+
+    Returns scored/classified attack paths across all detections.
+    """
+    try:
+        import psycopg2
+        from psycopg2.extras import RealDictCursor
+
+        conn = psycopg2.connect(_threat_db_conn_str())
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            scan_filter = ""
+            params = [tenant_id]
+            if scan_run_id and scan_run_id != "latest":
+                scan_filter = "AND d.scan_id = %s"
+                params.append(scan_run_id)
+
+            cur.execute(f"""
+                SELECT
+                    a.detection_id,
+                    a.risk_score,
+                    a.verdict,
+                    a.analysis_results->'attack_paths' AS attack_paths,
+                    a.analysis_results->'attack_paths_summary' AS attack_paths_summary,
+                    a.analysis_results->'reachability' AS reachability,
+                    a.attack_chain,
+                    d.resource_uid,
+                    d.resource_type,
+                    d.rule_name,
+                    d.severity,
+                    d.mitre_techniques,
+                    d.mitre_tactics,
+                    d.account_id,
+                    d.region,
+                    d.provider
+                FROM threat_analysis a
+                JOIN threat_detections d ON a.detection_id = d.detection_id
+                WHERE a.tenant_id = %s {scan_filter}
+                ORDER BY a.risk_score DESC NULLS LAST
+                LIMIT %s
+            """, params + [limit])
+
+            rows = [dict(r) for r in cur.fetchall()]
+        conn.close()
+
+        # Flatten all attack paths across detections
+        all_paths = []
+        chain_type_counts: Dict[str, int] = {}
+        total_critical = 0
+        total_internet = 0
+
+        for r in rows:
+            paths = r.get("attack_paths") or []
+            if isinstance(paths, str):
+                import json as _json
+                paths = _json.loads(paths)
+
+            reachability = r.get("reachability") or {}
+            if isinstance(reachability, str):
+                import json as _json
+                reachability = _json.loads(reachability)
+            is_internet = reachability.get("is_internet_reachable", False)
+            if is_internet:
+                total_internet += 1
+
+            for p in paths:
+                if not isinstance(p, dict):
+                    continue
+                score = p.get("path_score", 0)
+                if score < min_path_score:
+                    continue
+                if score >= 70:
+                    total_critical += 1
+
+                chain_type = p.get("chain_type", "unknown")
+                chain_type_counts[chain_type] = chain_type_counts.get(chain_type, 0) + 1
+
+                all_paths.append({
+                    "detection_id": str(r["detection_id"]),
+                    "resource_uid": r.get("resource_uid", ""),
+                    "resource_type": r.get("resource_type", ""),
+                    "severity": r.get("severity", ""),
+                    "risk_score": r.get("risk_score", 0),
+                    "provider": r.get("provider", ""),
+                    "account_id": r.get("account_id", ""),
+                    "region": r.get("region", ""),
+                    "path_score": score,
+                    "chain_type": chain_type,
+                    "depth": p.get("depth", 0),
+                    "entry_point": p.get("entry_point", ""),
+                    "target": p.get("target", ""),
+                    "target_category": p.get("target_category", ""),
+                    "hops": p.get("hops", []),
+                    "is_internet_reachable": is_internet,
+                    "mitre_techniques": r.get("mitre_techniques") or [],
+                })
+
+        # Sort by path_score desc
+        all_paths.sort(key=lambda x: x.get("path_score", 0), reverse=True)
+
+        return {
+            "attack_paths": all_paths,
+            "total": len(all_paths),
+            "summary": {
+                "total_detections_with_paths": sum(1 for r in rows if r.get("attack_paths")),
+                "critical_paths": total_critical,
+                "internet_reachable": total_internet,
+                "chain_types": chain_type_counts,
+            },
+        }
+
+    except Exception as e:
+        logger.exception("Failed to get attack paths view")
+        raise HTTPException(status_code=500, detail=f"Attack paths view failed: {str(e)}")
+
+
+@app.get("/api/v1/threat/analysis/toxic-combinations")
+async def get_toxic_combinations_view(
+    tenant_id: str = Query(...),
+    scan_run_id: Optional[str] = Query(None),
+    min_threats: int = Query(2, ge=2),
+    limit: int = Query(200, ge=1, le=1000),
+):
+    """
+    Toxic combinations from PostgreSQL — resources with multiple overlapping
+    threat detections. No Neo4j dependency.
+
+    Groups threat_detections by resource_uid and enriches with analysis data.
+    """
+    try:
+        import psycopg2
+        from psycopg2.extras import RealDictCursor
+
+        conn = psycopg2.connect(_threat_db_conn_str())
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            scan_filter = ""
+            params = [tenant_id]
+            if scan_run_id and scan_run_id != "latest":
+                scan_filter = "AND d.scan_id = %s"
+                params.append(scan_run_id)
+
+            cur.execute(f"""
+                WITH resource_threats AS (
+                    SELECT
+                        d.resource_uid,
+                        d.resource_type,
+                        d.account_id,
+                        d.region,
+                        d.provider,
+                        count(*) AS threat_count,
+                        array_agg(DISTINCT d.detection_id::text) AS detection_ids,
+                        array_agg(DISTINCT d.severity) AS severities,
+                        array_agg(DISTINCT d.rule_name) FILTER (WHERE d.rule_name IS NOT NULL) AS rule_names,
+                        array_agg(DISTINCT d.threat_category) FILTER (WHERE d.threat_category IS NOT NULL) AS categories,
+                        max(a.risk_score) AS max_risk_score
+                    FROM threat_detections d
+                    LEFT JOIN threat_analysis a ON d.detection_id = a.detection_id
+                    WHERE d.tenant_id = %s {scan_filter}
+                    GROUP BY d.resource_uid, d.resource_type, d.account_id, d.region, d.provider
+                    HAVING count(*) >= {min_threats}
+                    ORDER BY count(*) DESC
+                    LIMIT %s
+                ),
+                mitre_details AS (
+                    SELECT
+                        d.resource_uid,
+                        array_agg(DISTINCT technique) AS all_techniques
+                    FROM threat_detections d,
+                         LATERAL jsonb_array_elements_text(d.mitre_techniques) AS technique
+                    WHERE d.tenant_id = %s {scan_filter}
+                      AND d.mitre_techniques IS NOT NULL
+                      AND jsonb_typeof(d.mitre_techniques) = 'array'
+                    GROUP BY d.resource_uid
+                )
+                SELECT
+                    rt.*,
+                    md.all_techniques AS mitre_techniques
+                FROM resource_threats rt
+                LEFT JOIN mitre_details md ON rt.resource_uid = md.resource_uid
+            """, params + [limit] + params)
+
+            rows = [dict(r) for r in cur.fetchall()]
+        conn.close()
+
+        # Build response
+        items = []
+        severity_counts: Dict[str, int] = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+
+        for r in rows:
+            severities = r.get("severities") or []
+            # Determine combo severity (worst severity present)
+            combo_severity = "low"
+            for s in ["critical", "high", "medium", "low"]:
+                if s in severities:
+                    combo_severity = s
+                    break
+            severity_counts[combo_severity] = severity_counts.get(combo_severity, 0) + 1
+
+            threat_count = r.get("threat_count", 0)
+            resource_name = (r.get("resource_uid") or "").split("/")[-1] or (r.get("resource_uid") or "").split(":")[-1]
+
+            items.append({
+                "resource_uid": r.get("resource_uid", ""),
+                "resource_name": resource_name,
+                "resource_type": r.get("resource_type", ""),
+                "provider": r.get("provider", ""),
+                "account_id": r.get("account_id", ""),
+                "region": r.get("region", ""),
+                "threat_count": threat_count,
+                "combo_severity": combo_severity,
+                "max_risk_score": r.get("max_risk_score", 0),
+                "detection_ids": r.get("detection_ids", []),
+                "severities": severities,
+                "rule_names": r.get("rule_names") or [],
+                "categories": r.get("categories") or [],
+                "mitre_techniques": r.get("mitre_techniques") or [],
+                "toxicity_score": min(100, threat_count * 20 + (30 if combo_severity == "critical" else 15 if combo_severity == "high" else 5)),
+            })
+
+        return {
+            "toxic_combinations": items,
+            "total": len(items),
+            "summary": {
+                "total_resources_affected": len(items),
+                "severity_counts": severity_counts,
+                "avg_threats_per_resource": round(sum(i["threat_count"] for i in items) / max(len(items), 1), 1),
+            },
+        }
+
+    except Exception as e:
+        logger.exception("Failed to get toxic combinations view")
+        raise HTTPException(status_code=500, detail=f"Toxic combinations view failed: {str(e)}")
 
 
 @app.get("/api/v1/threat/analysis/{detection_id}")
@@ -809,6 +1167,136 @@ async def get_threat_misconfig_findings(
         "threat_id": threat_id,
         "misconfig_findings": threat_data.get("misconfig_findings", [])
     }
+
+
+@app.get("/api/v1/threat/detections/{detection_id}/check-findings")
+async def get_detection_check_findings(
+    detection_id: str,
+    tenant_id: str = Query(..., description="Tenant identifier"),
+):
+    """Get check_findings associated with a threat detection.
+
+    Looks up the detection in threat_detections to get its rule_id,
+    resource_uid, account_id, and region, then cross-queries the check DB
+    to return matching check_findings rows.
+    """
+    try:
+        import psycopg2
+        from psycopg2.extras import RealDictCursor
+
+        # ── Step 1: Get detection metadata from threat DB ──
+        t_host = os.getenv("THREAT_DB_HOST", "localhost")
+        t_port = os.getenv("THREAT_DB_PORT", "5432")
+        t_db = os.getenv("THREAT_DB_NAME", "threat_engine_threat")
+        t_user = os.getenv("THREAT_DB_USER", "threat_user")
+        t_pwd = os.getenv("THREAT_DB_PASSWORD", "threat_password")
+        t_conn = psycopg2.connect(
+            f"postgresql://{t_user}:{t_pwd}@{t_host}:{t_port}/{t_db}"
+        )
+
+        with t_conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT rule_id, resource_uid, resource_id, account_id, region,
+                       resource_type, provider, evidence
+                FROM threat_detections
+                WHERE detection_id = %s::uuid AND tenant_id = %s
+            """, (detection_id, tenant_id))
+            detection = cur.fetchone()
+        t_conn.close()
+
+        if not detection:
+            raise HTTPException(status_code=404, detail="Detection not found")
+
+        rule_id = detection.get("rule_id") or ""
+        resource_uid = detection.get("resource_uid") or ""
+        account_id = detection.get("account_id") or ""
+        region = detection.get("region") or ""
+
+        # ── Step 2: Query check DB for matching findings ──
+        c_host = os.getenv("CHECK_DB_HOST", "localhost")
+        c_port = os.getenv("CHECK_DB_PORT", "5432")
+        c_db = os.getenv("CHECK_DB_NAME", "threat_engine_check")
+        c_user = os.getenv("CHECK_DB_USER", "check_user")
+        c_pwd = os.getenv("CHECK_DB_PASSWORD", "check_password")
+        c_conn = psycopg2.connect(
+            f"postgresql://{c_user}:{c_pwd}@{c_host}:{c_port}/{c_db}"
+        )
+
+        # Build dynamic WHERE — match on resource_uid; optionally tighten by rule_id
+        where_clauses = ["cf.tenant_id = %s", "cf.resource_uid = %s"]
+        params: list = [tenant_id, resource_uid]
+
+        if rule_id:
+            where_clauses.append("cf.rule_id = %s")
+            params.append(rule_id)
+
+        where_sql = " AND ".join(where_clauses)
+
+        with c_conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(f"""
+                SELECT
+                    cf.id AS check_finding_id,
+                    cf.rule_id,
+                    cf.resource_uid,
+                    cf.resource_type,
+                    cf.resource_id,
+                    cf.status,
+                    cf.region,
+                    cf.service,
+                    cf.account_id AS account_id,
+                    cf.provider,
+                    cf.created_at,
+                    rm.title,
+                    rm.description,
+                    rm.severity,
+                    rm.remediation
+                FROM check_findings cf
+                LEFT JOIN rule_metadata rm ON cf.rule_id = rm.rule_id
+                WHERE {where_sql}
+                ORDER BY
+                    CASE WHEN cf.status = 'FAIL' THEN 0 ELSE 1 END,
+                    rm.severity DESC NULLS LAST
+                LIMIT 200
+            """, params)
+            findings = [dict(row) for row in cur.fetchall()]
+        c_conn.close()
+
+        # Normalize for UI consumption
+        normalized = []
+        for f in findings:
+            normalized.append({
+                "id": f.get("check_finding_id"),
+                "ruleId": f.get("rule_id"),
+                "rule_id": f.get("rule_id"),
+                "title": f.get("title") or f.get("rule_id"),
+                "description": f.get("description", ""),
+                "status": f.get("status"),
+                "severity": f.get("severity", "medium"),
+                "resource_uid": f.get("resource_uid"),
+                "resource_type": f.get("resource_type"),
+                "resource_id": f.get("resource_id"),
+                "region": f.get("region"),
+                "account_id": f.get("account_id"),
+                "provider": f.get("provider", ""),
+                "service": f.get("service") or f.get("resource_type"),
+                "remediation": f.get("remediation"),
+                "created_at": str(f["created_at"]) if f.get("created_at") else None,
+            })
+
+        return {
+            "detection_id": detection_id,
+            "findings": normalized,
+            "total": len(normalized),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Failed to get check findings for detection %s", detection_id)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get check findings: {str(e)}"
+        )
 
 
 @app.get("/api/v1/threat/{threat_id}/assets")
@@ -1685,9 +2173,9 @@ async def get_resource_posture(
         if not scan_id or scan_id == "latest":
             with conn.cursor() as cur:
                 cur.execute("""
-                    SELECT DISTINCT check_scan_id FROM check_findings
+                    SELECT DISTINCT scan_run_id FROM check_findings
                     WHERE tenant_id = %s
-                    ORDER BY check_scan_id DESC LIMIT 1
+                    ORDER BY scan_run_id DESC LIMIT 1
                 """, (tenant_id,))
                 row = cur.fetchone()
                 scan_id = row[0] if row else None
@@ -1702,7 +2190,7 @@ async def get_resource_posture(
                     cf.resource_uid,
                     cf.resource_type,
                     cf.resource_arn,
-                    cf.hierarchy_id as account_id,
+                    cf.account_id as account_id,
                     COUNT(*) as total_checks,
                     COUNT(*) FILTER (WHERE cf.status = 'PASS') as passed,
                     COUNT(*) FILTER (WHERE cf.status = 'FAIL') as failed,
@@ -1715,8 +2203,8 @@ async def get_resource_posture(
                     MAX(cf.created_at) as last_scanned
                 FROM check_findings cf
                 LEFT JOIN rule_metadata rm ON cf.rule_id = rm.rule_id
-                WHERE cf.tenant_id = %s AND cf.check_scan_id = %s AND cf.resource_uid = %s
-                GROUP BY cf.resource_uid, cf.resource_type, cf.resource_arn, cf.hierarchy_id
+                WHERE cf.tenant_id = %s AND cf.scan_run_id = %s AND cf.resource_uid = %s
+                GROUP BY cf.resource_uid, cf.resource_type, cf.resource_arn, cf.account_id
             """, (tenant_id, scan_id, resource_uid))
             posture = cur.fetchone()
         
@@ -1901,7 +2389,7 @@ async def get_scan_summary(
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("""
                 SELECT
-                    threat_scan_id, scan_run_id, provider as cloud,
+                    scan_run_id, provider as cloud,
                     total_findings as total_threats,
                     critical_findings, high_findings, medium_findings, low_findings,
                     threat_score, status,
@@ -1981,6 +2469,25 @@ async def get_graph_summary(
         return summary
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Graph query failed: {str(e)}")
+
+
+@app.get("/api/v1/graph/subgraph")
+async def get_graph_subgraph(
+    tenant_id: str = Query(...),
+    max_nodes: int = Query(300, ge=10, le=1000),
+):
+    """Get a Wiz-style subgraph of resources and their relationships.
+
+    Returns actual resource nodes and relationship edges — not attack path chains.
+    Focuses on resources with threats, internet exposure, and their neighbors.
+    """
+    try:
+        gq = SecurityGraphQueries()
+        result = gq.subgraph(tenant_id=tenant_id, max_nodes=max_nodes)
+        gq.close()
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Subgraph query failed: {str(e)}")
 
 
 @app.get("/api/v1/graph/attack-paths")

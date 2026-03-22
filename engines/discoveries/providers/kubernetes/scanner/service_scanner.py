@@ -166,7 +166,7 @@ class K8sDiscoveryScanner(DiscoveryScanner):
         self.apps_v1 = None
         self.cluster_name = (
             credentials.get('cluster_name')
-            or credentials.get('hierarchy_id')
+            or credentials.get('account_id')
             or 'unknown-cluster'
         )
 

@@ -202,8 +202,8 @@ def normalize_db_check_results_to_findings(
 
     Args:
         check_results: List of check result dicts from database (enriched via JOIN with rule_metadata).
-                      Expected fields from check_findings: id, check_scan_id, customer_id, tenant_id,
-                      provider, hierarchy_id, rule_id, resource_arn, resource_uid, resource_id,
+                      Expected fields from check_findings: id, scan_run_id, customer_id, tenant_id,
+                      provider, account_id, rule_id, resource_arn, resource_uid, resource_id,
                       resource_type, status, checked_fields, finding_data, created_at.
                       Expected fields from rule_metadata JOIN: severity, title, description,
                       remediation, domain, subcategory, threat_category, threat_tags, risk_score,
@@ -236,9 +236,9 @@ def normalize_db_check_results_to_findings(
         resource_id = check.get("resource_id")
         resource_type = check.get("resource_type", "resource")
 
-        # Extract account and region from resource_arn (preferred) or hierarchy_id (fallback)
-        hierarchy_id = check.get("hierarchy_id", "unknown")
-        account = hierarchy_id  # default: internal UUID
+        # Extract account and region from resource_arn (preferred) or account_id (fallback)
+        account_id = check.get("account_id", "unknown")
+        account = account_id  # default: internal UUID
 
         # Extract region AND real cloud account number from resource_arn if available
         # AWS ARN format: arn:aws:service:region:account-id:resource
@@ -324,8 +324,8 @@ def normalize_db_check_results_to_findings(
         if not isinstance(evidence_refs, list):
             evidence_refs = []
 
-        # Use scan_timestamp (aliased from created_at) or created_at as timestamps
-        created_at = check.get("scan_timestamp") or check.get("created_at")
+        # Use first_seen_at (aliased from created_at) or created_at as timestamps
+        created_at = check.get("first_seen_at") or check.get("created_at")
         if isinstance(created_at, str):
             try:
                 created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))

@@ -2,7 +2,7 @@
 DataSec Database Writer
 
 Writes data security reports to RDS:
-- datasec_report (main report, PK: datasec_scan_id)
+- datasec_report (main report, PK: scan_run_id)
 - datasec_findings (individual data security findings)
 """
 
@@ -28,7 +28,7 @@ def _get_datasec_db_connection():
 
 
 def save_module_results_to_db(
-    datasec_scan_id: str,
+    scan_run_id: str,
     tenant_id: str,
     provider: str,
     module_results: Dict[str, List],
@@ -61,14 +61,14 @@ def save_module_results_to_db(
                     report_data = %s::jsonb,
                     status = 'completed',
                     generated_at = %s
-                WHERE datasec_scan_id = %s
+                WHERE scan_run_id = %s
             """, (
                 summary.get("total_findings", 0),
                 summary.get("findings_by_status", {}).get("FAIL", 0),
                 json.dumps(summary.get("findings_by_module", {})),
                 json.dumps(summary),
                 now,
-                datasec_scan_id,
+                scan_run_id,
             ))
 
             # Insert findings from all modules
@@ -80,7 +80,7 @@ def save_module_results_to_db(
                     finding_id = f"ds_{uuid.uuid4().hex[:16]}"
                     cur.execute("""
                         INSERT INTO datasec_findings (
-                            finding_id, datasec_scan_id, tenant_id,
+                            finding_id, scan_run_id, tenant_id,
                             rule_id, datasec_modules, severity, status,
                             resource_type, resource_uid,
                             data_classification, sensitivity_score,
@@ -90,7 +90,7 @@ def save_module_results_to_db(
                         ON CONFLICT (finding_id) DO NOTHING
                     """, (
                         finding_id,
-                        datasec_scan_id,
+                        scan_run_id,
                         tenant_id,
                         r.rule_id,
                         [r.category],
@@ -113,7 +113,7 @@ def save_module_results_to_db(
                     count += 1
 
         conn.commit()
-        logger.info(f"Saved {count} datasec findings to DB for scan {datasec_scan_id}")
+        logger.info(f"Saved {count} datasec findings to DB for scan {scan_run_id}")
     except Exception:
         conn.rollback()
         raise
@@ -129,12 +129,12 @@ def save_datasec_report_to_db(report: Dict[str, Any]) -> str:
         report: Full data security report dict
     
     Returns:
-        datasec_scan_id string
+        scan_run_id string
     """
-    datasec_scan_id = str(report.get("datasec_scan_id") or report.get("report_id") or uuid.uuid4())
+    scan_run_id = str(report.get("scan_run_id") or report.get("report_id") or uuid.uuid4())
     tenant_id = report.get("tenant_id", "default")
     scan_context = report.get("scan_context", {})
-    scan_run_id = scan_context.get("threat_scan_run_id", "")
+    # Do NOT overwrite scan_run_id — it was already set from report dict
     cloud = scan_context.get("csp", "aws")
     
     # Parse timestamp
@@ -172,14 +172,14 @@ def save_datasec_report_to_db(report: Dict[str, Any]) -> str:
             # Insert report
             cur.execute("""
                 INSERT INTO datasec_report (
-                    datasec_scan_id, tenant_id, scan_run_id, cloud, generated_at,
+                    scan_run_id, tenant_id, cloud, generated_at,
                     total_findings, datasec_relevant_findings,
                     classified_resources, total_data_stores,
                     findings_by_module, classification_summary, residency_summary,
                     report_data
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb, %s::jsonb)
-                ON CONFLICT (datasec_scan_id) DO UPDATE SET
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb, %s::jsonb)
+                ON CONFLICT (scan_run_id) DO UPDATE SET
                     generated_at = EXCLUDED.generated_at,
                     total_findings = EXCLUDED.total_findings,
                     datasec_relevant_findings = EXCLUDED.datasec_relevant_findings,
@@ -190,9 +190,8 @@ def save_datasec_report_to_db(report: Dict[str, Any]) -> str:
                     residency_summary = EXCLUDED.residency_summary,
                     report_data = EXCLUDED.report_data
             """, (
-                datasec_scan_id,
-                tenant_id,
                 scan_run_id,
+                tenant_id,
                 cloud,
                 generated_at,
                 total_findings,
@@ -235,19 +234,18 @@ def save_datasec_report_to_db(report: Dict[str, Any]) -> str:
 
                     cur.execute("""
                         INSERT INTO datasec_findings (
-                            finding_id, datasec_scan_id, tenant_id, scan_run_id,
+                            finding_id, scan_run_id, tenant_id,
                             rule_id, datasec_modules, severity, status,
                             resource_type, resource_id, resource_uid, account_id, region,
                             data_classification, sensitivity_score,
                             finding_data, first_seen_at, last_seen_at
                         )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
                         ON CONFLICT (finding_id) DO NOTHING
                     """, (
                         finding_id,
-                        datasec_scan_id,
-                        tenant_id,
                         scan_run_id,
+                        tenant_id,
                         finding.get("rule_id"),
                         finding.get("data_security_modules", []),
                         finding.get("severity", "medium"),
@@ -265,7 +263,7 @@ def save_datasec_report_to_db(report: Dict[str, Any]) -> str:
                     ))
         
         conn.commit()
-        return datasec_scan_id
+        return scan_run_id
     except Exception:
         conn.rollback()
         raise

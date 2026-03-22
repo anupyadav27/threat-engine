@@ -1,13 +1,15 @@
-"""BFF view: /threats page.
+"""BFF view: /threats page (Threat Detection).
 
 Consolidates threat + onboarding into 2 BFF calls using /ui-data endpoints.
 Threat ui-data now returns DETECTIONS (grouped threats with risk scores),
 not atomic findings.
+
+This is the merged "Threat Detection" page — combines the former Overview
+and Analytics pages into a single comprehensive view.
 """
 
-import random
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 
 from fastapi import APIRouter, Query
 
@@ -46,8 +48,8 @@ async def view_threats(
         ("threat", "/api/v1/threat/ui-data", {
             "tenant_id": tenant_id,
             "scan_run_id": scan_run_id,
-            "limit": "1000",
-            "days": "30",
+            "limit": "2000",
+            "days": "90",
         }),
         ("onboarding", "/api/v1/cloud-accounts", {
             "tenant_id": tenant_id,
@@ -173,48 +175,87 @@ async def view_threats(
                     ),
                 })
 
-    # Synthetic trend fallback
-    if not trend_list and total > 0:
-        now = datetime.now(timezone.utc)
-        daily_avg = max(1, total // 30)
-        for days_ago in range(30, -1, -1):
-            date_str = (now - timedelta(days=days_ago)).strftime("%Y-%m-%d")
-            scale = 0.4 + 0.6 * ((30 - days_ago) / 30)
-            noise = random.randint(-max(1, daily_avg // 4), max(1, daily_avg // 4))
-            day_total = max(0, round(daily_avg * scale + noise))
-            c_r = critical / total if total > 0 else 0.1
-            h_r = high / total if total > 0 else 0.2
-            m_r = medium / total if total > 0 else 0.4
-            trend_list.append({
-                "date": date_str, "critical": max(0, round(day_total * c_r)),
-                "high": max(0, round(day_total * h_r)), "medium": max(0, round(day_total * m_r)),
-                "low": max(0, day_total - round(day_total * c_r) - round(day_total * h_r) - round(day_total * m_r)),
-                "total": day_total,
-            })
+    # If engine returned no trend data, build from detection timestamps
+    if not trend_list and filtered:
+        date_counts: Dict[str, Dict[str, int]] = {}
+        for t in filtered:
+            ts = t.get("detected") or t.get("detected_at") or t.get("first_seen_at") or ""
+            if ts and len(ts) >= 10:
+                d = ts[:10]  # YYYY-MM-DD
+                if d not in date_counts:
+                    date_counts[d] = {"date": d, "critical": 0, "high": 0, "medium": 0, "low": 0, "total": 0}
+                sev = t.get("severity", "low")
+                if sev in date_counts[d]:
+                    date_counts[d][sev] += 1
+                date_counts[d]["total"] += 1
+        trend_list = [date_counts[k] for k in sorted(date_counts.keys())]
 
     by_provider: Dict[str, int] = {}
     for t in filtered:
         p = (t.get("provider") or "UNKNOWN").upper()
         by_provider[p] = by_provider.get(p, 0) + 1
 
-    # Top services from engine
-    raw_top_services = safe_get(threat_data, "top_services", [])
-    if isinstance(raw_top_services, list) and raw_top_services:
-        top_services = [
-            {"service": s.get("service", ""), "total": s.get("count", 0)}
-            for s in raw_top_services[:5]
+    # Top services — with severity breakdown for stacked bar chart
+    svc_sev: Dict[str, Dict[str, int]] = {}
+    for t in filtered:
+        svc = t.get("resourceType") or t.get("service") or "unknown"
+        if svc not in svc_sev:
+            svc_sev[svc] = {"critical": 0, "high": 0, "medium": 0, "low": 0, "total": 0}
+        s = t.get("severity", "low")
+        if s in svc_sev[svc]:
+            svc_sev[svc][s] += 1
+        svc_sev[svc]["total"] += 1
+    top_services = sorted(
+        [{"name": k, **v} for k, v in svc_sev.items()],
+        key=lambda x: x["total"],
+        reverse=True,
+    )[:10]
+
+    # By category — from engine summary or local aggregation
+    engine_summary_safe = engine_summary if isinstance(engine_summary, dict) else {}
+    raw_by_category = safe_get(engine_summary_safe, "by_category", {}) or {}
+    by_category: Dict[str, int] = {}
+    if isinstance(raw_by_category, list):
+        by_category = {
+            item.get("category", "Uncategorized"): item.get("count", item.get("total", 0))
+            for item in raw_by_category if isinstance(item, dict)
+        }
+    elif isinstance(raw_by_category, dict):
+        by_category = raw_by_category
+    if not by_category:
+        for t in raw:
+            cat = t.get("threat_category") or t.get("category") or "Uncategorized"
+            by_category[cat] = by_category.get(cat, 0) + 1
+
+    # Account heatmap — severity breakdown per account
+    raw_by_account = safe_get(threat_data, "summary.by_account", []) or []
+    account_heatmap: List[dict] = []
+    if isinstance(raw_by_account, list) and raw_by_account:
+        account_heatmap = [
+            {
+                "account": item.get("account_id", "unknown"),
+                "critical": item.get("critical", 0),
+                "high": item.get("high", 0),
+                "medium": item.get("medium", 0),
+                "low": item.get("low", 0),
+                "total": item.get("count", 0),
+            }
+            for item in raw_by_account if isinstance(item, dict)
         ]
     else:
-        # Fallback: aggregate from threats
-        by_service: Dict[str, int] = {}
-        for t in raw:
-            svc = t.get("resource_type") or t.get("service") or "unknown"
-            by_service[svc] = by_service.get(svc, 0) + 1
-        top_services = sorted(
-            [{"service": k, "total": v} for k, v in by_service.items()],
-            key=lambda x: x["total"],
-            reverse=True,
-        )[:5]
+        acct_map: Dict[str, dict] = {}
+        for t in filtered:
+            acct = t.get("account") or "unknown"
+            if acct not in acct_map:
+                acct_map[acct] = {
+                    "account": acct,
+                    "critical": 0, "high": 0, "medium": 0, "low": 0, "total": 0,
+                }
+            s = t.get("severity", "low")
+            if s in acct_map[acct]:
+                acct_map[acct][s] += 1
+            acct_map[acct]["total"] += 1
+        account_heatmap = sorted(acct_map.values(), key=lambda x: x["total"], reverse=True)
 
     # Enrich threats with attack path / internet exposed flags
     attack_path_uids: set = set()
@@ -237,13 +278,39 @@ async def view_threats(
         t["hasAttackPath"] = bool(t_resource and t_resource in attack_path_uids)
         t["isInternetExposed"] = bool(t_resource and t_resource in internet_exposed_uids)
 
+    # Status counts from verdict or status field
+    by_verdict = engine_summary.get("by_verdict", {}) if isinstance(engine_summary, dict) else {}
+    active_count = by_verdict.get("active", 0) or sum(
+        1 for t in filtered if (t.get("status") or "active").lower() == "active"
+    )
+    unassigned_count = sum(1 for t in filtered if not t.get("assignee"))
+
+    # Scan metadata — so the UI can show "data as of ..."
+    scan_meta = safe_get(threat_data, "scan_meta", {}) or {}
+    latest_detection_ts = ""
+    if filtered:
+        timestamps = [
+            t.get("detected") or t.get("detected_at") or t.get("first_seen_at") or ""
+            for t in filtered if t.get("detected") or t.get("detected_at") or t.get("first_seen_at")
+        ]
+        if timestamps:
+            latest_detection_ts = max(timestamps)
+
     return {
         "kpi": {
             "total": total, "critical": critical, "high": high,
             "medium": medium, "low": low,
+            "active": active_count,
+            "unassigned": unassigned_count,
             "avgRiskScore": avg_risk,
             "totalFindings": total_findings,
-            "byVerdict": engine_summary.get("by_verdict", {}),
+            "criticalAndHigh": critical + high,
+            "byVerdict": by_verdict,
+        },
+        "scanMeta": {
+            "scanRunId": scan_meta.get("scan_run_id") or scan_run_id,
+            "latestDetection": latest_detection_ts,
+            "dataScope": "all_scans" if scan_run_id == "latest" else "single_scan",
         },
         "threats": filtered,
         "total": total,
@@ -252,6 +319,14 @@ async def view_threats(
         "threatIntel": threat_intel,
         "severityChart": severity_chart(sev_counts),
         "trendData": trend_list,
-        "byProvider": by_provider,
+        "byProvider": [
+            {"name": k, "count": v}
+            for k, v in sorted(by_provider.items(), key=lambda x: x[1], reverse=True)
+        ],
         "topServices": top_services,
+        "byCategory": [
+            {"name": k, "count": v}
+            for k, v in sorted(by_category.items(), key=lambda x: x[1], reverse=True)
+        ],
+        "accountHeatmap": account_heatmap,
     }

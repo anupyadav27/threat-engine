@@ -94,7 +94,7 @@ class DiscoveryNDJSONReader:
                     'scan_id': scan_id,
                     'total_discoveries': len(filtered),
                     'unique_resources': unique_resources,
-                    'scan_timestamp': filtered[0].get('scan_timestamp') if filtered else None
+                    'first_seen_at': filtered[0].get('first_seen_at') if filtered else None
                 }
         
         if not all_records:
@@ -132,7 +132,7 @@ class DiscoveryNDJSONReader:
         
         # Recent scans
         recent_scans = []
-        for scan_id, stats in sorted(scan_stats.items(), key=lambda x: x[1].get('scan_timestamp') or '', reverse=True):
+        for scan_id, stats in sorted(scan_stats.items(), key=lambda x: x[1].get('first_seen_at') or '', reverse=True):
             recent_scans.append(stats)
         
         return {
@@ -141,7 +141,7 @@ class DiscoveryNDJSONReader:
             'services_scanned': len(service_counts),
             'top_services': top_services,
             'recent_scans': recent_scans,
-            'last_scan_timestamp': recent_scans[0].get('scan_timestamp') if recent_scans else None
+            'last_first_seen_at': recent_scans[0].get('first_seen_at') if recent_scans else None
         }
     
     def list_scans(self, tenant_id: str, customer_id: Optional[str] = None,
@@ -170,13 +170,13 @@ class DiscoveryNDJSONReader:
                 'customer_id': sample.get('customer_id'),
                 'tenant_id': sample.get('tenant_id'),
                 'provider': sample.get('provider'),
-                'hierarchy_id': sample.get('hierarchy_id'),
+                'account_id': sample.get('account_id'),
                 'hierarchy_type': sample.get('hierarchy_type'),
                 'total_discoveries': len(filtered),
                 'unique_resources': unique_resources,
                 'services_scanned': services,
                 'regions_scanned': regions,
-                'scan_timestamp': sample.get('scan_timestamp')
+                'first_seen_at': sample.get('first_seen_at')
             })
         
         # Paginate
@@ -208,13 +208,13 @@ class DiscoveryNDJSONReader:
             'customer_id': sample.get('customer_id'),
             'tenant_id': sample.get('tenant_id'),
             'provider': sample.get('provider'),
-            'hierarchy_id': sample.get('hierarchy_id'),
+            'account_id': sample.get('account_id'),
             'hierarchy_type': sample.get('hierarchy_type'),
             'total_discoveries': len(filtered),
             'unique_resources': unique_resources,
             'services_scanned': services,
             'regions_scanned': regions,
-            'scan_timestamp': sample.get('scan_timestamp')
+            'first_seen_at': sample.get('first_seen_at')
         }
     
     def get_service_stats(self, scan_id: str, tenant_id: str) -> List[Dict]:
@@ -326,7 +326,7 @@ class DiscoveryNDJSONReader:
             filtered = [r for r in filtered if r.get('resource_arn') == resource_arn]
         
         # Sort by timestamp descending
-        filtered.sort(key=lambda x: x.get('scan_timestamp') or '', reverse=True)
+        filtered.sort(key=lambda x: x.get('first_seen_at') or '', reverse=True)
         
         # Paginate
         total = len(filtered)
@@ -342,7 +342,7 @@ class DiscoveryNDJSONReader:
                 'customer_id': record.get('customer_id'),
                 'tenant_id': record.get('tenant_id'),
                 'provider': record.get('provider'),
-                'hierarchy_id': record.get('hierarchy_id'),
+                'account_id': record.get('account_id'),
                 'hierarchy_type': record.get('hierarchy_type'),
                 'discovery_id': record.get('discovery_id'),
                 'region': record.get('region'),
@@ -352,7 +352,7 @@ class DiscoveryNDJSONReader:
                 'raw_response': record.get('raw_response', {}),
                 'emitted_fields': record.get('emitted_fields', {}),
                 'config_hash': record.get('config_hash'),
-                'scan_timestamp': record.get('scan_timestamp'),
+                'first_seen_at': record.get('first_seen_at'),
                 'version': record.get('version', 1)
             })
         

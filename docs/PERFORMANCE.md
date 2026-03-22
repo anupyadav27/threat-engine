@@ -28,7 +28,7 @@ CREATE INDEX idx_threat_det_tenant_scan ON threat_detections(tenant_id, scan_id)
 CREATE INDEX idx_threat_det_severity ON threat_detections(severity);
 
 -- check_findings: query by scan + rule
-CREATE INDEX idx_check_findings_scan ON check_findings(check_scan_id, tenant_id);
+CREATE INDEX idx_check_findings_scan ON check_findings(scan_run_id, tenant_id);
 CREATE INDEX idx_check_findings_resource ON check_findings(resource_uid);
 
 -- inventory_findings: query by tenant + type

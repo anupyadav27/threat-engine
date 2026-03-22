@@ -91,9 +91,8 @@ class DatabaseExporter:
 
         -- Compliance Report Table
         CREATE TABLE IF NOT EXISTS compliance_report (
-            compliance_scan_id VARCHAR(255) PRIMARY KEY,
+            scan_run_id VARCHAR(255) PRIMARY KEY,
             tenant_id VARCHAR(255) NOT NULL,
-            scan_run_id VARCHAR(255) NOT NULL,
             cloud VARCHAR(50) NOT NULL,
             trigger_type VARCHAR(50) NOT NULL,
             collection_mode VARCHAR(50) NOT NULL,
@@ -112,9 +111,8 @@ class DatabaseExporter:
         -- Compliance Findings Table
         CREATE TABLE IF NOT EXISTS compliance_findings (
             finding_id VARCHAR(255) PRIMARY KEY,
-            compliance_scan_id VARCHAR(255) NOT NULL,
-            tenant_id VARCHAR(255) NOT NULL,
             scan_run_id VARCHAR(255) NOT NULL,
+            tenant_id VARCHAR(255) NOT NULL,
             rule_id VARCHAR(255) NOT NULL,
             rule_version VARCHAR(50),
             category VARCHAR(100),
@@ -130,7 +128,7 @@ class DatabaseExporter:
             finding_data JSONB NOT NULL,
             created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
             
-            CONSTRAINT fk_report FOREIGN KEY (compliance_scan_id) REFERENCES compliance_report(compliance_scan_id) ON DELETE CASCADE,
+            CONSTRAINT fk_report FOREIGN KEY (scan_run_id) REFERENCES compliance_report(scan_run_id) ON DELETE CASCADE,
             CONSTRAINT fk_tenant_finding FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE
         );
 
@@ -190,9 +188,9 @@ class DatabaseExporter:
             report: EnterpriseComplianceReport to export
 
         Returns:
-            compliance_scan_id string
+            scan_run_id string
         """
-        compliance_scan_id = str(uuid.uuid4())
+        scan_run_id = report.scan_context.scan_run_id or str(uuid.uuid4())
 
         conn = self._get_connection()
         try:
@@ -209,15 +207,14 @@ class DatabaseExporter:
             # Insert report
             cursor.execute("""
                 INSERT INTO compliance_report (
-                    compliance_scan_id, tenant_id, scan_run_id, cloud, trigger_type,
+                    scan_run_id, tenant_id, cloud, trigger_type,
                     collection_mode, started_at, completed_at,
                     total_controls, controls_passed, controls_failed,
                     total_findings, report_data
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
-                compliance_scan_id,
+                scan_run_id,
                 report.tenant.tenant_id,
-                report.scan_context.scan_run_id,
                 report.scan_context.cloud.value,
                 report.scan_context.trigger_type.value,
                 report.scan_context.collection_mode.value,
@@ -261,9 +258,8 @@ class DatabaseExporter:
 
                     finding_rows.append((
                         finding.finding_id,
-                        compliance_scan_id,
+                        scan_run_id,
                         report.tenant.tenant_id,
-                        report.scan_context.scan_run_id,
                         finding.rule_id,
                         finding.rule_version,
                         finding.category,
@@ -291,10 +287,10 @@ class DatabaseExporter:
                     cursor,
                     """
                     INSERT INTO compliance_findings (
-                        finding_id, compliance_scan_id, tenant_id, scan_run_id,
+                        finding_id, scan_run_id, tenant_id,
                         rule_id, rule_version, category, severity, confidence,
                         status, first_seen_at, last_seen_at,
-                        resource_type, resource_id, resource_arn, region,
+                        resource_type, resource_id, resource_uid, region,
                         finding_data
                     ) VALUES %s
                     ON CONFLICT (finding_id) DO UPDATE
@@ -306,7 +302,7 @@ class DatabaseExporter:
                 )
 
             conn.commit()
-            return compliance_scan_id
+            return scan_run_id
 
         except Exception as e:
             conn.rollback()
@@ -314,14 +310,14 @@ class DatabaseExporter:
         finally:
             conn.close()
 
-    def get_report(self, compliance_scan_id: str) -> Optional[Dict[str, Any]]:
+    def get_report(self, scan_run_id: str) -> Optional[Dict[str, Any]]:
         """Retrieve report from database."""
         conn = self._get_connection()
         try:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT report_data FROM compliance_report WHERE compliance_scan_id = %s
-            """, (compliance_scan_id,))
+                SELECT report_data FROM compliance_report WHERE scan_run_id = %s
+            """, (scan_run_id,))
 
             row = cursor.fetchone()
             if row:
@@ -400,7 +396,7 @@ class DatabaseExporter:
             total = cursor.fetchone()[0]
 
             cursor.execute(f"""
-                SELECT compliance_scan_id, tenant_id, scan_run_id, cloud,
+                SELECT scan_run_id, tenant_id, cloud,
                        started_at, completed_at,
                        total_controls, controls_passed, controls_failed, total_findings,
                        created_at, report_data
@@ -413,20 +409,20 @@ class DatabaseExporter:
             rows = cursor.fetchall()
             result_rows = []
             for row in rows:
-                rd = row[11] if isinstance(row[11], dict) else (json.loads(row[11]) if row[11] else {})
+                rd = row[10] if isinstance(row[10], dict) else (json.loads(row[10]) if row[10] else {})
                 result_rows.append({
                     'report_id': row[0],
-                    'compliance_scan_id': row[0],
+                    'scan_run_id': row[0],
                     'tenant_id': row[1],
-                    'scan_id': row[2],
-                    'csp': row[3],
-                    'started_at': row[4].isoformat() if row[4] else None,
-                    'completed_at': row[5].isoformat() if row[5] else None,
-                    'total_controls': row[6],
-                    'controls_passed': row[7],
-                    'controls_failed': row[8],
-                    'total_findings': row[9],
-                    'generated_at': row[10].isoformat() if row[10] else None,
+                    'scan_id': row[0],
+                    'csp': row[2],
+                    'started_at': row[3].isoformat() if row[3] else None,
+                    'completed_at': row[4].isoformat() if row[4] else None,
+                    'total_controls': row[5],
+                    'controls_passed': row[6],
+                    'controls_failed': row[7],
+                    'total_findings': row[8],
+                    'generated_at': row[9].isoformat() if row[9] else None,
                     'framework_ids': rd.get('framework_ids', []),
                     'posture_summary': rd.get('posture_summary'),
                 })

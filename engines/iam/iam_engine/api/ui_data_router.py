@@ -38,22 +38,22 @@ def _get_iam_db_connection() -> psycopg2.extensions.connection:
     )
 
 
-def _resolve_latest_iam_scan_id(
+def _resolve_latest_scan_run_id(
     cur: psycopg2.extensions.cursor,
     tenant_id: str,
 ) -> Optional[str]:
-    """Resolve the most recent iam_scan_id for a tenant.
+    """Resolve the most recent scan_run_id for a tenant.
 
     Args:
         cur: Database cursor (RealDictCursor).
         tenant_id: Tenant identifier.
 
     Returns:
-        The latest iam_scan_id string, or None if no report exists.
+        The latest scan_run_id string, or None if no report exists.
     """
     cur.execute(
         """
-        SELECT iam_scan_id
+        SELECT scan_run_id
         FROM iam_report
         WHERE tenant_id = %s
         ORDER BY created_at DESC
@@ -62,7 +62,7 @@ def _resolve_latest_iam_scan_id(
         (tenant_id,),
     )
     row = cur.fetchone()
-    return row["iam_scan_id"] if row else None
+    return row["scan_run_id"] if row else None
 
 
 def _compute_risk_score(
@@ -112,20 +112,20 @@ async def get_iam_ui_data(
     * **modules** -- list of distinct IAM module names present in findings
     * **findings** -- top *limit* individual findings (default 200)
     * **total_findings** -- overall count (may exceed len(findings))
-    * **scan_id** -- the resolved iam_scan_id
+    * **scan_id** -- the resolved scan_run_id
     """
     conn: Optional[psycopg2.extensions.connection] = None
     try:
         conn = _get_iam_db_connection()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             # ── 1. Resolve scan_id ──────────────────────────────────────
-            iam_scan_id: Optional[str] = None
+            scan_run_id: Optional[str] = None
             if scan_id == "latest":
-                iam_scan_id = _resolve_latest_iam_scan_id(cur, tenant_id)
+                scan_run_id = _resolve_latest_scan_run_id(cur, tenant_id)
             else:
-                iam_scan_id = scan_id
+                scan_run_id = scan_id
 
-            if not iam_scan_id:
+            if not scan_run_id:
                 return _empty_iam_response()
 
             # ── 2. Report-level summary ─────────────────────────────────
@@ -140,10 +140,10 @@ async def get_iam_ui_data(
                        report_data,
                        provider
                 FROM iam_report
-                WHERE iam_scan_id = %s AND tenant_id = %s
+                WHERE scan_run_id = %s AND tenant_id = %s
                 LIMIT 1
                 """,
-                (iam_scan_id, tenant_id),
+                (scan_run_id, tenant_id),
             )
             report_row = cur.fetchone()
 
@@ -152,10 +152,10 @@ async def get_iam_ui_data(
                 """
                 SELECT severity, COUNT(*) AS cnt
                 FROM iam_findings
-                WHERE iam_scan_id = %s AND tenant_id = %s
+                WHERE scan_run_id = %s AND tenant_id = %s
                 GROUP BY severity
                 """,
-                (iam_scan_id, tenant_id),
+                (scan_run_id, tenant_id),
             )
             severity_rows = cur.fetchall()
             by_severity: Dict[str, int] = {}
@@ -173,9 +173,9 @@ async def get_iam_ui_data(
                 """
                 SELECT COUNT(*) AS cnt
                 FROM iam_findings
-                WHERE iam_scan_id = %s AND tenant_id = %s
+                WHERE scan_run_id = %s AND tenant_id = %s
                 """,
-                (iam_scan_id, tenant_id),
+                (scan_run_id, tenant_id),
             )
             total_row = cur.fetchone()
             total_findings = total_row["cnt"] if total_row else 0
@@ -186,11 +186,11 @@ async def get_iam_ui_data(
                 """
                 SELECT m AS module, COUNT(*) AS cnt
                 FROM iam_findings, unnest(iam_modules) AS m
-                WHERE iam_scan_id = %s AND tenant_id = %s
+                WHERE scan_run_id = %s AND tenant_id = %s
                 GROUP BY m
                 ORDER BY cnt DESC
                 """,
-                (iam_scan_id, tenant_id),
+                (scan_run_id, tenant_id),
             )
             module_rows = cur.fetchall()
             by_module: Dict[str, int] = {
@@ -203,10 +203,10 @@ async def get_iam_ui_data(
                 """
                 SELECT status, COUNT(*) AS cnt
                 FROM iam_findings
-                WHERE iam_scan_id = %s AND tenant_id = %s
+                WHERE scan_run_id = %s AND tenant_id = %s
                 GROUP BY status
                 """,
-                (iam_scan_id, tenant_id),
+                (scan_run_id, tenant_id),
             )
             status_rows = cur.fetchall()
             by_status: Dict[str, int] = {
@@ -239,10 +239,10 @@ async def get_iam_ui_data(
             report_data_insights = _extract_report_data_insights(report_row)
 
             # ── 6c. Account breakdown from iam_findings ────────────────
-            by_account = _query_by_account(cur, iam_scan_id, tenant_id)
+            by_account = _query_by_account(cur, scan_run_id, tenant_id)
 
             # ── 6d. Region breakdown from iam_findings ─────────────────
-            by_region = _query_by_region(cur, iam_scan_id, tenant_id)
+            by_region = _query_by_region(cur, scan_run_id, tenant_id)
 
             # ── 7. Paginated findings list ──────────────────────────────
             cur.execute(
@@ -259,10 +259,10 @@ async def get_iam_ui_data(
                        region,
                        finding_data,
                        resource_uid,
-                       hierarchy_id,
+                       account_id AS hierarchy_id,
                        provider
                 FROM iam_findings
-                WHERE iam_scan_id = %s AND tenant_id = %s
+                WHERE scan_run_id = %s AND tenant_id = %s
                 ORDER BY
                     CASE severity
                         WHEN 'critical' THEN 1
@@ -274,7 +274,7 @@ async def get_iam_ui_data(
                     finding_id
                 LIMIT %s
                 """,
-                (iam_scan_id, tenant_id, limit),
+                (scan_run_id, tenant_id, limit),
             )
             finding_rows = cur.fetchall()
 
@@ -303,10 +303,10 @@ async def get_iam_ui_data(
 
             # ── 8. Module-grouped finding sections ───────────────────
             # The BFF expects pre-grouped sections for the IAM page tabs.
-            roles = _query_findings_by_module(cur, iam_scan_id, tenant_id, "roles", limit)
-            access_keys = _query_findings_by_module(cur, iam_scan_id, tenant_id, "access_keys", limit)
-            privilege_escalation = _query_findings_by_module(cur, iam_scan_id, tenant_id, "privilege_escalation", limit)
-            service_accounts = _query_service_account_findings(cur, iam_scan_id, tenant_id, limit)
+            roles = _query_findings_by_module(cur, scan_run_id, tenant_id, "roles", limit)
+            access_keys = _query_findings_by_module(cur, scan_run_id, tenant_id, "access_keys", limit)
+            privilege_escalation = _query_findings_by_module(cur, scan_run_id, tenant_id, "privilege_escalation", limit)
+            service_accounts = _query_service_account_findings(cur, scan_run_id, tenant_id, limit)
 
         return {
             "summary": {
@@ -326,7 +326,7 @@ async def get_iam_ui_data(
             "privilege_escalation": privilege_escalation,
             "service_accounts": service_accounts,
             "total_findings": report_total,
-            "scan_id": iam_scan_id,
+            "scan_id": scan_run_id,
         }
 
     except Exception:
@@ -410,14 +410,14 @@ def _extract_report_data_insights(
 
 def _query_by_account(
     cur: psycopg2.extensions.cursor,
-    iam_scan_id: str,
+    scan_run_id: str,
     tenant_id: str,
 ) -> List[Dict[str, Any]]:
     """Aggregate IAM findings by account_id with severity breakdown.
 
     Args:
         cur: Database cursor (RealDictCursor).
-        iam_scan_id: IAM scan identifier.
+        scan_run_id: IAM scan identifier.
         tenant_id: Tenant identifier.
 
     Returns:
@@ -433,11 +433,11 @@ def _query_by_account(
                    COUNT(*) FILTER (WHERE severity = 'medium') AS medium,
                    COUNT(*) FILTER (WHERE severity = 'low') AS low
             FROM iam_findings
-            WHERE iam_scan_id = %s AND tenant_id = %s
+            WHERE scan_run_id = %s AND tenant_id = %s
             GROUP BY account_id
             ORDER BY count DESC
             """,
-            (iam_scan_id, tenant_id),
+            (scan_run_id, tenant_id),
         )
         return [
             {
@@ -507,7 +507,7 @@ def _finding_row_to_dict(f: Dict[str, Any]) -> Dict[str, Any]:
 
 def _query_findings_by_module(
     cur: psycopg2.extensions.cursor,
-    iam_scan_id: str,
+    scan_run_id: str,
     tenant_id: str,
     module_name: str,
     limit: int = 200,
@@ -516,7 +516,7 @@ def _query_findings_by_module(
 
     Args:
         cur: Database cursor (RealDictCursor).
-        iam_scan_id: IAM scan identifier.
+        scan_run_id: IAM scan identifier.
         tenant_id: Tenant identifier.
         module_name: Module name to filter on (e.g. 'roles', 'access_keys').
         limit: Max findings to return.
@@ -529,9 +529,9 @@ def _query_findings_by_module(
             """
             SELECT finding_id, rule_id, iam_modules, severity, status,
                    resource_type, resource_id, resource_arn, account_id,
-                   region, finding_data, resource_uid, hierarchy_id, provider
+                   region, finding_data, resource_uid, account_id AS hierarchy_id, provider
             FROM iam_findings
-            WHERE iam_scan_id = %s
+            WHERE scan_run_id = %s
               AND tenant_id = %s
               AND %s = ANY(iam_modules)
             ORDER BY
@@ -545,7 +545,7 @@ def _query_findings_by_module(
                 finding_id
             LIMIT %s
             """,
-            (iam_scan_id, tenant_id, module_name, limit),
+            (scan_run_id, tenant_id, module_name, limit),
         )
         return [_finding_row_to_dict(row) for row in cur.fetchall()]
     except Exception:
@@ -557,7 +557,7 @@ def _query_findings_by_module(
 
 def _query_service_account_findings(
     cur: psycopg2.extensions.cursor,
-    iam_scan_id: str,
+    scan_run_id: str,
     tenant_id: str,
     limit: int = 200,
 ) -> List[Dict[str, Any]]:
@@ -569,7 +569,7 @@ def _query_service_account_findings(
 
     Args:
         cur: Database cursor (RealDictCursor).
-        iam_scan_id: IAM scan identifier.
+        scan_run_id: IAM scan identifier.
         tenant_id: Tenant identifier.
         limit: Max findings to return.
 
@@ -581,9 +581,9 @@ def _query_service_account_findings(
             """
             SELECT finding_id, rule_id, iam_modules, severity, status,
                    resource_type, resource_id, resource_arn, account_id,
-                   region, finding_data, resource_uid, hierarchy_id, provider
+                   region, finding_data, resource_uid, account_id AS hierarchy_id, provider
             FROM iam_findings
-            WHERE iam_scan_id = %s
+            WHERE scan_run_id = %s
               AND tenant_id = %s
               AND (
                   'service_accounts' = ANY(iam_modules)
@@ -601,7 +601,7 @@ def _query_service_account_findings(
                 finding_id
             LIMIT %s
             """,
-            (iam_scan_id, tenant_id, limit),
+            (scan_run_id, tenant_id, limit),
         )
         return [_finding_row_to_dict(row) for row in cur.fetchall()]
     except Exception:
@@ -611,14 +611,14 @@ def _query_service_account_findings(
 
 def _query_by_region(
     cur: psycopg2.extensions.cursor,
-    iam_scan_id: str,
+    scan_run_id: str,
     tenant_id: str,
 ) -> List[Dict[str, Any]]:
     """Aggregate IAM findings by region with severity breakdown.
 
     Args:
         cur: Database cursor (RealDictCursor).
-        iam_scan_id: IAM scan identifier.
+        scan_run_id: IAM scan identifier.
         tenant_id: Tenant identifier.
 
     Returns:
@@ -634,12 +634,12 @@ def _query_by_region(
                    COUNT(*) FILTER (WHERE severity = 'medium') AS medium,
                    COUNT(*) FILTER (WHERE severity = 'low') AS low
             FROM iam_findings
-            WHERE iam_scan_id = %s AND tenant_id = %s
+            WHERE scan_run_id = %s AND tenant_id = %s
               AND region IS NOT NULL
             GROUP BY region
             ORDER BY count DESC
             """,
-            (iam_scan_id, tenant_id),
+            (scan_run_id, tenant_id),
         )
         return [
             {

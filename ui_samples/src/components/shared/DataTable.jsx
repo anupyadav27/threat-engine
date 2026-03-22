@@ -52,6 +52,7 @@ export default function DataTable({
   onExportPdf,
   onExportExcel,
   showExport = false,
+  renderExpandedRow,
 }) {
   const [searchText, setSearchText] = useState('');
   const [columnSearches, setColumnSearches] = useState({});
@@ -498,76 +499,98 @@ export default function DataTable({
           </thead>
           <tbody>
             {serverPagination
-              ? data.map((row, idx) => (
-                  <tr
-                    key={idx}
-                    onClick={() => onRowClick?.({ original: row })}
-                    style={{ borderBottomColor: 'var(--border-primary)', backgroundColor: idx % 2 === 0 ? 'var(--bg-card)' : 'var(--bg-secondary)' }}
-                    className={`border-b last:border-b-0 transition-colors duration-200 ${onRowClick ? 'cursor-pointer hover:opacity-75 transition-opacity' : ''}`}
-                  >
-                    {columns.map((col) => {
-                      const isSticky = col.sticky;
-                      const cellValue = row[col.accessorKey] || '';
+              ? data.map((row, idx) => {
+                  const expandedContent = renderExpandedRow?.(row);
+                  return (
+                    <React.Fragment key={idx}>
+                      <tr
+                        onClick={() => onRowClick?.({ original: row })}
+                        style={{ borderBottomColor: 'var(--border-primary)', backgroundColor: idx % 2 === 0 ? 'var(--bg-card)' : 'var(--bg-secondary)' }}
+                        className={`border-b last:border-b-0 transition-colors duration-200 ${onRowClick ? 'cursor-pointer hover:opacity-75 transition-opacity' : ''}`}
+                      >
+                        {columns.map((col) => {
+                          const isSticky = col.sticky;
+                          const cellValue = row[col.accessorKey] || '';
 
-                      return (
-                        <td
-                          key={`${idx}-${col.accessorKey || col.id}`}
-                          style={{
-                            color: 'var(--text-secondary)',
-                            borderRightColor: 'var(--border-primary)',
-                            ...(col.size && col.size !== 150 && { width: col.size, minWidth: col.size, maxWidth: col.size }),
-                            ...(isSticky && {
-                              position: 'sticky',
-                              left: 0,
-                              zIndex: 9,
-                              boxShadow: '4px 0 8px rgba(0, 0, 0, 0.05)',
-                            }),
-                          }}
-                          className={`${densityPadding[density]} border-r last:border-r-0 transition-colors duration-200`}
-                        >
-                          <div className="break-words">
-                            {col.cell ? col.cell({ getValue: () => cellValue, row: { original: row } }) : cellValue}
-                          </div>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))
-              : table.getRowModel().rows.map((row, idx) => (
-                  <tr
-                    key={row.id}
-                    onClick={() => onRowClick?.(row.original)}
-                    style={{ borderBottomColor: 'var(--border-primary)', backgroundColor: idx % 2 === 0 ? 'var(--bg-card)' : 'var(--bg-secondary)' }}
-                    className={`border-b last:border-b-0 transition-colors duration-200 ${onRowClick ? 'cursor-pointer hover:opacity-75 transition-opacity' : ''}`}
-                  >
-                    {row.getVisibleCells().map((cell) => {
-                      const isSticky = cell.column.columnDef.sticky;
-                      const colSize = cell.column.columnDef.size;
+                          return (
+                            <td
+                              key={`${idx}-${col.accessorKey || col.id}`}
+                              style={{
+                                color: 'var(--text-secondary)',
+                                borderRightColor: 'var(--border-primary)',
+                                ...(col.size && col.size !== 150 && { width: col.size, minWidth: col.size, maxWidth: col.size }),
+                                ...(isSticky && {
+                                  position: 'sticky',
+                                  left: 0,
+                                  zIndex: 9,
+                                  boxShadow: '4px 0 8px rgba(0, 0, 0, 0.05)',
+                                }),
+                              }}
+                              className={`${densityPadding[density]} border-r last:border-r-0 transition-colors duration-200`}
+                            >
+                              <div className="break-words">
+                                {col.cell ? col.cell({ getValue: () => cellValue, row: { original: row } }) : cellValue}
+                              </div>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                      {expandedContent && (
+                        <tr>
+                          <td colSpan={columns.length} className="p-0">
+                            {expandedContent}
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })
+              : table.getRowModel().rows.map((row, idx) => {
+                  const expandedContent = renderExpandedRow?.(row.original);
+                  return (
+                    <React.Fragment key={row.id}>
+                      <tr
+                        onClick={() => onRowClick?.(row.original)}
+                        style={{ borderBottomColor: 'var(--border-primary)', backgroundColor: idx % 2 === 0 ? 'var(--bg-card)' : 'var(--bg-secondary)' }}
+                        className={`border-b last:border-b-0 transition-colors duration-200 ${onRowClick ? 'cursor-pointer hover:opacity-75 transition-opacity' : ''}`}
+                      >
+                        {row.getVisibleCells().map((cell) => {
+                          const isSticky = cell.column.columnDef.sticky;
+                          const colSize = cell.column.columnDef.size;
 
-                      return (
-                        <td
-                          key={cell.id}
-                          style={{
-                            color: 'var(--text-secondary)',
-                            borderRightColor: 'var(--border-primary)',
-                            ...(colSize && colSize !== 150 && { width: colSize, minWidth: colSize, maxWidth: colSize }),
-                            ...(isSticky && {
-                              position: 'sticky',
-                              left: 0,
-                              zIndex: 9,
-                              boxShadow: '4px 0 8px rgba(0, 0, 0, 0.05)',
-                            }),
-                          }}
-                          className={`${densityPadding[density]} border-r last:border-r-0 transition-colors duration-200`}
-                        >
-                          <div className="break-words">
-                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                          </div>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
+                          return (
+                            <td
+                              key={cell.id}
+                              style={{
+                                color: 'var(--text-secondary)',
+                                borderRightColor: 'var(--border-primary)',
+                                ...(colSize && colSize !== 150 && { width: colSize, minWidth: colSize, maxWidth: colSize }),
+                                ...(isSticky && {
+                                  position: 'sticky',
+                                  left: 0,
+                                  zIndex: 9,
+                                  boxShadow: '4px 0 8px rgba(0, 0, 0, 0.05)',
+                                }),
+                              }}
+                              className={`${densityPadding[density]} border-r last:border-r-0 transition-colors duration-200`}
+                            >
+                              <div className="break-words">
+                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                              </div>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                      {expandedContent && (
+                        <tr>
+                          <td colSpan={row.getVisibleCells().length} className="p-0">
+                            {expandedContent}
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
           </tbody>
         </table>
       </div>

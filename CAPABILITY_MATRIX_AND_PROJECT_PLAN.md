@@ -459,7 +459,7 @@ The UI will replicate Wiz-level sophistication with multi-dimensional filtering,
 | Endpoint | Method | Purpose | UI Consumer | Sample Response |
 |----------|--------|---------|-------------|-----------------|
 | `/api/v1/gateway/services` | GET | Service health | Settings/Platform page | `{"services": [{"name": "discoveries", "status": "healthy", "response_time_ms": 45}]}` |
-| `/api/v1/gateway/orchestrate` | POST | Start full scan pipeline | Scans/Run scan page | `{"orchestration_id": "uuid", "status": "queued", "pipeline": [...]}` |
+| `/api/v1/gateway/orchestrate` | POST | Start full scan pipeline | Scans/Run scan page | `{"scan_run_id": "uuid", "status": "queued", "pipeline": [...]}` |
 | `/api/v1/gateway/orchestrate/{id}/status` | GET | Pipeline progress (polling) | Scans/Detail page | `{"status": "in_progress", "stage": "threat", "progress": 65}` |
 
 ##### Current UI Status
@@ -1077,7 +1077,7 @@ Engine:
 **UI Components Needed**:
 - Run Scan page with account/provider selector
 - Start button
-- Success notification with orchestration_id
+- Success notification with scan_run_id
 
 **Acceptance Criteria**:
 - [ ] User selects account and clicks "Run Scan"

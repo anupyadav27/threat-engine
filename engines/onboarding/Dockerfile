@@ -8,13 +8,12 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install dependencies
-# Note: Build context is root, so we need to copy from engine_onboarding/
-COPY engine_onboarding/requirements.txt ./requirements.txt
+COPY engines/onboarding/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy onboarding module
-COPY engine_onboarding/ ./engine_onboarding/
-COPY engine_common/ ./engine_common/
+# Copy onboarding module (keep old import path for backward compat)
+COPY engines/onboarding/ ./engine_onboarding/
+COPY shared/common/ ./engine_common/
 
 # Set Python path
 ENV PYTHONPATH=/app

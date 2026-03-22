@@ -2,7 +2,7 @@
 Pipeline stage handlers — each function triggers one engine via HTTP
 and polls DB-backed status endpoint until completion.
 
-All engines receive ONLY orchestration_id. Each engine reads everything
+All engines receive ONLY scan_run_id. Each engine reads everything
 it needs from scan_orchestration table via get_orchestration_metadata().
 
 All engines use K8s Jobs on spot nodes. The API pod creates the Job
@@ -108,87 +108,87 @@ async def _trigger_and_poll(
 
 
 # ── Per-engine triggers ──────────────────────────────────────────────────────
-# Each engine receives ONLY orchestration_id.
+# Each engine receives ONLY scan_run_id.
 # Engine reads upstream scan_ids from scan_orchestration table.
 
 
-async def trigger_discovery(orchestration_id: str) -> Dict[str, Any]:
+async def trigger_discovery(scan_run_id: str) -> Dict[str, Any]:
     base = _url("discoveries")
     return await _trigger_and_poll(
         engine="discovery",
         trigger_url=f"{base}/api/v1/discovery",
-        trigger_payload={"orchestration_id": orchestration_id},
+        trigger_payload={"scan_run_id": scan_run_id},
         status_url_template=f"{base}/api/v1/discovery/{{scan_id}}",
-        scan_id_key="discovery_scan_id",
+        scan_id_key="scan_run_id",
         poll_interval=DISCOVERY_POLL_INTERVAL,
         timeout=DISCOVERY_TIMEOUT,
     )
 
 
-async def trigger_check(orchestration_id: str) -> Dict[str, Any]:
+async def trigger_check(scan_run_id: str) -> Dict[str, Any]:
     base = _url("check")
     return await _trigger_and_poll(
         engine="check",
         trigger_url=f"{base}/api/v1/scan",
-        trigger_payload={"orchestration_id": orchestration_id},
+        trigger_payload={"scan_run_id": scan_run_id},
         status_url_template=f"{base}/api/v1/check/{{scan_id}}/status",
-        scan_id_key="check_scan_id",
+        scan_id_key="scan_run_id",
     )
 
 
-async def trigger_inventory(orchestration_id: str) -> Dict[str, Any]:
+async def trigger_inventory(scan_run_id: str) -> Dict[str, Any]:
     base = _url("inventory")
     return await _trigger_and_poll(
         engine="inventory",
         trigger_url=f"{base}/api/v1/scan",
-        trigger_payload={"orchestration_id": orchestration_id},
+        trigger_payload={"scan_run_id": scan_run_id},
         status_url_template=f"{base}/api/v1/inventory/scan/{{scan_id}}/status",
-        scan_id_key="inventory_scan_id",
+        scan_id_key="scan_run_id",
     )
 
 
-async def trigger_threat(orchestration_id: str) -> Dict[str, Any]:
+async def trigger_threat(scan_run_id: str) -> Dict[str, Any]:
     base = _url("threat")
     return await _trigger_and_poll(
         engine="threat",
         trigger_url=f"{base}/api/v1/scan",
-        trigger_payload={"orchestration_id": orchestration_id},
+        trigger_payload={"scan_run_id": scan_run_id},
         status_url_template=f"{base}/api/v1/threat/{{scan_id}}/status",
-        scan_id_key="threat_scan_id",
+        scan_id_key="scan_run_id",
     )
 
 
-async def trigger_compliance(orchestration_id: str) -> Dict[str, Any]:
+async def trigger_compliance(scan_run_id: str) -> Dict[str, Any]:
     base = _url("compliance")
     return await _trigger_and_poll(
         engine="compliance",
         trigger_url=f"{base}/api/v1/scan",
-        trigger_payload={"orchestration_id": orchestration_id},
+        trigger_payload={"scan_run_id": scan_run_id},
         status_url_template=f"{base}/api/v1/compliance/{{scan_id}}/status",
-        scan_id_key="compliance_scan_id",
+        scan_id_key="scan_run_id",
         timeout=1800,
     )
 
 
-async def trigger_iam(orchestration_id: str, csp: str = "aws") -> Dict[str, Any]:
+async def trigger_iam(scan_run_id: str, csp: str = "aws") -> Dict[str, Any]:
     base = _url("iam")
     return await _trigger_and_poll(
         engine="iam",
         trigger_url=f"{base}/api/v1/scan",
-        trigger_payload={"orchestration_id": orchestration_id, "csp": csp},
+        trigger_payload={"scan_run_id": scan_run_id, "csp": csp},
         status_url_template=f"{base}/api/v1/iam-security/{{scan_id}}/status",
-        scan_id_key="iam_scan_id",
+        scan_id_key="scan_run_id",
         timeout=900,
     )
 
 
-async def trigger_datasec(orchestration_id: str, csp: str = "aws") -> Dict[str, Any]:
+async def trigger_datasec(scan_run_id: str, csp: str = "aws") -> Dict[str, Any]:
     base = _url("datasec")
     return await _trigger_and_poll(
         engine="datasec",
         trigger_url=f"{base}/api/v1/scan",
-        trigger_payload={"orchestration_id": orchestration_id, "csp": csp},
+        trigger_payload={"scan_run_id": scan_run_id, "csp": csp},
         status_url_template=f"{base}/api/v1/data-security/{{scan_id}}/status",
-        scan_id_key="datasec_scan_id",
+        scan_id_key="scan_run_id",
         timeout=900,
     )

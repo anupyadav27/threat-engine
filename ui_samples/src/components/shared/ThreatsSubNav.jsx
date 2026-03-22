@@ -4,14 +4,12 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 
 const THREAT_NAV = [
-  { label: 'Overview', href: '/threats' },
-  { label: 'Analytics', href: '/threats/analytics' },
+  { label: 'Threat Detection', href: '/threats' },
   { label: 'Attack Paths', href: '/threats/attack-paths' },
   { label: 'Blast Radius', href: '/threats/blast-radius' },
-  { label: 'Internet Exposed', href: '/threats/internet-exposed' },
   { label: 'Toxic Combos', href: '/threats/toxic-combinations' },
   { label: 'Graph', href: '/threats/graph' },
-  { label: 'Hunting', href: '/threats/hunting' },
+  { label: 'Timeline', href: '/threats/timeline' },
 ];
 
 /**

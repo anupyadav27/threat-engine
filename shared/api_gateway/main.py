@@ -571,7 +571,7 @@ if orchestration_service and OrchestrationRequest:
                     "customer_id": request.customer_id,
                     "tenant_id": request.tenant_id,
                     "provider": request.provider,
-                    "hierarchy_id": request.hierarchy_id
+                    "account_id": request.account_id
                 }
             })
         

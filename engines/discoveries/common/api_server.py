@@ -2,7 +2,7 @@
 Common FastAPI server for Multi-CSP Discoveries Engine (Lightweight API)
 
 This server is a thin API layer that:
-1. Receives scan requests (orchestration_id)
+1. Receives scan requests (scan_run_id)
 2. Creates a K8s Job on a spot node to run the actual scan
 3. Exposes scan status by reading discovery_report DB table
 
@@ -25,7 +25,6 @@ from engine_common.logger import setup_logger, LogContext, log_duration
 from engine_common.telemetry import configure_telemetry
 from consolidated_services.database.orchestration_client import (
     get_scan_context as get_orchestration_metadata,
-    update_engine_scan_id,
 )
 
 from common.database.database_manager import DatabaseManager
@@ -52,7 +51,7 @@ app.add_middleware(
 # Scanner image (same Docker image, different CMD)
 SCANNER_IMAGE = os.getenv(
     "DISCOVERY_SCANNER_IMAGE",
-    "yadavanup84/engine-discoveries-aws:v-job",
+    "yadavanup84/engine-discoveries:v-std-cols",
 )
 SCANNER_NAMESPACE = os.getenv("SCANNER_NAMESPACE", "threat-engine-engines")
 SCANNER_SERVICE_ACCOUNT = os.getenv("SCANNER_SERVICE_ACCOUNT", "engine-sa")
@@ -82,14 +81,14 @@ metrics = {
 
 class DiscoveryRequest(BaseModel):
     """Discovery scan request model (CSP-agnostic)"""
-    # New orchestration-aware parameter
-    orchestration_id: Optional[str] = None
+    # Pipeline scan_run_id
+    scan_run_id: Optional[str] = None
 
-    # Legacy parameters (optional when orchestration_id is provided)
+    # Legacy parameters (optional when scan_run_id is provided)
     customer_id: Optional[str] = None
     tenant_id: Optional[str] = None
     provider: str = "aws"  # aws, azure, gcp, oci, alicloud
-    hierarchy_id: Optional[str] = None
+    account_id: Optional[str] = None
     hierarchy_type: str = "account"  # account, subscription, project, tenancy
     include_services: Optional[List[str]] = None
     include_regions: Optional[List[str]] = None
@@ -100,26 +99,28 @@ class DiscoveryRequest(BaseModel):
 
 class DiscoveryResponse(BaseModel):
     """Discovery scan response model"""
-    discovery_scan_id: str
+    scan_run_id: str
     status: str
     message: str
-    orchestration_id: Optional[str] = None
+    scan_run_id_ref: Optional[str] = None
     provider: Optional[str] = None
 
 
 # ── K8s Job creation ─────────────────────────────────────────────────────────
 
-def _create_scanner_job(discovery_scan_id: str, orchestration_id: str, provider: str) -> str:
+def _create_scanner_job(scan_run_id: str, scan_run_id_ref: str, provider: str) -> str:
     """Create a K8s Job to run the discovery scan on a spot node."""
     from kubernetes import client as k8s_client
 
     extra_env = [
         k8s_client.V1EnvVar(name="MAX_CONCURRENT_TASKS", value=os.getenv("MAX_CONCURRENT_TASKS", "400")),
+        k8s_client.V1EnvVar(name="DISCOVERY_MODE", value="database"),
+        k8s_client.V1EnvVar(name="DISCOVERY_CONFIG_SOURCE", value="database"),
     ]
     return create_engine_job(
         engine_name="discovery",
-        scan_id=discovery_scan_id,
-        orchestration_id=orchestration_id,
+        scan_id=scan_run_id,
+        scan_run_id=scan_run_id_ref,
         image=SCANNER_IMAGE,
         cpu_request=SCANNER_CPU_REQUEST,
         mem_request=SCANNER_MEM_REQUEST,
@@ -132,12 +133,12 @@ def _create_scanner_job(discovery_scan_id: str, orchestration_id: str, provider:
 
 # ── Orchestration helper ─────────────────────────────────────────────────────
 
-async def _get_scan_context_from_orchestration(orchestration_id: str) -> Dict[str, Any]:
-    """Query onboarding DB for scan context using orchestration_id."""
+async def _get_scan_context_from_orchestration(scan_run_id: str) -> Dict[str, Any]:
+    """Query onboarding DB for scan context using scan_run_id."""
     try:
-        metadata = get_orchestration_metadata(orchestration_id)
+        metadata = get_orchestration_metadata(scan_run_id)
         if not metadata:
-            raise ValueError(f"No orchestration metadata for {orchestration_id}")
+            raise ValueError(f"No orchestration metadata for {scan_run_id}")
         return metadata
     except Exception as e:
         logger.error(f"Failed to retrieve orchestration metadata: {e}", exc_info=True)
@@ -155,56 +156,46 @@ async def create_discovery(request: DiscoveryRequest):
     1. Resolve orchestration metadata (account, provider)
     2. Pre-create discovery_report row in DB (status=running)
     3. Create K8s Job (spot node, high CPU/RAM)
-    4. Return discovery_scan_id immediately
+    4. Return scan_run_id immediately
     """
-    orchestration_id = request.orchestration_id
+    scan_run_id_param = request.scan_run_id
 
-    if not orchestration_id:
-        raise HTTPException(status_code=400, detail="orchestration_id is required")
+    if not scan_run_id_param:
+        raise HTTPException(status_code=400, detail="scan_run_id is required")
 
-    discovery_scan_id = orchestration_id
+    scan_run_id = scan_run_id_param
 
     try:
         # 1. Resolve orchestration metadata
-        metadata = await _get_scan_context_from_orchestration(orchestration_id)
+        metadata = await _get_scan_context_from_orchestration(scan_run_id)
         provider = metadata.get("provider", "aws")
         account_id = metadata.get("account_id")
         tenant_id = metadata.get("tenant_id", "default-tenant")
         customer_id = metadata.get("customer_id", "default")
-        hierarchy_id = metadata.get("hierarchy_id") or account_id
+        account_id = metadata.get("account_id") or account_id
 
         # 2. Pre-create scan record in DB so GET endpoint works immediately
         db = _get_db_manager()
         if db:
             db.create_scan(
-                scan_id=discovery_scan_id,
+                scan_id=scan_run_id,
                 customer_id=customer_id,
                 tenant_id=tenant_id,
                 provider=provider,
-                hierarchy_id=hierarchy_id,
-                metadata={"orchestration_id": orchestration_id, "mode": "job"},
+                account_id=account_id,
+                metadata={"scan_run_id": scan_run_id, "mode": "job"},
             )
 
-        # 3. Update orchestration table
-        try:
-            update_engine_scan_id(
-                orchestration_id=orchestration_id,
-                engine="discovery",
-                scan_id=discovery_scan_id,
-            )
-        except Exception as e:
-            logger.warning(f"Failed to update orchestration table: {e}")
-
-        # 4. Create K8s Job on spot node
-        job_name = _create_scanner_job(discovery_scan_id, orchestration_id, provider)
+        # 3. Create K8s Job on spot node
+        job_name = _create_scanner_job(scan_run_id, scan_run_id, provider)
 
         metrics["total_scans"] += 1
 
         return DiscoveryResponse(
-            discovery_scan_id=discovery_scan_id,
+            scan_run_id=scan_run_id,
             status="running",
             message=f"Scanner Job '{job_name}' created on spot node (image={SCANNER_IMAGE})",
-            orchestration_id=orchestration_id,
+            scan_run_id_ref=scan_run_id,
             provider=provider,
         )
 
@@ -216,7 +207,7 @@ async def create_discovery(request: DiscoveryRequest):
         try:
             db = _get_db_manager()
             if db:
-                db.update_scan_status(discovery_scan_id, "failed")
+                db.update_scan_status(scan_run_id, "failed")
         except Exception:
             pass
         raise HTTPException(status_code=500, detail=str(e))
@@ -235,8 +226,8 @@ async def get_scan_status(scan_id: str):
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
-                "SELECT status, provider, metadata, scan_timestamp "
-                "FROM discovery_report WHERE discovery_scan_id = %s",
+                "SELECT status, provider, metadata, first_seen_at "
+                "FROM discovery_report WHERE scan_run_id = %s",
                 (scan_id,),
             )
             row = cur.fetchone()
@@ -247,7 +238,7 @@ async def get_scan_status(scan_id: str):
             return {
                 "status": row["status"],
                 "provider": row.get("provider"),
-                "started_at": str(row.get("scan_timestamp") or ""),
+                "started_at": str(row.get("first_seen_at") or ""),
                 "metadata": meta,
             }
     finally:

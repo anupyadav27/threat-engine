@@ -447,7 +447,7 @@ class SecurityGraphBuilder:
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute("""
-                    SELECT cf.id AS finding_id, cf.check_scan_id, cf.rule_id,
+                    SELECT cf.id AS finding_id, cf.scan_run_id, cf.rule_id,
                            cf.resource_uid, cf.resource_type,
                            cf.status,
                            rm.severity, rm.title, rm.service, rm.domain,

@@ -576,6 +576,234 @@ class SecurityGraphQueries:
             "threats_by_severity": {r["severity"]: r["count"] for r in by_severity},
         }
 
+    # ── Subgraph (Wiz-style topology) ────────────────────────────────────
+
+    def subgraph(
+        self,
+        tenant_id: str,
+        max_nodes: int = 500,
+        include_types: str = "all",
+    ) -> Dict[str, Any]:
+        """Return a topology-first subgraph with threat/finding overlays.
+
+        Layer 1: TOPOLOGY — all resources with relationships (infrastructure fabric)
+        Layer 2: SECURITY OVERLAY — threats, risk scores, severity per resource
+        Layer 3: INTERNET EXPOSURE — Internet → exposed resources
+
+        Returns {nodes: [...], edges: [...], stats: {...}} where:
+          - nodes have: id, label, type, riskScore, severity, threatCount, accountId, region
+          - edges have: source, target, type, attackPathCategory
+        """
+        node_map = {}
+        edges = []
+        edge_set = set()
+
+        # ── Layer 1: TOPOLOGY — all resources with at least one relationship ──
+        # Start with resources that have edges (connected topology), ranked by
+        # threat relevance (threatened first, then by degree)
+        topology = self._run("""
+            MATCH (r:Resource {tenant_id: $tid})-[rel]-(other)
+            WHERE NOT type(rel) IN ['HAS_THREAT', 'HAS_FINDING', 'CONTAINS', 'HOSTS']
+              AND other:Resource
+            WITH r, count(DISTINCT other) AS degree
+            OPTIONAL MATCH (r)-[:HAS_THREAT]->(t:ThreatDetection)
+            WITH r, degree,
+                 count(t) AS tc,
+                 max(t.risk_score) AS max_risk,
+                 collect(DISTINCT t.severity)[0] AS top_sev
+            RETURN r.uid AS uid,
+                   r.name AS name,
+                   r.resource_type AS resource_type,
+                   r.account_id AS account_id,
+                   r.region AS region,
+                   coalesce(max_risk, 0) AS risk_score,
+                   coalesce(top_sev, '') AS severity,
+                   tc AS threat_count,
+                   degree
+            ORDER BY tc DESC, degree DESC, risk_score DESC
+            LIMIT $limit
+        """, tid=tenant_id, limit=max_nodes)
+
+        for r in topology:
+            uid = r.get("uid", "")
+            if not uid:
+                continue
+            node_map[uid] = {
+                "id": uid,
+                "label": r.get("name") or uid.split("/")[-1].split(":")[-1],
+                "type": r.get("resource_type", ""),
+                "riskScore": r.get("risk_score", 0),
+                "severity": r.get("severity", ""),
+                "threatCount": r.get("threat_count", 0),
+                "accountId": r.get("account_id", ""),
+                "region": r.get("region", ""),
+            }
+
+        # Also include threatened resources that may be isolated (no topology edges)
+        if len(node_map) < max_nodes:
+            remaining = max_nodes - len(node_map)
+            threatened = self._run("""
+                MATCH (r:Resource {tenant_id: $tid})-[:HAS_THREAT]->(t:ThreatDetection)
+                WHERE NOT r.uid IN $existing
+                WITH r,
+                     count(t) AS tc,
+                     max(t.risk_score) AS max_risk,
+                     collect(DISTINCT t.severity)[0] AS top_sev
+                RETURN r.uid AS uid,
+                       r.name AS name,
+                       r.resource_type AS resource_type,
+                       r.account_id AS account_id,
+                       r.region AS region,
+                       coalesce(max_risk, 0) AS risk_score,
+                       coalesce(top_sev, '') AS severity,
+                       tc AS threat_count
+                ORDER BY max_risk DESC
+                LIMIT $limit
+            """, tid=tenant_id, existing=list(node_map.keys()), limit=remaining)
+            for r in threatened:
+                uid = r.get("uid", "")
+                if uid and uid not in node_map:
+                    node_map[uid] = {
+                        "id": uid,
+                        "label": r.get("name") or uid.split("/")[-1].split(":")[-1],
+                        "type": r.get("resource_type", ""),
+                        "riskScore": r.get("risk_score", 0),
+                        "severity": r.get("severity", ""),
+                        "threatCount": r.get("threat_count", 0),
+                        "accountId": r.get("account_id", ""),
+                        "region": r.get("region", ""),
+                    }
+
+        if not node_map:
+            return {"nodes": [], "edges": [], "stats": {}}
+
+        uids = list(node_map.keys())
+
+        # ── Layer 2: ALL edges between selected nodes ──
+        rels = self._run("""
+            MATCH (a:Resource {tenant_id: $tid})-[r]->(b:Resource {tenant_id: $tid})
+            WHERE a.uid IN $uids AND b.uid IN $uids
+              AND a <> b
+              AND NOT type(r) IN ['HAS_THREAT', 'HAS_FINDING']
+            RETURN DISTINCT a.uid AS source, b.uid AS target,
+                   type(r) AS rel_type,
+                   coalesce(r.attack_path_category, '') AS attack_path_category
+            LIMIT 2000
+        """, tid=tenant_id, uids=uids)
+
+        for rel in rels:
+            key = f"{rel['source']}|{rel['target']}|{rel['rel_type']}"
+            if key not in edge_set:
+                edge_set.add(key)
+                edges.append({
+                    "source": rel["source"],
+                    "target": rel["target"],
+                    "type": rel["rel_type"],
+                    "attackPathCategory": rel.get("attack_path_category", ""),
+                })
+
+        # ── Layer 2b: Neighbor expansion — add 1-hop neighbors for context ──
+        neighbors = self._run("""
+            MATCH (a:Resource {tenant_id: $tid})-[r]->(b:Resource {tenant_id: $tid})
+            WHERE a.uid IN $uids AND NOT b.uid IN $uids
+              AND NOT type(r) IN ['HAS_THREAT', 'HAS_FINDING', 'CONTAINS', 'HOSTS']
+            WITH b, count(DISTINCT a) AS connections, collect(DISTINCT type(r))[0] AS rt,
+                 collect(DISTINCT a.uid)[0] AS src_uid
+            WHERE connections >= 2
+            ORDER BY connections DESC
+            LIMIT 100
+            OPTIONAL MATCH (b)-[:HAS_THREAT]->(t:ThreatDetection)
+            WITH b, rt, src_uid, count(t) AS tc, max(t.risk_score) AS mr
+            RETURN b.uid AS uid,
+                   coalesce(b.name, b.uid) AS name,
+                   coalesce(b.resource_type, '') AS resource_type,
+                   b.account_id AS account_id,
+                   b.region AS region,
+                   coalesce(mr, 0) AS risk_score,
+                   tc AS threat_count
+        """, tid=tenant_id, uids=uids)
+
+        neighbor_uids = []
+        for n in neighbors:
+            uid = n.get("uid", "")
+            if uid and uid not in node_map:
+                node_map[uid] = {
+                    "id": uid,
+                    "label": n.get("name") or uid.split("/")[-1].split(":")[-1],
+                    "type": n.get("resource_type", ""),
+                    "riskScore": n.get("risk_score", 0),
+                    "severity": "",
+                    "threatCount": n.get("threat_count", 0),
+                    "accountId": n.get("account_id", ""),
+                    "region": n.get("region", ""),
+                }
+                neighbor_uids.append(uid)
+
+        # Get edges involving newly added neighbors
+        if neighbor_uids:
+            all_uids = uids + neighbor_uids
+            extra_rels = self._run("""
+                MATCH (a:Resource {tenant_id: $tid})-[r]->(b:Resource {tenant_id: $tid})
+                WHERE a.uid IN $uids AND b.uid IN $nuids
+                  AND NOT type(r) IN ['HAS_THREAT', 'HAS_FINDING']
+                RETURN DISTINCT a.uid AS source, b.uid AS target,
+                       type(r) AS rel_type,
+                       coalesce(r.attack_path_category, '') AS attack_path_category
+                LIMIT 500
+            """, tid=tenant_id, uids=uids, nuids=neighbor_uids)
+            for rel in extra_rels:
+                key = f"{rel['source']}|{rel['target']}|{rel['rel_type']}"
+                if key not in edge_set:
+                    edge_set.add(key)
+                    edges.append({
+                        "source": rel["source"],
+                        "target": rel["target"],
+                        "type": rel["rel_type"],
+                        "attackPathCategory": rel.get("attack_path_category", ""),
+                    })
+
+        # ── Layer 3: Internet exposure ──
+        internet_rels = self._run("""
+            MATCH (i:Internet)-[e:EXPOSES]->(r:Resource {tenant_id: $tid})
+            WHERE r.uid IN $uids
+            RETURN r.uid AS target, coalesce(e.reason, 'internet_exposed') AS reason
+            LIMIT 200
+        """, tid=tenant_id, uids=list(node_map.keys()))
+
+        if internet_rels:
+            node_map["Internet"] = {
+                "id": "Internet",
+                "label": "Internet",
+                "type": "Internet",
+                "riskScore": 0,
+                "severity": "",
+                "threatCount": 0,
+            }
+            for ir in internet_rels:
+                key = f"Internet|{ir['target']}|EXPOSES"
+                if key not in edge_set:
+                    edge_set.add(key)
+                    edges.append({
+                        "source": "Internet",
+                        "target": ir["target"],
+                        "type": "EXPOSES",
+                        "attackPathCategory": "exposure",
+                    })
+
+        # Stats
+        total_threatened = sum(1 for n in node_map.values() if n.get("threatCount", 0) > 0)
+
+        return {
+            "nodes": list(node_map.values()),
+            "edges": edges,
+            "stats": {
+                "totalNodes": len(node_map),
+                "totalEdges": len(edges),
+                "threatenedNodes": total_threatened,
+                "internetExposed": len(internet_rels) if internet_rels else 0,
+            },
+        }
+
     # ── Threat Hunting ───────────────────────────────────────────────────
 
     def execute_hunt_query(

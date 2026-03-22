@@ -498,8 +498,7 @@ class AssetNormalizer:
         # Extract metadata from discovery record
         provider_str = discovery_record.get("provider", "aws")
         provider = Provider(provider_str.lower())
-        # Split-engine discovery records use hierarchy_id (account) rather than account_id
-        account_id = discovery_record.get("account_id") or discovery_record.get("hierarchy_id")
+        account_id = discovery_record.get("account_id")
         region = discovery_record.get("region")
         service = discovery_record.get("service")
         resource_arn = discovery_record.get("resource_arn")
@@ -662,7 +661,7 @@ class AssetNormalizer:
             "labels": {},
             "raw_refs": [raw_ref],
             "discovery_id": discovery_id,
-            "scan_timestamp": discovery_record.get("scan_timestamp"),
+            "first_seen_at": discovery_record.get("first_seen_at"),
             "enriched_from": emitted_fields.get("_enriched_from", []),
             "configuration": configuration,
             "emitted_fields": emitted_fields,
@@ -766,7 +765,7 @@ class AssetNormalizer:
             "labels": emitted_fields.get("labels", {}),
             "raw_refs": [raw_ref],
             "discovery_id": discovery_id,
-            "scan_timestamp": discovery_record.get("scan_timestamp"),
+            "first_seen_at": discovery_record.get("first_seen_at"),
             "emitted_fields": emitted_fields
         }
 

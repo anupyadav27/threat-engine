@@ -26,7 +26,7 @@ No new YAML rules are created — the engine reuses the full threat findings cor
 ```
 Threat DB (threat_findings)
         ↓
-  ThreatDBReader           ← resolves threat_scan_id, loads findings by tenant/scan
+  ThreatDBReader           ← resolves scan_run_id, loads findings by tenant/scan
         ↓
   FindingEnricher          ← tags each finding with is_iam_relevant + iam_security_modules[]
         ↓
@@ -44,7 +44,7 @@ Threat DB (threat_findings)
 | File | Purpose |
 |------|---------|
 | `iam_engine/api_server.py` | FastAPI app — all endpoints |
-| `input/threat_db_reader.py` | Reads `threat_findings`, resolves `threat_scan_id`, supports resource-level queries |
+| `input/threat_db_reader.py` | Reads `threat_findings`, resolves `scan_run_id`, supports resource-level queries |
 | `enricher/finding_enricher.py` | Tags findings: `is_iam_relevant`, `iam_security_modules[]` |
 | `mapper/rule_to_module_mapper.py` | 15 IAM regex patterns + 6-module keyword mapping |
 | `reporter/iam_reporter.py` | Assembles full IAM report with per-module summaries |
@@ -110,15 +110,15 @@ IAM relevance is determined purely by matching `rule_id` against 15 compiled reg
 ```json
 {
   "csp": "aws",
-  "orchestration_id": "337a7425-...",
+  "scan_run_id": "337a7425-...",
   "tenant_id": "5a8b072b-...",
   "max_findings": 1000
 }
 ```
 
 Supports two modes:
-- **Pipeline mode** (recommended): provide `orchestration_id` — engine looks up `threat_scan_id` + `tenant_id` + `csp` from `scan_orchestration`
-- **Ad-hoc mode**: provide `scan_id` (direct `threat_scan_id` value, must also provide `tenant_id`)
+- **Pipeline mode** (recommended): provide `scan_run_id` — engine looks up `scan_run_id` + `tenant_id` + `csp` from `scan_orchestration`
+- **Ad-hoc mode**: provide `scan_id` (direct `scan_run_id` value, must also provide `tenant_id`)
 
 ### Query Endpoints
 
@@ -134,7 +134,7 @@ Supports two modes:
 
 All query endpoints require query params: `csp`, `scan_id`, `tenant_id`.
 
-**Findings endpoint filters:** `account_id`, `hierarchy_id`, `service`, `module`, `status` (PASS/FAIL), `resource_id`
+**Findings endpoint filters:** `account_id`, `account_id`, `service`, `module`, `status` (PASS/FAIL), `resource_id`
 
 ---
 
@@ -220,23 +220,23 @@ The pod runs two containers:
 ## Triggering a Scan (Pipeline Mode)
 
 ```bash
-# Via orchestration_id (preferred in pipeline)
+# Via scan_run_id (preferred in pipeline)
 curl -X POST http://engine-iam/api/v1/iam-security/scan \
   -H "Content-Type: application/json" \
   -d '{
     "csp": "aws",
-    "orchestration_id": "337a7425-5a53-4664-8569-04c1f0d6abf0",
+    "scan_run_id": "337a7425-5a53-4664-8569-04c1f0d6abf0",
     "tenant_id": "5a8b072b-8867-4476-a52f-f331b1cbacb3"
   }'
 ```
 
 The engine will:
-1. Look up `threat_scan_id` + `tenant_id` from `scan_orchestration`
+1. Look up `scan_run_id` + `tenant_id` from `scan_orchestration`
 2. Load all threat findings from `threat_findings` table
 3. Filter to IAM-relevant findings using regex pattern matching
 4. Enrich each finding with `is_iam_relevant` + `iam_security_modules[]`
 5. Write report to `iam_report` + `iam_findings` tables
-6. Write `iam_scan_id` back to `scan_orchestration`
+6. Write `scan_run_id` back to `scan_orchestration`
 
 ---
 

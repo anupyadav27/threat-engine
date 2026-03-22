@@ -91,8 +91,8 @@ def compute_asset_hash(asset: Asset) -> str:
     return hashlib.sha256(key_string.encode()).hexdigest()
 
 
-def generate_asset_id(asset: Asset) -> str:
-    """Generate deterministic asset_id as UUID for database keys"""
+def generate_finding_id(asset: Asset) -> str:
+    """Generate deterministic finding_id as UUID for database keys"""
     import uuid
 
     key = f"{asset.provider.value}|{asset.account_id}|{asset.region}|{asset.resource_uid}"

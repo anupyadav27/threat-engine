@@ -4,7 +4,6 @@ Consolidates risk + threat into 2 BFF calls using /ui-data endpoints.
 Adds resilience: risk score derivation from threat data, synthetic trend, category defaults.
 """
 
-import random
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -144,18 +143,10 @@ async def view_risk(
     if not isinstance(top_assets, list):
         top_assets = []
 
-    # Synthetic trend fallback
+    # If no trend data but we have a current score, return a single data point
     if not trend_data and risk_score and risk_score > 0:
-        now = datetime.now(timezone.utc)
-        base = risk_score
-        trend_data = []
-        for days_ago in range(90, -1, -7):
-            date = (now - timedelta(days=days_ago)).strftime("%Y-%m-%d")
-            noise = random.uniform(-3, 3) if days_ago > 0 else 0
-            trend_data.append({
-                "date": date,
-                "score": round(max(0, min(100, base + noise + (days_ago * 0.02))), 1),
-            })
+        from datetime import datetime as dt, timezone as tz
+        trend_data = [{"date": dt.now(tz.utc).strftime("%Y-%m-%d"), "score": round(risk_score, 1)}]
 
     # Derive risk level from score
     if risk_score >= 80:

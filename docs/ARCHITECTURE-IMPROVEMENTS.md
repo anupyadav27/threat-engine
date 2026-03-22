@@ -260,7 +260,7 @@ SNS Topic: cspm-check-complete
 ### Message Format
 ```json
 {
-  "orchestration_id": "337a7425-5a53-4664-8569-04c1f0d6abf0",
+  "scan_run_id": "337a7425-5a53-4664-8569-04c1f0d6abf0",
   "tenant_id": "5a8b072b-8867-4476-a52f-f331b1cbacb3",
   "account_id": "588989875114",
   "provider": "aws",
@@ -289,7 +289,7 @@ async def poll_and_trigger():
         )
         for msg in response.get("Messages", []):
             payload = json.loads(msg["Body"])
-            await run_check_scan(orchestration_id=payload["orchestration_id"])
+            await run_check_scan(scan_run_id=payload["scan_run_id"])
             sqs.delete_message(
                 QueueUrl=QUEUE_URL,
                 ReceiptHandle=msg["ReceiptHandle"]
@@ -303,7 +303,7 @@ async def poll_and_trigger():
 sqs.send_message(
     QueueUrl="https://sqs.../cspm-discovery-complete",
     MessageBody=json.dumps({
-        "orchestration_id": orchestration_id,
+        "scan_run_id": scan_run_id,
         "scan_id": scan_id,
         "findings_count": findings_count,
         "completed_at": datetime.utcnow().isoformat()
@@ -337,7 +337,7 @@ Phase 3 (optional): inventory in queue, scan-trigger queue for cron
 
 ### Problem
 Structured logs go to CloudWatch but there is no distributed tracing. Debugging a failed
-scan across 5 engines requires manually grepping 5 separate log groups by orchestration_id.
+scan across 5 engines requires manually grepping 5 separate log groups by scan_run_id.
 No metrics dashboard. No alerting on scan failure. Blind spots everywhere.
 
 ### Solution
@@ -430,7 +430,7 @@ Apply same pattern to: `check_findings`, `threat_findings`, `iam_findings`, `dat
 ### 6b. Compliance framework endpoint — file to DB
 
 **Problem**: `GET /compliance/api/v1/compliance/framework/{fw}/status` reads S3 NDJSON files
-written during scan. Returns 500 when file doesn't exist (new orchestration_id, different scan).
+written during scan. Returns 500 when file doesn't exist (new scan_run_id, different scan).
 
 **Fix**: Read from `compliance_findings` table filtered by `framework_id`:
 ```python
@@ -438,8 +438,8 @@ written during scan. Returns 500 when file doesn't exist (new orchestration_id, 
 # With:
 cursor.execute(
     """SELECT * FROM compliance_findings
-       WHERE framework_id = %s AND compliance_scan_id = %s""",
-    (framework_id, compliance_scan_id)
+       WHERE framework_id = %s AND scan_run_id = %s""",
+    (framework_id, scan_run_id)
 )
 ```
 

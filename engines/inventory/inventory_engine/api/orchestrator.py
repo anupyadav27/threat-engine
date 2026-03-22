@@ -219,7 +219,7 @@ class ScanOrchestrator:
         Load previous scan assets and relationships from inventory DB.
 
         Reads inventory_findings WHERE latest_scan_run_id = previous_scan_id and
-        inventory_relationships WHERE inventory_scan_id = previous_scan_id so the
+        inventory_relationships WHERE scan_run_id = previous_scan_id so the
         drift detector receives the full prior state for every CSP in the tenant.
         """
         if not self.db_url:
@@ -293,7 +293,7 @@ class ScanOrchestrator:
                                provider, account_id, region, properties
                         FROM   inventory_relationships
                         WHERE  tenant_id = %s
-                          AND  inventory_scan_id = %s
+                          AND  scan_run_id = %s
                         """,
                         (self.tenant_id, previous_scan_id),
                     )
@@ -493,7 +493,7 @@ class ScanOrchestrator:
 
         # Step 1: Read ALL discovery records and split into root vs dependent
         #
-        # When a single account is specified (pipeline mode from orchestration_id),
+        # When a single account is specified (pipeline mode from scan_run_id),
         # push the account_id filter to the reader for DB-level efficiency.
         # The in-loop filter below remains as a safety net for multi-account cases.
         discovery_reader = get_discovery_reader(tenant_id=self.tenant_id)
@@ -513,8 +513,9 @@ class ScanOrchestrator:
             account_ids=reader_account_ids,
         ):
             provider_str = discovery_record.get("provider", "aws").lower()
-            account_id = discovery_record.get("account_id") or discovery_record.get("hierarchy_id")
-            if account_id and not discovery_record.get("account_id"):
+            account_id = discovery_record.get("account_id")
+            if not account_id:
+                account_id = discovery_record.get("account_id", "")
                 discovery_record["account_id"] = account_id
 
             # Apply provider / account filters
@@ -761,7 +762,7 @@ class ScanOrchestrator:
                 _drift_conn = _pg.connect(self.db_url)
                 with _drift_conn.cursor() as _cur:
                     _cur.execute(
-                        "SELECT inventory_scan_id FROM inventory_report "
+                        "SELECT scan_run_id FROM inventory_report "
                         "WHERE tenant_id = %s AND status = 'completed' "
                         "ORDER BY completed_at DESC LIMIT 1",
                         (self.tenant_id,),

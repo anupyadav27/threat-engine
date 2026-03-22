@@ -119,7 +119,7 @@ class EngineClient:
             "customer_id": tenant_id or "default",
             "tenant_id": tenant_id or "default-tenant",
             "provider": "aws",
-            "hierarchy_id": account_number,
+            "account_id": account_number,
             "hierarchy_type": "account",
             "credentials": credentials,
             "use_database": True
@@ -156,7 +156,7 @@ class EngineClient:
             "customer_id": tenant_id or "default",
             "tenant_id": tenant_id or "default-tenant",
             "provider": "azure",
-            "hierarchy_id": subscription_id,
+            "account_id": subscription_id,
             "hierarchy_type": "subscription",
             "credentials": credentials,
             "use_database": True
@@ -191,7 +191,7 @@ class EngineClient:
             "customer_id": tenant_id or "default",
             "tenant_id": tenant_id or "default-tenant",
             "provider": "gcp",
-            "hierarchy_id": project_id,
+            "account_id": project_id,
             "hierarchy_type": "project",
             "credentials": credentials,
             "use_database": True
@@ -254,7 +254,7 @@ class EngineClient:
             "customer_id": tenant_id or "default",
             "tenant_id": tenant_id or "default-tenant",
             "provider": "oci",
-            "hierarchy_id": tenancy_ocid,
+            "account_id": tenancy_ocid,
             "hierarchy_type": "tenancy",
             "credentials": credentials,
             "use_database": True
@@ -288,7 +288,7 @@ class EngineClient:
             "customer_id": tenant_id or "default",
             "tenant_id": tenant_id or "default-tenant",
             "provider": "ibm",
-            "hierarchy_id": account_id,
+            "account_id": account_id,
             "hierarchy_type": "account",
             "credentials": credentials,
             "use_database": True
@@ -322,7 +322,7 @@ class EngineClient:
             "customer_id": tenant_id or "default",
             "tenant_id": tenant_id or "default-tenant",
             "provider": "k8s",
-            "hierarchy_id": cluster_name,
+            "account_id": cluster_name,
             "hierarchy_type": "cluster",
             "credentials": credentials,
             "use_database": True

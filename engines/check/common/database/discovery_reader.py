@@ -78,7 +78,7 @@ class DiscoveryReader:
         self,
         discovery_id: str = None,
         tenant_id: str = None,
-        hierarchy_id: str = None,
+        account_id: str = None,
         scan_id: str = None,
         service: str = None,
     ) -> List[Dict]:
@@ -98,10 +98,10 @@ class DiscoveryReader:
                         SELECT DISTINCT ON (resource_uid)
                                resource_uid, resource_id,
                                emitted_fields, service, region,
-                               discovery_id, discovery_scan_id,
-                               hierarchy_id, tenant_id, account_id
+                               discovery_id, scan_run_id,
+                               account_id, tenant_id
                         FROM   discovery_findings
-                        WHERE  discovery_scan_id = %s
+                        WHERE  scan_run_id = %s
                     """
                     params: List[Any] = [scan_id]
                     if discovery_id:
@@ -110,9 +110,9 @@ class DiscoveryReader:
                         query += " AND service = %s"; params.append(service)
                     if tenant_id:
                         query += " AND tenant_id = %s"; params.append(tenant_id)
-                    if hierarchy_id:
-                        query += " AND hierarchy_id = %s"; params.append(hierarchy_id)
-                    query += " ORDER BY resource_uid, scan_timestamp DESC"
+                    if account_id:
+                        query += " AND account_id = %s"; params.append(account_id)
+                    query += " ORDER BY resource_uid, first_seen_at DESC"
                 else:
                     # Fallback: latest records by tenant/hierarchy
                     logger.warning(
@@ -122,8 +122,8 @@ class DiscoveryReader:
                         SELECT DISTINCT ON (resource_uid)
                                resource_uid, resource_id,
                                emitted_fields, service, region,
-                               discovery_id, discovery_scan_id,
-                               hierarchy_id, tenant_id, account_id
+                               discovery_id, scan_run_id,
+                               account_id, tenant_id
                         FROM   discovery_findings
                         WHERE  1=1
                     """
@@ -132,11 +132,11 @@ class DiscoveryReader:
                         query += " AND discovery_id = %s"; params.append(discovery_id)
                     if tenant_id:
                         query += " AND tenant_id = %s"; params.append(tenant_id)
-                    if hierarchy_id:
-                        query += " AND hierarchy_id = %s"; params.append(hierarchy_id)
+                    if account_id:
+                        query += " AND account_id = %s"; params.append(account_id)
                     if service:
                         query += " AND service = %s"; params.append(service)
-                    query += " ORDER BY resource_uid, scan_timestamp DESC"
+                    query += " ORDER BY resource_uid, first_seen_at DESC"
 
                 cur.execute(query, params)
                 rows = cur.fetchall()
@@ -166,14 +166,14 @@ class DiscoveryReader:
         finally:
             self._return_connection(conn)
 
-    def get_discovery_scan_info(self, discovery_scan_id: str) -> Optional[Dict]:
+    def get_discovery_scan_info(self, scan_run_id: str) -> Optional[Dict]:
         """Return discovery_report metadata for a scan."""
         conn = self._get_connection()
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(
-                    "SELECT * FROM discovery_report WHERE discovery_scan_id = %s",
-                    (discovery_scan_id,),
+                    "SELECT * FROM discovery_report WHERE scan_run_id = %s",
+                    (scan_run_id,),
                 )
                 row = cur.fetchone()
                 return dict(row) if row else None

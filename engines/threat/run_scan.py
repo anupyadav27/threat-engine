@@ -2,7 +2,7 @@
 Threat Engine — Job entry point.
 
 Runs as a K8s Job on spot nodes. Called by the API pod via:
-    python -m run_scan --orchestration-id X --threat-scan-id Y
+    python -m run_scan --orchestration-id X --scan-run-id Y
 
 Reads check_findings from Check DB, runs threat detection + analysis,
 writes results to threat_report / threat_findings / threat_detections.
@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
 from engine_common.logger import setup_logger, LogContext, log_duration, audit_log
-from engine_common.orchestration import get_orchestration_metadata, update_orchestration_scan_id
+from engine_common.orchestration import get_orchestration_metadata
 from engine_common.retention import cleanup_old_scans
 
 from threat_engine.schemas.threat_report_schema import (
@@ -72,8 +72,8 @@ def _ensure_tenant(conn, tenant_id: str):
     conn.commit()
 
 
-def _create_report_row(threat_scan_id: str, tenant_id: str, provider: str,
-                        check_scan_id: str, scan_run_id: str, metadata: dict):
+def _create_report_row(scan_run_id: str, tenant_id: str, provider: str,
+                        metadata: dict):
     """Pre-create threat_report row with status='running'."""
     try:
         conn = _get_threat_conn()
@@ -81,12 +81,12 @@ def _create_report_row(threat_scan_id: str, tenant_id: str, provider: str,
         with conn.cursor() as cur:
             cur.execute(
                 """INSERT INTO threat_report
-                   (threat_scan_id, tenant_id, provider, check_scan_id,
-                    scan_run_id, status, started_at, report_data)
-                   VALUES (%s, %s, %s, %s, %s, 'running', NOW(), %s)
-                   ON CONFLICT (threat_scan_id) DO UPDATE SET status = 'running'""",
-                (threat_scan_id, tenant_id, provider, check_scan_id,
-                 scan_run_id, json.dumps(metadata)),
+                   (scan_run_id, tenant_id, provider,
+                    status, started_at, report_data)
+                   VALUES (%s, %s, %s, 'running', NOW(), %s)
+                   ON CONFLICT (scan_run_id) DO UPDATE SET status = 'running'""",
+                (scan_run_id, tenant_id, provider,
+                 json.dumps(metadata)),
             )
         conn.commit()
         conn.close()
@@ -94,7 +94,7 @@ def _create_report_row(threat_scan_id: str, tenant_id: str, provider: str,
         logger.warning(f"Failed to pre-create threat_report row: {e}")
 
 
-def _update_report_status(threat_scan_id: str, status: str, error: str = None):
+def _update_report_status(scan_run_id: str, status: str, error: str = None):
     """Update threat_report status in DB."""
     try:
         conn = _get_threat_conn()
@@ -103,19 +103,19 @@ def _update_report_status(threat_scan_id: str, status: str, error: str = None):
                 cur.execute(
                     """UPDATE threat_report
                        SET status = %s, report_data = report_data || %s
-                       WHERE threat_scan_id = %s""",
-                    (status, json.dumps({"error_details": error}), threat_scan_id),
+                       WHERE scan_run_id = %s""",
+                    (status, json.dumps({"error_details": error}), scan_run_id),
                 )
             else:
                 if status == "completed":
                     cur.execute(
-                        "UPDATE threat_report SET status = %s, completed_at = NOW() WHERE threat_scan_id = %s",
-                        (status, threat_scan_id),
+                        "UPDATE threat_report SET status = %s, completed_at = NOW() WHERE scan_run_id = %s",
+                        (status, scan_run_id),
                     )
                 else:
                     cur.execute(
-                        "UPDATE threat_report SET status = %s WHERE threat_scan_id = %s",
-                        (status, threat_scan_id),
+                        "UPDATE threat_report SET status = %s WHERE scan_run_id = %s",
+                        (status, scan_run_id),
                     )
         conn.commit()
         conn.close()
@@ -127,19 +127,17 @@ def _update_report_status(threat_scan_id: str, status: str, error: str = None):
 
 def main():
     parser = argparse.ArgumentParser(description="Threat Engine Scanner")
-    parser.add_argument("--orchestration-id", required=True, help="Pipeline orchestration ID")
-    parser.add_argument("--threat-scan-id", required=True, help="Pre-assigned threat scan ID")
+    parser.add_argument("--scan-run-id", required=True, help="Pipeline scan run ID")
     args = parser.parse_args()
 
-    orchestration_id = args.orchestration_id
-    threat_scan_id = args.threat_scan_id
+    scan_run_id = args.scan_run_id
 
-    logger.info(f"Threat scanner starting orchestration_id={orchestration_id} scan_id={threat_scan_id}")
+    logger.info(f"Threat scanner starting scan_run_id={scan_run_id}")
 
     # SIGTERM handler — mark scan failed on preemption/timeout
     def _handle_sigterm(*_):
-        logger.warning(f"SIGTERM received — marking threat scan {threat_scan_id} as failed")
-        _update_report_status(threat_scan_id, "failed", "Terminated by SIGTERM (spot preemption or timeout)")
+        logger.warning(f"SIGTERM received — marking threat scan {scan_run_id} as failed")
+        _update_report_status(scan_run_id, "failed", "Terminated by SIGTERM (spot preemption or timeout)")
         sys.exit(1)
 
     signal.signal(signal.SIGTERM, _handle_sigterm)
@@ -147,55 +145,47 @@ def main():
     try:
         # 1. Get orchestration metadata
         logger.info("Resolving orchestration metadata...")
-        metadata = get_orchestration_metadata(orchestration_id)
+        metadata = get_orchestration_metadata(scan_run_id)
         if not metadata:
-            raise ValueError(f"No orchestration metadata for {orchestration_id}")
+            raise ValueError(f"No orchestration metadata for {scan_run_id}")
 
-        check_scan_id = metadata.get("check_scan_id")
-        if not check_scan_id:
-            raise ValueError(f"Check scan not completed for orchestration_id={orchestration_id}")
+        # All engines share the same scan_run_id
+        check_scan_run_id = scan_run_id
 
         tenant_id = metadata.get("tenant_id", "default-tenant")
         provider = metadata.get("provider") or metadata.get("provider_type", "aws")
         account_id = metadata.get("account_id", "")
-        discovery_scan_id = metadata.get("discovery_scan_id")
-        scan_run_id = orchestration_id  # orchestration_id == scan_run_id
+        discovery_scan_run_id = scan_run_id
 
         # Determine cloud enum
         provider_lower = provider.lower()
         cloud_map = {"aws": Cloud.AWS, "azure": Cloud.AZURE, "gcp": Cloud.GCP}
         cloud = cloud_map.get(provider_lower, Cloud.AWS)
 
-        logger.info(f"Resolved: tenant={tenant_id} provider={provider} check={check_scan_id}")
+        logger.info(f"Resolved: tenant={tenant_id} provider={provider} check={check_scan_run_id}")
 
         # 2. Pre-create report row with status='running'
-        _create_report_row(threat_scan_id, tenant_id, provider, check_scan_id, scan_run_id, {
-            "orchestration_id": orchestration_id,
+        _create_report_row(scan_run_id, tenant_id, provider, {
+            "scan_run_id": scan_run_id,
             "mode": "job",
         })
 
-        # 3. Update orchestration table
-        try:
-            update_orchestration_scan_id(orchestration_id, "threat", threat_scan_id)
-        except Exception as e:
-            logger.warning(f"Failed to update orchestration table: {e}")
-
         # 4. Load check results from DB
         start = time.time()
-        logger.info(f"Loading check results for check_scan_id={check_scan_id}")
+        logger.info(f"Loading check results for scan_run_id={check_scan_run_id}")
 
         check_results = get_enriched_check_results(
-            scan_id=check_scan_id,
+            scan_id=check_scan_run_id,
             schema="check_db",
             status_filter=["FAIL", "WARN"],
             tenant_id=tenant_id,
         )
 
         if not check_results:
-            logger.warning(f"No failing check results for check_scan_id={check_scan_id} — generating empty report")
+            logger.warning(f"No failing check results for scan_run_id={check_scan_run_id} — generating empty report")
             # Still mark as completed with 0 findings
-            _update_report_status(threat_scan_id, "completed")
-            logger.info(f"Threat scan completed (empty): {threat_scan_id}")
+            _update_report_status(scan_run_id, "completed")
+            logger.info(f"Threat scan completed (empty): {scan_run_id}")
             return
 
         logger.info(f"Loaded {len(check_results)} check results in {time.time() - start:.1f}s")
@@ -209,7 +199,7 @@ def main():
 
         if not findings:
             logger.info("No findings after normalization — completing with empty report")
-            _update_report_status(threat_scan_id, "completed")
+            _update_report_status(scan_run_id, "completed")
             return
 
         # 6. Detect threats
@@ -218,7 +208,7 @@ def main():
         threats = detector.detect_threats(findings)
 
         # Drift detection (optional)
-        if discovery_scan_id:
+        if discovery_scan_run_id:
             try:
                 from threat_engine.database.discovery_queries import DiscoveryDatabaseQueries
                 from threat_engine.database.check_queries import CheckDatabaseQueries
@@ -228,13 +218,13 @@ def main():
 
                 drift_threats = drift_detector.detect_configuration_drift(
                     tenant_id=tenant_id,
-                    hierarchy_id=account_id,
+                    account_id=account_id,
                     service=None,
-                    current_scan_id=discovery_scan_id,
+                    current_scan_id=discovery_scan_run_id,
                 )
                 check_drift_threats = check_drift_detector.detect_check_status_drift(
                     tenant_id=tenant_id,
-                    hierarchy_id=account_id,
+                    account_id=account_id,
                     service=None,
                     current_scan_id=scan_run_id,
                 )
@@ -248,7 +238,7 @@ def main():
         # 7. Generate and save report
         tenant = Tenant(tenant_id=tenant_id, tenant_name=tenant_id)
         scan_context = ScanContext(
-            scan_run_id=threat_scan_id,  # db_writer uses this directly as threat_scan_id
+            scan_run_id=scan_run_id,
             trigger_type=TriggerType.SCHEDULED,
             cloud=cloud,
             accounts=[account_id] if account_id else [],
@@ -278,7 +268,6 @@ def main():
             analyses = analyzer.analyze_scan(
                 tenant_id=tenant_id,
                 scan_run_id=scan_run_id,
-                orchestration_id=orchestration_id,
             )
             if analyses:
                 analysis_count = save_analyses_to_db(analyses)
@@ -299,9 +288,9 @@ def main():
 
         # 10. Update status to completed
         duration = time.time() - start
-        _update_report_status(threat_scan_id, "completed")
+        _update_report_status(scan_run_id, "completed")
         logger.info(
-            f"Threat scan completed: {threat_scan_id} — "
+            f"Threat scan completed: {scan_run_id} — "
             f"{len(threats)} threats, {len(findings)} findings, "
             f"{analysis_count} analyses in {duration:.1f}s"
         )
@@ -314,7 +303,7 @@ def main():
 
     except Exception as e:
         logger.error(f"Threat scan FAILED: {e}", exc_info=True)
-        _update_report_status(threat_scan_id, "failed", str(e))
+        _update_report_status(scan_run_id, "failed", str(e))
         sys.exit(1)
 
 
