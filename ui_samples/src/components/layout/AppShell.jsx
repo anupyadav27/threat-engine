@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import GlobalFilterBar from './GlobalFilterBar';
+import SecOpsFilterBar from './SecOpsFilterBar';
 import PreLoader from '@/components/shared/PreLoader';
 import { useAuth } from '@/lib/auth-context';
 
@@ -15,7 +16,9 @@ export default function AppShell({ children }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Check if current route is an auth route
-  const isAuthRoute = pathname.startsWith('/auth/');
+  const isAuthRoute   = pathname.startsWith('/auth/');
+  // SecOps pages use their own scan-specific filters, not cloud CSPM scope
+  const isSecOpsRoute = pathname.startsWith('/secops');
 
   // Redirect to login if not authenticated and not on auth route
   useEffect(() => {
@@ -43,7 +46,7 @@ export default function AppShell({ children }) {
         style={{ marginLeft: 'var(--sidebar-width, 240px)', transition: 'margin-left 200ms ease' }}
       >
         <Header />
-        <GlobalFilterBar />
+        {isSecOpsRoute ? <SecOpsFilterBar /> : <GlobalFilterBar />}
         <main
           className="flex-1 p-6 transition-colors duration-200"
           style={{ backgroundColor: 'var(--bg-primary)' }}

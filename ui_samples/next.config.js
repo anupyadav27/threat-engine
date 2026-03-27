@@ -27,6 +27,11 @@ const nextConfig = {
   reactStrictMode: true,
   basePath: '/ui',
   output: 'standalone',
+  // Prevent Next.js from stripping trailing slashes before rewrites run.
+  // Without this, /secops/.../sbom/ gets 308-redirected to /sbom (no slash),
+  // which then causes the FastAPI backend to 307-redirect back with a broken
+  // Location header that nginx cannot route correctly.
+  skipTrailingSlashRedirect: true,
   // Allow the preview/headless browser to load /_next/* resources from 127.0.0.1
   allowedDevOrigins: ['127.0.0.1', 'localhost'],
 
