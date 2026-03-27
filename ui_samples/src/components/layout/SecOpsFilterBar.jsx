@@ -4,14 +4,14 @@
  * SecOpsFilterBar — SecOps-specific scope bar.
  *
  * Replaces the cloud-infrastructure GlobalFilterBar on /secops/* routes.
- * Shows: Scanner type · Severity · Status · Date Range
+ * Shows: Project · Scanner type · Severity · Status · Date Range
  *
- * Currently drives local UI state only (no global context wiring needed
- * since SecOps pages handle their own data fetching).
+ * All state lives in SecOpsFilterContext so that secops/page.jsx
+ * can react to filter changes.
  */
 
-import { useState } from 'react';
-import { Code2, ShieldAlert, CheckCircle, Clock, ChevronDown, X } from 'lucide-react';
+import { Code2, ShieldAlert, CheckCircle, Clock, ChevronDown, X, GitBranch } from 'lucide-react';
+import { useSecOpsFilters } from '@/lib/secops-filter-context';
 
 function FilterSelect({ icon: Icon, value, onChange, children, defaultVal = '' }) {
   const active = value && value !== defaultVal;
@@ -43,13 +43,17 @@ function FilterSelect({ icon: Icon, value, onChange, children, defaultVal = '' }
 }
 
 export default function SecOpsFilterBar() {
-  const [scanner,   setScanner]   = useState('');
-  const [severity,  setSeverity]  = useState('');
-  const [status,    setStatus]    = useState('');
-  const [timeRange, setTimeRange] = useState('30d');
+  const {
+    scanner,   setScanner,
+    severity,  setSeverity,
+    status,    setStatus,
+    timeRange, setTimeRange,
+    project,   setProject,
+    availableProjects,
+    clearAll,
+  } = useSecOpsFilters();
 
-  const hasActive = scanner || severity || status || timeRange !== '30d';
-  const clearAll  = () => { setScanner(''); setSeverity(''); setStatus(''); setTimeRange('30d'); };
+  const hasActive = scanner || severity || status || project || timeRange !== '30d';
 
   return (
     <div
@@ -65,6 +69,16 @@ export default function SecOpsFilterBar() {
         >
           Filters
         </span>
+
+        {/* Project / Repo */}
+        {availableProjects.length > 0 && (
+          <FilterSelect icon={GitBranch} value={project} onChange={setProject}>
+            <option value="">All Projects</option>
+            {availableProjects.map(p => (
+              <option key={p.value} value={p.value}>{p.label}</option>
+            ))}
+          </FilterSelect>
+        )}
 
         {/* Scanner type */}
         <FilterSelect icon={Code2} value={scanner} onChange={setScanner}>
@@ -87,10 +101,10 @@ export default function SecOpsFilterBar() {
         {/* Status */}
         <FilterSelect icon={CheckCircle} value={status} onChange={setStatus}>
           <option value="">All Status</option>
-          <option value="open">Open</option>
-          <option value="in_review">In Review</option>
-          <option value="resolved">Resolved</option>
-          <option value="suppressed">Suppressed</option>
+          <option value="completed">Completed</option>
+          <option value="running">Running</option>
+          <option value="failed">Failed</option>
+          <option value="pending">Pending</option>
         </FilterSelect>
 
         {/* Divider */}

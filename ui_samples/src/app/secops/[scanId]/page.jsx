@@ -454,17 +454,17 @@ export default function SastScanDetailPage() {
   }, [securityFindings]);
 
   // Donut data (security findings only)
-  const donutData = useMemo(() => {
-    const counts = { critical: 0, high: 0, medium: 0 };
+  // SeverityDonut expects { critical, high, medium, low } — keyed object, NOT an array
+  const donutCounts = useMemo(() => {
+    const counts = { critical: 0, high: 0, medium: 0, low: 0 };
     securityFindings.forEach(f => {
-      if (counts[f._normalSev] !== undefined) counts[f._normalSev]++;
+      const s = f._normalSev;
+      if (s && counts[s] !== undefined) counts[s]++;
     });
-    return [
-      { name: 'Critical', value: counts.critical, color: '#ef4444' },
-      { name: 'High',     value: counts.high,     color: '#f97316' },
-      { name: 'Medium',   value: counts.medium,   color: '#eab308' },
-    ].filter(d => d.value > 0);
+    return counts;
   }, [securityFindings]);
+
+  const hasDonutData = Object.values(donutCounts).some(v => v > 0);
 
   // Filtered findings per tab
   const filteredSecurity = useMemo(() => {
@@ -533,14 +533,35 @@ export default function SastScanDetailPage() {
       },
     },
     {
-      accessorKey: 'message',
+      id: 'message',
       header: 'Message',
       cell: info => {
-        const v = info.getValue() || '—';
+        const row  = info.row.original;
+        const msg  = row.message || '—';
+        const hint = getFixHint(row.rule_id);
         return (
-          <span className="text-xs truncate block max-w-[240px]" title={v} style={{ color: 'var(--text-secondary)' }}>
-            {v}
-          </span>
+          <div className="flex items-center gap-2 min-w-0">
+            <span
+              className="text-xs truncate"
+              title={msg}
+              style={{ color: 'var(--text-secondary)', minWidth: 0, flex: '1 1 0' }}
+            >
+              {msg}
+            </span>
+            {hint && (
+              <button
+                onClick={e => {
+                  e.stopPropagation();
+                  setFixModalFinding({ _raw: row });
+                }}
+                className="flex-shrink-0 flex items-center gap-1 px-2 py-0.5 rounded-md border border-green-500/30 bg-green-500/10 text-green-400 text-[10px] font-semibold hover:bg-green-500/20 transition-colors whitespace-nowrap"
+                title="Open fix guidance"
+              >
+                <Lightbulb className="w-3 h-3" />
+                Help to Fix
+              </button>
+            )}
+          </div>
         );
       },
     },
@@ -576,7 +597,7 @@ export default function SastScanDetailPage() {
         );
       },
     },
-  ], []);
+  ], [setFixModalFinding]);
 
   // Filter bar configs
   const filterDefs = [
@@ -618,7 +639,20 @@ export default function SastScanDetailPage() {
     );
   }
 
-  const repoName = scan?.project_name || scan?.repo_url?.split('/').pop() || scanId;
+  // Try every possible field the status API might return for a human-readable name.
+  // Fall back to a short scan-ID label rather than the raw UUID.
+  const repoName = scan?.project_name
+    || scan?.name
+    || scan?.application_name
+    || (scan?.repo_url
+        ? scan.repo_url.replace(/\.git$/, '').split('/').filter(Boolean).slice(-2).join(' / ')
+        : null)
+    || (scan?.repository
+        ? scan.repository.replace(/\.git$/, '').split('/').filter(Boolean).pop()
+        : null)
+    || `SAST Scan · ${scanId?.slice(0, 8)}`;
+
+  const repoUrl  = scan?.repo_url || scan?.repository || null;
   const branch   = scan?.branch || 'main';
   const langs    = scan?.languages_detected || [];
 
@@ -637,24 +671,37 @@ export default function SastScanDetailPage() {
         {/* Header */}
         <div className="flex items-start justify-between mb-6">
           <div className="flex-1 min-w-0">
+            {/* Primary: human-readable project / repo name */}
             <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>{repoName}</h1>
-              <span className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border bg-blue-500/10 text-blue-400 border-blue-500/30">
+              <h1 className="text-2xl font-bold truncate" style={{ color: 'var(--text-primary)' }}>
+                {repoName}
+              </h1>
+              <span className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border bg-blue-500/10 text-blue-400 border-blue-500/30 flex-shrink-0">
                 <GitBranch className="w-3 h-3" />
                 {branch}
               </span>
               {scan?.status && <StatusIndicator status={scan.status} />}
             </div>
-            <div className="flex items-center gap-2 mt-2">
-              <span className="text-xs font-mono" style={{ color: 'var(--text-tertiary)' }}>
-                {scanId?.length > 20 ? `${scanId.slice(0, 20)}...` : scanId}
+
+            {/* Secondary: repo URL (if known) */}
+            {repoUrl && (
+              <div className="text-xs font-mono mt-1 truncate" style={{ color: 'var(--text-tertiary)' }}
+                title={repoUrl}>
+                {repoUrl}
+              </div>
+            )}
+
+            {/* Scan ID row — always available as reference */}
+            <div className="flex items-center gap-1.5 mt-1">
+              <span className="text-[11px] font-mono" style={{ color: 'var(--text-muted)' }}>
+                ID: {scanId?.slice(0, 8)}…
               </span>
               <button onClick={handleCopyId}
                 className="p-1 rounded hover:bg-white/5 transition-colors"
-                title="Copy scan ID">
+                title={`Copy full scan ID: ${scanId}`}>
                 {copied
-                  ? <Check className="w-3.5 h-3.5 text-green-400" />
-                  : <Copy className="w-3.5 h-3.5" style={{ color: 'var(--text-tertiary)' }} />}
+                  ? <Check className="w-3 h-3 text-green-400" />
+                  : <Copy className="w-3 h-3" style={{ color: 'var(--text-muted)' }} />}
               </button>
             </div>
           </div>
@@ -703,44 +750,50 @@ export default function SastScanDetailPage() {
           />
         </div>
 
-        {/* Donut + Top Rules row */}
-        <div className="grid grid-cols-3 gap-x-4 gap-y-4 mb-6">
-          <div className="col-span-1 rounded-2xl border overflow-hidden"
+        {/* Donut + Top Rules row — both cards stretch to same height */}
+        <div className="grid grid-cols-3 gap-3 mb-4 items-stretch">
+
+          {/* Security Severity — flex column so donut fills remaining space */}
+          <div className="col-span-1 rounded-2xl border flex flex-col overflow-hidden"
             style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-            <div className="px-5 py-4 border-b" style={{ borderColor: 'var(--border-primary)' }}>
+            <div className="px-4 py-3 border-b flex-shrink-0" style={{ borderColor: 'var(--border-primary)' }}>
               <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Security Severity</div>
               <div className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>Distribution by severity level</div>
             </div>
-            <div className="p-4">
-              {donutData.length > 0
-                ? <SeverityDonut data={donutData} totalLabel="Security" />
-                : <div className="flex items-center justify-center h-32 text-sm" style={{ color: 'var(--text-tertiary)' }}>No security findings</div>
+            <div className="flex-1 flex items-center justify-center px-4 py-3">
+              {hasDonutData
+                ? <SeverityDonut data={donutCounts} title="" height={170} />
+                : <div className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No security findings</div>
               }
             </div>
           </div>
 
-          <div className="col-span-2 rounded-2xl border overflow-hidden"
+          {/* Top Rules Triggered */}
+          <div className="col-span-2 rounded-2xl border flex flex-col overflow-hidden"
             style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-            <div className="px-5 py-4 border-b" style={{ borderColor: 'var(--border-primary)' }}>
+            <div className="px-4 py-3 border-b flex-shrink-0" style={{ borderColor: 'var(--border-primary)' }}>
               <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Top Rules Triggered</div>
-              <div className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>Most frequent security rules</div>
+              <div className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>Top 5 most frequent security rules</div>
             </div>
-            <div className="p-4 space-y-2">
+            <div className="flex-1 flex flex-col justify-around px-4 py-3">
               {topRules.length === 0
-                ? <div className="text-sm text-center py-6" style={{ color: 'var(--text-tertiary)' }}>No security rules triggered</div>
+                ? <div className="text-sm text-center" style={{ color: 'var(--text-tertiary)' }}>No security rules triggered</div>
                 : topRules.map(([rule, count], i) => {
                   const maxCount = topRules[0][1];
                   const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
                   return (
                     <div key={rule} className="flex items-center gap-3">
-                      <span className="text-xs w-4 text-right font-mono" style={{ color: 'var(--text-tertiary)' }}>{i + 1}</span>
+                      <span className="text-[11px] w-4 text-right tabular-nums flex-shrink-0"
+                        style={{ color: 'var(--text-muted)' }}>{i + 1}</span>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-mono truncate" style={{ color: 'var(--text-primary)' }}>{rule}</span>
-                          <span className="text-xs font-semibold ml-2 text-orange-400">{count}</span>
+                          <span className="text-xs font-mono truncate" title={rule}
+                            style={{ color: 'var(--text-primary)' }}>{rule}</span>
+                          <span className="text-xs font-bold tabular-nums ml-3 flex-shrink-0 text-orange-400">{count}</span>
                         </div>
-                        <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-                          <div className="h-full bg-orange-500/70 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                        <div className="h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                          <div className="h-full rounded-full transition-all"
+                            style={{ width: `${pct}%`, backgroundColor: '#f97316' }} />
                         </div>
                       </div>
                     </div>
@@ -801,7 +854,6 @@ export default function SastScanDetailPage() {
               columns={findingColumns}
               pageSize={25}
               emptyMessage={ruleFilter ? `No findings for rule "${ruleFilter.replace(/_/g,' ')}"` : 'No security findings match the current filters.'}
-              renderExpandedRow={(row) => <ExpandedFindingRow finding={{ _raw: row }} onOpenFix={setFixModalFinding} />}
             />
           </>
         )}
@@ -819,7 +871,6 @@ export default function SastScanDetailPage() {
               columns={findingColumns}
               pageSize={25}
               emptyMessage="No code quality findings match the current filters."
-              renderExpandedRow={(row) => <ExpandedFindingRow finding={{ _raw: row }} onOpenFix={setFixModalFinding} />}
             />
           </>
         )}

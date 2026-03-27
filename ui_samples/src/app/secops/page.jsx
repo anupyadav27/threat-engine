@@ -10,6 +10,7 @@ import {
   Maximize2,
 } from 'lucide-react';
 import { getFromEngine, fetchApi } from '@/lib/api';
+import { useSecOpsFilters } from '@/lib/secops-filter-context';
 import KpiCard from '@/components/shared/KpiCard';
 import DataTable from '@/components/shared/DataTable';
 import SeverityBadge from '@/components/shared/SeverityBadge';
@@ -25,6 +26,12 @@ const SCA_API_KEY = 'sbom-api-key-2024';
 const SCA_BASE = '/secops/api/v1/secops/sca/api/v1/sbom';
 
 const SEV_ORDER = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+
+function timeRangeCutoff(timeRange) {
+  const days = { '7d': 7, '30d': 30, '90d': 90, '180d': 180, '365d': 365 };
+  const d = days[timeRange] || 30;
+  return Date.now() - d * 24 * 60 * 60 * 1000;
+}
 
 function normalizeSev(s) {
   if (!s) return 'info';
@@ -136,11 +143,11 @@ function SeverityBar({ counts }) {
 function CoverageCard({ icon, label, count, findings, accentCls, barColor, total }) {
   const pct = total > 0 ? Math.max(1, Math.round((findings / total) * 100)) : 0;
   return (
-    <div className="rounded-xl border p-4 flex flex-col gap-3"
+    <div className="rounded-xl border p-3 flex flex-col gap-2"
       style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
       {/* Top row: icon + label */}
-      <div className="flex items-center gap-3">
-        <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${accentCls}`}>
+      <div className="flex items-center gap-2">
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${accentCls}`}>
           {icon}
         </div>
         <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>
@@ -152,7 +159,7 @@ function CoverageCard({ icon, label, count, findings, accentCls, barColor, total
       <div className="flex items-end justify-between">
         <div>
           <div className="flex items-baseline gap-1.5">
-            <span className="text-2xl font-bold tabular-nums" style={{ color: 'var(--text-primary)' }}>
+            <span className="text-xl font-bold tabular-nums" style={{ color: 'var(--text-primary)' }}>
               {findings.toLocaleString()}
             </span>
             <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>findings</span>
@@ -441,42 +448,45 @@ function SecurityTrendChart({ overall, projects = [], onExpand, isModal = false 
 
   // SVG canvas
   const W   = isModal ? 700 : 360;
-  const H   = isModal ? 210 : 120;
-  const PAD = { top: 20, right: isModal ? 20 : 12, bottom: isModal ? 32 : 26, left: 32 };
+  const H   = isModal ? 210 : 90;
+  const PAD = { top: 16, right: isModal ? 20 : 12, bottom: isModal ? 32 : 22, left: 32 };
   const cW  = W - PAD.left - PAD.right;
   const cH  = H - PAD.top  - PAD.bottom;
 
-  // Shared scales — cover all series
+  // Y scale — cover all series
   const allTotals = [
     ...overall.map(s => s.total),
     ...projects.flatMap(p => p.scans.map(s => s.total)),
   ];
   const maxVal = Math.max(...allTotals, 1);
+  const yOf = v => PAD.top + cH - (v / maxVal) * cH;
 
-  const allDates  = [
+  // Equal-spacing X scale: each unique timestamp gets an evenly-spaced slot
+  // so points never bunch up regardless of how close together their dates are.
+  const allDatesUniq = [...new Set([
     ...overall.map(s => s.date),
     ...projects.flatMap(p => p.scans.map(s => s.date)),
-  ];
-  const minDate   = Math.min(...allDates);
-  const maxDate   = Math.max(...allDates);
-  const dateRange = Math.max(maxDate - minDate, 1);
+  ])].sort((a, b) => a - b);
 
-  const xByDate = d => PAD.left + ((d - minDate) / dateRange) * cW;
-  const yOf     = v => PAD.top  + cH - (v / maxVal) * cH;
+  const dateToX = {};
+  allDatesUniq.forEach((d, i) => {
+    dateToX[d] = PAD.left + (allDatesUniq.length > 1 ? (i / (allDatesUniq.length - 1)) * cW : cW / 2);
+  });
+  const xAt = date => dateToX[date] ?? PAD.left;
 
   // Overall line paths
   const overallPts = overall
-    .map(s => `${xByDate(s.date).toFixed(1)},${yOf(s.total).toFixed(1)}`)
+    .map(s => `${xAt(s.date).toFixed(1)},${yOf(s.total).toFixed(1)}`)
     .join(' ');
   const overallAreaPts = [
-    `${xByDate(overall[0].date).toFixed(1)},${(PAD.top + cH).toFixed(1)}`,
+    `${xAt(overall[0].date).toFixed(1)},${(PAD.top + cH).toFixed(1)}`,
     overallPts,
-    `${xByDate(overall[overall.length - 1].date).toFixed(1)},${(PAD.top + cH).toFixed(1)}`,
+    `${xAt(overall[overall.length - 1].date).toFixed(1)},${(PAD.top + cH).toFixed(1)}`,
   ].join(' ');
 
   const gridFracs = [0, 0.5, 1];
 
-  // X-axis tick labels: use overall scan dates
+  // X-axis tick labels at first, middle, last overall points
   const xLabels = [];
   if (overall.length >= 2) {
     xLabels.push({ i: 0, anchor: 'start' });
@@ -523,7 +533,7 @@ function SecurityTrendChart({ overall, projects = [], onExpand, isModal = false 
       </div>
 
       {/* SVG multi-line chart */}
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: isModal ? 210 : 120, overflow: 'visible' }}>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: isModal ? 210 : 90, overflow: 'visible' }}>
         <defs>
           <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%"   stopColor="#3b82f6" stopOpacity="0.15" />
@@ -563,7 +573,7 @@ function SecurityTrendChart({ overall, projects = [], onExpand, isModal = false 
         {/* Overall dots (small, semi-transparent when per-project lines present) */}
         {overall.map((s, i) => {
           const isLast = i === overall.length - 1;
-          const cx = xByDate(s.date), cy = yOf(s.total);
+          const cx = xAt(s.date), cy = yOf(s.total);
           const hasProjLines = projects.length > 0;
           return (
             <g key={i}>
@@ -590,7 +600,7 @@ function SecurityTrendChart({ overall, projects = [], onExpand, isModal = false 
         {projects.map(proj => {
           if (proj.scans.length < 1) return null;
           const pts = proj.scans
-            .map(s => `${xByDate(s.date).toFixed(1)},${yOf(s.total).toFixed(1)}`)
+            .map(s => `${xAt(s.date).toFixed(1)},${yOf(s.total).toFixed(1)}`)
             .join(' ');
           return (
             <g key={proj.name}>
@@ -603,7 +613,7 @@ function SecurityTrendChart({ overall, projects = [], onExpand, isModal = false 
                 const isLatest = si === proj.scans.length - 1;
                 return (
                   <circle key={si}
-                    cx={xByDate(s.date)} cy={yOf(s.total)}
+                    cx={xAt(s.date)} cy={yOf(s.total)}
                     r={isLatest ? (isModal ? 5 : 4) : (isModal ? 3.5 : 3)}
                     fill={proj.color}
                     stroke="var(--bg-card)" strokeWidth="1.5">
@@ -614,7 +624,7 @@ function SecurityTrendChart({ overall, projects = [], onExpand, isModal = false 
               {/* Latest value label for each project */}
               {(() => {
                 const last = proj.scans[proj.scans.length - 1];
-                const cx = xByDate(last.date), cy = yOf(last.total);
+                const cx = xAt(last.date), cy = yOf(last.total);
                 return (
                   <text x={cx} y={cy - 8} fontSize="8" fill={proj.color}
                     textAnchor="middle" fontWeight="700">
@@ -629,7 +639,7 @@ function SecurityTrendChart({ overall, projects = [], onExpand, isModal = false 
         {/* X-axis labels */}
         {xLabels.map(({ i, anchor }) => (
           <text key={i}
-            x={xByDate(overall[i].date)} y={H - 4}
+            x={xAt(overall[i].date)} y={H - 4}
             fontSize="8" fill="rgba(255,255,255,0.30)"
             textAnchor={anchor}>
             {overall[i].label}
@@ -710,44 +720,48 @@ function FixThisFirst({ findings, onViewAll, onItemClick }) {
   }
 
   return (
-    <div className="space-y-1.5">
+    <div className="divide-y" style={{ borderColor: 'var(--border-primary)' }}>
       {sorted.map((item, i) => {
         const meta = FIX_RULE_MAP[item.rule_id] || { label: (item.rawRuleId || item.rule_id).replace(/_/g, ' '), sev: item.sev, fix: 'Review and remediate this finding.' };
         const pillCls = SEV_PILL[meta.sev] || SEV_PILL.medium;
+        const fullLabel = meta.label.replace(/\b\w/g, c => c.toUpperCase());
         return (
           <button
             key={item.rule_id}
             onClick={() => onItemClick && onItemClick({ sev: meta.sev, scanId: item.scanId, rawRuleId: item.rawRuleId })}
-            className="w-full flex items-start gap-3 px-3 py-2.5 rounded-xl border text-left transition-colors hover:bg-white/5 hover:border-blue-500/30 cursor-pointer"
-            style={{ borderColor: 'var(--border-primary)', backgroundColor: 'var(--bg-secondary)' }}>
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5 cursor-pointer group"
+            style={{ backgroundColor: 'transparent' }}>
             {/* Rank */}
-            <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 text-[10px] font-bold"
-              style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-tertiary)' }}>
+            <span className="w-4 text-[11px] font-bold tabular-nums flex-shrink-0 text-center"
+              style={{ color: 'var(--text-muted)' }}>
               {i + 1}
-            </div>
-            {/* Main content */}
+            </span>
+            {/* Two-line content */}
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-sm font-semibold capitalize" style={{ color: 'var(--text-primary)' }}>
-                  {meta.label}
-                </span>
-                <span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-full border ${pillCls}`}>
+              {/* Line 1: message, truncated */}
+              <p className="text-sm font-medium truncate leading-snug capitalize"
+                title={fullLabel}
+                style={{ color: 'var(--text-primary)' }}>
+                {fullLabel}
+              </p>
+              {/* Line 2: severity + stats */}
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-px rounded-full border flex-shrink-0 ${pillCls}`}>
                   {meta.sev}
                 </span>
-                <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                <span className="text-[11px] tabular-nums" style={{ color: 'var(--text-tertiary)' }}>
                   {item.count} occurrence{item.count !== 1 ? 's' : ''}
                   {item.files.size > 0 ? ` · ${item.files.size} file${item.files.size !== 1 ? 's' : ''}` : ''}
                 </span>
               </div>
-              <p className="text-xs mt-0.5 line-clamp-1" style={{ color: 'var(--text-secondary)' }}>{meta.fix}</p>
             </div>
-            <ArrowRight className="w-3.5 h-3.5 flex-shrink-0 mt-1 text-blue-400 opacity-60" />
+            <ArrowRight className="w-3 h-3 flex-shrink-0 text-blue-400 opacity-0 group-hover:opacity-60 transition-opacity" />
           </button>
         );
       })}
       {onViewAll && (
         <button onClick={onViewAll}
-          className="w-full text-center text-xs py-1.5 hover:text-blue-400 transition-colors"
+          className="w-full text-center text-xs py-2 hover:text-blue-400 transition-colors"
           style={{ color: 'var(--text-tertiary)' }}>
           View all findings →
         </button>
@@ -761,6 +775,16 @@ function FixThisFirst({ findings, onViewAll, onItemClick }) {
 // ---------------------------------------------------------------------------
 export default function SecOpsPage() {
   const router = useRouter();
+
+  // Global filter bar state
+  const {
+    scanner:   filterScanner,
+    severity:  filterSeverity,
+    status:    filterStatus,
+    timeRange: filterTimeRange,
+    project:   filterProject,
+    setAvailableProjects,
+  } = useSecOpsFilters();
 
   // Core data
   const [sastScans,   setSastScans]   = useState([]);
@@ -919,29 +943,6 @@ export default function SecOpsPage() {
     }
   }, [activeTab, findingsLoaded, findingsLoading, loading, loadFindings]);
 
-  // ---------------------------------------------------------------------------
-  // KPI computations
-  // ---------------------------------------------------------------------------
-  const sastFindings  = useMemo(() => sastScans.reduce((a, s) => a + (s.total_findings || 0), 0), [sastScans]);
-  const dastFindings  = useMemo(() => dastScans.reduce((a, s) => a + (s.total_findings || 0), 0), [dastScans]);
-  const scaVulns      = useMemo(() => scaScans.reduce((a, s) => a + (s.vulnerability_count || 0), 0), [scaScans]);
-  const totalFindings = sastFindings + dastFindings + scaVulns;
-
-  const criticalHigh = useMemo(() => {
-    let ch = 0;
-    dastScans.forEach(s => {
-      ch += (s.by_severity?.critical || 0) + (s.by_severity?.high || 0);
-    });
-    // Approximate from SAST — assume ~30% critical+high
-    ch += Math.round(sastFindings * 0.3);
-    return ch;
-  }, [dastScans, sastFindings]);
-
-  const reposScanned = useMemo(() => {
-    const urls = new Set(sastScans.map(s => s.repo_url).filter(Boolean));
-    return urls.size || sastScans.length;
-  }, [sastScans]);
-
   const allScans = useMemo(() => {
     const combined = [
       ...sastScans.map(s => ({ ...s, _type: 'sast', _ts: s.scan_timestamp, _id: s.secops_scan_id })),
@@ -951,25 +952,112 @@ export default function SecOpsPage() {
     return combined.sort((a, b) => new Date(b._ts || 0) - new Date(a._ts || 0));
   }, [sastScans, dastScans, scaScans]);
 
-  const lastScan = allScans[0]?._ts;
+  // ---------------------------------------------------------------------------
+  // Auto-polling: refresh every 10s while any scan is running/queued
+  // ---------------------------------------------------------------------------
+  const hasRunningScans = useMemo(() =>
+    allScans.some(s => s.status === 'running' || s.status === 'queued' || s.status === 'pending'),
+  [allScans]);
+
+  useEffect(() => {
+    if (!hasRunningScans) return;
+    const interval = setInterval(loadData, 10000);
+    return () => clearInterval(interval);
+  }, [hasRunningScans, loadData]);
+
+  // ---------------------------------------------------------------------------
+  // Apply filter-bar selections to derived scan arrays
+  // ---------------------------------------------------------------------------
+  const cutoff = useMemo(() => timeRangeCutoff(filterTimeRange), [filterTimeRange]);
+
+  const filteredSastScans = useMemo(() => {
+    let s = sastScans.filter(s => new Date(s.scan_timestamp || 0).getTime() >= cutoff);
+    if (filterProject) s = s.filter(s => (s.repo_url || s.project_name) === filterProject);
+    return s;
+  }, [sastScans, cutoff, filterProject]);
+
+  const filteredDastScans = useMemo(() => {
+    if (filterProject) return []; // DAST is URL-based, not project-based
+    return dastScans.filter(s => new Date(s.scan_timestamp || 0).getTime() >= cutoff);
+  }, [dastScans, cutoff, filterProject]);
+
+  const filteredScaScans = useMemo(() => {
+    if (filterProject) return []; // SCA is app-based — hide when a repo project is selected
+    return scaScans.filter(s => new Date(s.created_at || 0).getTime() >= cutoff);
+  }, [scaScans, cutoff, filterProject]);
+
+  // Which engines to show based on scanner filter
+  const showSast = !filterScanner || filterScanner === 'sast';
+  const showDast = !filterScanner || filterScanner === 'dast';
+  const showSca  = !filterScanner || filterScanner === 'sca';
+
+  // ---------------------------------------------------------------------------
+  // KPI computations
+  // ---------------------------------------------------------------------------
+  const sastFindings  = useMemo(() => (showSast ? filteredSastScans : []).reduce((a, s) => a + (s.total_findings || 0), 0), [filteredSastScans, showSast]);
+  const dastFindings  = useMemo(() => (showDast ? filteredDastScans : []).reduce((a, s) => a + (s.total_findings || 0), 0), [filteredDastScans, showDast]);
+  const scaVulns      = useMemo(() => (showSca  ? filteredScaScans  : []).reduce((a, s) => a + (s.vulnerability_count || 0), 0), [filteredScaScans, showSca]);
+  const totalFindings = sastFindings + dastFindings + scaVulns;
 
   // Top findings states — must be declared BEFORE the useMemos that read them
   const [topFindings,        setTopFindings]        = useState([]);
   const [topQualityFindings, setTopQualityFindings] = useState([]);
 
+  const criticalHigh = useMemo(() => {
+    let ch = 0;
+    // SAST: count from actual loaded findings (accurate)
+    if (showSast) {
+      topFindings.forEach(f => {
+        if (f.severity === 'critical' || f.severity === 'high') ch++;
+      });
+    }
+    // DAST: use scan-level by_severity (API provides this)
+    (showDast ? filteredDastScans : []).forEach(s => {
+      ch += (s.by_severity?.critical || 0) + (s.by_severity?.high || 0);
+    });
+    return ch;
+  }, [topFindings, filteredDastScans, showSast, showDast]);
+
+  const reposScanned = useMemo(() => {
+    const urls = new Set(filteredSastScans.map(s => s.repo_url).filter(Boolean));
+    return urls.size || filteredSastScans.length;
+  }, [filteredSastScans]);
+
   // Helper: classify a finding as security vs code quality (based on rule_id patterns)
+  // Kept in sync with [scanId]/page.jsx SECURITY_RULE_PATTERNS / QUALITY_RULE_PATTERNS
   function isSecurityRule(ruleId) {
     const r = (ruleId || '').toLowerCase();
-    const QUALITY = ['docstring', 'einops', 'reachable', 'complexity', 'shadowed',
-      'dtype', 'pandas', 'except_blocks_should_be_able', 'pattern_should_be_valid'];
+    const QUALITY = ['docstring', 'einops', 'reachable', 'cognitive_complexity',
+      'shadowed_by_local', 'builtins_should_not_be_shadowed',
+      'dtype_parameter', 'pandas', 'except_blocks_should_be_able', 'pattern_should_be_valid'];
     if (QUALITY.some(p => r.includes(p))) return false;
-    const SECURITY = ['securitysensitive', 'injection', 'xss', 'sql', 'traversal',
-      'command_injection', 'pickle', 'deserialization', 'ssrf', 'debug_mode',
-      'hardcoded', 'credentials_should_not', 'weak_hash', 'pseudorandom',
-      'open_redirect', 'unrestricted_outbound', 'bucket_ownership',
-      'dynamically_executing', 'configuring_logger', 'insecure_'];
+    const SECURITY = [
+      'securitysensitive', 'security_sensitive',
+      'injection', 'xss', 'sqli', 'sql_injection', 'formatting_sql',
+      'path_traversal', 'command_injection',
+      'pickle', 'deserialization', 'deserializ',
+      'ssrf', 'unvalidated_url', 'unrestricted_outbound',
+      'debug_mode', 'hardcoded', 'credentials_should_not',
+      'weak_hashing', 'pseudorandom', 'prng',
+      'open_redirect', 'render_template_string',
+      'bucket_ownership', 's3_operations_should_verify',
+      'configuring_loggers', 'dynamically_executing',
+      'insecure_deserialization', 'insecure_random',
+      'allowing_unrestricted',
+    ];
     return SECURITY.some(p => r.includes(p));
   }
+
+  // Apply severity/scanner filter to Fix This First findings (SAST-only panels)
+  const visibleTopFindings = useMemo(() => {
+    if (!showSast) return [];
+    return filterSeverity ? topFindings.filter(f => f.severity === filterSeverity) : topFindings;
+  }, [topFindings, filterSeverity, showSast]);
+
+  const visibleTopQualityFindings = useMemo(() => {
+    if (!showSast) return [];
+    return filterSeverity ? topQualityFindings.filter(f => f.severity === filterSeverity) : topQualityFindings;
+  }, [topQualityFindings, filterSeverity, showSast]);
 
   // Severity bar counts — real data from loaded findings
   const severityCounts = useMemo(() => {
@@ -990,22 +1078,33 @@ export default function SecOpsPage() {
     return counts;
   }, [topFindings, topQualityFindings, dastScans]);
 
-  // SeverityDonut "By Engine"
+  // SeverityDonut "By Engine" — respects scanner filter
   const engineDonutData = useMemo(() => [
-    { name: 'SAST', value: sastFindings, color: '#3b82f6' },
-    { name: 'DAST', value: dastFindings, color: '#8b5cf6' },
-    { name: 'SCA',  value: scaVulns,    color: '#22c55e' },
-  ].filter(d => d.value > 0), [sastFindings, dastFindings, scaVulns]);
+    showSast ? { name: 'SAST', value: sastFindings, color: '#3b82f6' } : null,
+    showDast ? { name: 'DAST', value: dastFindings, color: '#8b5cf6' } : null,
+    showSca  ? { name: 'SCA',  value: scaVulns,    color: '#22c55e' } : null,
+  ].filter(d => d && d.value > 0), [sastFindings, dastFindings, scaVulns, showSast, showDast, showSca]);
 
-  // Recent scans (5)
-  const recentScans = allScans.slice(0, 5);
+  // Recent scans (5) — apply scanner + status filter
+  const recentScans = useMemo(() => {
+    return allScans
+      .filter(s => {
+        if (filterScanner && s._type !== filterScanner) return false;
+        if (filterStatus  && s.status !== filterStatus)  return false;
+        if (new Date(s._ts || 0).getTime() < cutoff)     return false;
+        return true;
+      })
+      .slice(0, 5);
+  }, [allScans, filterScanner, filterStatus, cutoff]);
+
+  const lastScan = recentScans[0]?._ts || allScans[0]?._ts;
 
   // ---------------------------------------------------------------------------
   // Projects (grouped by repo_url from SAST scans)
   // ---------------------------------------------------------------------------
   const projects = useMemo(() => {
     const byRepo = {};
-    sastScans.forEach(s => {
+    filteredSastScans.forEach(s => {
       const key = s.repo_url || s.project;
       if (!key) return;
       if (!byRepo[key]) {
@@ -1023,6 +1122,11 @@ export default function SecOpsPage() {
       }
       byRepo[key].scans.push(s);
       byRepo[key].totalFindings += s.total_findings || 0;
+      // Accumulate severity counts from scan-level by_severity (available on all scans)
+      if (s.by_severity) {
+        byRepo[key].criticalCount += s.by_severity.critical || 0;
+        byRepo[key].highCount     += s.by_severity.high     || 0;
+      }
       byRepo[key].languages = [...new Set([...byRepo[key].languages, ...(s.languages_detected || s.languages || [])])];
       const ts = s.scan_timestamp || s.started_at;
       if (!byRepo[key].lastScan || new Date(ts) > new Date(byRepo[key].lastScan)) {
@@ -1031,7 +1135,7 @@ export default function SecOpsPage() {
       }
     });
 
-    // Compute per-project critical+high counts from topFindings (most recent scan data)
+    // Override with topFindings counts for the most recent scan's project (more accurate)
     const critByRepo = {}, highByRepo = {};
     topFindings.forEach(f => {
       const repo = f._scan?.repo_url;
@@ -1041,46 +1145,73 @@ export default function SecOpsPage() {
     });
 
     return Object.values(byRepo)
-      .map(p => ({
-        ...p,
-        riskScore: Math.min(10, ((p.criticalCount * 10 + p.highCount * 5 + p.totalFindings * 0.5) / 10)).toFixed(1),
-        criticalCount: critByRepo[p.repo_url] || 0,
-        highCount:     highByRepo[p.repo_url] || 0,
-        securityFindings: (critByRepo[p.repo_url] || 0) + (highByRepo[p.repo_url] || 0),
-      }))
+      .map(p => {
+        // Use topFindings-based counts when available, fall back to scan-level by_severity
+        const crit = critByRepo[p.repo_url] ?? p.criticalCount;
+        const high = highByRepo[p.repo_url] ?? p.highCount;
+        return {
+          ...p,
+          criticalCount:    crit,
+          highCount:        high,
+          securityFindings: crit + high,
+          // Risk score now correctly uses the resolved crit/high values
+          riskScore: Math.min(10, ((crit * 10 + high * 5 + p.totalFindings * 0.1) / 10)).toFixed(1),
+        };
+      })
       .sort((a, b) => parseFloat(b.riskScore) - parseFloat(a.riskScore));
-  }, [sastScans, topFindings]);
+  }, [filteredSastScans, topFindings]);
 
   // ---------------------------------------------------------------------------
-  // Top findings for "Fix This First" block (loaded on mount, limited)
+  // Load findings for ALL completed SAST scans so every project gets
+  // severity counts (Critical/High) and the Fix This First panels are complete.
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    const mostRecentCompleted = [...sastScans]
+    const completedScans = [...sastScans]
       .filter(s => s.status === 'completed')
-      .sort((a, b) => new Date(b.scan_timestamp || 0) - new Date(a.scan_timestamp || 0))[0];
-    if (!mostRecentCompleted) return;
-    getFromEngine('secops', `/api/v1/secops/sast/scan/${mostRecentCompleted.secops_scan_id}/findings?limit=200`)
-      .then(r => {
-        const raw = Array.isArray(r) ? r : (r?.findings || []);
-        // Attach _scan so projects useMemo can key by repo_url
-        const withScan = raw.map(f => ({
-          ...f,
-          severity: normalizeSev(f.severity),
-          _scan: {
-            repo_url:        mostRecentCompleted.repo_url,
-            secops_scan_id:  mostRecentCompleted.secops_scan_id,
-          },
-        }));
-        setTopFindings(withScan.filter(f => isSecurityRule(f.rule_id)));
-        setTopQualityFindings(withScan.filter(f => !isSecurityRule(f.rule_id)));
-      })
-      .catch(() => {});
+      .sort((a, b) => new Date(b.scan_timestamp || 0) - new Date(a.scan_timestamp || 0))
+      .slice(0, 10); // cap at 10 scans to avoid excessive API calls
+    if (completedScans.length === 0) return;
+
+    Promise.all(
+      completedScans.map(scan =>
+        getFromEngine('secops', `/api/v1/secops/sast/scan/${scan.secops_scan_id}/findings?limit=200`)
+          .then(r => {
+            const raw = Array.isArray(r) ? r : (r?.findings || []);
+            return raw.map(f => ({
+              ...f,
+              severity: normalizeSev(f.severity),
+              _scan: { repo_url: scan.repo_url, secops_scan_id: scan.secops_scan_id },
+            }));
+          })
+          .catch(() => [])
+      )
+    ).then(results => {
+      const all = results.flat();
+      setTopFindings(all.filter(f => isSecurityRule(f.rule_id)));
+      setTopQualityFindings(all.filter(f => !isSecurityRule(f.rule_id)));
+    });
   }, [sastScans]);
+
+  // Register project list into the filter context so SecOpsFilterBar can populate its dropdown
+  useEffect(() => {
+    // Use all SAST scans (unfiltered) so the project dropdown always shows all options
+    const byRepo = {};
+    sastScans.forEach(s => {
+      const key  = s.repo_url || s.project_name;
+      if (!key) return;
+      const label = s.project_name || s.repo_url?.split('/').pop()?.replace(/\.git$/, '') || key;
+      byRepo[key] = label;
+    });
+    setAvailableProjects(
+      Object.entries(byRepo).map(([value, label]) => ({ value, label }))
+    );
+  }, [sastScans, setAvailableProjects]);
 
   // ---------------------------------------------------------------------------
   // Trend chart data — overall + per-project series, oldest→newest
   // ---------------------------------------------------------------------------
   const trendData = useMemo(() => {
+    // Use unfiltered sastScans so the trend always shows full history regardless of current filters
     const completed = sastScans.filter(s => s.status === 'completed' && s.scan_timestamp);
 
     // ── Overall aggregate (last 10 scans) ──────────────────────────────────
@@ -1134,22 +1265,43 @@ export default function SecOpsPage() {
       if (findingFilters.severity && f.severity !== findingFilters.severity) return false;
       if (findingFilters.source   && f.source   !== findingFilters.source)   return false;
       if (findingFilters.status   && f.status   !== findingFilters.status)   return false;
+      // Global filter bar: scanner (SAST/DAST/SCA source)
+      if (filterScanner && f.source !== filterScanner) return false;
+      // Global filter bar: project (by repo_url stored on finding)
+      if (filterProject && f._scan?.repo_url !== filterProject) return false;
       return true;
     });
-  }, [allFindings, findingFilters]);
+  }, [allFindings, findingFilters, filterScanner, filterProject]);
 
   // ---------------------------------------------------------------------------
   // Scan launch handler
   // ---------------------------------------------------------------------------
   const handleLaunch = async ({ repo_url, branch, target_url }) => {
-    setScanStatus({ sast: 'running', sca: 'running', dast: target_url ? 'running' : 'pending' });
+    setScanStatus({ sast: 'running', sca: 'idle', dast: target_url ? 'running' : 'idle' });
     try {
-      // Fire-and-forget kick-off (real API wiring done externally)
-      await Promise.all([
-        getFromEngine('secops', `/api/v1/secops/sast/scan`, { method: 'POST', body: JSON.stringify({ repo_url, branch, tenant_id: TENANT_ID }) }).catch(() => {}),
-      ]);
-      setTimeout(() => { setScanStatus(null); setShowModal(false); loadData(); setFindingsLoaded(false); }, 3000);
-    } catch (_) {
+      const requests = [
+        fetchApi('/secops/api/v1/secops/sast/scan', {
+          method: 'POST',
+          body: JSON.stringify({ tenant_id: TENANT_ID, repo_url, branch: branch || 'main' }),
+        }),
+      ];
+      if (target_url) {
+        requests.push(
+          fetchApi('/secops/api/v1/secops/dast/scan', {
+            method: 'POST',
+            body: JSON.stringify({ tenant_id: TENANT_ID, target_url }),
+          })
+        );
+      }
+      const results = await Promise.all(requests.map(p => p.catch(e => ({ error: e?.message }))));
+      const failed = results.filter(r => r?.error || r?.detail);
+      if (failed.length) {
+        console.error('[SecOps] Scan launch error:', failed);
+      }
+      setScanStatus(prev => ({ ...prev, sast: 'completed', dast: target_url ? 'completed' : 'idle' }));
+      setTimeout(() => { setScanStatus(null); setShowModal(false); loadData(); setFindingsLoaded(false); }, 2000);
+    } catch (err) {
+      console.error('[SecOps] handleLaunch failed:', err);
       setScanStatus(null);
     }
   };
@@ -1414,11 +1566,11 @@ export default function SecOpsPage() {
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-primary)' }}>
       {/* Page header */}
-      <div className="px-6 pt-6 pb-0">
-        <div className="flex items-start justify-between mb-6">
+      <div className="px-6 pt-3 pb-0">
+        <div className="flex items-center justify-between mb-3">
           <div>
-            <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Code Security</h1>
-            <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
+            <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Code Security</h1>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
               SAST, DAST, and SCA vulnerability management across all repositories
             </p>
           </div>
@@ -1445,7 +1597,7 @@ export default function SecOpsPage() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+              className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
                 activeTab === tab.id
                   ? 'border-blue-500 text-blue-400'
                   : 'border-transparent hover:opacity-75'
@@ -1458,14 +1610,36 @@ export default function SecOpsPage() {
       </div>
 
       {/* Tab content */}
-      <div className="px-6 pt-6 pb-8">
+      <div className="px-6 pt-3 pb-6">
 
         {/* ── OVERVIEW TAB ── */}
         {activeTab === 'overview' && (
-          <div className="space-y-6">
+          <div className="space-y-3">
+
+            {/* Active scan banner — shown when any scan is running/queued */}
+            {hasRunningScans && (
+              <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl border"
+                style={{ borderColor: 'rgba(59,130,246,0.4)', backgroundColor: 'rgba(59,130,246,0.06)' }}>
+                <Loader2 className="w-4 h-4 animate-spin text-blue-400 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                    Scan pipeline in progress
+                  </span>
+                  <span className="text-xs ml-2" style={{ color: 'var(--text-tertiary)' }}>
+                    Auto-refreshing every 10s · see Recent Scans below for per-engine status
+                  </span>
+                </div>
+                <button
+                  onClick={loadData}
+                  className="text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors flex-shrink-0"
+                >
+                  Refresh now
+                </button>
+              </div>
+            )}
 
             {/* KPI cards */}
-            <div className="grid grid-cols-4 gap-x-4 gap-y-4">
+            <div className="grid grid-cols-4 gap-3">
               <KpiCard
                 title="Total Findings"
                 value={totalFindings}
@@ -1483,26 +1657,26 @@ export default function SecOpsPage() {
               <KpiCard
                 title="Repos Scanned"
                 value={reposScanned}
-                subtitle={`${sastScans.length} SAST scans total`}
+                subtitle={`${filteredSastScans.length} SAST scans total`}
                 icon={<Code2 className="w-5 h-5" />}
                 color="blue"
               />
               <KpiCard
                 title="Last Scan"
-                value={lastScan ? fmtDate(lastScan).split(' ').slice(0, 2).join(' ') : '—'}
-                subtitle={lastScan ? fmtDate(lastScan).split(' ').slice(2).join(' ') : 'No scans yet'}
+                value={lastScan ? new Date(lastScan).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                subtitle={lastScan ? new Date(lastScan).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : 'No scans yet'}
                 icon={<Clock className="w-5 h-5" />}
                 color="purple"
               />
             </div>
 
             {/* ── Row 1: Security Trend (left) + Severity Distribution (right) ── */}
-            <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+            <div className="grid grid-cols-2 gap-3">
 
               {/* Security Trend Chart */}
               <div className="rounded-2xl border overflow-hidden"
                 style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-                <div className="px-5 py-4 border-b flex items-center justify-between"
+                <div className="px-4 py-3 border-b flex items-center justify-between"
                   style={{ borderColor: 'var(--border-primary)', backgroundColor: 'var(--bg-secondary)' }}>
                   <div>
                     <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Security Trend</div>
@@ -1513,7 +1687,7 @@ export default function SecOpsPage() {
                   </div>
                   <Activity className="w-4 h-4" style={{ color: 'var(--text-tertiary)' }} />
                 </div>
-                <div className="px-5 py-4">
+                <div className="px-4 py-3">
                   <SecurityTrendChart
                     overall={trendData.overall}
                     projects={trendData.projects}
@@ -1525,7 +1699,7 @@ export default function SecOpsPage() {
               {/* Severity Distribution */}
               <div className="rounded-2xl border overflow-hidden"
                 style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-                <div className="px-5 py-4 border-b flex items-center justify-between"
+                <div className="px-4 py-3 border-b flex items-center justify-between"
                   style={{ borderColor: 'var(--border-primary)', backgroundColor: 'var(--bg-secondary)' }}>
                   <div>
                     <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Severity Distribution</div>
@@ -1535,7 +1709,7 @@ export default function SecOpsPage() {
                   </div>
                   <Activity className="w-4 h-4" style={{ color: 'var(--text-tertiary)' }} />
                 </div>
-                <div className="px-5 py-5 flex items-center justify-center gap-8">
+                <div className="px-4 py-3 flex items-center justify-center gap-6">
                   {/* Donut chart */}
                   <div className="flex-shrink-0">
                     {(topFindings.length + topQualityFindings.length) > 0 ? (
@@ -1548,6 +1722,7 @@ export default function SecOpsPage() {
                           low:      severityCounts.low      || 0,
                         }}
                         title=""
+                        height={188}
                       />
                     ) : sastScans.filter(s => s.status === 'completed').length > 0 ? (
                       /* Findings are still loading — show spinner */
@@ -1573,12 +1748,12 @@ export default function SecOpsPage() {
             </div>
 
             {/* ── Row 2: Fix This First — Security (left) + Code Quality (right) ── */}
-            <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+            <div className="grid grid-cols-2 gap-3">
 
               {/* Fix This First — Vulnerabilities */}
               <div className="rounded-2xl border overflow-hidden"
                 style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-                <div className="px-5 py-4 border-b flex items-center justify-between"
+                <div className="px-4 py-2.5 border-b flex items-center justify-between"
                   style={{ borderColor: 'var(--border-primary)', backgroundColor: 'var(--bg-secondary)' }}>
                   <div className="flex items-center gap-2">
                     <div className="p-1.5 rounded-lg bg-red-500/15">
@@ -1596,9 +1771,9 @@ export default function SecOpsPage() {
                     All findings <ChevronRight className="w-3 h-3" />
                   </button>
                 </div>
-                <div className="px-4 py-3">
+                <div>
                   <FixThisFirst
-                    findings={topFindings}
+                    findings={visibleTopFindings}
                     onViewAll={() => setActiveTab('findings')}
                     onItemClick={({ sev, scanId, rawRuleId }) => {
                       if (scanId && rawRuleId) {
@@ -1617,7 +1792,7 @@ export default function SecOpsPage() {
               {/* Fix This First — Code Quality */}
               <div className="rounded-2xl border overflow-hidden"
                 style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-                <div className="px-5 py-4 border-b flex items-center justify-between"
+                <div className="px-4 py-2.5 border-b flex items-center justify-between"
                   style={{ borderColor: 'var(--border-primary)', backgroundColor: 'var(--bg-secondary)' }}>
                   <div className="flex items-center gap-2">
                     <div className="p-1.5 rounded-lg bg-blue-500/15">
@@ -1635,9 +1810,9 @@ export default function SecOpsPage() {
                     All findings <ChevronRight className="w-3 h-3" />
                   </button>
                 </div>
-                <div className="px-4 py-3">
+                <div>
                   <FixThisFirst
-                    findings={topQualityFindings}
+                    findings={visibleTopQualityFindings}
                     onViewAll={() => setActiveTab('findings')}
                     onItemClick={({ sev, scanId, rawRuleId }) => {
                       if (scanId && rawRuleId) {
@@ -1656,14 +1831,14 @@ export default function SecOpsPage() {
 
             {/* Applications Risk Table */}
             <div className="rounded-2xl border overflow-hidden" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-              <div className="px-5 py-4 border-b flex items-center justify-between" style={{ borderColor: 'var(--border-primary)', backgroundColor: 'var(--bg-secondary)' }}>
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-blue-500/15">
-                    <GitBranch className="w-4 h-4 text-blue-400" />
+              <div className="px-4 py-2.5 border-b flex items-center justify-between" style={{ borderColor: 'var(--border-primary)', backgroundColor: 'var(--bg-secondary)' }}>
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-blue-500/15">
+                    <GitBranch className="w-3.5 h-3.5 text-blue-400" />
                   </div>
                   <div>
-                    <h2 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>Applications</h2>
-                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>{projects.length} repositor{projects.length !== 1 ? 'ies' : 'y'} scanned</p>
+                    <h2 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Applications</h2>
+                    <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{projects.length} repositor{projects.length !== 1 ? 'ies' : 'y'} scanned</p>
                   </div>
                 </div>
                 <button onClick={() => router.push('/secops/projects')}
@@ -1673,18 +1848,18 @@ export default function SecOpsPage() {
                 </button>
               </div>
               {/* Column headers */}
-              <div className="grid px-5 py-2 text-xs font-semibold uppercase tracking-wider border-b"
+              <div className="grid px-4 py-1.5 text-xs font-semibold uppercase tracking-wider border-b"
                 style={{ gridTemplateColumns: '2fr 90px 60px 60px 120px 130px', gap: '1rem', borderColor: 'var(--border-primary)', color: 'var(--text-tertiary)', backgroundColor: 'var(--bg-secondary)' }}>
                 <span>Repository</span>
-                <span className="text-center">Risk Score</span>
-                <span className="text-right">Critical</span>
-                <span className="text-right">High</span>
+                <span className="text-center" title="Composite score 0–10 based on critical × 10 + high × 5 + total findings × 0.1">Risk Score</span>
+                <span className="text-right" title="Critical severity findings — exploitable vulnerabilities requiring immediate fix">Critical</span>
+                <span className="text-right" title="High severity findings — serious vulnerabilities to address urgently">High</span>
                 <span>Languages</span>
                 <span className="text-right">Last Scan</span>
               </div>
               {projects.slice(0, 5).map(p => (
                 <button key={p.repo_url} onClick={() => router.push(`/secops/projects/${encodeURIComponent(p.repo_url)}`)}
-                  className="w-full grid items-center px-5 py-3 border-b last:border-0 hover:bg-white/5 transition-colors text-left"
+                  className="w-full grid items-center px-4 py-2 border-b last:border-0 hover:bg-white/5 transition-colors text-left"
                   style={{ gridTemplateColumns: '2fr 90px 60px 60px 120px 130px', gap: '1rem', borderColor: 'var(--border-primary)' }}>
                   {/* Repository */}
                   <div className="min-w-0 overflow-hidden">
@@ -1728,53 +1903,59 @@ export default function SecOpsPage() {
             </div>
 
             {/* Two-column grid: Coverage (2/3) + Donut (1/3) */}
-            <div className="grid grid-cols-3 gap-x-4 gap-y-4">
+            <div className="grid grid-cols-3 gap-3">
               {/* Scan Coverage (2 cols) */}
               <div className="col-span-2 rounded-2xl border overflow-hidden"
                 style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-                <div className="px-5 py-4 border-b" style={{ borderColor: 'var(--border-primary)' }}>
+                <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--border-primary)' }}>
                   <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Scan Coverage</div>
                   <div className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>Active scanning engines and results</div>
                 </div>
-                <div className="p-5 grid grid-cols-3 gap-x-4 gap-y-4">
-                  <CoverageCard
-                    icon={<Code2 className="w-5 h-5 text-blue-400" />}
-                    label="SAST"
-                    count={sastScans.length}
-                    findings={sastFindings}
-                    accentCls="bg-blue-500/10"
-                    barColor="#3b82f6"
-                    total={totalFindings}
-                  />
-                  <CoverageCard
-                    icon={<Globe className="w-5 h-5 text-purple-400" />}
-                    label="DAST"
-                    count={dastScans.length}
-                    findings={dastFindings}
-                    accentCls="bg-purple-500/10"
-                    barColor="#8b5cf6"
-                    total={totalFindings}
-                  />
-                  <CoverageCard
-                    icon={<Package className="w-5 h-5 text-green-400" />}
-                    label="SCA"
-                    count={scaScans.length}
-                    findings={scaVulns}
-                    accentCls="bg-green-500/10"
-                    barColor="#22c55e"
-                    total={totalFindings}
-                  />
+                <div className="p-4 grid grid-cols-3 gap-3">
+                  {showSast && (
+                    <CoverageCard
+                      icon={<Code2 className="w-5 h-5 text-blue-400" />}
+                      label="SAST"
+                      count={filteredSastScans.length}
+                      findings={sastFindings}
+                      accentCls="bg-blue-500/10"
+                      barColor="#3b82f6"
+                      total={totalFindings}
+                    />
+                  )}
+                  {showDast && (
+                    <CoverageCard
+                      icon={<Globe className="w-5 h-5 text-purple-400" />}
+                      label="DAST"
+                      count={filteredDastScans.length}
+                      findings={dastFindings}
+                      accentCls="bg-purple-500/10"
+                      barColor="#8b5cf6"
+                      total={totalFindings}
+                    />
+                  )}
+                  {showSca && (
+                    <CoverageCard
+                      icon={<Package className="w-5 h-5 text-green-400" />}
+                      label="SCA"
+                      count={filteredScaScans.length}
+                      findings={scaVulns}
+                      accentCls="bg-green-500/10"
+                      barColor="#22c55e"
+                      total={totalFindings}
+                    />
+                  )}
                 </div>
               </div>
 
               {/* By Engine donut (1 col) */}
               <div className="col-span-1 rounded-2xl border overflow-hidden"
                 style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-                <div className="px-5 py-4 border-b" style={{ borderColor: 'var(--border-primary)' }}>
+                <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--border-primary)' }}>
                   <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>By Engine</div>
                   <div className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>Findings distribution</div>
                 </div>
-                <div className="p-5">
+                <div className="p-4">
                   <EngineDonut data={engineDonutData} />
                 </div>
               </div>
@@ -1783,11 +1964,11 @@ export default function SecOpsPage() {
             {/* Recent Scans */}
             <div className="rounded-2xl border overflow-hidden"
               style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-              <div className="px-5 py-4 border-b flex items-center justify-between"
+              <div className="px-4 py-2.5 border-b flex items-center justify-between"
                 style={{ borderColor: 'var(--border-primary)' }}>
                 <div>
                   <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Recent Scans</div>
-                  <div className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>Latest 5 scans across all engines</div>
+                  <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Latest 5 scans across all engines</div>
                 </div>
                 <button
                   onClick={() => setActiveTab('history')}
@@ -1804,7 +1985,7 @@ export default function SecOpsPage() {
               ) : (
                 <div className="divide-y" style={{ borderColor: 'var(--border-primary)' }}>
                   {/* Table header */}
-                  <div className="px-5 py-2.5 grid grid-cols-5 gap-x-4"
+                  <div className="px-4 py-1.5 grid grid-cols-5 gap-x-4"
                     style={{ backgroundColor: 'var(--bg-secondary)' }}>
                     {['Project / Target', 'Type', 'Status', 'Findings', 'Date'].map(h => (
                       <div key={h} className="text-xs font-semibold uppercase tracking-wider"
@@ -1816,7 +1997,7 @@ export default function SecOpsPage() {
                     const n = scan.total_findings ?? scan.vulnerability_count ?? 0;
                     return (
                       <div key={i}
-                        className="px-5 py-3 grid grid-cols-5 gap-x-4 items-center hover:bg-white/2 cursor-pointer transition-colors"
+                        className="px-4 py-2 grid grid-cols-5 gap-x-4 items-center hover:bg-white/2 cursor-pointer transition-colors"
                         onClick={() => {
                           if (scan._type === 'sast') router.push(`/secops/${scan._id}`);
                           else if (scan._type === 'dast') router.push(`/secops/dast/${scan._id}`);
