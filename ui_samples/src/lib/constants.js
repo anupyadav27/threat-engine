@@ -57,14 +57,6 @@ export const FRAMEWORKS = [
 export const NAV_ITEMS = [
   { label: 'Dashboard', href: '/dashboard', icon: 'LayoutDashboard' },
   {
-    label: 'Scans',
-    href: '/scans',
-    icon: 'Radar',
-    children: [
-      { label: 'Scan History', href: '/scans' },
-    ],
-  },
-  {
     label: 'Inventory',
     href: '/inventory',
     icon: 'Server',
@@ -74,18 +66,12 @@ export const NAV_ITEMS = [
     ],
   },
   {
-    label: 'Misconfigurations',
-    href: '/misconfig',
-    icon: 'AlertOctagon',
-  },
-  {
     label: 'Threats',
     href: '/threats',
-    icon: 'ShieldAlert',
+    icon: 'AlertTriangle',
     children: [
-      { label: 'Threat Detection', href: '/threats' },
+      { label: 'Detection', href: '/threats' },
       { label: 'Attack Paths', href: '/threats/attack-paths' },
-      { label: 'Blast Radius', href: '/threats/blast-radius' },
       { label: 'Toxic Combos', href: '/threats/toxic-combinations' },
       { label: 'Graph', href: '/threats/graph' },
       { label: 'Timeline', href: '/threats/timeline' },
@@ -100,46 +86,66 @@ export const NAV_ITEMS = [
       { label: 'Frameworks', href: '/compliance' },
     ],
   },
-  { label: 'IAM Security', href: '/iam', icon: 'KeyRound' },
   {
-    label: 'Data Security',
-    href: '/datasec',
-    icon: 'Database',
+    label: 'Security Posture',
+    href: '/misconfig',
+    icon: 'Shield',
     children: [
-      { label: 'Overview', href: '/datasec' },
-      { label: 'Data Lineage', href: '/datasec/lineage' },
+      { label: 'Posture Security', href: '/misconfig', icon: 'ShieldAlert' },
+      { label: 'IAM Security', href: '/iam', icon: 'KeyRound' },
+      { label: 'Network Security', href: '/network-security', icon: 'Network' },
+      { label: 'Data Security', href: '/datasec', icon: 'Lock' },
+      { label: 'Encryption', href: '/encryption', icon: 'Lock' },
+      { label: 'Database Security', href: '/database-security', icon: 'Database' },
+      { label: 'Container Security', href: '/container-security', icon: 'Container' },
+      { label: 'AI Security', href: '/ai-security', icon: 'Brain' },
     ],
   },
+  { label: 'CIEM', href: '/ciem', icon: 'Eye' },
   {
     label: 'Code Security',
     href: '/secops',
     icon: 'Code',
     children: [
-      { label: 'Scans', href: '/secops' },
+      { label: 'SecOps', href: '/secops' },
     ],
   },
+  { label: 'Risk', href: '/risk', icon: 'Activity' },
   { label: 'Reports', href: '/reports', icon: 'FileText' },
-  { label: 'Risk', href: '/risk', icon: 'TrendingUp' },
-  { label: 'Notifications', href: '/notifications', icon: 'Bell' },
+  // ── separator ──
+  { separator: true },
+  {
+    label: 'Onboarding',
+    href: '/onboarding',
+    icon: 'UserPlus',
+    children: [
+      { label: 'Cloud Accounts', href: '/onboarding' },
+      { label: 'Users', href: '/onboarding/users' },
+      { label: 'Tenants', href: '/onboarding/tenants' },
+      { label: 'Scans', href: '/scans' },
+    ],
+  },
+  {
+    label: 'Policies',
+    href: '/policies',
+    icon: 'BookOpen',
+    children: [
+      { label: 'All Policies', href: '/policies' },
+      { label: 'Rule Management', href: '/rules' },
+    ],
+  },
   {
     label: 'Settings',
     href: '/settings',
     icon: 'Settings',
     children: [
-      { label: 'Platform Health', href: '/settings' },
-      { label: 'Onboarding', href: '/onboarding' },
-      { label: 'Add Account', href: '/onboarding/wizard' },
-      { label: 'Policies', href: '/policies' },
-      { label: 'Create Policy', href: '/policies/add' },
-      { label: 'Rule Management', href: '/rules' },
-      { label: 'Users', href: '/settings/users' },
-      { label: 'Tenants', href: '/settings/tenants' },
+      { label: 'Platform', href: '/settings' },
       { label: 'Notifications', href: '/settings/notifications' },
     ],
   },
 ];
 
-// Engine calls route through Next.js rewrites → NLB → nginx ingress → engine.
+// Engine calls route through Next.js rewrites -> NLB -> nginx ingress -> engine.
 // Each prefix matches an ingress rule that strips the prefix and forwards to the engine.
 // BFF views route through the gateway at /gateway/api/v1/views/{page}.
 export const ENGINE_ENDPOINTS = {

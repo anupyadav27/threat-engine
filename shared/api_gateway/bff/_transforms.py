@@ -25,6 +25,23 @@ def _first(val: Any) -> Optional[str]:
     return None
 
 
+def _all_strings(val: Any) -> List[str]:
+    """Extract all string values from a list, or wrap a scalar string."""
+    if isinstance(val, list):
+        out: List[str] = []
+        for v in val:
+            if isinstance(v, dict):
+                s = v.get("value") or v.get("indicator") or v.get("id", "")
+                if s:
+                    out.append(str(s))
+            elif v:
+                out.append(str(v))
+        return out
+    if isinstance(val, str) and val:
+        return [val]
+    return []
+
+
 def _count_resources(t: dict) -> int:
     """Count affected resources from various API shapes."""
     assets = t.get("affected_assets")
@@ -50,14 +67,25 @@ def _infer_identity_type(uid: str, provider: str = "") -> str:
     if not uid:
         return ""
     prov = provider.lower()
-    if "/user/" in uid:
+    if ":user/" in uid:
         return "IAM User"
-    if "/role/" in uid:
+    if ":role/" in uid:
         return "IAM Role"
+    if ":policy/" in uid:
+        return "IAM Policy"
+    if ":group/" in uid:
+        return "IAM Group"
+    if ":instance-profile/" in uid:
+        return "Instance Profile"
     if prov == "azure" or "microsoft" in uid.lower():
         return "Service Principal"
     if prov == "gcp" or "@" in uid:
         return "Service Account"
+    # Fallback: try to extract type from ARN pattern arn:aws:SERVICE:...
+    if uid.startswith("arn:aws:"):
+        parts = uid.split(":")
+        if len(parts) >= 3:
+            return parts[2].upper() + " Resource"
     return "Identity"
 
 
@@ -110,8 +138,11 @@ def normalize_threat(t: dict) -> dict:
     # detection_id (new) or finding_id/threat_id (legacy)
     det_id = t.get("detection_id") or t.get("threat_id") or t.get("finding_id") or t.get("id", "")
     risk_score = t.get("risk_score") or risk_map.get(severity, 50)
-    mitre_technique = _first(t.get("mitre_techniques")) or t.get("mitre_technique", "")
-    mitre_tactic = _first(t.get("mitre_tactics")) or t.get("mitre_tactic", "")
+    # MITRE: keep first for backward compat, add full arrays for multi-technique support
+    all_techniques = _all_strings(t.get("mitre_techniques")) or _all_strings(t.get("mitre_technique"))
+    all_tactics = _all_strings(t.get("mitre_tactics")) or _all_strings(t.get("mitre_tactic"))
+    mitre_technique = all_techniques[0] if all_techniques else ""
+    mitre_tactic = all_tactics[0] if all_tactics else ""
     resource_type = t.get("resource_type", "")
     return {
         "id": det_id,
@@ -122,8 +153,10 @@ def normalize_threat(t: dict) -> dict:
         # Snake_case + camelCase aliases (UI expects camelCase)
         "mitre_technique": mitre_technique,
         "mitreTechnique": mitre_technique,
+        "mitreTechniques": all_techniques,
         "mitre_tactic": mitre_tactic,
         "mitreTactic": mitre_tactic,
+        "mitreTactics": all_tactics,
         "severity": severity,
         "affected_resources": t.get("finding_count") or _count_resources(t),
         "finding_count": t.get("finding_count", 0),
@@ -287,6 +320,77 @@ def normalize_failing_control(c: dict) -> dict:
 
 # ── Inventory ────────────────────────────────────────────────────────────────
 
+def _extract_status(a: dict) -> str:
+    """Extract resource status from config, metadata, or top-level fields.
+
+    Checks multiple common config keys across AWS services:
+    State (EC2), Status (RDS), status (generic), DBInstanceStatus, etc.
+    """
+    config = a.get("config") or a.get("configuration") or {}
+    if isinstance(config, dict):
+        # EC2 instances: State.Name or State (string)
+        state = config.get("State")
+        if isinstance(state, dict):
+            state = state.get("Name", "")
+        if state:
+            return str(state).lower()
+        # RDS, Redshift, ECS, Lambda, Kinesis, etc.
+        for key in ("DBInstanceStatus", "Status", "status", "InstanceState",
+                     "ClusterStatus", "FunctionStatus", "StreamStatus"):
+            val = config.get(key)
+            if val and isinstance(val, str):
+                return val.lower()
+    metadata = a.get("metadata") or {}
+    if isinstance(metadata, dict):
+        ms = metadata.get("state") or metadata.get("status")
+        if ms:
+            return str(ms).lower()
+    return a.get("status", "active")
+
+
+def _extract_internet_exposed(a: dict) -> bool:
+    """Determine internet exposure from config JSONB.
+
+    Checks common AWS indicators: PubliclyAccessible (RDS, Redshift),
+    PublicAccess / PublicAccessBlockConfiguration (S3), PublicIp (EC2),
+    IsPublic (Lambda URL), Scheme 'internet-facing' (ELB).
+    """
+    config = a.get("config") or a.get("configuration") or {}
+    if not isinstance(config, dict):
+        return a.get("internet_exposed", False)
+
+    # Direct boolean flags
+    if config.get("PubliclyAccessible") is True:
+        return True
+    if config.get("IsPublic") is True:
+        return True
+
+    # S3 PublicAccessBlockConfiguration — all blocks False means public
+    pub_block = config.get("PublicAccessBlockConfiguration")
+    if isinstance(pub_block, dict) and pub_block:
+        if not any(pub_block.values()):
+            return True
+
+    # S3 PublicAccess (string)
+    pub_access = config.get("PublicAccess")
+    if isinstance(pub_access, str) and pub_access.lower() in ("enabled", "true", "yes"):
+        return True
+
+    # EC2 public IP
+    if config.get("PublicIpAddress") or config.get("PublicIp"):
+        return True
+
+    # ELB internet-facing scheme
+    if (config.get("Scheme") or "").lower() == "internet-facing":
+        return True
+
+    # CloudFront distributions are always internet-facing
+    if config.get("DomainName") and config.get("Origins"):
+        return True
+
+    return a.get("internet_exposed", False)
+
+
 def normalize_asset(a: dict) -> dict:
     uid = a.get("resource_uid") or a.get("resource_id", "")
     metadata = a.get("metadata") or {}
@@ -301,6 +405,10 @@ def normalize_asset(a: dict) -> dict:
         service = parts[-1].lower() if parts else ""
     else:
         service = a.get("service", "")
+
+    status = _extract_status(a)
+    internet_exposed = _extract_internet_exposed(a)
+
     return {
         "resource_id": uid,
         "resource_uid": uid,  # UI uses resource_uid for navigation links
@@ -310,7 +418,7 @@ def normalize_asset(a: dict) -> dict:
         "provider": _safe_lower(a.get("provider")),
         "region": a.get("region", ""),
         "account_id": a.get("account_id", ""),
-        "status": metadata.get("state") or a.get("status", "active"),
+        "status": status,
         "risk_score": metadata.get("risk_score") or a.get("risk_score", 0),
         "severity": severity,
         "findings": findings if isinstance(findings, dict) else {},
@@ -318,8 +426,8 @@ def normalize_asset(a: dict) -> dict:
         "tags": tags,
         "last_scanned": a.get("discovered_at") or a.get("last_scanned"),
         "created_at": a.get("discovered_at") or a.get("created_at"),
-        "internet_exposed": a.get("internet_exposed", False),
-        "public": a.get("public") or a.get("public_access", False),
+        "internet_exposed": internet_exposed,
+        "public": internet_exposed or a.get("public") or a.get("public_access", False),
     }
 
 
@@ -341,19 +449,23 @@ def normalize_iam_identity(findings_list: List[dict], uid: str) -> dict:
         risk = 45
     else:
         risk = min(policy_count * 12, 100)
+    identity_type = first.get("identity_type") or _infer_identity_type(uid, provider)
+    last_seen = first.get("last_seen_at") or first.get("first_seen_at") or first.get("created_at")
     return {
         "id": uid,
         "username": first.get("identity_name") or uid.rsplit("/", 1)[-1],
-        "type": first.get("identity_type") or _infer_identity_type(uid, provider),
+        "type": identity_type,
         "provider": _safe_upper(provider),
         "account": first.get("account_id") or first.get("account", ""),
         "region": first.get("region", ""),
         "groups": 0,
         "policies": policy_count,
-        "last_login": first.get("created_at"),
+        "last_login": last_seen,
         "mfa": not has_mfa_issue,
         "risk_score": risk,
         "status": "active",
+        "findings_count": policy_count,
+        "severity": _safe_lower(first.get("severity")),
     }
 
 
@@ -366,39 +478,61 @@ def group_iam_findings_to_identities(findings: List[dict]) -> List[dict]:
 
 
 def normalize_iam_role(r: dict) -> dict:
+    fd = r.get("finding_data") or {}
+    uid = r.get("resource_arn") or r.get("resource_uid", "")
+    name = r.get("name") or r.get("resource_id") or uid.rsplit("/", 1)[-1]
+    identity_type = _infer_identity_type(uid, r.get("provider", ""))
     return {
-        "name": r.get("name") or r.get("role_name", ""),
-        "type": r.get("type") or r.get("role_type", ""),
-        "attached_to": r.get("attached_to") or r.get("principals", 0),
-        "permissions": r.get("permissions") or r.get("permission_count", 0),
-        "wildcard": r.get("wildcard") or r.get("has_wildcard", False),
-        "last_used": r.get("last_used") or r.get("last_activity"),
-        "risk_level": r.get("risk_level") or r.get("severity", "low"),
+        "name": name,
+        "type": identity_type,
+        "rule_id": r.get("rule_id", ""),
+        "severity": _safe_lower(r.get("severity")),
+        "status": r.get("status", ""),
+        "resource_uid": uid,
+        "account_id": r.get("account_id", ""),
+        "region": r.get("region", ""),
+        "description": fd.get("description") or fd.get("rule_description", ""),
+        "remediation": fd.get("remediation", ""),
+        "finding_id": r.get("finding_id", ""),
         "provider": _safe_upper(r.get("provider")),
     }
 
 
 def normalize_access_key(k: dict) -> dict:
+    fd = k.get("finding_data") or {}
+    uid = k.get("resource_arn") or k.get("resource_uid", "")
+    user = k.get("resource_id") or uid.rsplit("/", 1)[-1]
     return {
-        "user": k.get("user") or k.get("username") or k.get("identity_name", ""),
+        "user": user,
+        "rule_id": k.get("rule_id", ""),
+        "severity": _safe_lower(k.get("severity")),
+        "status": k.get("status", ""),
+        "resource_uid": uid,
+        "account_id": k.get("account_id", ""),
+        "region": k.get("region", ""),
+        "description": fd.get("description") or fd.get("rule_description", ""),
+        "remediation": fd.get("remediation", ""),
+        "finding_id": k.get("finding_id", ""),
         "provider": _safe_upper(k.get("provider")),
-        "created": k.get("created") or k.get("created_at"),
-        "last_used": k.get("last_used") or k.get("last_activity"),
-        "age_days": k.get("age_days") or k.get("age", 0),
-        "status": k.get("status", "active"),
-        "rotation_due": k.get("rotation_due") or k.get("needs_rotation", False),
     }
 
 
 def normalize_privilege_escalation(e: dict) -> dict:
+    fd = e.get("finding_data") or {}
+    uid = e.get("resource_arn") or e.get("resource_uid", "")
+    name = e.get("resource_id") or uid.rsplit("/", 1)[-1]
     return {
-        "id": e.get("id") or e.get("finding_id", ""),
-        "flow": e.get("flow") or e.get("escalation_path", ""),
-        "risk_level": e.get("risk_level") or e.get("severity", "medium"),
-        "affected_user": e.get("affected_user") or e.get("identity_name", ""),
-        "title": e.get("title", ""),
-        "description": e.get("description", ""),
-        "remediation": e.get("remediation", ""),
+        "id": e.get("finding_id", ""),
+        "name": name,
+        "rule_id": e.get("rule_id", ""),
+        "severity": _safe_lower(e.get("severity")),
+        "status": e.get("status", ""),
+        "resource_uid": uid,
+        "account_id": e.get("account_id", ""),
+        "region": e.get("region", ""),
+        "type": _infer_identity_type(uid, e.get("provider", "")),
+        "description": fd.get("description") or fd.get("rule_description", ""),
+        "remediation": fd.get("remediation", ""),
         "provider": _safe_upper(e.get("provider")),
     }
 
@@ -523,6 +657,7 @@ def normalize_scan(s: dict, idx: int = 0) -> dict:
 def normalize_check_finding(f: dict) -> dict:
     severity = _safe_lower(f.get("severity"))
     age_days = f.get("age_days")
+    risk_map = {"critical": 95, "high": 75, "medium": 50, "low": 25}
     return {
         "id": f.get("finding_id") or f.get("id", ""),
         "rule_id": f.get("rule_id", ""),
@@ -531,6 +666,7 @@ def normalize_check_finding(f: dict) -> dict:
         "framework": f.get("framework") or f.get("control_framework", ""),
         "service": f.get("resource_type") or f.get("service", ""),
         "resource_arn": f.get("resource_id") or f.get("resource_arn", ""),
+        "resource_type": f.get("resource_type") or f.get("service", ""),
         "remediation": f.get("remediation", ""),
         "provider": _safe_upper(f.get("provider")),
         "account": f.get("account") or f.get("account_id", ""),
@@ -540,6 +676,16 @@ def normalize_check_finding(f: dict) -> dict:
         "age_days": age_days,
         "sla_status": compute_sla_status(severity, age_days),
         "status": (f.get("status") or "FAIL").upper(),
+        # Detail slide-out panel fields
+        "description": f.get("description") or f.get("rationale", ""),
+        "compliance_frameworks": f.get("compliance_frameworks") or f.get("frameworks", []),
+        "mitre_tactics": f.get("mitre_tactics", []),
+        "mitre_techniques": f.get("mitre_techniques", []),
+        "posture_category": f.get("posture_category", ""),
+        "domain": f.get("domain") or f.get("security_domain", ""),
+        "risk_score": f.get("risk_score") or risk_map.get(severity, 50),
+        "checked_fields": f.get("checked_fields", []),
+        "actual_values": f.get("actual_values", []),
     }
 
 

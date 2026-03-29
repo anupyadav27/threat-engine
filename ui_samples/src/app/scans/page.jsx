@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Play, Plus } from 'lucide-react';
+import { Play, Plus, ChevronDown, ChevronRight } from 'lucide-react';
 import { fetchView, postToEngine } from '@/lib/api';
 import { useToast } from '@/lib/toast-context';
 import { useGlobalFilter } from '@/lib/global-filter-context';
@@ -22,10 +22,10 @@ export default function ScansPage() {
   const [showRunModal, setShowRunModal] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState('');
   const [selectedType, setSelectedType] = useState('full');
-  const [filters, setFilters] = useState({
-    type: '',
-    status: '',
-  });
+  const [activeFilters, setActiveFilters] = useState({});
+  const [search, setSearch] = useState('');
+  const [groupBy, setGroupBy] = useState('');
+  const [expandedGroups, setExpandedGroups] = useState({});
 
   const { provider, account, filterSummary } = useGlobalFilter();
 
@@ -93,14 +93,92 @@ export default function ScansPage() {
     }
   };
 
-  // Filter scans (local type/status filters applied on top of scopeFiltered)
-  const filteredScans = useMemo(() => {
-    return scopeFiltered.filter((scan) => {
-      if (filters.type && scan.scan_type !== filters.type) return false;
-      if (filters.status && scan.status !== filters.status) return false;
-      return true;
+  const handleFilterChange = (key, value) => {
+    setActiveFilters(prev => ({ ...prev, [key]: value }));
+  };
+
+  // ── Unique values for filter options ──
+  const uniqueVals = (key) => [...new Set(scopeFiltered.map(r => r[key]).filter(Boolean))].sort();
+
+  // Primary filters
+  const primaryFilters = useMemo(() => {
+    const f = [
+      { key: 'scan_type', label: 'Scan Type', options: [
+        { value: 'full', label: 'Full Scan' },
+        { value: 'incremental', label: 'Incremental' },
+        { value: 'compliance', label: 'Compliance' },
+        { value: 'vulnerability', label: 'Vulnerability' },
+        { value: 'iac', label: 'IaC Scan' },
+      ]},
+      { key: 'status', label: 'Status', options: [
+        { value: 'completed', label: 'Completed' },
+        { value: 'running', label: 'Running' },
+        { value: 'pending', label: 'Pending' },
+        { value: 'failed', label: 'Failed' },
+      ]},
+    ];
+    const providers = uniqueVals('provider');
+    if (providers.length > 1) f.push({ key: 'provider', label: 'Provider', options: providers });
+    const accounts = uniqueVals('account_name');
+    if (accounts.length > 1) f.push({ key: 'account_name', label: 'Account', options: accounts });
+    return f;
+  }, [scopeFiltered]);
+
+  // Group-by options
+  const groupByOptions = useMemo(() => [
+    { key: 'scan_type', label: 'Scan Type' },
+    { key: 'status', label: 'Status' },
+    { key: 'provider', label: 'Provider' },
+    { key: 'account_name', label: 'Account' },
+    { key: 'triggered_by', label: 'Triggered By' },
+  ], []);
+
+  // Apply search + filters
+  const filtered = useMemo(() => {
+    let result = scopeFiltered;
+    if (search) {
+      const q = search.toLowerCase();
+      result = result.filter(row =>
+        Object.values(row).some(v => v && String(v).toLowerCase().includes(q))
+      );
+    }
+    Object.entries(activeFilters).forEach(([key, value]) => {
+      if (!value) return;
+      result = result.filter(row => {
+        const rowVal = row[key];
+        if (!rowVal) return false;
+        return String(rowVal).toLowerCase() === value.toLowerCase();
+      });
     });
-  }, [scopeFiltered, filters]);
+    return result;
+  }, [scopeFiltered, search, activeFilters]);
+
+  // Group data
+  const grouped = useMemo(() => {
+    if (!groupBy || !filtered.length) return null;
+    const groups = {};
+    filtered.forEach(row => {
+      const key = String(row[groupBy] || 'Other');
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(row);
+    });
+    return Object.entries(groups)
+      .sort(([, a], [, b]) => b.length - a.length)
+      .map(([key, items]) => ({ key, items, count: items.length }));
+  }, [filtered, groupBy]);
+
+  // Auto-expand all groups when groupBy changes
+  useEffect(() => {
+    if (grouped) {
+      const expanded = {};
+      grouped.forEach(g => { expanded[g.key] = true; });
+      setExpandedGroups(expanded);
+    }
+  }, [groupBy]);
+
+  const toggleGroup = (key) => {
+    setExpandedGroups(prev => ({ ...prev, [key]: !prev[key] }));
+  };
 
   // Calculate KPI metrics from scopeFiltered
   const activeScans = scopeFiltered.filter((s) => s.status === 'running').length;
@@ -125,21 +203,6 @@ export default function ScansPage() {
           }, 0) / totalScansCompleted / 60
       ).toFixed(0)
     : 0;
-
-  const types = [
-    { value: 'full', label: 'Full Scan' },
-    { value: 'incremental', label: 'Incremental' },
-    { value: 'compliance', label: 'Compliance' },
-    { value: 'vulnerability', label: 'Vulnerability' },
-    { value: 'iac', label: 'IaC Scan' },
-  ];
-
-  const statuses = [
-    { value: 'completed', label: 'Completed' },
-    { value: 'running', label: 'Running' },
-    { value: 'pending', label: 'Pending' },
-    { value: 'failed', label: 'Failed' },
-  ];
 
   // Table columns
   const columns = [
@@ -604,18 +667,6 @@ export default function ScansPage() {
         </div>
       )}
 
-      {/* Filters */}
-      <FilterBar
-        filters={[
-          { key: 'type', label: 'Scan Type', options: types },
-          { key: 'status', label: 'Status', options: statuses },
-        ]}
-        onFilterChange={(key, value) => {
-          setFilters({ ...filters, [key]: value });
-        }}
-        activeFilters={filters}
-      />
-
       {/* Scan History Table */}
       <div
         className="rounded-lg p-6 border"
@@ -629,17 +680,58 @@ export default function ScansPage() {
             Scan History
           </h2>
           <span style={{ color: 'var(--text-tertiary)' }} className="text-sm">
-            {filteredScans.length} of {scans.length} scans
+            {filtered.length} of {scans.length} scans
           </span>
         </div>
-        <DataTable
-          data={filteredScans}
-          columns={columns}
-          pageSize={15}
-          onRowClick={(scan) => router.push(`/scans/${scan.scan_id}`)}
-          loading={loading}
-          emptyMessage="No scans found matching your filters"
+
+        {/* Filter Bar (search + filters + group by) */}
+        <FilterBar
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search scans..."
+          filters={primaryFilters}
+          onFilterChange={handleFilterChange}
+          activeFilters={activeFilters}
+          groupByOptions={groupByOptions}
+          groupBy={groupBy}
+          onGroupByChange={setGroupBy}
         />
+
+        <div className="mt-4">
+          {/* Grouped or flat table */}
+          {grouped ? (
+            <div className="space-y-3">
+              {grouped.map(({ key, items, count }) => (
+                <div key={key} className="rounded-lg border" style={{ borderColor: 'var(--border-primary)' }}>
+                  <button
+                    onClick={() => toggleGroup(key)}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-medium"
+                    style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+                  >
+                    {expandedGroups[key] ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                    <span>{key}</span>
+                    <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>{count}</span>
+                  </button>
+                  {expandedGroups[key] && (
+                    <DataTable data={items} columns={columns} pageSize={25} hideToolbar onRowClick={(scan) => router.push(`/scans/${scan.scan_id}`)} />
+                  )}
+                </div>
+              ))}
+              <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                {grouped.length} groups, {filtered.length} total rows
+              </div>
+            </div>
+          ) : (
+            <DataTable
+              data={filtered}
+              columns={columns}
+              pageSize={15}
+              onRowClick={(scan) => router.push(`/scans/${scan.scan_id}`)}
+              loading={loading}
+              emptyMessage="No scans found matching your filters"
+            />
+          )}
+        </div>
       </div>
 
       {/* Run Scan Modal */}

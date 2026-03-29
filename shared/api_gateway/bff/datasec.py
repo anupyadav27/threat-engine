@@ -12,11 +12,12 @@ from typing import Optional
 
 from fastapi import APIRouter, Query
 
-from ._shared import fetch_many, safe_get
+from ._shared import fetch_many, safe_get, mock_fallback, is_empty_or_health
 from ._transforms import (
     normalize_datastore, normalize_classification, normalize_dlp_violation,
     normalize_residency, normalize_access_activity, apply_global_filters,
 )
+from ._page_context import datasec_page_context, datasec_filter_schema
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
@@ -45,6 +46,12 @@ async def view_datasec(
     datasec_data = results[0]
     if not isinstance(datasec_data, dict):
         datasec_data = {}
+
+    # Mock fallback when engine data is empty
+    if is_empty_or_health(datasec_data):
+        m = mock_fallback("datasec")
+        if m is not None:
+            return m
 
     summary = safe_get(datasec_data, "summary", {})
 
@@ -84,6 +91,21 @@ async def view_datasec(
 
     # Encryption status — pre-organized by datasec/ui-data
     encryption = safe_get(datasec_data, "encryption_status", [])
+    if isinstance(encryption, list):
+        for enc_item in encryption:
+            if isinstance(enc_item, dict) and "rotation" not in enc_item:
+                # Derive rotation from resource config if available
+                config = enc_item.get("config") or enc_item.get("resource_config") or {}
+                if isinstance(config, dict):
+                    rotation_enabled = config.get("KeyRotationEnabled") or config.get("key_rotation_enabled")
+                    if rotation_enabled is True:
+                        enc_item["rotation"] = "Enabled"
+                    elif rotation_enabled is False:
+                        enc_item["rotation"] = "Disabled"
+                    else:
+                        enc_item["rotation"] = "Unknown"
+                else:
+                    enc_item["rotation"] = "Unknown"
 
     # Lineage
     lineage = safe_get(datasec_data, "lineage", {})
@@ -114,25 +136,46 @@ async def view_datasec(
     if encrypted_pct is None:
         encrypted_pct = round((encrypted / len(filtered_catalog) * 100), 1) if filtered_catalog else 0
 
-    # Data risk score from summary or derived from findings
-    data_risk_score = safe_get(summary, "data_risk_score", 0)
-    if not data_risk_score and raw_findings:
+    # Data security posture score from summary or derived from findings
+    posture_score = safe_get(summary, "data_risk_score", 0) or safe_get(summary, "posture_score", 0)
+    if not posture_score and raw_findings:
         sev_weights = {"critical": 4, "high": 3, "medium": 2, "low": 1}
         total_weight = sum(sev_weights.get((f.get("severity") or "medium").lower(), 2) for f in raw_findings)
-        data_risk_score = min(100, round((total_weight / (len(raw_findings) * 4)) * 100))
+        posture_score = min(100, round((total_weight / (len(raw_findings) * 4)) * 100))
+
+    page_ctx = datasec_page_context({})
+    page_ctx["brief"] = f"{total_stores} data stores monitored — {sensitive} contain sensitive data"
+    page_ctx["tabs"] = [
+        {"id": "catalog", "label": "Data Catalog", "count": len(filtered_catalog)},
+        {"id": "classifications", "label": "Classifications", "count": len(classifications)},
+        {"id": "findings", "label": "Findings", "count": len(raw_findings)},
+        {"id": "encryption", "label": "Encryption", "count": len(encryption) if isinstance(encryption, list) else 0},
+    ]
 
     return {
-        "kpi": {
-            "dataStoresMonitored": total_stores,
-            "sensitiveDataStores": sensitive,
-            "unencryptedStores": unencrypted,
-            "publicAccessStores": public_access,
-            "dlpViolations": len(dlp),
-            "classifiedPct": classified_pct,
-            "encryptedPct": encrypted_pct,
-            "sensitiveExposed": sensitive_exposed,
-            "dataRiskScore": data_risk_score,
-        },
+        "pageContext": page_ctx,
+        "filterSchema": datasec_filter_schema(),
+        "kpiGroups": [
+            {
+                "title": "Data Exposure",
+                "items": [
+                    {"label": "Stores Monitored", "value": total_stores},
+                    {"label": "Sensitive Stores", "value": sensitive},
+                    {"label": "Public Access", "value": public_access},
+                    {"label": "Sensitive Exposed", "value": sensitive_exposed},
+                    {"label": "Posture Score", "value": posture_score, "suffix": "/100"},
+                ],
+            },
+            {
+                "title": "Data Protection",
+                "items": [
+                    {"label": "Encrypted", "value": encrypted_pct, "suffix": "%"},
+                    {"label": "Classified", "value": classified_pct, "suffix": "%"},
+                    {"label": "Unencrypted", "value": unencrypted},
+                    {"label": "DLP Violations", "value": len(dlp)},
+                ],
+            },
+        ],
         "catalog": filtered_catalog,
         "classifications": classifications,
         "lineage": lineage,

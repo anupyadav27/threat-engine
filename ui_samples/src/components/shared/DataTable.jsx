@@ -53,6 +53,7 @@ export default function DataTable({
   onExportExcel,
   showExport = false,
   renderExpandedRow,
+  hideToolbar = false,
 }) {
   const [searchText, setSearchText] = useState('');
   const [columnSearches, setColumnSearches] = useState({});
@@ -286,8 +287,8 @@ export default function DataTable({
 
   return (
     <div className="w-full space-y-4">
-      {/* Search Bar, Column Picker, Density & Export Buttons */}
-      <div className="flex items-center justify-between gap-3">
+      {/* Search Bar, Column Picker, Density & Export Buttons — hidden when parent provides FilterBar */}
+      {!hideToolbar && <div className="flex items-center justify-between gap-3">
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-muted)' }} />
           <input
@@ -396,6 +397,8 @@ export default function DataTable({
           )}
         </div>
       </div>
+
+      }
 
       {/* Export Progress Bar */}
       {exportProgress !== null && (

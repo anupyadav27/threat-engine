@@ -45,34 +45,54 @@ function LucideIcon({ name, size = 16, color, className = '' }) {
 }
 
 const CATEGORY_CONFIG = {
-  compute:           { icon: 'Server',       color: '#3b82f6', label: 'Compute' },
-  compute_eks:       { icon: 'Server',       color: '#2563eb', label: 'Compute · EKS' },
-  compute_ecs:       { icon: 'Server',       color: '#1d4ed8', label: 'Compute · ECS' },
-  compute_rds:       { icon: 'Server',       color: '#7c3aed', label: 'Compute · RDS' },
-  compute_redshift:  { icon: 'Server',       color: '#6d28d9', label: 'Compute · Redshift' },
-  compute_sagemaker: { icon: 'Server',       color: '#c026d3', label: 'Compute · SageMaker' },
-  compute_emr:       { icon: 'Server',       color: '#0891b2', label: 'Compute · EMR' },
-  compute_elasticache:{ icon: 'Server',      color: '#059669', label: 'Compute · ElastiCache' },
-  compute_opensearch:{ icon: 'Server',       color: '#e11d48', label: 'Compute · OpenSearch' },
-  compute_lambda:    { icon: 'Server',       color: '#d97706', label: 'Compute · Lambda' },
-  lambda:      { icon: 'Zap',          color: '#d97706', label: 'Lambda' },
-  file_storage:{ icon: 'FolderOpen',   color: '#f59e0b', label: 'File Storage (EFS)' },
-  container:   { icon: 'Container',    color: '#06b6d4', label: 'Containers' },
-  database:    { icon: 'Database',     color: '#8b5cf6', label: 'Database' },
-  storage:     { icon: 'HardDrive',    color: '#f59e0b', label: 'Storage' },
-  network:     { icon: 'Network',      color: '#64748b', label: 'Network' },
-  edge:        { icon: 'Globe',        color: '#10b981', label: 'Edge / CDN' },
-  security:    { icon: 'Shield',       color: '#ef4444', label: 'Security' },
-  identity:    { icon: 'KeyRound',     color: '#f97316', label: 'Identity' },
-  encryption:  { icon: 'Lock',         color: '#a855f7', label: 'Encryption' },
-  monitoring:  { icon: 'Activity',     color: '#14b8a6', label: 'Monitoring' },
-  logging:     { icon: 'FileText',    color: '#0d9488', label: 'Logging & Audit' },
-  management:  { icon: 'Settings',     color: '#6b7280', label: 'Management' },
-  messaging:   { icon: 'MessageSquare',color: '#ec4899', label: 'Messaging' },
-  analytics:   { icon: 'BarChart3',    color: '#0ea5e9', label: 'Analytics' },
-  ai_ml:       { icon: 'Brain',        color: '#d946ef', label: 'AI / ML' },
-  iot:         { icon: 'Wifi',         color: '#84cc16', label: 'IoT' },
-  other:       { icon: 'Box',          color: '#94a3b8', label: 'Other' },
+  // Compute
+  compute:               { icon: 'Server',       color: '#3b82f6', label: 'Compute' },
+  'compute-container':   { icon: 'Container',    color: '#06b6d4', label: 'Containers' },
+  'compute-database':    { icon: 'Database',     color: '#8b5cf6', label: 'Database' },
+  'compute-serverless':  { icon: 'Zap',          color: '#d97706', label: 'Serverless' },
+  'compute-analytics':   { icon: 'BarChart3',    color: '#0ea5e9', label: 'Analytics' },
+  // Legacy compute_ variants (from architecture builder grouping)
+  compute_eks:           { icon: 'Container',    color: '#2563eb', label: 'Compute · EKS' },
+  compute_ecs:           { icon: 'Container',    color: '#1d4ed8', label: 'Compute · ECS' },
+  compute_rds:           { icon: 'Database',     color: '#7c3aed', label: 'Compute · RDS' },
+  compute_redshift:      { icon: 'Database',     color: '#6d28d9', label: 'Compute · Redshift' },
+  compute_sagemaker:     { icon: 'Brain',        color: '#c026d3', label: 'Compute · SageMaker' },
+  compute_emr:           { icon: 'Server',       color: '#0891b2', label: 'Compute · EMR' },
+  compute_elasticache:   { icon: 'Database',     color: '#059669', label: 'Compute · ElastiCache' },
+  compute_opensearch:    { icon: 'Database',     color: '#e11d48', label: 'Compute · OpenSearch' },
+  compute_lambda:        { icon: 'Zap',          color: '#d97706', label: 'Compute · Lambda' },
+  // Network
+  network:               { icon: 'Network',      color: '#64748b', label: 'Network' },
+  'network-lb':          { icon: 'Globe',        color: '#10b981', label: 'Load Balancer' },
+  'network-gateway':     { icon: 'Router',       color: '#64748b', label: 'Gateway' },
+  'network-endpoint':    { icon: 'Plug',         color: '#64748b', label: 'VPC Endpoint' },
+  'network-dns':         { icon: 'Globe',        color: '#0ea5e9', label: 'DNS' },
+  // Storage
+  storage:               { icon: 'HardDrive',    color: '#f59e0b', label: 'Storage' },
+  'storage-object':      { icon: 'HardDrive',    color: '#f59e0b', label: 'Object Storage' },
+  'storage-block':       { icon: 'HardDrive',    color: '#f59e0b', label: 'Block Storage' },
+  'storage-file':        { icon: 'FolderOpen',   color: '#f59e0b', label: 'File Storage' },
+  // Security & Identity
+  security:              { icon: 'Shield',       color: '#ef4444', label: 'Security' },
+  identity:              { icon: 'KeyRound',     color: '#f97316', label: 'Identity' },
+  encryption:            { icon: 'Lock',         color: '#a855f7', label: 'Encryption' },
+  // Operations
+  monitoring:            { icon: 'Activity',     color: '#14b8a6', label: 'Monitoring' },
+  logging:               { icon: 'FileText',     color: '#0d9488', label: 'Logging & Audit' },
+  management:            { icon: 'Settings',     color: '#6b7280', label: 'Management' },
+  messaging:             { icon: 'MessageSquare', color: '#ec4899', label: 'Messaging' },
+  // Public services
+  public:                { icon: 'Globe',        color: '#10b981', label: 'Public Services' },
+  // Legacy
+  lambda:                { icon: 'Zap',          color: '#d97706', label: 'Lambda' },
+  file_storage:          { icon: 'FolderOpen',   color: '#f59e0b', label: 'File Storage (EFS)' },
+  container:             { icon: 'Container',    color: '#06b6d4', label: 'Containers' },
+  database:              { icon: 'Database',     color: '#8b5cf6', label: 'Database' },
+  edge:                  { icon: 'Globe',        color: '#10b981', label: 'Edge / CDN' },
+  analytics:             { icon: 'BarChart3',    color: '#0ea5e9', label: 'Analytics' },
+  ai_ml:                 { icon: 'Brain',        color: '#d946ef', label: 'AI / ML' },
+  iot:                   { icon: 'Wifi',         color: '#84cc16', label: 'IoT' },
+  other:                 { icon: 'Box',          color: '#94a3b8', label: 'Other' },
 };
 
 const MODEL_BADGE = {
@@ -92,7 +112,11 @@ const SUBNET_TYPE_COLORS = {
 };
 
 const CATEGORY_ORDER = [
-  'edge', 'compute', 'container', 'database', 'file_storage', 'storage',
+  'network-lb', 'network-gateway', 'network-endpoint', 'network-dns',
+  'compute', 'compute-container', 'compute-database', 'compute-serverless', 'compute-analytics',
+  'compute_eks', 'compute_ecs', 'compute_rds', 'compute_lambda',
+  'storage-object', 'storage-block', 'storage-file',
+  'edge', 'public', 'container', 'database', 'file_storage', 'storage',
   'lambda', 'network', 'messaging', 'analytics', 'ai_ml', 'iot', 'other',
 ];
 
@@ -1246,11 +1270,11 @@ function StatsStrip({ data }) {
 
 function PrioritySelector({ value, onChange }) {
   const options = [
-    { val: 1, label: 'Core only', desc: 'VPC, compute, database, storage, serverless' },
-    { val: 2, label: 'Important', desc: '+ load balancers, containers, messaging, KMS' },
-    { val: 3, label: 'Expanded', desc: '+ security groups, route tables, ENIs' },
-    { val: 4, label: 'Detailed', desc: '+ monitoring, config, SSM' },
-    { val: 5, label: 'Everything', desc: 'All discovered resources' },
+    { val: 1, label: 'P1 · Infra', desc: 'Account, Regions, VPCs, Subnets, Gateways' },
+    { val: 2, label: 'P2 · Services', desc: '+ Compute, Database, Serverless, Load Balancers' },
+    { val: 3, label: 'P3 · Extended', desc: '+ Security Groups, KMS, Storage, Containers' },
+    { val: 4, label: 'P4 · Support', desc: '+ IAM, Monitoring, Logging, Network details' },
+    { val: 5, label: 'P5 · All', desc: 'All discovered resources including flows' },
   ];
 
   return (
@@ -1313,7 +1337,7 @@ export default function ArchitectureDiagramV2Page() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [zoom, setZoom] = useState(1);
-  const [maxPriority, setMaxPriority] = useState(2);
+  const [maxPriority, setMaxPriority] = useState(3);
   const [filters, setFilters] = useState({
     selectedAccounts: null,  // null = all selected
     selectedRegions: null,

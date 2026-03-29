@@ -26,7 +26,7 @@ from typing import Optional, Dict, Any, List
 
 from fastapi import APIRouter, Query
 
-from ._shared import fetch_many, safe_get
+from ._shared import fetch_many, safe_get, mock_fallback, is_empty_or_health
 from ._transforms import (
     normalize_threat, severity_chart, apply_global_filters, _safe_upper,
 )
@@ -139,6 +139,12 @@ async def view_dashboard(
     datasec_data = datasec_data if isinstance(datasec_data, dict) else {}
     risk_data = risk_data if isinstance(risk_data, dict) else {}
     onboarding_data = onboarding_data if isinstance(onboarding_data, dict) else {}
+
+    # Mock fallback when all engine calls return empty
+    if all(is_empty_or_health(d) for d in [threat_data, compliance_data, inventory_data, iam_data, datasec_data, risk_data, onboarding_data]):
+        m = mock_fallback("dashboard")
+        if m is not None:
+            return m
 
     now = datetime.now(timezone.utc)
 
@@ -258,6 +264,9 @@ async def view_dashboard(
         "criticalHighFindingsChange": None,
         "complianceScore": round(compliance_score) if compliance_score else 0,
         "complianceScoreChange": compliance_data.get("score_change", None) or compliance_data.get("scoreChange", None),
+        "financialRiskExposure": risk_d.get("risk_score") or risk_d.get("riskScore", 0),
+        "financialRiskExposureChange": risk_d.get("risk_score_change") or risk_d.get("riskScoreChange", None),
+        # Legacy alias for backwards compatibility
         "attackSurfaceScore": risk_d.get("risk_score") or risk_d.get("riskScore", 0),
         "attackSurfaceScoreChange": risk_d.get("risk_score_change") or risk_d.get("riskScoreChange", None),
         "mttr": mttr_days,
@@ -300,9 +309,9 @@ async def view_dashboard(
                 threat_activity_trend.append({"date": t.get("date", ""), "threats": threats_val})
 
     # Derive trend from threat detection timestamps if engine returned no trend
-    if not threat_activity_trend and raw_threats:
+    if not threat_activity_trend and all_threats:
         date_counts: Dict[str, int] = {}
-        for t in raw_threats:
+        for t in all_threats:
             ts = t.get("detected_at") or t.get("first_seen_at") or t.get("detected") or ""
             if isinstance(ts, str) and len(ts) >= 10:
                 d = ts[:10]
@@ -648,33 +657,61 @@ async def view_dashboard(
 
     # ── Build final response ──────────────────────────────────────────────
     response = {
+        "pageContext": {
+            "title": "Security Dashboard",
+            "brief": f"Executive overview — {kpi.get('totalFindings', 0)} findings, {kpi.get('totalAssets', 0)} assets monitored",
+            "details": [
+                "Aggregated security posture across all engines and cloud accounts",
+                "KPIs refresh with each scan — compliance, threats, misconfigurations, IAM, data security",
+                "Click any widget to drill into the corresponding engine page",
+                "Use the scope bar to filter by tenant, provider, account, or region",
+            ],
+            "tabs": [],
+        },
         "kpi": kpi,
-        "severityChart": sev_chart,
-        "recentThreats": recent_threats,
-        "threatActivityTrend": threat_activity_trend,
-        "frameworks": frameworks,
-        "complianceScore": kpi["complianceScore"],
-        "cloudHealthData": cloud_health,
-        "cloudProviders": cloud_providers,
+        # ── Charts grouped by category (dashboard only) ──
+        "chartCategories": [
+            {
+                "id": "security_posture",
+                "title": "Security Posture",
+                "charts": [
+                    {"id": "severity_donut", "type": "donut", "title": "Findings by Severity", "data": sev_chart},
+                    {"id": "compliance_frameworks", "type": "horizontal_bar", "title": "Compliance by Framework", "data": frameworks},
+                    {"id": "security_score_trend", "type": "line", "title": "Security Score Trend (90d)", "data": security_score_trend},
+                ],
+            },
+            {
+                "id": "threats",
+                "title": "Threats",
+                "charts": [
+                    {"id": "mitre_top_techniques", "type": "bar", "title": "Top MITRE Techniques", "data": mitre_techniques},
+                    {"id": "threat_activity_trend", "type": "area", "title": "Threat Activity (30d)", "data": threat_activity_trend},
+                    {"id": "findings_by_category", "type": "stacked_bar", "title": "Findings by Category", "data": findings_by_category},
+                ],
+            },
+            {
+                "id": "assets",
+                "title": "Assets & Infrastructure",
+                "charts": [
+                    {"id": "cloud_providers", "type": "cards", "title": "Cloud Providers", "data": cloud_providers},
+                    {"id": "attack_surface", "type": "treemap", "title": "Attack Surface", "data": attack_surface},
+                    {"id": "cloud_health", "type": "grid", "title": "Cloud Health", "data": cloud_health},
+                ],
+            },
+            {
+                "id": "operations",
+                "title": "Operations & Remediation",
+                "charts": [
+                    {"id": "remediation_sla", "type": "table", "title": "Remediation SLA", "data": remediation_sla},
+                    {"id": "recent_scans", "type": "table", "title": "Recent Scans", "data": recent_scans},
+                    {"id": "risky_resources", "type": "table", "title": "Top Risky Resources", "data": risky_resources},
+                ],
+            },
+        ],
         "criticalActions": critical_actions,
         "toxicCombinations": toxic_combos,
         "criticalAlerts": critical_alerts,
-        "attackSurfaceData": attack_surface,
-        "mitreTopTechniques": mitre_techniques,
-        "remediationSLA": remediation_sla,
-        "riskyResources": risky_resources,
-        "recentScans": recent_scans,
-        "findingsByCategoryData": findings_by_category,
-        "securityScoreTrendData": security_score_trend,
-        # Raw summaries
-        "inventorySummary": inv_summary,
-        "iamSummary": {
-            "totalFindings": safe_get(iam_data, "summary.total_findings", 0) or safe_get(iam_data, "total_findings", 0),
-            "critical": safe_get(iam_data, "summary.critical", 0) or safe_get(iam_data, "summary.by_severity.critical", 0),
-            "riskScore": safe_get(iam_data, "summary.risk_score", 0) or safe_get(iam_data, "risk_score", 0),
-        } if iam_data else None,
-        "datasecSummary": datasec_data.get("summary") if datasec_data else datasec_data,
-        "riskSummary": risk_data,
+        "recentThreats": recent_threats,
     }
 
     # Apply global filters

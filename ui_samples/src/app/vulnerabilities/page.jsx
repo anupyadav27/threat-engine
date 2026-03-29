@@ -4,6 +4,8 @@ import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   AlertTriangle,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import { getFromEngine } from '@/lib/api';
 import { SEVERITY_COLORS, SEVERITY_ORDER } from '@/lib/constants';
@@ -26,9 +28,10 @@ export default function VulnerabilitiesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [vulnerabilities, setVulnerabilities] = useState([]);
-  const [activeFilters, setActiveFilters] = useState({
-    severity: '', exploit_available: '', sla_status: '',
-  });
+  const [activeFilters, setActiveFilters] = useState({});
+  const [search, setSearch] = useState('');
+  const [groupBy, setGroupBy] = useState('');
+  const [expandedGroups, setExpandedGroups] = useState({});
 
   // Fetch IaC findings on mount — two-step: get latest scan, then get findings
   useEffect(() => {
@@ -110,21 +113,100 @@ export default function VulnerabilitiesPage() {
     return d;
   }, [augmented, provider, account, region]);
 
-  const vulnFilterDefs = [
-    { key: 'severity',          label: 'All Severities', options: ['critical', 'high', 'medium', 'low'] },
-    { key: 'exploit_available', label: 'Exploit',        options: ['yes', 'no']   },
-    { key: 'sla_status',        label: 'SLA Status',     options: ['breached', 'at_risk', 'compliant'] },
-  ];
+  // ── Unique values for filter options ──
+  const uniqueVals = (key) => [...new Set(scopeFiltered.map(r => r[key]).filter(Boolean))].sort();
 
-  // Apply domain scalar filters on top of scope-filtered data
-  const filteredVulnerabilities = useMemo(() =>
-    scopeFiltered.filter(v => {
-      if (activeFilters.severity          && v.severity  !== activeFilters.severity)                                     return false;
-      if (activeFilters.exploit_available && (v.exploit_available ? 'yes' : 'no') !== activeFilters.exploit_available)  return false;
-      if (activeFilters.sla_status        && v.sla_status !== activeFilters.sla_status)                                  return false;
-      return true;
-    }),
-    [scopeFiltered, activeFilters]);
+  // Primary filters (always visible)
+  const primaryFilters = useMemo(() => {
+    const f = [
+      { key: 'severity', label: 'Severity', options: ['critical', 'high', 'medium', 'low'] },
+      { key: 'status', label: 'Status', options: ['open', 'patched', 'in_progress', 'accepted_risk'] },
+      { key: 'exploit_available', label: 'Exploit', options: [
+        { value: 'yes', label: 'Yes' },
+        { value: 'no', label: 'No' },
+      ]},
+      { key: 'patch_available', label: 'Patch Available', options: [
+        { value: 'yes', label: 'Yes' },
+        { value: 'no', label: 'No' },
+      ]},
+      { key: 'sla_status', label: 'SLA Status', options: ['breached', 'at_risk', 'compliant'] },
+    ];
+    return f;
+  }, [scopeFiltered]);
+
+  // Extra filters (via +Add)
+  const extraFilters = useMemo(() => {
+    const extras = [];
+    const languages = uniqueVals('language');
+    if (languages.length > 0) extras.push({ key: 'language', label: 'Language', options: languages });
+    const providers = uniqueVals('provider');
+    if (providers.length > 1) extras.push({ key: 'provider', label: 'Provider', options: providers });
+    return extras;
+  }, [scopeFiltered]);
+
+  // Group-by options
+  const groupByOptions = useMemo(() => [
+    { key: 'severity', label: 'Severity' },
+    { key: 'status', label: 'Status' },
+    { key: 'sla_status', label: 'SLA Status' },
+    { key: 'provider', label: 'Provider' },
+    { key: 'language', label: 'Language' },
+  ], []);
+
+  // Apply search + filters
+  const filtered = useMemo(() => {
+    let result = scopeFiltered;
+    if (search) {
+      const q = search.toLowerCase();
+      result = result.filter(row =>
+        Object.values(row).some(v => v && String(v).toLowerCase().includes(q))
+      );
+    }
+    Object.entries(activeFilters).forEach(([key, value]) => {
+      if (!value) return;
+      if (key === 'exploit_available') {
+        result = result.filter(row => (row.exploit_available ? 'yes' : 'no') === value);
+        return;
+      }
+      if (key === 'patch_available') {
+        result = result.filter(row => (row.patch_available ? 'yes' : 'no') === value);
+        return;
+      }
+      result = result.filter(row => {
+        const rowVal = row[key];
+        if (!rowVal) return false;
+        return String(rowVal).toLowerCase() === value.toLowerCase();
+      });
+    });
+    return result;
+  }, [scopeFiltered, search, activeFilters]);
+
+  // Group data
+  const grouped = useMemo(() => {
+    if (!groupBy || !filtered.length) return null;
+    const groups = {};
+    filtered.forEach(row => {
+      const key = String(row[groupBy] || 'Other');
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(row);
+    });
+    return Object.entries(groups)
+      .sort(([, a], [, b]) => b.length - a.length)
+      .map(([key, items]) => ({ key, items, count: items.length }));
+  }, [filtered, groupBy]);
+
+  // Auto-expand all groups when groupBy changes
+  useEffect(() => {
+    if (grouped) {
+      const expanded = {};
+      grouped.forEach(g => { expanded[g.key] = true; });
+      setExpandedGroups(expanded);
+    }
+  }, [groupBy]);
+
+  const toggleGroup = (key) => {
+    setExpandedGroups(prev => ({ ...prev, [key]: !prev[key] }));
+  };
 
   // Calculate vulnerability statistics (scoped to global filter)
   const vulnStats = useMemo(() => ({
@@ -339,19 +421,6 @@ export default function VulnerabilitiesPage() {
         </div>
       )}
 
-      {/* Hierarchical Filter Bar */}
-      <FilterBar
-        filters={vulnFilterDefs}
-        activeFilters={activeFilters}
-        onFilterChange={handleFilterChange}
-      />
-      <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
-        Showing {filteredVulnerabilities.length} of {scopeFiltered.length} vulnerabilities
-        {activeFilters.severity          && ` › ${activeFilters.severity}`}
-        {activeFilters.exploit_available && ` › exploit: ${activeFilters.exploit_available}`}
-        {activeFilters.sla_status        && ` › SLA: ${activeFilters.sla_status}`}
-      </p>
-
       {/* KPI MetricStrip */}
       <MetricStrip groups={[
         {
@@ -468,44 +537,44 @@ export default function VulnerabilitiesPage() {
         </div>
       </div>
 
-      {/* EPSS × CVSS 4-Quadrant Priority Grid */}
+      {/* EPSS x CVSS 4-Quadrant Priority Grid */}
       <div className="space-y-3">
         <div>
           <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-            EPSS × CVSS Priority Matrix
+            EPSS x CVSS Priority Matrix
           </h2>
           <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
-            High CVSS ≥ 7.0 · High EPSS ≥ 0.50. Focus remediation on top-right quadrant first.
+            {'High CVSS >= 7.0 · High EPSS >= 0.50. Focus remediation on top-right quadrant first.'}
           </p>
         </div>
         <div className="grid grid-cols-2 gap-3">
           {[
             {
-              label: '⚡ Patch Now!',
+              label: 'Patch Now!',
               desc: 'High CVSS + High EPSS',
               filter: v => v.cvss_score >= 7 && v.epss_score >= 0.5,
               bg: '#ef444420', border: '#ef4444', text: '#ef4444',
             },
             {
-              label: '👁 Watch',
+              label: 'Watch',
               desc: 'Low CVSS + High EPSS',
               filter: v => v.cvss_score < 7 && v.epss_score >= 0.5,
               bg: '#f9731620', border: '#f97316', text: '#f97316',
             },
             {
-              label: '🔍 Monitor',
+              label: 'Monitor',
               desc: 'High CVSS + Low EPSS',
               filter: v => v.cvss_score >= 7 && v.epss_score < 0.5,
               bg: '#eab30820', border: '#eab308', text: '#eab308',
             },
             {
-              label: '✓ Low Priority',
+              label: 'Low Priority',
               desc: 'Low CVSS + Low EPSS',
               filter: v => v.cvss_score < 7 && v.epss_score < 0.5,
               bg: '#22c55e20', border: '#22c55e', text: '#22c55e',
             },
           ].map((q) => {
-            const cnt = filteredVulnerabilities.filter(q.filter).length;
+            const cnt = filtered.filter(q.filter).length;
             return (
               <div key={q.label} className="rounded-xl p-5 border flex items-center justify-between transition-colors duration-200"
                 style={{ backgroundColor: q.bg, borderColor: q.border }}>
@@ -527,17 +596,57 @@ export default function VulnerabilitiesPage() {
             Exploitability Analysis
           </h2>
           <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
-            Vulnerabilities ranked by exploitability (CVSS × EPSS × exploit availability × asset criticality)
+            Vulnerabilities ranked by exploitability (CVSS x EPSS x exploit availability x asset criticality)
           </p>
         </div>
-        <DataTable
-          data={filteredVulnerabilities}
-          columns={columns}
-          pageSize={20}
-          onRowClick={handleRowClick}
-          loading={loading}
-          emptyMessage="No vulnerabilities found matching your filters"
+
+        {/* Filter Bar (search + filters + group by) */}
+        <FilterBar
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search vulnerabilities..."
+          filters={primaryFilters}
+          onFilterChange={handleFilterChange}
+          activeFilters={activeFilters}
+          extraFilters={extraFilters}
+          groupByOptions={groupByOptions}
+          groupBy={groupBy}
+          onGroupByChange={setGroupBy}
         />
+
+        {/* Grouped or flat table */}
+        {grouped ? (
+          <div className="space-y-3">
+            {grouped.map(({ key, items, count }) => (
+              <div key={key} className="rounded-lg border" style={{ borderColor: 'var(--border-primary)' }}>
+                <button
+                  onClick={() => toggleGroup(key)}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-medium"
+                  style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+                >
+                  {expandedGroups[key] ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                  <span>{key}</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>{count}</span>
+                </button>
+                {expandedGroups[key] && (
+                  <DataTable data={items} columns={columns} pageSize={25} hideToolbar onRowClick={handleRowClick} />
+                )}
+              </div>
+            ))}
+            <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+              {grouped.length} groups, {filtered.length} total rows
+            </div>
+          </div>
+        ) : (
+          <DataTable
+            data={filtered}
+            columns={columns}
+            pageSize={20}
+            onRowClick={handleRowClick}
+            loading={loading}
+            emptyMessage="No vulnerabilities found matching your filters"
+          />
+        )}
       </div>
 
       {/* Patch SLA Tracking */}

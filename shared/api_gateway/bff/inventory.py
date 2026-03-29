@@ -15,8 +15,9 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Query
 
-from ._shared import ENGINE_URLS, ENGINE_TIMEOUTS, DEFAULT_TIMEOUT, fetch_many, safe_get
+from ._shared import ENGINE_URLS, ENGINE_TIMEOUTS, DEFAULT_TIMEOUT, fetch_many, safe_get, mock_fallback, is_empty_or_health
 from ._transforms import normalize_asset, apply_global_filters, _safe_upper
+from ._page_context import inventory_page_context, inventory_filter_schema
 
 logger = logging.getLogger("api-gateway.bff")
 
@@ -35,10 +36,10 @@ async def view_inventory(
 ):
     """Asset list + summary for the inventory page."""
 
-    # ── 3 parallel calls instead of 4 ────────────────────────────────────
+    # ── 4 parallel calls: inventory + threat detections + threat summary + onboarding
     results = await fetch_many([
         ("inventory",  "/api/v1/inventory/ui-data",  {"tenant_id": tenant_id, "scan_run_id": scan_run_id, "limit": str(limit), "offset": str(offset)}),
-        ("threat",     "/api/v1/threat/ui-data",     {"tenant_id": tenant_id, "scan_run_id": "latest", "limit": "1"}),
+        ("threat",     "/api/v1/threat/ui-data",     {"tenant_id": tenant_id, "scan_run_id": "latest", "limit": str(limit)}),
         ("onboarding", "/api/v1/cloud-accounts", {"tenant_id": tenant_id}),
     ])
 
@@ -48,6 +49,36 @@ async def view_inventory(
     inventory_data = inventory_data if isinstance(inventory_data, dict) else {}
     threat_data = threat_data if isinstance(threat_data, dict) else {}
     onboarding_data = onboarding_data if isinstance(onboarding_data, dict) else {}
+
+    # Mock fallback when engine data is empty
+    if is_empty_or_health(inventory_data):
+        m = mock_fallback("inventory")
+        if m is not None:
+            return m
+
+    # ── Build threat-findings lookup: resource_uid → {critical,high,medium,low,risk_score}
+    threat_by_resource: Dict[str, Dict[str, Any]] = {}
+    raw_threats = threat_data.get("threats", []) or threat_data.get("detections", []) or []
+    if not isinstance(raw_threats, list):
+        raw_threats = []
+    risk_map = {"critical": 95, "high": 75, "medium": 50, "low": 25}
+    for t in raw_threats:
+        uid = t.get("resource_uid", "")
+        if not uid:
+            continue
+        sev = (t.get("severity") or "medium").lower()
+        if uid not in threat_by_resource:
+            threat_by_resource[uid] = {
+                "critical": 0, "high": 0, "medium": 0, "low": 0,
+                "risk_score": 0, "total": 0,
+            }
+        entry = threat_by_resource[uid]
+        if sev in entry:
+            entry[sev] += 1
+        entry["total"] += 1
+        score = t.get("risk_score") or risk_map.get(sev, 50)
+        if score > entry["risk_score"]:
+            entry["risk_score"] = score
 
     # ── Extract inventory fields ─────────────────────────────────────────
     summary_resp = inventory_data.get("summary", {})
@@ -59,6 +90,32 @@ async def view_inventory(
     if not isinstance(raw_assets, list):
         raw_assets = []
     assets = [normalize_asset(a) for a in raw_assets]
+
+    # ── Enrich each asset with threat findings counts + risk score ────────
+    for asset in assets:
+        uid = asset.get("resource_uid", "")
+        threat_info = threat_by_resource.get(uid)
+        if threat_info:
+            # Merge findings counts — overlay onto whatever normalize_asset produced
+            existing_findings = asset.get("findings") or {}
+            asset["findings"] = {
+                "critical": existing_findings.get("critical", 0) + threat_info["critical"],
+                "high": existing_findings.get("high", 0) + threat_info["high"],
+                "medium": existing_findings.get("medium", 0) + threat_info["medium"],
+                "low": existing_findings.get("low", 0) + threat_info["low"],
+            }
+            # Use highest risk score between existing and threat
+            existing_risk = asset.get("risk_score") or 0
+            asset["risk_score"] = max(existing_risk, threat_info["risk_score"])
+            # Derive severity from highest non-zero findings bucket
+            if asset["findings"]["critical"] > 0:
+                asset["severity"] = "critical"
+            elif asset["findings"]["high"] > 0:
+                asset["severity"] = "high"
+            elif asset["findings"]["medium"] > 0:
+                asset["severity"] = "medium"
+            elif asset["findings"]["low"] > 0:
+                asset["severity"] = "low"
 
     # ── Build account->provider mapping from onboarding ──────────────────
     raw_accounts = onboarding_data.get("accounts", [])
@@ -141,21 +198,45 @@ async def view_inventory(
         if isinstance(summary_by_service, dict):
             by_service = {k: v for k, v in summary_by_service.items() if isinstance(v, int)}
 
+    total_assets = total or summary_resp.get("total_assets", 0)
+    providers_count = len(by_provider)
+    services_count = len(by_service)
+    regions_count = len(set(a.get("region", "") for a in filtered if a.get("region")))
+
+    page_ctx = inventory_page_context({"total_assets": total_assets})
+    page_ctx["tabs"] = [
+        {"id": "assets", "label": "Assets", "count": total_assets},
+        {"id": "architecture", "label": "Architecture", "count": 0},
+        {"id": "graph", "label": "Graph", "count": 0},
+    ]
+
     return {
-        "kpi": {
-            "totalAssets": total or summary_resp.get("total_assets", 0),
-            "newThisWeek": new_this_week,
-            "unmanagedAssets": unmanaged,
-            "exposedAssets": exposed,
-            "criticalFindings": critical,
-            "driftCount": drift_count,
-        },
+        "pageContext": page_ctx,
+        "filterSchema": inventory_filter_schema(),
+        "kpiGroups": [
+            {
+                "title": "Asset Coverage",
+                "items": [
+                    {"label": "Total Assets", "value": total_assets},
+                    {"label": "Providers", "value": providers_count},
+                    {"label": "Regions", "value": regions_count},
+                    {"label": "Services", "value": services_count},
+                ],
+            },
+            {
+                "title": "Asset Health",
+                "items": [
+                    {"label": "New This Week", "value": new_this_week},
+                    {"label": "Drift Detected", "value": drift_count},
+                    {"label": "Exposed Assets", "value": exposed},
+                    {"label": "Critical Findings", "value": critical},
+                ],
+            },
+        ],
         "assets": filtered,
         "total": inventory_data.get("total", len(filtered)),
         "has_more": inventory_data.get("has_more", False),
         "summary": summary_resp,
-        "byProvider": by_provider,
-        "byService": dict(sorted(by_service.items(), key=lambda x: x[1], reverse=True)[:15]),
     }
 
 
@@ -719,7 +800,7 @@ async def view_inventory_taxonomy(
 async def view_inventory_architecture(
     tenant_id: str = Query(...),
     scan_run_id: str = Query("latest"),
-    max_priority: int = Query(2, ge=1, le=5),
+    max_priority: int = Query(3, ge=1, le=5),
     csp: Optional[str] = Query(None),
 ):
     """Architecture diagram — pre-nested hierarchy with posture enrichment.

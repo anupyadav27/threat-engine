@@ -20,11 +20,16 @@ Architecture:
         compliance.py           -- /views/compliance
         iam.py                  -- /views/iam
         datasec.py              -- /views/datasec
+        encryption.py           -- /views/encryption
+        database_security.py    -- /views/database-security
+        network_security.py     -- /views/network-security
         misconfig.py            -- /views/misconfig
         risk.py                 -- /views/risk
         scans.py                -- /views/scans
         reports.py              -- /views/reports
         rules.py                -- /views/rules
+        ai_security.py          -- /views/ai-security
+        container_security.py   -- /views/container-security
 """
 
 from fastapi import APIRouter
@@ -41,11 +46,18 @@ from .threat_timeline import router as threat_timeline_router
 from .compliance import router as compliance_router
 from .iam import router as iam_router
 from .datasec import router as datasec_router
+from .encryption import router as encryption_router
+from .database_security import router as database_security_router
+from .network_security import router as network_security_router
 from .misconfig import router as misconfig_router
 from .risk import router as risk_router
 from .scans import router as scans_router
 from .reports import router as reports_router
 from .rules import router as rules_router
+from .scope import router as scope_router
+from .ciem import router as ciem_router
+from .ai_security import router as ai_security_router
+from .container_security import router as container_security_router
 
 # Combined router — include this in main.py
 router = APIRouter()
@@ -66,10 +78,17 @@ for _sub in (
     compliance_router,
     iam_router,
     datasec_router,
+    encryption_router,
+    database_security_router,
+    network_security_router,
     misconfig_router,
     risk_router,
     scans_router,
     reports_router,
     rules_router,
+    scope_router,
+    ciem_router,
+    ai_security_router,
+    container_security_router,
 ):
     router.include_router(_sub)

@@ -10,8 +10,9 @@ from typing import Optional, Dict
 
 from fastapi import APIRouter, Query
 
-from ._shared import fetch_many, safe_get
+from ._shared import fetch_many, safe_get, mock_fallback, is_empty_or_health
 from ._transforms import normalize_check_finding, build_misconfig_heatmap, apply_global_filters
+from ._page_context import misconfig_page_context, misconfig_filter_schema
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
@@ -62,6 +63,12 @@ async def view_misconfig(
 
     data = results[0] or {}
 
+    # Mock fallback when engine data is empty
+    if is_empty_or_health(data):
+        m = mock_fallback("misconfig")
+        if m is not None:
+            return m
+
     # threat_findings = enriched check findings (FAIL/WARN only)
     raw_threats = safe_get(data, "threats", [])
     summary = safe_get(data, "summary", {})
@@ -82,6 +89,16 @@ async def view_misconfig(
         "status": t.get("status", "FAIL"),
         "framework": t.get("framework", ""),
         "environment": t.get("environment", ""),
+        # Detail slide-out panel fields from threat engine
+        "description": t.get("description") or t.get("rationale", ""),
+        "compliance_frameworks": t.get("compliance_frameworks") or t.get("frameworks", []),
+        "mitre_tactics": t.get("mitre_tactics", []),
+        "mitre_techniques": t.get("mitre_techniques", []),
+        "posture_category": t.get("posture_category", ""),
+        "domain": t.get("domain") or t.get("security_domain", ""),
+        "risk_score": t.get("risk_score"),
+        "checked_fields": t.get("checked_fields", []),
+        "actual_values": t.get("actual_values", []),
     }) for t in raw_threats]
 
     # Apply scope filters
@@ -94,6 +111,7 @@ async def view_misconfig(
     critical = sum(1 for f in filtered if f["severity"] == "critical")
     high = sum(1 for f in filtered if f["severity"] == "high")
     medium = sum(1 for f in filtered if f["severity"] == "medium")
+    low = sum(1 for f in filtered if f["severity"] == "low")
     auto_remediable = sum(1 for f in filtered if f.get("auto_remediable"))
     sla_breached = sum(1 for f in filtered if f.get("sla_status") == "breached")
     ages = [f.get("age_days", 0) for f in filtered if f.get("age_days") is not None]
@@ -114,20 +132,51 @@ async def view_misconfig(
         svc = f.get("service") or "other"
         by_service[svc] = by_service.get(svc, 0) + 1
 
+    page_ctx = misconfig_page_context({"total_findings": total})
+    page_ctx["tabs"] = [
+        {"id": "findings", "label": "Findings", "count": total},
+        {"id": "heatmap", "label": "Heatmap", "count": len(heatmap)},
+        {"id": "quick_wins", "label": "Quick Wins", "count": len(quick_wins)},
+    ]
+
     return {
-        "kpi": {
-            "total": total,
-            "failed": failed,
-            "passed": passed,
-            "critical": critical,
-            "high": high,
-            "medium": medium,
-            "autoRemediable": auto_remediable,
-            "slaBreached": sla_breached,
-            "avgAge": avg_age,
-        },
+        "pageContext": page_ctx,
+        "filterSchema": misconfig_filter_schema(),
+        "kpiGroups": [
+            {
+                "title": "Finding Summary",
+                "items": [
+                    {"label": "Total Findings", "value": total},
+                    {"label": "Critical", "value": critical},
+                    {"label": "High", "value": high},
+                    {"label": "Medium", "value": medium},
+                ],
+            },
+            {
+                "title": "Remediation",
+                "items": [
+                    {"label": "Auto-Remediable", "value": auto_remediable},
+                    {"label": "Avg Age", "value": avg_age, "suffix": " days"},
+                    {"label": "SLA Breached", "value": sla_breached},
+                    {"label": "Quick Wins", "value": len(quick_wins)},
+                ],
+            },
+        ],
         "findings": filtered,
         "heatmap": heatmap,
         "quickWins": quick_wins,
-        "byService": dict(sorted(by_service.items(), key=lambda x: x[1], reverse=True)[:15]),
+        "byService": by_service,
+        # Legacy kpi object for UI severity cards
+        "kpi": {
+            "total": total,
+            "critical": critical,
+            "high": high,
+            "medium": medium,
+            "low": low,
+            "failed": sum(1 for f in filtered if f.get("status") == "FAIL"),
+            "passed": sum(1 for f in filtered if f.get("status") == "PASS"),
+            "auto_remediable": auto_remediable,
+            "avg_age": avg_age,
+            "sla_breached": sla_breached,
+        },
     }

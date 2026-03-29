@@ -13,12 +13,13 @@ from typing import Optional, Dict, List
 
 from fastapi import APIRouter, Query
 
-from ._shared import fetch_many, safe_get
+from ._shared import fetch_many, safe_get, mock_fallback, is_empty_or_health
 from ._transforms import (
     normalize_threat, normalize_attack_chain, normalize_intel,
     build_mitre_matrix, build_mitre_matrix_from_raw,
     severity_chart, apply_global_filters, _safe_upper,
 )
+from ._page_context import threats_page_context, threats_filter_schema
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
@@ -62,6 +63,12 @@ async def view_threats(
         threat_data = {}
     if not isinstance(onboarding_data, dict):
         onboarding_data = {}
+
+    # Mock fallback when engine data is empty
+    if is_empty_or_health(threat_data):
+        m = mock_fallback("threats")
+        if m is not None:
+            return m
 
     # Build account->provider mapping from onboarding
     raw_accounts = (
@@ -296,17 +303,41 @@ async def view_threats(
         if timestamps:
             latest_detection_ts = max(timestamps)
 
+    mitre_count = sum(len(v) for v in mitre_matrix.values()) if isinstance(mitre_matrix, dict) else 0
+
+    page_ctx = threats_page_context({"total": total})
+    page_ctx["tabs"] = [
+        {"id": "overview", "label": "Overview", "count": total},
+        {"id": "mitre", "label": "MITRE ATT&CK", "count": mitre_count},
+        {"id": "attack_paths", "label": "Attack Paths", "count": len(chains)},
+        {"id": "timeline", "label": "Timeline", "count": len(trend_list)},
+    ]
+
     return {
-        "kpi": {
-            "total": total, "critical": critical, "high": high,
-            "medium": medium, "low": low,
-            "active": active_count,
-            "unassigned": unassigned_count,
-            "avgRiskScore": avg_risk,
-            "totalFindings": total_findings,
-            "criticalAndHigh": critical + high,
-            "byVerdict": by_verdict,
-        },
+        "pageContext": page_ctx,
+        "filterSchema": threats_filter_schema(),
+        "kpiGroups": [
+            {
+                "title": "Threat Severity",
+                "items": [
+                    {"label": "Critical", "value": critical},
+                    {"label": "High", "value": high},
+                    {"label": "Medium", "value": medium},
+                    {"label": "Low", "value": low},
+                    {"label": "Total", "value": total},
+                ],
+            },
+            {
+                "title": "Threat Intelligence",
+                "items": [
+                    {"label": "MITRE Techniques", "value": mitre_count},
+                    {"label": "Attack Paths", "value": len(chains)},
+                    {"label": "Avg Risk Score", "value": avg_risk, "suffix": "/100"},
+                    {"label": "Active", "value": active_count},
+                    {"label": "Total Findings", "value": total_findings},
+                ],
+            },
+        ],
         "scanMeta": {
             "scanRunId": scan_meta.get("scan_run_id") or scan_run_id,
             "latestDetection": latest_detection_ts,
@@ -314,19 +345,20 @@ async def view_threats(
         },
         "threats": filtered,
         "total": total,
+        "trendData": trend_list,
         "mitreMatrix": mitre_matrix,
         "attackChains": chains,
         "threatIntel": threat_intel,
-        "severityChart": severity_chart(sev_counts),
-        "trendData": trend_list,
-        "byProvider": [
-            {"name": k, "count": v}
-            for k, v in sorted(by_provider.items(), key=lambda x: x[1], reverse=True)
-        ],
-        "topServices": top_services,
-        "byCategory": [
-            {"name": k, "count": v}
-            for k, v in sorted(by_category.items(), key=lambda x: x[1], reverse=True)
-        ],
         "accountHeatmap": account_heatmap,
+        # Legacy keys for UI fallback
+        "kpi": {
+            "total": total,
+            "critical": critical,
+            "high": high,
+            "medium": medium,
+            "low": low,
+            "active": active_count,
+            "unassigned": sum(1 for t in filtered if not t.get("assignee")),
+            "avgRiskScore": avg_risk,
+        },
     }

@@ -1,17 +1,18 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import {
-  AlertTriangle, Shield, ShieldAlert, ShieldCheck, Search,
-  RefreshCw, X, ChevronRight, ExternalLink, Copy, Check,
-  Download, FileSpreadsheet, Filter, ArrowRight,
+  AlertTriangle, ShieldAlert, ShieldCheck,
+  X, ExternalLink, Copy, Check,
+  Download, FileSpreadsheet, RefreshCw, ArrowRight,
 } from 'lucide-react';
 import { useGlobalFilter } from '@/lib/global-filter-context';
-import DataTable from '@/components/shared/DataTable';
-import { SEVERITY_COLORS, CLOUD_PROVIDERS, TENANT_ID } from '@/lib/constants';
+import { SEVERITY_COLORS, CLOUD_PROVIDERS } from '@/lib/constants';
 import { fetchView } from '@/lib/api';
+import PageLayout from '@/components/shared/PageLayout';
+import InsightRow from '@/components/shared/InsightRow';
+
 
 // ── Posture category styling ────────────────────────────────────────────────
 const POSTURE_COLORS = {
@@ -72,44 +73,6 @@ function ProviderBadge({ provider }) {
   );
 }
 
-// ── Severity summary card ───────────────────────────────────────────────────
-function SeverityCard({ label, count, color, total }) {
-  const pct = total > 0 ? Math.round((count / total) * 100) : 0;
-  return (
-    <div className="rounded-xl border p-5 flex flex-col transition-colors duration-200"
-      style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-          {label}
-        </span>
-        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
-      </div>
-      <span className="text-3xl font-bold" style={{ color }}>{count.toLocaleString()}</span>
-      <div className="mt-2 w-full h-1.5 rounded-full" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: color }} />
-      </div>
-    </div>
-  );
-}
-
-// ── Styled filter select ────────────────────────────────────────────────────
-function FilterSelect({ value, onChange, label, children }) {
-  const isActive = value !== '';
-  return (
-    <select value={value} onChange={(e) => onChange(e.target.value)}
-      className="text-xs px-3 py-2 rounded-lg border font-medium appearance-none cursor-pointer
-        bg-[length:12px] bg-[right_8px_center] bg-no-repeat pr-7"
-      style={{
-        backgroundColor: isActive ? 'var(--accent-primary)' : 'var(--bg-secondary)',
-        borderColor: isActive ? 'var(--accent-primary)' : 'var(--border-primary)',
-        color: isActive ? '#fff' : 'var(--text-primary)',
-        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='${isActive ? '%23fff' : '%23999'}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 5l3 3 3-3'/%3E%3C/svg%3E")`,
-      }}>
-      <option value="">{label}</option>
-      {children}
-    </select>
-  );
-}
 
 // ── Detail slide-out panel ──────────────────────────────────────────────────
 function FindingDetailPanel({ finding, onClose }) {
@@ -382,10 +345,9 @@ async function exportCSV() {
   URL.revokeObjectURL(url);
 }
 
-function exportPDF(findings, summary, filters) {
+function exportPDF(findings, summary) {
   const sevCounts = summary?.severity_counts || {};
   const total = summary?.total || 0;
-  const filterDesc = Object.entries(filters).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join(', ') || 'None';
   const now = new Date().toLocaleString();
 
   const rowsHtml = (findings || []).slice(0, 200).map(f => `
@@ -402,12 +364,12 @@ function exportPDF(findings, summary, filters) {
     </tr>
   `).join('');
 
-  const html = `<!DOCTYPE html><html><head><title>Misconfigurations Report</title>
+  const html = `<!DOCTYPE html><html><head><title>Posture Security Report</title>
     <style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1e293b;margin:0;padding:32px;}
     @media print{body{padding:16px;} .no-print{display:none;}}</style></head><body>
     <div style="display:flex;align-items:center;justify-content:between;margin-bottom:24px;">
-      <div><h1 style="font-size:22px;font-weight:700;margin:0;">Misconfigurations Report</h1>
-      <p style="font-size:12px;color:#64748b;margin:4px 0 0;">Generated: ${now} | Filters: ${filterDesc}</p></div>
+      <div><h1 style="font-size:22px;font-weight:700;margin:0;">Posture Security Report</h1>
+      <p style="font-size:12px;color:#64748b;margin:4px 0 0;">Generated: ${now}</p></div>
     </div>
     <div style="display:flex;gap:12px;margin-bottom:24px;">
       <div style="flex:1;padding:12px 16px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;">
@@ -447,235 +409,214 @@ function exportPDF(findings, summary, filters) {
 }
 
 
+// ── Top Failing Rules Chart ──────────────────────────────────────────────────
+
+function TopFailingRulesChart({ topRules }) {
+  return (
+    <div>
+      <h3 className="text-sm font-semibold uppercase tracking-wider mb-4" style={{ color: 'var(--text-muted)' }}>
+        Top Failing Rules
+      </h3>
+      <div className="space-y-2.5">
+        {topRules.length === 0 && (
+          <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No data</p>
+        )}
+        {topRules.slice(0, 8).map((rule) => {
+          const maxCount = topRules[0]?.count || 1;
+          const pct = Math.round((rule.count / maxCount) * 100);
+          return (
+            <div key={rule.rule_id}>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-medium truncate flex-1 mr-3" style={{ color: 'var(--text-secondary)' }}>
+                  {rule.title || rule.rule_id}
+                </span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <SeverityBadgeInline severity={rule.severity} />
+                  <span className="text-xs font-bold w-8 text-right" style={{ color: 'var(--text-primary)' }}>
+                    {rule.count}
+                  </span>
+                </div>
+              </div>
+              <div className="w-full h-1.5 rounded-full" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                <div className="h-full rounded-full" style={{
+                  width: `${pct}%`,
+                  backgroundColor: SEVERITY_COLORS[rule.severity] || SEVERITY_COLORS.medium,
+                }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+
+// ── Service Breakdown Chart ─────────────────────────────────────────────────
+
+function ServiceBreakdownChart({ byService }) {
+  return (
+    <div>
+      <h3 className="text-sm font-semibold uppercase tracking-wider mb-4" style={{ color: 'var(--text-muted)' }}>
+        Findings by Service
+      </h3>
+      <div className="space-y-2.5">
+        {byService.length === 0 && (
+          <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No data</p>
+        )}
+        {byService.slice(0, 10).map((svc) => {
+          const maxCount = byService[0]?.total || 1;
+          const pct = Math.round((svc.total / maxCount) * 100);
+          const failPct = svc.total > 0 ? Math.round((svc.fail / svc.total) * 100) : 0;
+          return (
+            <div key={svc.service}>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-medium uppercase" style={{ color: 'var(--text-secondary)' }}>
+                  {svc.service}
+                </span>
+                <div className="flex items-center gap-3 text-xs">
+                  <span style={{ color: '#ef4444' }}>{svc.fail} fail</span>
+                  <span style={{ color: 'var(--text-muted)' }}>{svc.total} total</span>
+                </div>
+              </div>
+              <div className="w-full h-1.5 rounded-full" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                <div className="h-full rounded-full" style={{
+                  width: `${pct}%`,
+                  backgroundColor: failPct > 50 ? '#ef4444' : failPct > 25 ? '#f97316' : '#3b82f6',
+                }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function MisconfigurationsPage() {
-  const router = useRouter();
-  const { provider: globalProvider, account: globalAccount, region: globalRegion, filterSummary } = useGlobalFilter();
+  const { provider: globalProvider, account: globalAccount, region: globalRegion } = useGlobalFilter();
 
   // Data state
   const [loading, setLoading] = useState(true);
-  const [findings, setFindings] = useState([]);
+  const [allFindings, setAllFindings] = useState([]);
   const [summary, setSummary] = useState(null);
   const [error, setError] = useState(null);
   const [exporting, setExporting] = useState(false);
 
-  // Pagination (server-side)
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
-  const [totalRows, setTotalRows] = useState(0);
-
-  // Sorting
-  const [sortBy, setSortBy] = useState('severity');
-  const [sortOrder, setSortOrder] = useState('asc');
-
-  // Search
-  const [searchTerm, setSearchTerm] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-
-  // Filters — includes scope (provider/account/region) + security filters
-  const [filters, setFilters] = useState({
-    provider: '',
-    account_id: '',
-    region: '',
-    severity: '',
-    status: '',
-    service: '',
-    posture_category: '',
-  });
-
   // Detail panel
   const [selectedFinding, setSelectedFinding] = useState(null);
 
-  // Debounce search
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 400);
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
-
-  // Sync global filter → local filters on global change
-  useEffect(() => {
-    setFilters(prev => ({
-      ...prev,
-      provider: globalProvider ? globalProvider.toLowerCase() : '',
-      account_id: globalAccount || '',
-      region: globalRegion || '',
-    }));
-  }, [globalProvider, globalAccount, globalRegion]);
-
-  // Fetch all data from BFF
+  // ── Fetch ─────────────────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const data = await fetchView('misconfig', {
-      provider: filters.provider || undefined,
-      account: filters.account_id || undefined,
-      region: filters.region || undefined,
-    });
-    if (data.error) {
-      setError(data.error);
-      setLoading(false);
-      return;
-    }
-
-    // Map BFF kpi → summary shape expected by the page
-    const kpi = data.kpi || {};
-
-    // Process findings for the table — map BFF field names to what the table expects
-    let allFindings = (data.findings || []).map(f => ({
-      ...f,
-      account_id: f.account_id || '',
-      resource_uid: f.resource_id || f.resource_uid || '',
-      title: f.title || f.rule_name || f.rule_id || '',
-      created_at: f.detected_at || f.created_at || '',
-    }));
-
-    // Client-side filter by severity, status, service, posture_category, search
-    if (filters.severity) {
-      allFindings = allFindings.filter(f => f.severity === filters.severity);
-    }
-    if (filters.status) {
-      allFindings = allFindings.filter(f => f.status === filters.status);
-    }
-    if (filters.service) {
-      allFindings = allFindings.filter(f => f.service === filters.service);
-    }
-    if (filters.posture_category) {
-      allFindings = allFindings.filter(f => f.posture_category === filters.posture_category);
-    }
-    if (debouncedSearch) {
-      const q = debouncedSearch.toLowerCase();
-      allFindings = allFindings.filter(f =>
-        (f.title || '').toLowerCase().includes(q) ||
-        (f.rule_id || '').toLowerCase().includes(q) ||
-        (f.resource_uid || '').toLowerCase().includes(q)
-      );
-    }
-
-    // Client-side sorting
-    if (sortBy) {
-      allFindings.sort((a, b) => {
-        const aVal = (a[sortBy] || '');
-        const bVal = (b[sortBy] || '');
-        if (sortBy === 'severity') {
-          const order = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
-          const diff = (order[aVal] ?? 5) - (order[bVal] ?? 5);
-          return sortOrder === 'desc' ? -diff : diff;
-        }
-        const cmp = String(aVal).localeCompare(String(bVal));
-        return sortOrder === 'desc' ? -cmp : cmp;
-      });
-    }
-
-    // Derive top_rules from findings
-    const ruleCounts = {};
-    allFindings.forEach(f => {
-      const key = f.rule_id || f.title;
-      if (!ruleCounts[key]) ruleCounts[key] = { rule_id: f.rule_id, title: f.title, severity: f.severity, count: 0 };
-      ruleCounts[key].count++;
-    });
-    const topRules = Object.values(ruleCounts).sort((a, b) => b.count - a.count).slice(0, 10);
-
-    // Derive by_service from byService dict
-    const byServiceList = Object.entries(data.byService || {}).map(([service, count]) => ({
-      service,
-      total: count,
-      fail: count,
-    })).sort((a, b) => b.total - a.total);
-
-    // Derive filter options from findings
-    const providers = [...new Set(allFindings.map(f => f.provider).filter(Boolean))].sort();
-    const accounts = [...new Set(allFindings.map(f => f.account_id).filter(Boolean))].sort();
-    const regions = [...new Set(allFindings.map(f => f.region).filter(Boolean))].sort();
-    const services = [...new Set(allFindings.map(f => f.service).filter(Boolean))].sort();
-    const postures = [...new Set(allFindings.map(f => f.posture_category).filter(Boolean))].sort();
-
-    setSummary({
-      total: kpi.total || 0,
-      severity_counts: {
-        critical: kpi.critical || 0,
-        high: kpi.high || 0,
-        medium: kpi.medium || 0,
-        low: kpi.low || 0,
-      },
-      status_counts: {
-        FAIL: kpi.failed || 0,
-        PASS: kpi.passed || 0,
-      },
-      top_rules: topRules,
-      by_service: byServiceList,
-      by_provider: providers.map(p => ({ provider: p })),
-      by_account: accounts.map(a => ({ account: a })),
-      by_region: regions.map(r => ({ region: r })),
-      by_posture: postures.map(p => ({ category: p })),
-    });
-
-    // Client-side pagination
-    setTotalRows(allFindings.length);
-    const start = (page - 1) * pageSize;
-    setFindings(allFindings.slice(start, start + pageSize));
     setError(null);
-    setLoading(false);
-  }, [filters, debouncedSearch, page, pageSize, sortBy, sortOrder]);
+    try {
+      const data = await fetchView('misconfig', {
+        provider: globalProvider ? globalProvider.toLowerCase() : undefined,
+        account: globalAccount || undefined,
+        region: globalRegion || undefined,
+      });
+      if (data.error) {
+        setError(data.error);
+        setLoading(false);
+        return;
+      }
 
-  // Fetch on mount & filter/pagination/sort changes
+      const kpi = data.kpi || {};
+
+      // Process findings
+      const processed = (data.findings || []).map(f => ({
+        ...f,
+        account_id: f.account_id || '',
+        resource_uid: f.resource_id || f.resource_uid || '',
+        title: f.title || f.rule_name || f.rule_id || '',
+        created_at: f.detected_at || f.created_at || '',
+      }));
+
+      // Derive top_rules
+      const ruleCounts = {};
+      processed.forEach(f => {
+        const key = f.rule_id || f.title;
+        if (!ruleCounts[key]) ruleCounts[key] = { rule_id: f.rule_id, title: f.title, severity: f.severity, count: 0 };
+        ruleCounts[key].count++;
+      });
+      const topRules = Object.values(ruleCounts).sort((a, b) => b.count - a.count).slice(0, 10);
+
+      // Derive by_service
+      const byServiceList = Object.entries(data.byService || {}).map(([service, count]) => ({
+        service,
+        total: count,
+        fail: count,
+      })).sort((a, b) => b.total - a.total);
+
+      setSummary({
+        total: kpi.total || 0,
+        severity_counts: {
+          critical: kpi.critical || 0,
+          high: kpi.high || 0,
+          medium: kpi.medium || 0,
+          low: kpi.low || 0,
+        },
+        status_counts: {
+          FAIL: kpi.failed || 0,
+          PASS: kpi.passed || 0,
+        },
+        top_rules: topRules,
+        by_service: byServiceList,
+      });
+
+      setAllFindings(processed);
+    } catch (err) {
+      console.warn('[misconfig] fetch error:', err);
+      setError('Failed to load posture data');
+    } finally {
+      setLoading(false);
+    }
+  }, [globalProvider, globalAccount, globalRegion]);
+
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Reset page on filter change
-  useEffect(() => { setPage(1); }, [filters, debouncedSearch]);
-
-  // Refresh handler
-  const handleRefresh = () => { fetchData(); };
-
-  // Filter change
-  const handleFilterChange = (key, value) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
-  };
-
-  // Clear all filters
-  const clearFilters = () => {
-    setFilters({ provider: '', account_id: '', region: '', severity: '', status: '', service: '', posture_category: '' });
-    setSearchTerm('');
-  };
-
-  const activeFilterCount = Object.values(filters).filter(Boolean).length + (searchTerm ? 1 : 0);
-
-  // Export handlers
-  const handleExportCSV = async () => {
-    setExporting(true);
-    try { await exportCSV(); } finally { setExporting(false); }
-  };
-  const handleExportPDF = () => {
-    exportPDF(findings, summary, filters);
-  };
-
-  // Derive filter options from summary
-  const providerOptions = useMemo(() =>
-    (summary?.by_provider || []).map(p => p.provider).filter(Boolean).sort(),
-    [summary]);
-
-  const accountOptions = useMemo(() =>
-    (summary?.by_account || []).map(a => a.account).filter(Boolean).sort(),
-    [summary]);
-
-  const regionOptions = useMemo(() =>
-    (summary?.by_region || []).map(r => r.region).filter(Boolean).sort(),
-    [summary]);
-
-  const serviceOptions = useMemo(() =>
-    (summary?.by_service || []).map(s => s.service).filter(Boolean).sort(),
-    [summary]);
-
-  const postureOptions = useMemo(() =>
-    (summary?.by_posture || []).map(p => p.category).filter(Boolean).sort(),
-    [summary]);
-
-  // Summary data
+  // ── Derived data ──────────────────────────────────────────────────────
   const sevCounts = summary?.severity_counts || { critical: 0, high: 0, medium: 0, low: 0 };
   const totalFindings = summary?.total || 0;
   const statusCounts = summary?.status_counts || {};
   const topRules = summary?.top_rules || [];
   const byService = summary?.by_service || [];
 
-  // ── Table columns: Provider → Account → Region → Service → Rule ID → Status → Severity → Last Seen ──
+  // ── Unique values helper ──────────────────────────────────────────────
+  const uniqueVals = useCallback((key) => {
+    return [...new Set(allFindings.map(f => f[key]).filter(Boolean))].sort();
+  }, [allFindings]);
+
+  // ── By-service grouped data ───────────────────────────────────────────
+  const byServiceData = useMemo(() => {
+    const groups = {};
+    allFindings.forEach(f => {
+      const svc = f.service || 'unknown';
+      if (!groups[svc]) groups[svc] = [];
+      groups[svc].push(f);
+    });
+    return Object.entries(groups)
+      .sort(([, a], [, b]) => b.length - a.length)
+      .flatMap(([, items]) => items);
+  }, [allFindings]);
+
+  // ── By-category grouped data ──────────────────────────────────────────
+  const byCategoryData = useMemo(() => {
+    const groups = {};
+    allFindings.forEach(f => {
+      const cat = f.posture_category || 'configuration';
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(f);
+    });
+    return Object.entries(groups)
+      .sort(([, a], [, b]) => b.length - a.length)
+      .flatMap(([, items]) => items);
+  }, [allFindings]);
+
+  // ── Table columns ─────────────────────────────────────────────────────
   const columns = useMemo(() => [
     {
       accessorKey: 'provider',
@@ -777,254 +718,148 @@ export default function MisconfigurationsPage() {
     },
   ], []);
 
-  // ── Server-side pagination handlers ────────────────────────────────────────
-  const handlePageChange = (newPage) => setPage(newPage + 1); // DataTable uses 0-indexed
-  const handlePageSizeChange = (newSize) => { setPageSize(newSize); setPage(1); };
-  const handleSortChange = (columnId, direction) => {
-    if (columnId) {
-      setSortBy(columnId);
-      setSortOrder(direction || 'asc');
-    }
+  // ── Primary filters ───────────────────────────────────────────────────
+  const primaryFilters = useMemo(() => {
+    const f = [
+      { key: 'severity', label: 'Severity', options: ['critical', 'high', 'medium', 'low'] },
+      { key: 'status', label: 'Status', options: ['FAIL', 'PASS'] },
+    ];
+    const providerVals = uniqueVals('provider');
+    if (providerVals.length > 0) f.push({ key: 'provider', label: 'Provider', options: providerVals });
+    const accountVals = uniqueVals('account_id');
+    if (accountVals.length > 0) f.push({ key: 'account_id', label: 'Account', options: accountVals });
+    const regionVals = uniqueVals('region');
+    if (regionVals.length > 0) f.push({ key: 'region', label: 'Region', options: regionVals });
+    return f;
+  }, [allFindings, uniqueVals]);
+
+  // ── Extra filters ─────────────────────────────────────────────────────
+  const extraFilters = useMemo(() => {
+    const extras = [];
+    const serviceVals = uniqueVals('service');
+    if (serviceVals.length > 0) extras.push({ key: 'service', label: 'Service', options: serviceVals });
+    const postureVals = uniqueVals('posture_category');
+    if (postureVals.length > 0) extras.push({ key: 'posture_category', label: 'Posture', options: postureVals });
+    const domainVals = uniqueVals('domain');
+    if (domainVals.length > 0) extras.push({ key: 'domain', label: 'Domain', options: domainVals });
+    return extras;
+  }, [allFindings, uniqueVals]);
+
+  // ── Group-by options ──────────────────────────────────────────────────
+  const groupByOptions = useMemo(() => [
+    { key: 'severity', label: 'Severity' },
+    { key: 'status', label: 'Status' },
+    { key: 'service', label: 'Service' },
+    { key: 'posture_category', label: 'Posture' },
+    { key: 'provider', label: 'Provider' },
+    { key: 'account_id', label: 'Account' },
+    { key: 'region', label: 'Region' },
+  ], []);
+
+  // ── Page context ──────────────────────────────────────────────────────
+  const pageContext = useMemo(() => ({
+    title: 'Posture Security',
+    brief: 'Cloud resource misconfigurations across all connected providers and accounts',
+    details: [
+      'Focus on critical and high severity findings first',
+      'Use "By Service" tab to see which services need the most attention',
+      'Click any finding row to view remediation guidance',
+    ],
+    tabs: [
+      { id: 'findings', label: 'All Findings', count: allFindings.length },
+      { id: 'by_service', label: 'By Service', count: allFindings.length },
+      { id: 'by_category', label: 'By Category', count: allFindings.length },
+    ],
+  }), [allFindings]);
+
+  // ── KPI groups ────────────────────────────────────────────────────────
+  const kpiGroups = useMemo(() => [
+    {
+      title: 'Severity Breakdown',
+      items: [
+        { label: 'Critical', value: sevCounts.critical },
+        { label: 'High', value: sevCounts.high },
+        { label: 'Medium', value: sevCounts.medium },
+      ],
+    },
+    {
+      title: 'Summary',
+      items: [
+        { label: 'Total Findings', value: totalFindings },
+        { label: 'Failed', value: statusCounts.FAIL || 0 },
+        { label: 'Passed', value: statusCounts.PASS || 0 },
+      ],
+    },
+  ], [sevCounts, totalFindings, statusCounts]);
+
+  // ── Insight Row: top rules (left) + service breakdown (right) ─────────
+  const insightRowContent = useMemo(() => (
+    <InsightRow
+      left={<TopFailingRulesChart topRules={topRules} />}
+      right={<ServiceBreakdownChart byService={byService} />}
+    />
+  ), [topRules, byService]);
+
+  // ── Tab data ──────────────────────────────────────────────────────────
+  const tabData = useMemo(() => {
+    const shared = { columns, filters: primaryFilters, extraFilters, groupByOptions };
+    return {
+      findings: { ...shared, data: allFindings },
+      by_service: { ...shared, data: byServiceData, groupByOptions: [{ key: 'service', label: 'Service' }, ...groupByOptions] },
+      by_category: { ...shared, data: byCategoryData, groupByOptions: [{ key: 'posture_category', label: 'Posture' }, ...groupByOptions] },
+    };
+  }, [allFindings, byServiceData, byCategoryData, columns, primaryFilters, extraFilters, groupByOptions]);
+
+  // ── Row click handler ─────────────────────────────────────────────────
+  const handleRowClick = useCallback((row) => {
+    const finding = row?.original || row;
+    if (finding) setSelectedFinding(finding);
+  }, []);
+
+  // ── Export handlers ───────────────────────────────────────────────────
+  const handleExportCSV = async () => {
+    setExporting(true);
+    try { await exportCSV(); } finally { setExporting(false); }
   };
-  const handleSearchChange = (text) => setSearchTerm(text);
+  const handleExportPDF = () => {
+    exportPDF(allFindings, summary);
+  };
 
+  // ── Render ─────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-6">
-      {/* ── Page Header ────────────────────────────────────────────────────── */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-3xl font-bold" style={{ color: 'var(--text-primary)' }}>
-            Misconfigurations
-          </h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--text-tertiary)' }}>
-            Cloud resource misconfigurations across all connected providers and accounts
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button onClick={handleExportCSV} disabled={exporting}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-opacity hover:opacity-80 disabled:opacity-50"
-            style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)', color: 'var(--text-secondary)' }}>
-            <FileSpreadsheet className="w-3.5 h-3.5" /> {exporting ? 'Exporting...' : 'CSV'}
-          </button>
-          <button onClick={handleExportPDF}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-opacity hover:opacity-80"
-            style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)', color: 'var(--text-secondary)' }}>
-            <Download className="w-3.5 h-3.5" /> PDF
-          </button>
-          <button onClick={handleRefresh}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-opacity hover:opacity-80"
-            style={{ backgroundColor: 'var(--accent-primary)', color: '#fff' }}>
-            <RefreshCw className="w-3.5 h-3.5" /> Refresh
-          </button>
-        </div>
+    <div className="space-y-4">
+      {/* Export buttons above PageLayout */}
+      <div className="flex items-center justify-end gap-2">
+        <button onClick={handleExportCSV} disabled={exporting}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-opacity hover:opacity-80 disabled:opacity-50"
+          style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)', color: 'var(--text-secondary)' }}>
+          <FileSpreadsheet className="w-3.5 h-3.5" /> {exporting ? 'Exporting...' : 'CSV'}
+        </button>
+        <button onClick={handleExportPDF}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-opacity hover:opacity-80"
+          style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)', color: 'var(--text-secondary)' }}>
+          <Download className="w-3.5 h-3.5" /> PDF
+        </button>
+        <button onClick={fetchData}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-opacity hover:opacity-80"
+          style={{ backgroundColor: 'var(--accent-primary)', color: '#fff' }}>
+          <RefreshCw className="w-3.5 h-3.5" /> Refresh
+        </button>
       </div>
 
-      {/* ── Severity Summary Cards ──────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <SeverityCard label="Critical" count={sevCounts.critical} color={SEVERITY_COLORS.critical} total={totalFindings} />
-        <SeverityCard label="High" count={sevCounts.high} color={SEVERITY_COLORS.high} total={totalFindings} />
-        <SeverityCard label="Medium" count={sevCounts.medium} color={SEVERITY_COLORS.medium} total={totalFindings} />
-        <SeverityCard label="Low" count={sevCounts.low} color={SEVERITY_COLORS.low} total={totalFindings} />
-        <div className="rounded-xl border p-5 flex flex-col transition-colors duration-200"
-          style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-          <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-            Total Findings
-          </span>
-          <span className="text-3xl font-bold mt-2" style={{ color: 'var(--text-primary)' }}>
-            {totalFindings.toLocaleString()}
-          </span>
-          <div className="flex gap-3 mt-2 text-xs" style={{ color: 'var(--text-tertiary)' }}>
-            <span style={{ color: '#ef4444' }}>{statusCounts.FAIL || 0} fail</span>
-            <span style={{ color: '#22c55e' }}>{statusCounts.PASS || 0} pass</span>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Dashboard Charts Row ────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Top Failing Rules */}
-        <div className="rounded-xl border p-5" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-          <h3 className="text-sm font-semibold uppercase tracking-wider mb-4" style={{ color: 'var(--text-muted)' }}>
-            Top Failing Rules
-          </h3>
-          <div className="space-y-2.5">
-            {topRules.length === 0 && (
-              <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No data</p>
-            )}
-            {topRules.slice(0, 8).map((rule) => {
-              const maxCount = topRules[0]?.count || 1;
-              const pct = Math.round((rule.count / maxCount) * 100);
-              return (
-                <div key={rule.rule_id}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-medium truncate flex-1 mr-3" style={{ color: 'var(--text-secondary)' }}>
-                      {rule.title || rule.rule_id}
-                    </span>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <SeverityBadgeInline severity={rule.severity} />
-                      <span className="text-xs font-bold w-8 text-right" style={{ color: 'var(--text-primary)' }}>
-                        {rule.count}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="w-full h-1.5 rounded-full" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-                    <div className="h-full rounded-full" style={{
-                      width: `${pct}%`,
-                      backgroundColor: SEVERITY_COLORS[rule.severity] || SEVERITY_COLORS.medium,
-                    }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Service Breakdown */}
-        <div className="rounded-xl border p-5" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-          <h3 className="text-sm font-semibold uppercase tracking-wider mb-4" style={{ color: 'var(--text-muted)' }}>
-            Findings by Service
-          </h3>
-          <div className="space-y-2.5">
-            {byService.length === 0 && (
-              <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No data</p>
-            )}
-            {byService.slice(0, 10).map((svc) => {
-              const maxCount = byService[0]?.total || 1;
-              const pct = Math.round((svc.total / maxCount) * 100);
-              const failPct = svc.total > 0 ? Math.round((svc.fail / svc.total) * 100) : 0;
-              return (
-                <div key={svc.service}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-medium uppercase" style={{ color: 'var(--text-secondary)' }}>
-                      {svc.service}
-                    </span>
-                    <div className="flex items-center gap-3 text-xs">
-                      <span style={{ color: '#ef4444' }}>{svc.fail} fail</span>
-                      <span style={{ color: 'var(--text-muted)' }}>{svc.total} total</span>
-                    </div>
-                  </div>
-                  <div className="w-full h-1.5 rounded-full" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-                    <div className="h-full rounded-full" style={{
-                      width: `${pct}%`,
-                      backgroundColor: failPct > 50 ? '#ef4444' : failPct > 25 ? '#f97316' : '#3b82f6',
-                    }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Filters Bar ──────────────────────────────────────────────────── */}
-      <div className="rounded-xl border p-4" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Filter icon + label */}
-          <div className="flex items-center gap-1.5 mr-1">
-            <Filter className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
-            <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-              Filters
-            </span>
-          </div>
-
-          {/* Scope separator */}
-          <div className="h-5 w-px mx-1" style={{ backgroundColor: 'var(--border-primary)' }} />
-
-          {/* Provider */}
-          <FilterSelect value={filters.provider} onChange={(v) => handleFilterChange('provider', v)} label="All Providers">
-            {providerOptions.map(p => (
-              <option key={p} value={p}>{p.toUpperCase()}</option>
-            ))}
-          </FilterSelect>
-
-          {/* Account */}
-          <FilterSelect value={filters.account_id} onChange={(v) => handleFilterChange('account_id', v)} label="All Accounts">
-            {accountOptions.map(a => (
-              <option key={a} value={a}>{a}</option>
-            ))}
-          </FilterSelect>
-
-          {/* Region */}
-          <FilterSelect value={filters.region} onChange={(v) => handleFilterChange('region', v)} label="All Regions">
-            {regionOptions.map(r => (
-              <option key={r} value={r}>{r}</option>
-            ))}
-          </FilterSelect>
-
-          {/* Security separator */}
-          <div className="h-5 w-px mx-1" style={{ backgroundColor: 'var(--border-primary)' }} />
-
-          {/* Severity */}
-          <FilterSelect value={filters.severity} onChange={(v) => handleFilterChange('severity', v)} label="All Severities">
-            {['critical', 'high', 'medium', 'low'].map(s => (
-              <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
-            ))}
-          </FilterSelect>
-
-          {/* Status */}
-          <FilterSelect value={filters.status} onChange={(v) => handleFilterChange('status', v)} label="All Statuses">
-            <option value="FAIL">Fail</option>
-            <option value="PASS">Pass</option>
-          </FilterSelect>
-
-          {/* Service */}
-          <FilterSelect value={filters.service} onChange={(v) => handleFilterChange('service', v)} label="All Services">
-            {serviceOptions.map(s => (
-              <option key={s} value={s}>{s.toUpperCase()}</option>
-            ))}
-          </FilterSelect>
-
-          {/* Posture */}
-          <FilterSelect value={filters.posture_category} onChange={(v) => handleFilterChange('posture_category', v)} label="All Postures">
-            {postureOptions.map(p => (
-              <option key={p} value={p}>{p.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</option>
-            ))}
-          </FilterSelect>
-
-          {/* Clear + Count */}
-          {activeFilterCount > 0 && (
-            <button onClick={clearFilters}
-              className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-opacity hover:opacity-80"
-              style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>
-              <X className="w-3 h-3" /> Clear ({activeFilterCount})
-            </button>
-          )}
-
-          {/* Results count */}
-          <span className="ml-auto text-xs font-semibold" style={{ color: 'var(--text-tertiary)' }}>
-            {totalRows.toLocaleString()} finding{totalRows !== 1 ? 's' : ''}
-          </span>
-        </div>
-      </div>
-
-      {/* ── Findings Table ───────────────────────────────────────────────── */}
-      {error && (
-        <div className="rounded-lg border p-4 text-sm" style={{ backgroundColor: 'rgba(239,68,68,0.08)', borderColor: 'rgba(239,68,68,0.2)', color: '#ef4444' }}>
-          <AlertTriangle className="w-4 h-4 inline mr-2" />
-          {error}
-        </div>
-      )}
-
-      <DataTable
-        data={findings}
-        columns={columns}
+      <PageLayout
+        icon={ShieldAlert}
+        pageContext={pageContext}
+        kpiGroups={kpiGroups}
+        insightRow={insightRowContent}
+        tabData={tabData}
         loading={loading}
-        emptyMessage="No misconfigurations found matching the current filters"
-        onRowClick={(row) => setSelectedFinding(row.original)}
-        serverPagination
-        totalRows={totalRows}
-        currentPage={page - 1}
-        onPageChange={handlePageChange}
-        onPageSizeChange={handlePageSizeChange}
-        onSearchChange={handleSearchChange}
-        onSortChange={handleSortChange}
-        pageSize={pageSize}
-        onExportPdf={handleExportPDF}
-        onExportExcel={handleExportCSV}
-        showExport
+        error={error}
+        defaultTab="findings"
+        onRowClick={handleRowClick}
       />
 
-      {/* ── Detail Slide-out ──────────────────────────────────────────────── */}
+      {/* Detail Slide-out */}
       <FindingDetailPanel
         finding={selectedFinding}
         onClose={() => setSelectedFinding(null)}

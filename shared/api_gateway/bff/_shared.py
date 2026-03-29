@@ -23,10 +23,15 @@ ENGINE_URLS: Dict[str, str] = {
     "compliance": os.getenv("COMPLIANCE_ENGINE_URL",  "http://engine-compliance:8010"),
     "iam":        os.getenv("IAM_ENGINE_URL",         "http://engine-iam:8003"),
     "datasec":    os.getenv("DATASEC_ENGINE_URL",     "http://engine-datasec:8004"),
+    "encryption": os.getenv("ENCRYPTION_ENGINE_URL",  "http://engine-encryption:8006"),
     "secops":     os.getenv("SECOPS_ENGINE_URL",      "http://engine-secops:8009"),
     "risk":       os.getenv("RISK_ENGINE_URL",        "http://engine-risk:8009"),
     "onboarding": os.getenv("ONBOARDING_ENGINE_URL",  "http://engine-onboarding:8008"),
     "rule":       os.getenv("RULE_ENGINE_URL",        "http://engine-rule:8000"),
+    "network":    os.getenv("NETWORK_ENGINE_URL",      "http://engine-network:80"),
+    "ciem":        os.getenv("CIEM_ENGINE_URL",        "http://engine-ciem"),
+    "ai_security":     os.getenv("AI_SECURITY_ENGINE_URL", "http://engine-ai-security"),
+    "container_sec":   os.getenv("CONTAINER_SEC_ENGINE_URL", "http://engine-container-sec:80"),
 }
 
 # Convenience constants for backward compat
@@ -52,6 +57,7 @@ ENGINE_TIMEOUTS: Dict[str, float] = {
     "check": 8.0,
     "secops": 8.0,
     "rule": 5.0,
+    "ai_security": 8.0,
 }
 
 DEFAULT_TIMEOUT = float(os.getenv("BFF_ENGINE_TIMEOUT", "8"))
@@ -164,3 +170,46 @@ def _risk_level(score: int) -> str:
     if score >= 20:
         return "low"
     return "minimal"
+
+
+# ── Mock data fallback ──────────────────────────────────────────────────────
+
+MOCK_ENABLED = os.getenv("BFF_MOCK_FALLBACK", "true").lower() in ("true", "1", "yes")
+
+
+def is_empty_or_health(data) -> bool:
+    """Check if engine response is empty or just a health/info response."""
+    if not data or not isinstance(data, dict):
+        return True
+    # Engine health/info responses contain "status" + "service"/"version" keys
+    # but no actual data keys (findings, threats, assets, rules, summary, etc.)
+    _HEALTH_STATUSES = {"operational", "healthy", "ok", "up", "running"}
+    if str(data.get("status", "")).lower() in _HEALTH_STATUSES:
+        return True
+    if "service" in data and "version" in data:
+        return True
+    return False
+
+
+def mock_fallback(view_name: str):
+    """
+    Return mock data for a BFF view when engine calls fail.
+
+    Usage in a view:
+        results = await fetch_many([...])
+        if all(r is None for r in results):
+            m = mock_fallback("threats")
+            if m is not None:
+                return m
+    """
+    if not MOCK_ENABLED:
+        return None
+    try:
+        from . import _mock_data
+        fn = getattr(_mock_data, f"mock_{view_name}", None)
+        if fn:
+            logger.info("BFF mock fallback for view: %s", view_name)
+            return fn()
+    except Exception as exc:
+        logger.warning("BFF mock fallback error for %s: %s", view_name, exc)
+    return None

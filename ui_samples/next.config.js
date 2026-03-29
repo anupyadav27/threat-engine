@@ -25,7 +25,7 @@ const ENGINE_PREFIXES = [
 
 const nextConfig = {
   reactStrictMode: true,
-  basePath: '/ui',
+  basePath: process.env.NODE_ENV === 'production' ? '/ui' : '',
   output: 'standalone',
   // Allow the preview/headless browser to load /_next/* resources from 127.0.0.1
   allowedDevOrigins: ['127.0.0.1', 'localhost'],
@@ -33,9 +33,11 @@ const nextConfig = {
   // Proxy engine API paths to the NLB so the browser never makes cross-origin
   // requests during local development. basePath: false keeps paths at root (no /ui prefix).
   async rewrites() {
+    // Only rewrite API calls (paths containing /api/), not page routes.
+    // This prevents collisions with Next.js page routes like /compliance, /risk, /inventory.
     const engineRewrites = ENGINE_PREFIXES.map((prefix) => ({
-      source: `/${prefix}/:path*`,
-      destination: `${NLB_URL}/${prefix}/:path*`,
+      source: `/${prefix}/api/:path*`,
+      destination: `${NLB_URL}/${prefix}/api/:path*`,
       basePath: false,
     }));
 

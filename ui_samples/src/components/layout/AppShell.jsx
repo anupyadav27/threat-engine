@@ -43,7 +43,6 @@ export default function AppShell({ children }) {
         style={{ marginLeft: 'var(--sidebar-width, 240px)', transition: 'margin-left 200ms ease' }}
       >
         <Header />
-        <GlobalFilterBar />
         <main
           className="flex-1 p-6 transition-colors duration-200"
           style={{ backgroundColor: 'var(--bg-primary)' }}

@@ -1,7 +1,9 @@
-"""BFF view: /risk page.
+"""BFF view: /risk (Risk Quantification) page.
 
-Consolidates risk + threat into 2 BFF calls using /ui-data endpoints.
-Adds resilience: risk score derivation from threat data, synthetic trend, category defaults.
+Consolidates Risk Quantification Engine (FAIR model) + threat data into 2 BFF calls.
+Risk Quantification converts security findings into dollar-denominated exposure estimates.
+Domain-level "posture scores" (0-100 severity index) live in each engine.
+This page shows "financial risk exposure" — what the CFO/board cares about.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -9,8 +11,9 @@ from typing import Optional
 
 from fastapi import APIRouter, Query
 
-from ._shared import fetch_many, safe_get
+from ._shared import fetch_many, safe_get, mock_fallback, is_empty_or_health
 from ._transforms import normalize_risk_scenario
+from ._page_context import risk_page_context
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
@@ -42,6 +45,12 @@ async def view_risk(
         risk_data = {}
     if not isinstance(threat_data, dict):
         threat_data = {}
+
+    # Mock fallback when engine data is empty
+    if is_empty_or_health(risk_data) and is_empty_or_health(threat_data):
+        m = mock_fallback("risk")
+        if m is not None:
+            return m
 
     # Scenarios from risk ui-data
     raw_scenarios = safe_get(risk_data, "scenarios", [])
@@ -130,12 +139,18 @@ async def view_risk(
     if not mitigation_roadmap:
         for i, s in enumerate(scenarios[:10]):
             mitigation_roadmap.append({
-                "id": i + 1,
+                "id": f"MIT-{i+1:03d}",
+                "action": f"Mitigate: {s.get('scenario_name', '')}",
                 "scenario": s.get("scenario_name", ""),
-                "priority": "P1" if s.get("risk_rating") == "critical" else "P2" if s.get("risk_rating") == "high" else "P3",
-                "risk_reduction": round(s.get("expected_loss", 0) * 0.3),
-                "effort": "High" if s.get("probability", 0) > 0.7 else "Medium",
+                "current_risk": s.get("worst_case_loss", 0),
+                "target_risk": round(s.get("expected_loss", 0) * 0.3),
+                "cost": f"${round(s.get('expected_loss', 0) * 0.1):,}",
+                "priority": "Critical" if s.get("risk_rating") == "critical" else "High",
+                "risk_reduction": round((1 - 0.3) * 100),
+                "effort": "Medium",
                 "status": "planned",
+                "owner": "Security Team",
+                "due_date": (datetime.now() + timedelta(days=30*(i+1))).strftime("%Y-%m-%d"),
             })
 
     # Top risky assets from risk engine
@@ -160,14 +175,39 @@ async def view_risk(
     else:
         risk_level = "minimal"
 
+    page_ctx = risk_page_context({"risk_score": risk_score, "risk_level": risk_level})
+    page_ctx["tabs"] = [
+        {"id": "overview", "label": "Overview", "count": 0},
+        {"id": "categories", "label": "Risk Categories", "count": len(risk_categories)},
+        {"id": "register", "label": "Risk Register", "count": len(risk_register)},
+        {"id": "scenarios", "label": "Scenarios", "count": len(scenarios)},
+    ]
+
+    accepted = safe_get(risk_data, "accepted_risks") or safe_get(risk_data, "acceptedRisks", 0)
+    reduction = safe_get(risk_data, "risk_reduction") or safe_get(risk_data, "riskReduction", 0)
+
     return {
-        "riskScore": risk_score,
-        "riskLevel": risk_level,
-        "averageLoss": safe_get(risk_data, "average_loss") or safe_get(risk_data, "averageLoss", 0),
-        "acceptedRisks": safe_get(risk_data, "accepted_risks") or safe_get(risk_data, "acceptedRisks", 0),
-        "riskReduction": safe_get(risk_data, "risk_reduction") or safe_get(risk_data, "riskReduction", 0),
-        "complianceIndex": safe_get(risk_data, "compliance_index") or safe_get(risk_data, "complianceIndex", 0),
-        "criticalRisks": critical_risks,
+        "pageContext": page_ctx,
+        "kpiGroups": [
+            {
+                "title": "Financial Risk Exposure",
+                "items": [
+                    {"label": "Risk Exposure Score", "value": risk_score, "suffix": "/100"},
+                    {"label": "Exposure Level", "value": risk_level},
+                    {"label": "Critical Scenarios", "value": critical_risks},
+                    {"label": "Risk Domains", "value": len(risk_categories)},
+                ],
+            },
+            {
+                "title": "Risk Quantification",
+                "items": [
+                    {"label": "Accepted Risks", "value": accepted},
+                    {"label": "Risk Reduction", "value": reduction, "suffix": "%"},
+                    {"label": "FAIR Scenarios", "value": len(scenarios)},
+                    {"label": "Top Exposed Assets", "value": len(top_assets)},
+                ],
+            },
+        ],
         "riskCategories": risk_categories,
         "riskRegister": risk_register,
         "scenarios": scenarios,

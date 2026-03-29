@@ -5,26 +5,19 @@ import { useRouter } from 'next/navigation';
 import {
   Shield,
   AlertTriangle,
-  Activity,
   Zap,
-  ChevronDown,
-  ChevronUp,
   Target,
   Globe,
   CheckCircle,
-  ExternalLink,
-  Search,
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { fetchView } from '@/lib/api';
 import { useGlobalFilter } from '@/lib/global-filter-context';
-import { SEVERITY_COLORS, SEVERITY_ORDER, CLOUD_PROVIDERS } from '@/lib/constants';
-import MetricStrip from '@/components/shared/MetricStrip';
+import { SEVERITY_COLORS } from '@/lib/constants';
 import SeverityBadge from '@/components/shared/SeverityBadge';
-import LoadingSkeleton from '@/components/shared/LoadingSkeleton';
-import EmptyState from '@/components/shared/EmptyState';
-import DataTable from '@/components/shared/DataTable';
 import ThreatsSubNav from '@/components/shared/ThreatsSubNav';
+import PageLayout from '@/components/shared/PageLayout';
+import InsightRow from '@/components/shared/InsightRow';
 
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -73,32 +66,8 @@ const THREAT_STATUS = {
   'false-positive': { dot: '#6b7280', label: 'False Positive', animation: '' },
 };
 
-const TABLE_TABS = [
-  { key: 'all', label: 'All' },
-  { key: 'critical', label: 'Critical' },
-  { key: 'high', label: 'High' },
-  { key: 'attackPath', label: 'Has Attack Path' },
-  { key: 'unassigned', label: 'Unassigned' },
-];
 
-function Section({ children, error, title }) {
-  if (error) {
-    return (
-      <div className="rounded-xl p-6 border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-        <div className="flex items-center gap-3">
-          <AlertTriangle className="w-5 h-5 flex-shrink-0" style={{ color: '#ef4444' }} />
-          <div>
-            <p className="text-sm font-semibold" style={{ color: '#ef4444' }}>Failed to load {title || 'section'}</p>
-            <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>{error}</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-  return <>{children}</>;
-}
-
-// ── Inline Trend Chart (no external component dependency) ────────────────────
+// ── Inline Trend Chart ────────────────────────────────────────────────────────
 
 const AXIS_TICK = { fill: 'var(--text-tertiary)', fontSize: 11 };
 
@@ -134,11 +103,96 @@ function TrendChartInline({ data }) {
 }
 
 
+// ── MITRE Compact Grid (extracted for InsightRow) ─────────────────────────────
+
+function MitreCompactGrid({ mitreTactics, totalMitreTechniques, selectedTechnique, onSelectTechnique }) {
+  const [collapsed, setCollapsed] = useState(false);
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <h3 className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+            MITRE ATT&CK Coverage
+          </h3>
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ backgroundColor: 'rgba(59,130,246,0.12)', color: '#60a5fa' }}>
+            {totalMitreTechniques} techniques
+          </span>
+        </div>
+        {mitreTactics.length > 0 && (
+          <button onClick={() => setCollapsed((v) => !v)} className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            {collapsed ? 'Expand' : 'Collapse'}
+          </button>
+        )}
+      </div>
+
+      {mitreTactics.length === 0 ? (
+        <div className="h-40 flex items-center justify-center">
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>No MITRE mappings detected</p>
+        </div>
+      ) : collapsed ? (
+        <div className="flex flex-wrap gap-1.5">
+          {mitreTactics.map(({ tactic, totalCount }) => (
+            <span key={tactic} className="text-[10px] font-medium px-2 py-1 rounded-md"
+              style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
+              {tactic} <strong style={{ color: 'var(--text-primary)' }}>{totalCount}</strong>
+            </span>
+          ))}
+        </div>
+      ) : (
+        <div className="overflow-x-auto overflow-y-auto" style={{ maxHeight: 260 }}>
+          <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.min(mitreTactics.length, 8)}, minmax(110px, 1fr))` }}>
+            {mitreTactics.map(({ tactic, techniques }) => (
+              <div key={tactic}>
+                <p className="text-[9px] font-bold uppercase tracking-wider mb-1.5 truncate" style={{ color: 'var(--text-muted)' }}>
+                  {tactic}
+                </p>
+                <div className="space-y-1">
+                  {techniques.slice(0, 5).map((tech) => {
+                    const isSelected = selectedTechnique === tech.id;
+                    return (
+                      <div
+                        key={tech.id}
+                        onClick={() => onSelectTechnique(isSelected ? null : tech.id)}
+                        className="px-2 py-1 rounded cursor-pointer transition-all text-[10px]"
+                        style={{
+                          backgroundColor: mitreCellBg(tech.severity || 'medium', tech.count || 0),
+                          border: isSelected ? '1px solid var(--accent-primary)' : '1px solid transparent',
+                        }}
+                      >
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="font-mono font-bold truncate" style={{ color: 'var(--accent-primary)' }}>
+                            {tech.id}
+                          </span>
+                          <span className="font-bold tabular-nums flex-shrink-0" style={{ color: SEVERITY_COLORS[tech.severity] || '#eab308' }}>
+                            {tech.count}
+                          </span>
+                        </div>
+                        <p className="truncate mt-0.5" style={{ color: 'var(--text-tertiary)' }}>{tech.name}</p>
+                      </div>
+                    );
+                  })}
+                  {techniques.length > 5 && (
+                    <p className="text-[9px] text-center" style={{ color: 'var(--text-muted)' }}>
+                      +{techniques.length - 5} more
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
 export default function ThreatsPage() {
   const router = useRouter();
-  const { provider, account, region, filterSummary } = useGlobalFilter();
+  const { provider, account, region } = useGlobalFilter();
 
   // ── Data state ────────────────────────────────────────────────────────────
   const [loading, setLoading] = useState(true);
@@ -149,10 +203,7 @@ export default function ThreatsPage() {
   const [mitreMatrix, setMitreMatrix] = useState({});
 
   // ── UI state ────────────────────────────────────────────────────────────
-  const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState('all');
   const [selectedTechnique, setSelectedTechnique] = useState(null);
-  const [mitreCollapsed, setMitreCollapsed] = useState(false);
 
   // ── Fetch ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -211,32 +262,61 @@ export default function ThreatsPage() {
     return mitreTactics.reduce((s, t) => s + t.techniques.length, 0);
   }, [mitreTactics]);
 
-  // ── Filtered threats ───────────────────────────────────────────────────
-  const filteredThreats = useMemo(() => {
+  // ── Unique values helper ──────────────────────────────────────────────
+  const uniqueVals = useCallback((key) => {
+    return [...new Set(threats.map(t => t[key]).filter(Boolean))].sort();
+  }, [threats]);
+
+  // ── Base threats (technique-filtered) ─────────────────────────────────
+  const baseThreats = useMemo(() => {
     let result = threats;
     if (selectedTechnique) {
       result = result.filter((t) => t.mitreTechnique === selectedTechnique);
     }
-    if (searchTerm) {
-      const s = searchTerm.toLowerCase();
-      result = result.filter((t) =>
-        (t.title || '').toLowerCase().includes(s) ||
-        (t.mitreTechnique || '').toLowerCase().includes(s) ||
-        (t.resourceType || '').toLowerCase().includes(s) ||
-        (t.account || '').toLowerCase().includes(s) ||
-        (t.region || '').toLowerCase().includes(s) ||
-        (t.provider || '').toLowerCase().includes(s) ||
-        (t.threat_category || '').toLowerCase().includes(s)
-      );
-    }
-    switch (activeTab) {
-      case 'critical': result = result.filter((t) => t.severity === 'critical'); break;
-      case 'high': result = result.filter((t) => t.severity === 'high'); break;
-      case 'attackPath': result = result.filter((t) => t.hasAttackPath === true); break;
-      case 'unassigned': result = result.filter((t) => !t.assignee); break;
-    }
     return [...result].sort((a, b) => (b.riskScore || 0) - (a.riskScore || 0));
-  }, [threats, searchTerm, activeTab, selectedTechnique]);
+  }, [threats, selectedTechnique]);
+
+  // ── Primary filters ─────────────────────────────────────────────────────
+  const primaryFilters = useMemo(() => {
+    const f = [
+      { key: 'severity', label: 'Severity', options: ['critical', 'high', 'medium', 'low'] },
+    ];
+    const statusVals = uniqueVals('status');
+    if (statusVals.length > 0) f.push({ key: 'status', label: 'Status', options: statusVals });
+    const providerVals = uniqueVals('provider');
+    if (providerVals.length > 0) f.push({ key: 'provider', label: 'Provider', options: providerVals });
+    const accountVals = uniqueVals('account');
+    if (accountVals.length > 0) f.push({ key: 'account', label: 'Account', options: accountVals });
+    const regionVals = uniqueVals('region');
+    if (regionVals.length > 0) f.push({ key: 'region', label: 'Region', options: regionVals });
+    const categoryVals = uniqueVals('threat_category');
+    if (categoryVals.length > 0) f.push({ key: 'threat_category', label: 'Category', options: categoryVals });
+    return f;
+  }, [threats, uniqueVals]);
+
+  // ── Extra filters ────────────────────────────────────────────────────────
+  const extraFilters = useMemo(() => {
+    const extras = [];
+    const ruleVals = uniqueVals('rule_id');
+    if (ruleVals.length > 0) extras.push({ key: 'rule_id', label: 'Rule', options: ruleVals });
+    const techVals = uniqueVals('mitreTechnique');
+    if (techVals.length > 0) extras.push({ key: 'mitreTechnique', label: 'MITRE Technique', options: techVals });
+    const tacticVals = uniqueVals('mitreTactic');
+    if (tacticVals.length > 0) extras.push({ key: 'mitreTactic', label: 'MITRE Tactic', options: tacticVals });
+    return extras;
+  }, [threats, uniqueVals]);
+
+  // ── Group-by options ──────────────────────────────────────────────────
+  const groupByOptions = useMemo(() => [
+    { key: 'severity', label: 'Severity' },
+    { key: 'status', label: 'Status' },
+    { key: 'provider', label: 'Provider' },
+    { key: 'account', label: 'Account' },
+    { key: 'region', label: 'Region' },
+    { key: 'resourceType', label: 'Service' },
+    { key: 'threat_category', label: 'Category' },
+    { key: 'mitreTechnique', label: 'MITRE Technique' },
+  ], []);
 
   // ── Table columns ─────────────────────────────────────────────────────
   const columns = useMemo(() => [
@@ -371,64 +451,100 @@ export default function ThreatsPage() {
     },
   ], []);
 
-  // ── Tab counts ─────────────────────────────────────────────────────────
-  const tabCounts = useMemo(() => {
-    let base = threats;
-    if (selectedTechnique) base = base.filter((t) => t.mitreTechnique === selectedTechnique);
-    if (searchTerm) {
-      const s = searchTerm.toLowerCase();
-      base = base.filter((t) => (t.title || '').toLowerCase().includes(s) || (t.mitreTechnique || '').toLowerCase().includes(s));
-    }
-    return {
-      all: base.length,
-      critical: base.filter((t) => t.severity === 'critical').length,
-      high: base.filter((t) => t.severity === 'high').length,
-      attackPath: base.filter((t) => t.hasAttackPath === true).length,
-      unassigned: base.filter((t) => !t.assignee).length,
-    };
-  }, [threats, searchTerm, selectedTechnique]);
+  // ── Tab definitions with counts ───────────────────────────────────────
+  const tabDefs = useMemo(() => [
+    { id: 'all', label: 'All', count: baseThreats.length },
+    { id: 'critical', label: 'Critical', count: baseThreats.filter(t => t.severity === 'critical').length },
+    { id: 'high', label: 'High', count: baseThreats.filter(t => t.severity === 'high').length },
+    { id: 'attackPath', label: 'Has Attack Path', count: baseThreats.filter(t => t.hasAttackPath === true).length },
+    { id: 'unassigned', label: 'Unassigned', count: baseThreats.filter(t => !t.assignee).length },
+  ], [baseThreats]);
 
-  // ── Loading ────────────────────────────────────────────────────────────
-  if (loading) {
-    return (
-      <div className="space-y-4">
-        <div className="space-y-2">
-          <div className="h-8 w-64 rounded animate-pulse" style={{ backgroundColor: 'var(--bg-tertiary)' }} />
-          <div className="h-4 w-96 rounded animate-pulse" style={{ backgroundColor: 'var(--bg-tertiary)' }} />
+  // ── Tab data: each tab gets pre-filtered data ─────────────────────────
+  const tabData = useMemo(() => {
+    const shared = { columns, filters: primaryFilters, extraFilters, groupByOptions };
+    return {
+      all: { ...shared, data: baseThreats },
+      critical: { ...shared, data: baseThreats.filter(t => t.severity === 'critical') },
+      high: { ...shared, data: baseThreats.filter(t => t.severity === 'high') },
+      attackPath: { ...shared, data: baseThreats.filter(t => t.hasAttackPath === true) },
+      unassigned: { ...shared, data: baseThreats.filter(t => !t.assignee) },
+    };
+  }, [baseThreats, columns, primaryFilters, extraFilters, groupByOptions]);
+
+  // ── Page context ──────────────────────────────────────────────────────
+  const pageContext = useMemo(() => ({
+    title: 'Threat Detection',
+    brief: 'MITRE ATT&CK mapped threats across your cloud environment',
+    details: [
+      'Review critical and high-severity threats first for immediate action',
+      'Use the MITRE grid to identify technique clusters and attack patterns',
+      'Assign unresolved threats to team members for triage',
+    ],
+    tabs: tabDefs,
+  }), [tabDefs]);
+
+  // ── KPI groups ────────────────────────────────────────────────────────
+  const kpiGroups = useMemo(() => [
+    {
+      title: 'Threat Severity',
+      items: [
+        { label: 'Total', value: stats.total ?? 0 },
+        { label: 'Critical', value: stats.critical ?? 0 },
+        { label: 'High', value: stats.high ?? 0 },
+        { label: 'Risk Score', value: stats.avgRiskScore ?? 0, suffix: 'avg' },
+      ],
+    },
+    {
+      title: 'Operations',
+      items: [
+        { label: 'Active', value: stats.active ?? 0 },
+        { label: 'Unassigned', value: stats.unassigned ?? 0 },
+        { label: 'MITRE Techniques', value: totalMitreTechniques },
+      ],
+    },
+  ], [stats, totalMitreTechniques]);
+
+  // ── Insight Row: trend chart (left) + MITRE grid (right) ──────────────
+  const insightRowContent = useMemo(() => (
+    <InsightRow
+      ratio="5fr 7fr"
+      left={
+        <div>
+          <h3 className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--text-muted)' }}>
+            30-Day Threat Trend
+          </h3>
+          <div style={{ height: 180 }}>
+            {trendData.length > 0 ? (
+              <TrendChartInline data={trendData} />
+            ) : (
+              <div className="h-full flex items-center justify-center">
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>No trend data available</p>
+              </div>
+            )}
+          </div>
         </div>
-        <div className="h-20 rounded-xl animate-pulse" style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-primary)' }} />
-        <div className="grid grid-cols-2 gap-4">
-          <div className="h-52 rounded-xl animate-pulse" style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-primary)' }} />
-          <div className="h-52 rounded-xl animate-pulse" style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-primary)' }} />
-        </div>
-        <LoadingSkeleton rows={8} cols={6} />
-      </div>
-    );
-  }
+      }
+      right={
+        <MitreCompactGrid
+          mitreTactics={mitreTactics}
+          totalMitreTechniques={totalMitreTechniques}
+          selectedTechnique={selectedTechnique}
+          onSelectTechnique={setSelectedTechnique}
+        />
+      }
+    />
+  ), [trendData, mitreTactics, totalMitreTechniques, selectedTechnique]);
+
+  // ── Row click handler ─────────────────────────────────────────────────
+  const handleRowClick = useCallback((row) => {
+    const threat = row?.original || row;
+    if (threat?.id) router.push(`/threats/${threat.id}`);
+  }, [router]);
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
     <div className="space-y-4">
-      {/* Error banner */}
-      {error && (
-        <div className="rounded-lg p-3 border flex items-center gap-3" style={{ backgroundColor: 'rgba(239,68,68,0.08)', borderColor: '#ef4444' }}>
-          <AlertTriangle className="w-4 h-4 flex-shrink-0" style={{ color: '#ef4444' }} />
-          <p className="text-sm" style={{ color: '#ef4444' }}>{error}</p>
-        </div>
-      )}
-
-      {/* ── HEADER ──────────────────────────────────────────────────────── */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
-            Threat Detection
-          </h1>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
-            MITRE ATT&CK mapped threats across your cloud environment
-          </p>
-        </div>
-      </div>
-
       <ThreatsSubNav />
 
       {/* Technique filter chip */}
@@ -444,184 +560,17 @@ export default function ThreatsPage() {
         </div>
       )}
 
-      {/* ── METRIC STRIP ───────────────────────────────────────────────── */}
-      <MetricStrip groups={[
-        {
-          label: '🔴 THREAT SEVERITY',
-          color: 'var(--accent-danger)',
-          cells: [
-            { label: 'TOTAL', value: (stats.total ?? 0).toLocaleString(), valueColor: 'var(--text-primary)', context: 'detected findings' },
-            { label: 'CRITICAL', value: stats.critical ?? 0, valueColor: 'var(--severity-critical)', delta: stats.deltas?.critical?.value ?? null, deltaGoodDown: true, context: stats.deltas?.critical ? 'vs last 7d' : 'immediate action' },
-            { label: 'HIGH', value: stats.high ?? 0, valueColor: 'var(--severity-high)', delta: stats.deltas?.high?.value ?? null, deltaGoodDown: true, context: stats.deltas?.high ? 'vs last 7d' : 'needs attention' },
-            { label: 'RISK SCORE', value: stats.avgRiskScore ?? 0, valueColor: riskColor(stats.avgRiskScore || 0), noTrend: true, context: 'average' },
-          ],
-        },
-        {
-          label: '🟡 OPERATIONS',
-          color: '#eab308',
-          cells: [
-            { label: 'ACTIVE', value: stats.active ?? 0, valueColor: stats.active > 0 ? 'var(--severity-high)' : 'var(--accent-success)', context: 'open' },
-            { label: 'UNASSIGNED', value: stats.unassigned ?? 0, valueColor: stats.unassigned > 0 ? 'var(--severity-high)' : 'var(--accent-success)', context: 'needs triage' },
-            { label: 'MITRE', value: `${totalMitreTechniques}`, noTrend: true, context: `${mitreTactics.length} tactics` },
-          ],
-        },
-      ]} />
-
-      {/* ── ROW 2: TREND (narrow) + MITRE (wide) ────────────────────── */}
-      <div className="grid gap-4" style={{ gridTemplateColumns: 'minmax(0, 5fr) minmax(0, 7fr)' }}>
-        {/* 30-Day Trend — compact */}
-        <div className="rounded-xl border p-4" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-          <h3 className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--text-muted)' }}>
-            30-Day Threat Trend
-          </h3>
-          <div style={{ height: 180 }}>
-            {trendData.length > 0 ? (
-              <TrendChartInline data={trendData} />
-            ) : (
-              <div className="h-full flex items-center justify-center">
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>No trend data available</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* MITRE ATT&CK Compact Grid */}
-        <div className="rounded-xl border p-4" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-                MITRE ATT&CK Coverage
-              </h3>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ backgroundColor: 'rgba(59,130,246,0.12)', color: '#60a5fa' }}>
-                {totalMitreTechniques} techniques
-              </span>
-            </div>
-            {mitreTactics.length > 0 && (
-              <button onClick={() => setMitreCollapsed((v) => !v)} className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                {mitreCollapsed ? 'Expand' : 'Collapse'}
-              </button>
-            )}
-          </div>
-
-          {mitreTactics.length === 0 ? (
-            <div className="h-40 flex items-center justify-center">
-              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>No MITRE mappings detected</p>
-            </div>
-          ) : mitreCollapsed ? (
-            /* Collapsed: single-row summary */
-            <div className="flex flex-wrap gap-1.5">
-              {mitreTactics.map(({ tactic, totalCount }) => (
-                <span
-                  key={tactic}
-                  className="text-[10px] font-medium px-2 py-1 rounded-md"
-                  style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}
-                >
-                  {tactic} <strong style={{ color: 'var(--text-primary)' }}>{totalCount}</strong>
-                </span>
-              ))}
-            </div>
-          ) : (
-            /* Expanded: compact grid — taller to show more techniques */
-            <div className="overflow-x-auto overflow-y-auto" style={{ maxHeight: 260 }}>
-              <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.min(mitreTactics.length, 8)}, minmax(110px, 1fr))` }}>
-                {mitreTactics.map(({ tactic, techniques }) => (
-                  <div key={tactic}>
-                    <p className="text-[9px] font-bold uppercase tracking-wider mb-1.5 truncate" style={{ color: 'var(--text-muted)' }}>
-                      {tactic}
-                    </p>
-                    <div className="space-y-1">
-                      {techniques.slice(0, 5).map((tech) => {
-                        const isSelected = selectedTechnique === tech.id;
-                        return (
-                          <div
-                            key={tech.id}
-                            onClick={() => setSelectedTechnique(isSelected ? null : tech.id)}
-                            className="px-2 py-1 rounded cursor-pointer transition-all text-[10px]"
-                            style={{
-                              backgroundColor: mitreCellBg(tech.severity || 'medium', tech.count || 0),
-                              border: isSelected ? '1px solid var(--accent-primary)' : '1px solid transparent',
-                            }}
-                          >
-                            <div className="flex items-center justify-between gap-1">
-                              <span className="font-mono font-bold truncate" style={{ color: 'var(--accent-primary)' }}>
-                                {tech.id}
-                              </span>
-                              <span className="font-bold tabular-nums flex-shrink-0" style={{ color: SEVERITY_COLORS[tech.severity] || '#eab308' }}>
-                                {tech.count}
-                              </span>
-                            </div>
-                            <p className="truncate mt-0.5" style={{ color: 'var(--text-tertiary)' }}>{tech.name}</p>
-                          </div>
-                        );
-                      })}
-                      {techniques.length > 5 && (
-                        <p className="text-[9px] text-center" style={{ color: 'var(--text-muted)' }}>
-                          +{techniques.length - 5} more
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── THREATS TABLE (hero section) ───────────────────────────────── */}
-      <div className="rounded-xl border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-        {/* Tab bar + search */}
-        <div className="flex items-center justify-between px-4 pt-3 pb-0 border-b" style={{ borderColor: 'var(--border-primary)' }}>
-          <div className="flex items-center gap-0.5 overflow-x-auto">
-            {TABLE_TABS.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className="px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors relative"
-                style={{ color: activeTab === tab.key ? 'var(--accent-primary)' : 'var(--text-muted)' }}
-              >
-                {tab.label}
-                <span className="ml-1 text-xs tabular-nums" style={{ color: 'var(--text-tertiary)' }}>
-                  ({tabCounts[tab.key] ?? 0})
-                </span>
-                {activeTab === tab.key && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full" style={{ backgroundColor: 'var(--accent-primary)' }} />
-                )}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-2 pb-2">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
-              <input
-                type="text"
-                placeholder="Search threats..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-8 pr-3 py-1.5 text-xs rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-500"
-                style={{
-                  backgroundColor: 'var(--bg-tertiary)',
-                  borderColor: 'var(--border-primary)',
-                  color: 'var(--text-primary)',
-                  width: 200,
-                }}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Table */}
-        <div className="p-4">
-          <DataTable
-            data={filteredThreats}
-            columns={columns}
-            pageSize={25}
-            onRowClick={(threat) => router.push(`/threats/${threat.id}`)}
-            loading={false}
-            emptyMessage="No threats match the selected filters"
-          />
-        </div>
-      </div>
+      <PageLayout
+        icon={Shield}
+        pageContext={pageContext}
+        kpiGroups={kpiGroups}
+        insightRow={insightRowContent}
+        tabData={tabData}
+        loading={loading}
+        error={error}
+        defaultTab="all"
+        onRowClick={handleRowClick}
+      />
     </div>
   );
 }

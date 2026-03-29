@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import {
   BookOpen,
   Code2,
@@ -16,6 +16,8 @@ import {
   EyeOff,
   Zap,
   Filter,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import { fetchView, postToEngine } from '@/lib/api';
 import KpiCard from '@/components/shared/KpiCard';
@@ -39,13 +41,16 @@ export default function RulesPage() {
   const [editorContent, setEditorContent] = useState('');
   const [validationResult, setValidationResult] = useState(null);
   const [showYamlEditor, setShowYamlEditor] = useState(false);
+  const [groupBy, setGroupBy] = useState('');
+  const [expandedGroups, setExpandedGroups] = useState({});
 
   const [activeFilters, setActiveFilters] = useState({
-    provider: [],
-    service: [],
-    severity: [],
-    framework: [],
-    status: [],
+    provider: '',
+    service: '',
+    severity: '',
+    framework: '',
+    status: '',
+    rule_type: '',
   });
 
   // Fetch rules via BFF
@@ -74,28 +79,32 @@ export default function RulesPage() {
     let filtered = [...rules];
 
     if (searchTerm) {
+      const q = searchTerm.toLowerCase();
       filtered = filtered.filter(
         (r) =>
-          r.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          r.rule_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          r.description.toLowerCase().includes(searchTerm.toLowerCase())
+          r.name.toLowerCase().includes(q) ||
+          r.rule_id.toLowerCase().includes(q) ||
+          r.description.toLowerCase().includes(q)
       );
     }
 
-    if ((activeFilters.provider || []).length > 0) {
-      filtered = filtered.filter((r) => (activeFilters.provider || []).includes(r.provider));
+    if (activeFilters.provider) {
+      filtered = filtered.filter((r) => r.provider === activeFilters.provider);
     }
-    if ((activeFilters.service || []).length > 0) {
-      filtered = filtered.filter((r) => (activeFilters.service || []).includes(r.service));
+    if (activeFilters.service) {
+      filtered = filtered.filter((r) => r.service === activeFilters.service);
     }
-    if ((activeFilters.severity || []).length > 0) {
-      filtered = filtered.filter((r) => (activeFilters.severity || []).includes(r.severity));
+    if (activeFilters.severity) {
+      filtered = filtered.filter((r) => r.severity === activeFilters.severity);
     }
-    if ((activeFilters.framework || []).length > 0) {
-      filtered = filtered.filter((r) => r.frameworks.some((f) => (activeFilters.framework || []).includes(f)));
+    if (activeFilters.framework) {
+      filtered = filtered.filter((r) => r.frameworks.some((f) => f === activeFilters.framework));
     }
-    if ((activeFilters.status || []).length > 0) {
-      filtered = filtered.filter((r) => (activeFilters.status || []).includes(r.status));
+    if (activeFilters.status) {
+      filtered = filtered.filter((r) => r.status === activeFilters.status);
+    }
+    if (activeFilters.rule_type) {
+      filtered = filtered.filter((r) => r.rule_type === activeFilters.rule_type);
     }
 
     setFilteredRules(filtered);
@@ -104,6 +113,51 @@ export default function RulesPage() {
   const uniqueProviders = [...new Set(rules.map((r) => r.provider))].sort();
   const uniqueServices = [...new Set(rules.map((r) => r.service))].sort();
   const uniqueFrameworks = [...new Set(rules.flatMap((r) => r.frameworks))].sort();
+  const uniqueRuleTypes = [...new Set(rules.map((r) => r.rule_type).filter(Boolean))].sort();
+
+  // Group-by options
+  const groupByOptions = useMemo(() => [
+    { key: 'provider', label: 'Provider' },
+    { key: 'service', label: 'Service' },
+    { key: 'severity', label: 'Severity' },
+    { key: 'framework', label: 'Framework' },
+    { key: 'status', label: 'Status' },
+    { key: 'rule_type', label: 'Type' },
+  ], []);
+
+  // Group data
+  const grouped = useMemo(() => {
+    if (!groupBy || !filteredRules.length) return null;
+    const groups = {};
+    filteredRules.forEach(row => {
+      let keys;
+      if (groupBy === 'framework') {
+        keys = (row.frameworks && row.frameworks.length > 0) ? row.frameworks : ['Other'];
+      } else {
+        keys = [String(row[groupBy] || 'Other')];
+      }
+      keys.forEach(k => {
+        if (!groups[k]) groups[k] = [];
+        groups[k].push(row);
+      });
+    });
+    return Object.entries(groups)
+      .sort(([, a], [, b]) => b.length - a.length)
+      .map(([key, items]) => ({ key, items, count: items.length }));
+  }, [filteredRules, groupBy]);
+
+  // Auto-expand all groups when groupBy changes
+  useEffect(() => {
+    if (grouped) {
+      const expanded = {};
+      grouped.forEach(g => { expanded[g.key] = true; });
+      setExpandedGroups(expanded);
+    }
+  }, [groupBy]);
+
+  const toggleGroup = (key) => {
+    setExpandedGroups(prev => ({ ...prev, [key]: !prev[key] }));
+  };
 
   const columns = [
     {
@@ -209,23 +263,16 @@ export default function RulesPage() {
   ];
 
   const filterOptions = [
-    { name: 'provider', label: 'Provider', options: uniqueProviders },
-    { name: 'service', label: 'Service', options: uniqueServices },
-    { name: 'severity', label: 'Severity', options: ['critical', 'high', 'medium', 'low'] },
-    { name: 'framework', label: 'Framework', options: uniqueFrameworks },
-    { name: 'status', label: 'Status', options: ['active', 'inactive'] },
+    { key: 'provider', label: 'Provider', options: uniqueProviders },
+    { key: 'service', label: 'Service', options: uniqueServices },
+    { key: 'severity', label: 'Severity', options: ['critical', 'high', 'medium', 'low'] },
+    { key: 'framework', label: 'Framework', options: uniqueFrameworks },
+    { key: 'status', label: 'Status', options: ['active', 'inactive'] },
+    { key: 'rule_type', label: 'Type', options: uniqueRuleTypes.length > 0 ? uniqueRuleTypes : ['built-in', 'custom'] },
   ];
 
-  const handleFilterChange = (filterName, value) => {
-    setActiveFilters((prev) => {
-      const newFilters = { ...prev };
-      if (newFilters[filterName].includes(value)) {
-        newFilters[filterName] = newFilters[filterName].filter((v) => v !== value);
-      } else {
-        newFilters[filterName] = [...newFilters[filterName], value];
-      }
-      return newFilters;
-    });
+  const handleFilterChange = (key, value) => {
+    setActiveFilters(prev => ({ ...prev, [key]: value }));
   };
 
   const handleValidateRule = async () => {
@@ -489,21 +536,14 @@ metadata:
 
       {/* Rules Table */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-3 w-4 h-4" style={{ color: 'var(--text-muted)' }} />
-            <input
-              type="text"
-              placeholder="Search rules by name, ID, or description..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-lg border"
-              style={{
-                backgroundColor: 'var(--bg-secondary)',
-                borderColor: 'var(--border-primary)',
-                color: 'var(--text-primary)',
-              }}
-            />
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>
+              Rules Library
+            </h2>
+            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+              {filteredRules.length} of {rules.length} rules
+            </p>
           </div>
           <button
             onClick={handleExportRules}
@@ -515,24 +555,49 @@ metadata:
           </button>
         </div>
 
-        <div>
-          <h2 className="text-lg font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
-            Rules Library
-          </h2>
-          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-            {filteredRules.length} of {rules.length} rules
-          </p>
-        </div>
-
-        <FilterBar filters={filterOptions} activeFilters={activeFilters} onFilterChange={handleFilterChange} />
-
-        <DataTable
-          data={filteredRules}
-          columns={columns}
-          pageSize={12}
-          loading={loading}
-          emptyMessage="No rules found matching your filters"
+        <FilterBar
+          search={searchTerm}
+          onSearchChange={setSearchTerm}
+          searchPlaceholder="Search rules by name, ID, or description..."
+          filters={filterOptions}
+          onFilterChange={handleFilterChange}
+          activeFilters={activeFilters}
+          groupByOptions={groupByOptions}
+          groupBy={groupBy}
+          onGroupByChange={setGroupBy}
         />
+
+        {grouped ? (
+          <div className="space-y-3">
+            {grouped.map(({ key, items, count }) => (
+              <div key={key} className="rounded-lg border" style={{ borderColor: 'var(--border-primary)' }}>
+                <button
+                  onClick={() => toggleGroup(key)}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-medium"
+                  style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+                >
+                  {expandedGroups[key] ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                  <span>{key}</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>{count}</span>
+                </button>
+                {expandedGroups[key] && (
+                  <DataTable data={items} columns={columns} pageSize={12} hideToolbar />
+                )}
+              </div>
+            ))}
+            <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+              {grouped.length} groups, {filteredRules.length} total rows
+            </div>
+          </div>
+        ) : (
+          <DataTable
+            data={filteredRules}
+            columns={columns}
+            pageSize={12}
+            loading={loading}
+            emptyMessage="No rules found matching your filters"
+          />
+        )}
       </div>
 
       {/* Compliance Guidelines */}

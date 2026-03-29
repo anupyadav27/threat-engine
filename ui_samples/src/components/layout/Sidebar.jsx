@@ -9,11 +9,14 @@ import {
   Radar,
   Server,
   ShieldAlert,
+  AlertTriangle,
   ClipboardCheck,
   KeyRound,
+  Eye,
   Database,
   Code,
   TrendingUp,
+  Activity,
   Settings,
   ChevronDown,
   ChevronRight,
@@ -24,6 +27,14 @@ import {
   Bug,
   FileCheck,
   FileText,
+  ScrollText,
+  BookOpen,
+  AlertOctagon,
+  Lock,
+  Network,
+  Search,
+  Container,
+  Brain,
 } from 'lucide-react';
 import { NAV_ITEMS } from '@/lib/constants';
 import { useTheme } from '@/lib/theme-context';
@@ -34,16 +45,28 @@ const ICON_MAP = {
   Radar,
   Server,
   ShieldAlert,
+  AlertTriangle,
   ClipboardCheck,
   KeyRound,
+  Eye,
   Database,
   Code,
   TrendingUp,
+  Activity,
   Settings,
   Bell,
   Bug,
   FileCheck,
   FileText,
+  ScrollText,
+  BookOpen,
+  AlertOctagon,
+  Lock,
+  Network,
+  Search,
+  Container,
+  Brain,
+  Shield,
 };
 
 // Sidebar width constants
@@ -191,7 +214,14 @@ export default function Sidebar({ collapsed = false, onToggle }) {
 
       {/* ── Navigation ────────────────────────────────────────────────────── */}
       <nav className="flex-1 overflow-y-auto py-3">
-        {NAV_ITEMS.map((item) => {
+        {NAV_ITEMS.map((item, idx) => {
+          // Separator support
+          if (item.separator) {
+            return (
+              <div key={`sep-${idx}`} className="my-2 mx-4" style={{ borderTop: '1px solid var(--border-primary)' }} />
+            );
+          }
+
           const Icon        = ICON_MAP[item.icon];
           const active      = isParentActive(item);
           const hasChildren = item.children && item.children.length > 0;
@@ -233,11 +263,12 @@ export default function Sidebar({ collapsed = false, onToggle }) {
                 <div className="ml-5 border-l" style={{ borderColor: 'var(--border-primary)' }}>
                   {item.children.map((child) => {
                     const childActive = isActive(child.href);
+                    const ChildIcon = child.icon ? ICON_MAP[child.icon] : null;
                     return (
                       <Link
                         key={child.href}
                         href={child.href}
-                        className="block pl-7 pr-4 py-2 text-xs font-medium transition-colors duration-150"
+                        className="flex items-center gap-2 pl-5 pr-4 py-2 text-xs font-medium transition-colors duration-150"
                         style={{
                           color:           childActive ? 'var(--sidebar-active-text)' : 'var(--text-muted)',
                           backgroundColor: childActive ? 'var(--sidebar-active)' : 'transparent',
@@ -245,6 +276,7 @@ export default function Sidebar({ collapsed = false, onToggle }) {
                         onMouseEnter={(e) => { if (!childActive) e.currentTarget.style.backgroundColor = 'var(--sidebar-hover)'; }}
                         onMouseLeave={(e) => { if (!childActive) e.currentTarget.style.backgroundColor = 'transparent'; }}
                       >
+                        {ChildIcon && <ChildIcon className="w-3.5 h-3.5 flex-shrink-0" />}
                         {child.label}
                       </Link>
                     );

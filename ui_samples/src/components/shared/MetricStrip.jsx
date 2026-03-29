@@ -14,13 +14,17 @@ import { TrendingUp, TrendingDown } from 'lucide-react';
  *   context       — small grey subtext (e.g. "vs last 7d", "internet-facing")
  *   noTrend       — if true, hides delta arrow entirely; shows context as plain text
  */
-function MetricCell({ label, value, valueColor, delta, deltaGoodDown, context, noTrend }) {
+function MetricCell({ label, value, valueColor, delta, deltaGoodDown, context, noTrend, href, onClick }) {
   const deltaGood =
     delta != null ? (deltaGoodDown ? delta < 0 : delta > 0) : null;
   const deltaColor = deltaGood ? 'var(--accent-success)' : 'var(--accent-danger)';
 
+  const Wrapper = href ? 'a' : onClick ? 'button' : 'div';
+  const wrapperProps = href ? { href } : onClick ? { onClick } : {};
+  const isClickable = !!(href || onClick);
+
   return (
-    <div style={{ minWidth: 80, flexShrink: 0 }}>
+    <Wrapper {...wrapperProps} style={{ minWidth: 80, flexShrink: 0, cursor: isClickable ? 'pointer' : 'default', textDecoration: 'none', textAlign: 'left', background: 'none', border: 'none', padding: 0, borderRadius: 6, transition: 'opacity 0.15s' }} className={isClickable ? 'hover:opacity-75' : ''}>
       <p
         style={{
           color: 'var(--text-muted)',
@@ -76,7 +80,7 @@ function MetricCell({ label, value, valueColor, delta, deltaGoodDown, context, n
           {context}
         </p>
       ) : null}
-    </div>
+    </Wrapper>
   );
 }
 
@@ -108,7 +112,7 @@ function MetricCell({ label, value, valueColor, delta, deltaGoodDown, context, n
 export default function MetricStrip({ groups = [], className = '' }) {
   return (
     <div
-      className={`rounded-xl border overflow-hidden mb-6 ${className}`}
+      className={`rounded-xl border overflow-x-auto mb-6 ${className}`}
       style={{
         display: 'flex',
         backgroundColor: 'var(--bg-card)',
@@ -120,6 +124,7 @@ export default function MetricStrip({ groups = [], className = '' }) {
           key={gi}
           style={{
             flex: 1,
+            minWidth: 240,
             padding: '14px 20px',
             borderLeft: gi > 0 ? '1px solid var(--border-primary)' : 'none',
             borderTop: `3px solid ${g.color}`,
