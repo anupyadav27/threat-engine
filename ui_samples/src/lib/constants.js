@@ -91,7 +91,17 @@ export const NAV_ITEMS = [
       { label: 'Timeline', href: '/threats/timeline' },
     ],
   },
-  { label: 'Vulnerabilities', href: '/vulnerabilities', icon: 'Bug' },
+  {
+    label: 'Vulnerabilities',
+    href: '/vulnerability',
+    icon: 'Bug',
+    children: [
+      { label: 'Dashboard', href: '/vulnerability' },
+      { label: 'Scans', href: '/vulnerability/scans' },
+      { label: 'CVE Explorer', href: '/vulnerability/cves' },
+      { label: 'Agents', href: '/vulnerability/agents' },
+    ],
+  },
   {
     label: 'Compliance',
     href: '/compliance',
@@ -155,4 +165,5 @@ export const ENGINE_ENDPOINTS = {
   risk: '/risk',
   gateway: '/gateway',
   rule: '/rule',
+  vulnerability: '/vulnerability',
 };

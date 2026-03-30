@@ -20,7 +20,8 @@ const ENGINE_PREFIXES = [
   'risk',
   'rule',
   'gateway',
-  'cspm', // Django CSPM backend
+  'cspm',       // Django CSPM backend
+  'vulnerability', // Vulnerability engine (port 8000, /vulnerability ingress)
 ];
 
 const nextConfig = {
