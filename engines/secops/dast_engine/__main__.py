@@ -630,6 +630,22 @@ def main():
         )
         print(f"Successful  ({', '.join(effective_fmts)})")
 
+        # Persist results to threat_engine_secops DB (non-fatal if DB unreachable)
+        try:
+            from dast_engine.db import DASTReportWriter
+            writer = DASTReportWriter()
+            scan_id = writer.save(
+                vulnerabilities=vulns,
+                scan_config=config.to_dict(),
+                scan_stats={**atk_stats, 'pages_crawled': pages},
+                module_summary=module_summary,
+            )
+            if scan_id:
+                print(f"DB      : scan saved  (secops_scan_id={scan_id})")
+        except Exception as _db_exc:
+            import logging as _lg
+            _lg.getLogger('DASTScanner.DB').warning("DB write skipped: %s", _db_exc)
+
         print(f"Target  : {config.get('target.url')}")
         print(f"Profile : {profile}")
         print(f"Reports : {', '.join(str(p) for p in report_files.values())}")

@@ -55,7 +55,7 @@ def persist_scan_report(
             cur.execute("""
                 INSERT INTO secops_report
                     (secops_scan_id, orchestration_id, tenant_id, customer_id,
-                     project_name, repo_url, branch, scan_type, status, first_seen_at, metadata)
+                     project_name, repo_url, branch, scan_type, status, scan_timestamp, metadata)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (secops_scan_id) DO UPDATE SET
                     status = EXCLUDED.status,

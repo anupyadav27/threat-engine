@@ -170,6 +170,9 @@ def scan_file(py_file, rules):
                     if check.get('type') == 'custom_function':
                         custom_function_name = check.get('function')
                         break
+            # Also check root-level custom_function key (used by security rules)
+            if not custom_function_name:
+                custom_function_name = rule.logic.get('custom_function')
 
             custom_function = rule._get_custom_function(custom_function_name)
             if custom_function:

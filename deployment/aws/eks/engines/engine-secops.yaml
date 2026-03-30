@@ -91,13 +91,14 @@ spec:
               key: s3-region
         - name: ENGINE_NAME
           value: "secops"
-        # ── SCA/SBOM Engine — connects to vulnerability DB ──────────
+        # ── SecOps Engine DB config ────────────────────────────────
+        # Main pool (SAST + DAST + SCA output): threat_engine_secops
         - name: DB_HOST
           value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
         - name: DB_PORT
           value: "5432"
         - name: DB_NAME
-          value: "vulnerability_db"
+          value: "threat_engine_secops"
         - name: DB_USER
           value: "postgres"
         - name: DB_PASSWORD
@@ -105,6 +106,32 @@ spec:
             secretKeyRef:
               name: threat-engine-db-passwords
               key: SECOPS_DB_PASSWORD
+        # SAST engine explicit vars (fallback chain: SECOPS_DB_* → SHARED_DB_* → DB_*)
+        - name: SECOPS_DB_HOST
+          value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+        - name: SECOPS_DB_NAME
+          value: "threat_engine_secops"
+        - name: SECOPS_DB_USER
+          value: "postgres"
+        - name: SECOPS_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: SECOPS_DB_PASSWORD
+        # Vulnerability pool (SCA SBOM osv_advisory enrichment): vulnerability_db
+        - name: VULN_DB_HOST
+          value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+        - name: VULN_DB_PORT
+          value: "5432"
+        - name: VULN_DB_NAME
+          value: "vulnerability_db"
+        - name: VULN_DB_USER
+          value: "postgres"
+        - name: VULN_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: VULN_DB_PASSWORD
         volumeMounts:
         - name: scan-input
           mountPath: /app/scan_input

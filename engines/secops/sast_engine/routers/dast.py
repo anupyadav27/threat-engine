@@ -128,6 +128,63 @@ def _run_dast_pipeline(dast_scan_id: str, req: DastScanRequest) -> None:
     _dast_scans[dast_scan_id]["status"] = "running"
     _dast_scans[dast_scan_id]["started_at"] = datetime.now(timezone.utc).isoformat()
 
+    # ── Pre-flight: verify the target URL is reachable ────────────────────────
+    import socket
+    import urllib.parse
+    def _check_target_reachable(url: str, timeout: int = 10) -> Optional[str]:
+        """Return None if reachable, or an error message string if not."""
+        try:
+            parsed = urllib.parse.urlparse(url)
+            host = parsed.hostname
+            port = parsed.port or (443 if parsed.scheme == "https" else 80)
+            if not host:
+                return f"Invalid URL — cannot extract hostname from '{url}'"
+            sock = socket.create_connection((host, port), timeout=timeout)
+            sock.close()
+            return None
+        except socket.timeout:
+            return f"Target '{url}' is not reachable: connection timed out after {timeout}s"
+        except socket.gaierror as e:
+            return f"Target '{url}' is not reachable: DNS resolution failed ({e})"
+        except ConnectionRefusedError:
+            return f"Target '{url}' is not reachable: connection refused on port {port}"
+        except Exception as e:
+            return f"Target '{url}' is not reachable: {e}"
+
+    reachability_error = _check_target_reachable(req.target_url)
+    if reachability_error:
+        logger.error(f"[{dast_scan_id}] {reachability_error}")
+        _dast_scans[dast_scan_id].update({
+            "status": "failed",
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+            "error": reachability_error,
+        })
+        try:
+            from database.secops_db_writer import persist_scan_report, complete_scan_report
+            persist_scan_report(
+                secops_scan_id=dast_scan_id,
+                tenant_id=req.tenant_id,
+                project_name=req.target_url,
+                repo_url=req.target_url,
+                branch="",
+                status="failed",
+                customer_id=req.customer_id,
+                orchestration_id=req.scan_run_id,
+                scan_type="dast",
+            )
+            complete_scan_report(
+                secops_scan_id=dast_scan_id,
+                status="failed",
+                files_scanned=0,
+                total_findings=0,
+                total_errors=1,
+                languages_detected=["dast"],
+                summary={"error": reachability_error},
+            )
+        except Exception as db_err:
+            logger.warning(f"[{dast_scan_id}] DB update failed: {db_err}")
+        return
+
     # Persist scan report to DB (status=running)
     try:
         from database.secops_db_writer import persist_scan_report

@@ -3006,3 +3006,423 @@ def has_reluctant_quantifier_followed_by_empty_match(node, ast_root=None):
     # Example: .*? followed by .*
     pattern = r"\.\*\?\.\*"
     return bool(re.search(pattern, regex_str))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SECURITY DETECTION FUNCTIONS — added to support security-focused SAST rules
+# ─────────────────────────────────────────────────────────────────────────────
+
+_SQL_KEYWORDS = ('SELECT', 'INSERT', 'UPDATE', 'DELETE', 'DROP', 'CREATE',
+                 'ALTER', 'EXEC', 'UNION', 'FROM', 'WHERE')
+
+
+def _contains_sql_keyword(s):
+    """Return True if string s contains an SQL keyword."""
+    if not isinstance(s, str):
+        return False
+    upper = s.upper()
+    return any(kw in upper for kw in _SQL_KEYWORDS)
+
+
+def sql_injection_check(node):
+    """
+    Detects SQL injection via:
+      1. BinOp with + operator where one operand is a Constant with SQL keywords
+      2. BinOp with % operator where left operand has SQL keywords (% formatting)
+      3. JoinedStr (f-string) where any constant value contains SQL keywords
+      4. Call to .format() on a string constant that contains SQL keywords
+    """
+    if not isinstance(node, dict):
+        return False
+
+    ntype = node.get('node_type')
+
+    # Pattern 1 & 2: BinOp  (str concat with + , or % formatting)
+    if ntype == 'BinOp':
+        op_type = node.get('op', {}).get('node_type', '')
+        if op_type in ('Add', 'Mod'):
+            left = node.get('left', {})
+            right = node.get('right', {})
+            for side in (left, right):
+                if isinstance(side, dict) and side.get('node_type') == 'Constant':
+                    if _contains_sql_keyword(side.get('value', '')):
+                        return {
+                            'message': 'SQL query constructed with string formatting — SQL injection risk (CWE-89).',
+                            'property_path': ['left' if side is left else 'right'],
+                            'value': str(side.get('value', ''))[:80]
+                        }
+        return False
+
+    # Pattern 3: JoinedStr (f-string) — check constant parts for SQL keywords
+    if ntype == 'JoinedStr':
+        values = node.get('values', [])
+        for part in values:
+            if isinstance(part, dict) and part.get('node_type') == 'Constant':
+                if _contains_sql_keyword(part.get('value', '')):
+                    return {
+                        'message': 'SQL query constructed with f-string interpolation — SQL injection risk (CWE-89).',
+                        'property_path': ['values'],
+                        'value': str(part.get('value', ''))[:80]
+                    }
+        return False
+
+    # Pattern 4: Call to .format() on a SQL string constant
+    if ntype == 'Call':
+        func = node.get('func', {})
+        if isinstance(func, dict) and func.get('node_type') == 'Attribute':
+            if func.get('attr') == 'format':
+                value_node = func.get('value', {})
+                if isinstance(value_node, dict) and value_node.get('node_type') == 'Constant':
+                    if _contains_sql_keyword(value_node.get('value', '')):
+                        return {
+                            'message': 'SQL query constructed with .format() — SQL injection risk (CWE-89).',
+                            'property_path': ['func', 'value'],
+                            'value': str(value_node.get('value', ''))[:80]
+                        }
+        return False
+
+    return False
+
+
+def command_injection_os_system_check(node):
+    """
+    Detects os.system() calls.
+    Matches: Call where func.value.id == 'os' and func.attr == 'system'
+    """
+    if not isinstance(node, dict) or node.get('node_type') != 'Call':
+        return False
+    func = node.get('func', {})
+    if not isinstance(func, dict) or func.get('node_type') != 'Attribute':
+        return False
+    if func.get('attr') != 'system':
+        return False
+    value = func.get('value', {})
+    if isinstance(value, dict) and value.get('id') == 'os':
+        return {
+            'message': 'os.system() called — command injection risk if argument contains user input (CWE-78).',
+            'property_path': ['func', 'value'],
+            'value': 'os.system'
+        }
+    return False
+
+
+def command_injection_subprocess_shell_check(node):
+    """
+    Detects subprocess.call/run/Popen called with shell=True.
+    """
+    if not isinstance(node, dict) or node.get('node_type') != 'Call':
+        return False
+    func = node.get('func', {})
+    if not isinstance(func, dict) or func.get('node_type') != 'Attribute':
+        return False
+    if func.get('attr') not in ('call', 'run', 'Popen', 'check_call', 'check_output'):
+        return False
+    value = func.get('value', {})
+    if not isinstance(value, dict) or value.get('id') != 'subprocess':
+        return False
+    # Check for shell=True keyword
+    keywords = node.get('keywords', [])
+    for kw in keywords:
+        if not isinstance(kw, dict):
+            continue
+        if kw.get('arg') == 'shell':
+            val = kw.get('value', {})
+            if isinstance(val, dict) and val.get('value') is True:
+                return {
+                    'message': 'subprocess called with shell=True — command injection risk (CWE-78).',
+                    'property_path': ['keywords', 'shell'],
+                    'value': 'shell=True'
+                }
+    return False
+
+
+def insecure_deserialization_pickle_check(node):
+    """
+    Detects pickle.loads() calls.
+    """
+    if not isinstance(node, dict) or node.get('node_type') != 'Call':
+        return False
+    func = node.get('func', {})
+    if not isinstance(func, dict) or func.get('node_type') != 'Attribute':
+        return False
+    if func.get('attr') not in ('loads', 'load'):
+        return False
+    value = func.get('value', {})
+    if isinstance(value, dict) and value.get('id') == 'pickle':
+        return {
+            'message': 'pickle.loads() called — insecure deserialization allows arbitrary code execution (CWE-502).',
+            'property_path': ['func', 'value'],
+            'value': 'pickle.loads'
+        }
+    return False
+
+
+def path_traversal_check(node):
+    """
+    Detects path traversal: BinOp with + where one side is a Constant string
+    that looks like an absolute directory path (starts with /).
+    """
+    if not isinstance(node, dict) or node.get('node_type') != 'BinOp':
+        return False
+    op_type = node.get('op', {}).get('node_type', '')
+    if op_type != 'Add':
+        return False
+    left = node.get('left', {})
+    if not isinstance(left, dict):
+        return False
+    if left.get('node_type') == 'Constant':
+        val = left.get('value', '')
+        if isinstance(val, str) and (val.startswith('/') or val.endswith('/') or '/' in val):
+            return {
+                'message': 'File path constructed with string concatenation — path traversal risk (CWE-22).',
+                'property_path': ['left'],
+                'value': val[:80]
+            }
+    # Also catch cases like base_dir + filename where base_dir is a variable
+    right = node.get('right', {})
+    if isinstance(right, dict) and right.get('node_type') == 'Constant':
+        val = right.get('value', '')
+        if isinstance(val, str) and (val.startswith('/') or val.endswith('/') or '/' in val):
+            return {
+                'message': 'File path constructed with string concatenation — path traversal risk (CWE-22).',
+                'property_path': ['right'],
+                'value': val[:80]
+            }
+    return False
+
+
+def xss_render_template_check(node):
+    """
+    Detects render_template_string() calls.
+    Any call to render_template_string is a potential XSS/SSTI risk
+    because the template string may contain user-controlled content.
+    """
+    if not isinstance(node, dict) or node.get('node_type') != 'Call':
+        return False
+    func = node.get('func', {})
+    if not isinstance(func, dict):
+        return False
+    # Direct call: render_template_string(...)
+    if func.get('id') == 'render_template_string':
+        return {
+            'message': 'render_template_string() called — XSS/SSTI risk if template contains user input (CWE-79).',
+            'property_path': ['func'],
+            'value': 'render_template_string'
+        }
+    # Attribute call: flask.render_template_string(...)
+    if func.get('node_type') == 'Attribute' and func.get('attr') == 'render_template_string':
+        return {
+            'message': 'render_template_string() called — XSS/SSTI risk if template contains user input (CWE-79).',
+            'property_path': ['func', 'attr'],
+            'value': 'render_template_string'
+        }
+    return False
+
+
+def ssrf_requests_check(node):
+    """
+    Detects requests.get/post/put/delete/head called with a non-literal (variable) URL.
+    """
+    if not isinstance(node, dict) or node.get('node_type') != 'Call':
+        return False
+    func = node.get('func', {})
+    if not isinstance(func, dict) or func.get('node_type') != 'Attribute':
+        return False
+    if func.get('attr') not in ('get', 'post', 'put', 'delete', 'head', 'request', 'options'):
+        return False
+    value = func.get('value', {})
+    if not isinstance(value, dict):
+        return False
+    # Matches: requests.get(...) or http_requests.get(...)
+    caller_id = value.get('id', '')
+    if 'request' not in caller_id.lower():
+        return False
+    # Check first argument: if it's a Name (variable), flag it
+    args = node.get('args', [])
+    if args and isinstance(args[0], dict):
+        first_arg = args[0]
+        # Variable (Name node) — user-controlled URL risk
+        if first_arg.get('node_type') == 'Name':
+            return {
+                'message': 'HTTP request made to a variable URL — SSRF risk if URL comes from user input (CWE-918).',
+                'property_path': ['args', '0'],
+                'value': first_arg.get('id', 'variable')
+            }
+    return False
+
+
+def debug_mode_check(node):
+    """
+    Detects DEBUG = True assignment.
+    """
+    if not isinstance(node, dict) or node.get('node_type') != 'Assign':
+        return False
+    targets = node.get('targets', [])
+    if not targets or not isinstance(targets[0], dict):
+        return False
+    target_name = targets[0].get('id', '')
+    if target_name != 'DEBUG':
+        return False
+    value = node.get('value', {})
+    if isinstance(value, dict) and value.get('value') is True:
+        return {
+            'message': 'DEBUG=True detected — disable debug mode in production to prevent information disclosure (CWE-489).',
+            'property_path': ['targets', 'value'],
+            'value': 'DEBUG=True'
+        }
+    return False
+
+
+def insecure_random_check(node):
+    """
+    Detects use of the insecure random module for security-sensitive operations:
+    random.choices, random.randint, random.random, random.choice, random.sample, etc.
+    """
+    if not isinstance(node, dict) or node.get('node_type') != 'Call':
+        return False
+    func = node.get('func', {})
+    if not isinstance(func, dict) or func.get('node_type') != 'Attribute':
+        return False
+    insecure_methods = ('choices', 'randint', 'random', 'choice', 'sample',
+                        'randrange', 'shuffle', 'getrandbits')
+    if func.get('attr') not in insecure_methods:
+        return False
+    value = func.get('value', {})
+    if isinstance(value, dict) and value.get('id') == 'random':
+        return {
+            'message': 'random module used for security-sensitive operation — use secrets module instead (CWE-338).',
+            'property_path': ['func', 'value'],
+            'value': f"random.{func.get('attr')}"
+        }
+    return False
+
+
+def xss_html_concat_check(node):
+    """Detects XSS via HTML string concatenation: '<tag>' + variable + '</tag>' returned directly.
+    Matches BinOp(Add) where any Constant operand contains HTML angle-bracket tags.
+    """
+    if not isinstance(node, dict) or node.get('node_type') != 'BinOp':
+        return False
+    if node.get('op', {}).get('node_type') != 'Add':
+        return False
+
+    def _has_html_constant(n):
+        if not isinstance(n, dict):
+            return False
+        if n.get('node_type') == 'Constant':
+            v = n.get('value', '')
+            if isinstance(v, str) and '<' in v and '>' in v:
+                return True
+        for child in n.values():
+            if isinstance(child, dict) and _has_html_constant(child):
+                return True
+        return False
+
+    def _has_variable(n):
+        if not isinstance(n, dict):
+            return False
+        if n.get('node_type') == 'Name':
+            return True
+        for child in n.values():
+            if isinstance(child, dict) and _has_variable(child):
+                return True
+        return False
+
+    left = node.get('left', {})
+    right = node.get('right', {})
+    if _has_html_constant(left) or _has_html_constant(right):
+        if _has_variable(left) or _has_variable(right):
+            return {
+                'message': (
+                    'HTML string built by concatenating user-controlled variable — '
+                    'renders unsanitized input directly in browser response (XSS, CWE-79). '
+                    'Use a templating engine with auto-escaping instead.'
+                ),
+                'property_path': ['left'],
+                'value': 'html_string_concat',
+            }
+    return False
+
+
+def open_redirect_check(node):
+    """Detects open redirect: redirect() called with a Name node (variable) as first argument (CWE-601)."""
+    if not isinstance(node, dict) or node.get('node_type') != 'Call':
+        return False
+    func = node.get('func', {})
+    if not isinstance(func, dict):
+        return False
+    if func.get('node_type') != 'Name' or func.get('id') != 'redirect':
+        return False
+    args = node.get('args', [])
+    if not args:
+        return False
+    first_arg = args[0]
+    if isinstance(first_arg, dict) and first_arg.get('node_type') == 'Name':
+        return {
+            'message': (
+                f"redirect() called with variable '{first_arg.get('id', '?')}' — "
+                'if this value comes from user input it is an open redirect (CWE-601). '
+                'Validate the URL against an allowlist before redirecting.'
+            ),
+            'property_path': ['func'],
+            'value': f"redirect({first_arg.get('id', '?')})",
+        }
+    return False
+
+
+def _contains_html_tag(s):
+    """Return True if string contains an HTML tag."""
+    if not isinstance(s, str):
+        return False
+    return '<' in s and '>' in s
+
+
+def xss_html_concat_check(node):
+    """
+    Detects XSS via HTML string concatenation:
+    BinOp with + operator where one operand is a Constant string containing HTML tags.
+    Catches patterns like: "<h1>Hello: " + user_input + "</h1>"
+    """
+    if not isinstance(node, dict) or node.get('node_type') != 'BinOp':
+        return False
+    if node.get('op', {}).get('node_type') != 'Add':
+        return False
+    left = node.get('left', {})
+    right = node.get('right', {})
+    for side in (left, right):
+        if isinstance(side, dict) and side.get('node_type') == 'Constant':
+            if _contains_html_tag(side.get('value', '')):
+                return {
+                    'message': 'HTML response built with string concatenation — XSS risk if any operand contains user input (CWE-79).',
+                    'property_path': ['left' if side is left else 'right'],
+                    'value': str(side.get('value', ''))[:80]
+                }
+    return False
+
+
+def open_redirect_check(node):
+    """
+    Detects open redirect: redirect() called with a variable (Name node) as first argument.
+    Catches patterns like: redirect(url) where url = request.args.get(...)
+    """
+    if not isinstance(node, dict) or node.get('node_type') != 'Call':
+        return False
+    func = node.get('func', {})
+    if not isinstance(func, dict):
+        return False
+    # Direct call: redirect(url)
+    func_name = func.get('id') or func.get('attr', '')
+    if func_name != 'redirect':
+        return False
+    args = node.get('args', [])
+    if not args or not isinstance(args[0], dict):
+        return False
+    first_arg = args[0]
+    # Flag if first argument is a variable (Name node) — not a constant string
+    if first_arg.get('node_type') == 'Name':
+        return {
+            'message': 'redirect() called with a variable URL — open redirect risk if URL comes from user input (CWE-601).',
+            'property_path': ['args', '0'],
+            'value': first_arg.get('id', 'variable')
+        }
+    return False

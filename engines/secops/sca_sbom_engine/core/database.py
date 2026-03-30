@@ -2,6 +2,8 @@
 Database manager for SBOM Engine.
 Creates and manages SBOM-specific tables.
 Reads from cves + osv_advisory for enrichment (read-only queries).
+  - cves table:         in vulnerability_db (vuln_pool)
+  - osv_advisory table: in vulnerability_db (vuln_pool)
 """
 
 import asyncpg
@@ -23,14 +25,24 @@ class SBOMDatabaseManager:
 
     def __init__(self):
         self.pool = None
+        self.vuln_pool = None  # separate pool for vulnerability_db (osv_advisory)
         self.config = {
             "host":     os.getenv("DB_HOST", "localhost"),
             "port":     int(os.getenv("DB_PORT", 5432)),
-            "database": os.getenv("DB_NAME", "vulnerability_db"),
+            "database": os.getenv("DB_NAME", "threat_engine_secops"),
             "user":     os.getenv("DB_USER", "postgres"),
             "password": os.getenv("DB_PASSWORD", "password"),
             "max_size": int(os.getenv("DB_MAX_CONNECTIONS", 20)),
             "min_size": int(os.getenv("DB_MIN_CONNECTIONS", 5)),
+        }
+        self.vuln_config = {
+            "host":     os.getenv("VULN_DB_HOST", os.getenv("DB_HOST", "localhost")),
+            "port":     int(os.getenv("VULN_DB_PORT", os.getenv("DB_PORT", 5432))),
+            "database": os.getenv("VULN_DB_NAME", "vulnerability_db"),
+            "user":     os.getenv("VULN_DB_USER", os.getenv("DB_USER", "postgres")),
+            "password": os.getenv("VULN_DB_PASSWORD", os.getenv("DB_PASSWORD", "password")),
+            "max_size": 5,
+            "min_size": 1,
         }
 
     async def initialize(self):
@@ -55,10 +67,32 @@ class SBOMDatabaseManager:
             logger.error(f"DB init failed: {safe}")
             raise
 
+        # Initialize vulnerability_db pool for osv_advisory (non-fatal if unavailable)
+        try:
+            self.vuln_pool = await asyncpg.create_pool(
+                host=self.vuln_config["host"],
+                port=self.vuln_config["port"],
+                database=self.vuln_config["database"],
+                user=self.vuln_config["user"],
+                password=self.vuln_config["password"],
+                min_size=self.vuln_config["min_size"],
+                max_size=self.vuln_config["max_size"],
+                command_timeout=60,
+                ssl="prefer",
+            )
+            logger.info("SBOM Engine vulnerability_db pool initialized (osv_advisory)")
+        except Exception as e:
+            safe = str(e).replace(self.vuln_config.get("password", ""), "***")
+            logger.warning(f"vulnerability_db pool init failed (OSV enrichment disabled): {safe}")
+            self.vuln_pool = None
+
     async def close(self):
         if self.pool:
             await self.pool.close()
             logger.info("SBOM Engine DB pool closed")
+        if self.vuln_pool:
+            await self.vuln_pool.close()
+            logger.info("SBOM Engine vulnerability_db pool closed")
 
     async def check_connection(self) -> bool:
         try:
@@ -292,8 +326,11 @@ class SBOMDatabaseManager:
     async def query_osv_advisory(
         self, pkg_name: str, ecosystem: str
     ) -> List[Dict]:
-        """Read-only query on the osv_advisory table (populated by osv pipeline)."""
-        async with self.pool.acquire() as conn:
+        """Read-only query on the osv_advisory table (now in vulnerability_db)."""
+        if not self.vuln_pool:
+            logger.debug("vuln_pool unavailable — skipping OSV advisory lookup")
+            return []
+        async with self.vuln_pool.acquire() as conn:
             rows = await conn.fetch("""
                 SELECT advisory_id, ecosystem, pkg_name,
                        affected_ranges, affected_versions, fixed_version,
@@ -306,9 +343,106 @@ class SBOMDatabaseManager:
             """, pkg_name, ecosystem)
         return [dict(r) for r in rows]
 
-    async def enrich_from_cves(self, cve_id: str) -> Optional[Dict]:
-        """Read-only query on the cves table (populated by NVD pipeline)."""
+    # ── SecOps shared output tables ──────────────────────────────────────────
+
+    async def save_secops_report(
+        self,
+        secops_scan_id: str,
+        tenant_id: str,
+        project_name: str,
+        repo_url: str,
+        component_count: int,
+        vulnerability_count: int,
+        summary: Dict,
+        metadata: Optional[Dict] = None,
+    ) -> str:
+        """Insert a row into secops_report for this SCA scan. Returns secops_scan_id."""
+        import uuid as _uuid
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
         async with self.pool.acquire() as conn:
+            await conn.execute("""
+                INSERT INTO secops_report (
+                    secops_scan_id, tenant_id,
+                    project_name, repo_url,
+                    scan_type, status,
+                    scan_timestamp, completed_at,
+                    total_findings,
+                    summary, metadata
+                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+                ON CONFLICT (secops_scan_id) DO NOTHING
+            """,
+                secops_scan_id,
+                tenant_id,
+                project_name,
+                repo_url,
+                "sca",
+                "completed",
+                now,
+                now,
+                vulnerability_count,
+                json.dumps(summary),
+                json.dumps(metadata or {}),
+            )
+        logger.info("SecOps report row saved: %s", secops_scan_id)
+        return secops_scan_id
+
+    async def save_secops_findings(
+        self,
+        secops_scan_id: str,
+        tenant_id: str,
+        findings: List[Dict],
+    ) -> int:
+        """Batch-insert SCA vulnerability findings into secops_findings. Returns count inserted."""
+        if not findings:
+            return 0
+        rows = []
+        for f in findings:
+            rows.append((
+                secops_scan_id,
+                tenant_id,
+                f.get("component_purl") or f.get("component_name", ""),  # file_path
+                f.get("ecosystem", "sca"),                                 # language
+                f.get("vulnerability_id", ""),                             # rule_id
+                (f.get("severity") or "info").lower(),
+                f.get("description") or f.get("vulnerability_id", ""),    # message
+                None,                                                       # line_number
+                "violation",
+                None,                                                       # resource
+                "sca",
+                json.dumps({
+                    "component_name":    f.get("component_name"),
+                    "component_version": f.get("component_version"),
+                    "component_purl":    f.get("component_purl"),
+                    "vulnerability_id":  f.get("vulnerability_id"),
+                    "cvss_score":        f.get("cvss_score"),
+                    "cvss_vector":       f.get("cvss_vector"),
+                    "epss_score":        f.get("epss_score"),
+                    "in_cisa_kev":       f.get("in_cisa_kev", False),
+                    "fixed_version":     f.get("fixed_version"),
+                }),
+            ))
+        async with self.pool.acquire() as conn:
+            await conn.executemany("""
+                INSERT INTO secops_findings (
+                    secops_scan_id, tenant_id,
+                    file_path, language, rule_id,
+                    severity, message,
+                    line_number, status, resource,
+                    scan_type, metadata
+                ) VALUES (
+                    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12
+                )
+            """, rows)
+        logger.info("SecOps findings saved: %d rows for scan %s", len(rows), secops_scan_id)
+        return len(rows)
+
+    async def enrich_from_cves(self, cve_id: str) -> Optional[Dict]:
+        """Read-only query on the cves table (in vulnerability_db, via vuln_pool)."""
+        if not self.vuln_pool:
+            logger.debug("vuln_pool unavailable — skipping CVE enrichment lookup")
+            return None
+        async with self.vuln_pool.acquire() as conn:
             row = await conn.fetchrow("""
                 SELECT cve_id,
                        COALESCE(cvss_v4_score, cvss_v3_score, cvss_v2_score) AS cvss_score,
