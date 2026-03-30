@@ -3,9 +3,9 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  RefreshCw, Plus, X, Code2, Globe, Package,
+  RefreshCw, Plus, X, Code2, Code, Globe, Package,
   CheckCircle, Loader2, AlertTriangle, ChevronRight,
-  ShieldAlert, Activity, GitBranch, Clock, Eye,
+  ShieldAlert, Shield, Activity, GitBranch, Clock, Eye,
   TrendingUp, TrendingDown, Minus, Zap, ArrowRight,
   Maximize2,
 } from 'lucide-react';
@@ -1529,6 +1529,9 @@ export default function SecOpsPage() {
     { id: 'overview',  label: 'Overview' },
     { id: 'findings',  label: `All Findings${allFindings.length > 0 ? ` (${allFindings.length})` : ''}` },
     { id: 'history',   label: `Scan History (${allScans.length})` },
+    { id: 'sast',      label: `SAST (${sastScans.length})` },
+    { id: 'dast',      label: `DAST (${dastScans.length})` },
+    { id: 'sca',       label: `SCA (${scaScans.length})` },
   ];
 
   // ---------------------------------------------------------------------------
@@ -2068,6 +2071,257 @@ export default function SecOpsPage() {
             />
           </div>
         )}
+
+        {/* ── SAST TAB ── */}
+        {activeTab === 'sast' && (() => {
+          const completed = sastScans.filter(s => s.status === 'completed');
+          const running   = sastScans.filter(s => s.status === 'running');
+          const failed    = sastScans.filter(s => s.status === 'failed');
+          const totalFinds = completed.reduce((a, s) => a + (s.total_findings || 0), 0);
+          const allLangs  = [...new Set(completed.flatMap(s => s.languages_detected || []))];
+          const lastSastTs = sastScans[0]?.scan_timestamp;
+          return (
+            <div className="space-y-4">
+              {/* KPI row */}
+              <div className="grid grid-cols-4 gap-3">
+                {[
+                  { label: 'Total Scans',     value: sastScans.length, sub: `${completed.length} completed · ${running.length} running · ${failed.length} failed`, color: 'blue',   icon: <Activity className="w-4 h-4" /> },
+                  { label: 'Total Findings',  value: totalFinds.toLocaleString(), sub: 'across all completed scans', color: totalFinds > 0 ? 'orange' : 'green', icon: <AlertTriangle className="w-4 h-4" /> },
+                  { label: 'Languages',       value: allLangs.length || '—', sub: allLangs.slice(0, 4).join(', ') || 'none detected', color: 'purple', icon: <Code className="w-4 h-4" /> },
+                  { label: 'Last Scan',       value: lastSastTs ? new Date(lastSastTs).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—', sub: lastSastTs ? new Date(lastSastTs).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : 'no scans yet', color: 'green', icon: <Clock className="w-4 h-4" /> },
+                ].map(k => (
+                  <KpiCard key={k.label} title={k.label} value={k.value} subtitle={k.sub} icon={k.icon} color={k.color} />
+                ))}
+              </div>
+              {/* SAST scans table */}
+              <div className="rounded-xl border overflow-hidden" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+                <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: 'var(--border-primary)' }}>
+                  <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>SAST Scan Results</span>
+                  <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Static Application Security Testing · click row to view findings</span>
+                </div>
+                <DataTable
+                  data={sastScans}
+                  columns={[
+                    {
+                      id: 'project', header: 'Project / Repo', cell: info => {
+                        const s = info.row.original;
+                        const name = s.project_name || s.repo_url?.split('/').pop()?.replace(/\.git$/, '') || '—';
+                        return (
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }} title={s.repo_url}>{name}</div>
+                            <div className="text-xs truncate mt-0.5" style={{ color: 'var(--text-tertiary)' }}>{s.branch || 'main'}</div>
+                          </div>
+                        );
+                      }
+                    },
+                    {
+                      id: 'languages', header: 'Languages', size: 160, cell: info => {
+                        const langs = info.row.original.languages_detected || [];
+                        return langs.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {langs.slice(0, 3).map(l => (
+                              <span key={l} className="text-[10px] px-1.5 py-0.5 rounded-md bg-blue-500/10 text-blue-400 border border-blue-500/20">{l}</span>
+                            ))}
+                            {langs.length > 3 && <span className="text-[10px]" style={{ color: 'var(--text-tertiary)' }}>+{langs.length - 3}</span>}
+                          </div>
+                        ) : <span style={{ color: 'var(--text-muted)' }}>—</span>;
+                      }
+                    },
+                    { id: 'status', header: 'Status', size: 110, cell: info => <StatusIndicator status={info.row.original.status} /> },
+                    {
+                      id: 'files', header: 'Files Scanned', size: 110, cell: info => (
+                        <span className="text-sm tabular-nums" style={{ color: 'var(--text-secondary)' }}>{info.row.original.files_scanned ?? '—'}</span>
+                      )
+                    },
+                    {
+                      id: 'findings', header: 'Findings', size: 90, cell: info => {
+                        const n = info.row.original.total_findings || 0;
+                        return <span className={`text-sm font-bold ${n > 0 ? 'text-orange-400' : 'text-green-400'}`}>{n}</span>;
+                      }
+                    },
+                    {
+                      id: 'errors', header: 'Errors', size: 80, cell: info => {
+                        const e = info.row.original.total_errors || 0;
+                        return <span className={`text-sm tabular-nums ${e > 0 ? 'text-red-400' : ''}`} style={e === 0 ? { color: 'var(--text-muted)' } : {}}>{e}</span>;
+                      }
+                    },
+                    {
+                      id: 'date', header: 'Scanned At', size: 150, cell: info => (
+                        <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{fmtDate(info.row.original.scan_timestamp)}</span>
+                      )
+                    },
+                  ]}
+                  pageSize={15}
+                  loading={loading}
+                  emptyMessage="No SAST scans found. Launch a scan pipeline to get started."
+                  onRowClick={row => router.push(`/secops/${row.secops_scan_id}`)}
+                />
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ── DAST TAB ── */}
+        {activeTab === 'dast' && (() => {
+          const completed = dastScans.filter(s => s.status === 'completed');
+          const running   = dastScans.filter(s => s.status === 'running');
+          const failed    = dastScans.filter(s => s.status === 'failed');
+          const totalFinds = completed.reduce((a, s) => a + (s.total_findings || 0), 0);
+          const totalPages = completed.reduce((a, s) => a + (s.summary?.pages_crawled || 0), 0);
+          const totalAttacks = completed.reduce((a, s) => a + (s.summary?.attacks_sent || 0), 0);
+          return (
+            <div className="space-y-4">
+              {/* KPI row */}
+              <div className="grid grid-cols-4 gap-3">
+                {[
+                  { label: 'Total Scans',    value: dastScans.length, sub: `${completed.length} completed · ${running.length} running · ${failed.length} failed`, color: 'purple', icon: <Globe className="w-4 h-4" /> },
+                  { label: 'Total Findings', value: totalFinds.toLocaleString(), sub: 'across all completed scans', color: totalFinds > 0 ? 'orange' : 'green', icon: <AlertTriangle className="w-4 h-4" /> },
+                  { label: 'Pages Crawled',  value: totalPages.toLocaleString(), sub: 'cumulative across all scans', color: 'blue',   icon: <Activity className="w-4 h-4" /> },
+                  { label: 'Attacks Sent',   value: totalAttacks.toLocaleString(), sub: 'cumulative payloads fired',  color: 'red',    icon: <Zap className="w-4 h-4" /> },
+                ].map(k => (
+                  <KpiCard key={k.label} title={k.label} value={k.value} subtitle={k.sub} icon={k.icon} color={k.color} />
+                ))}
+              </div>
+              {/* DAST scans table */}
+              <div className="rounded-xl border overflow-hidden" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+                <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: 'var(--border-primary)' }}>
+                  <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>DAST Scan Results</span>
+                  <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Dynamic Application Security Testing · click row to view findings</span>
+                </div>
+                <DataTable
+                  data={dastScans}
+                  columns={[
+                    {
+                      id: 'target', header: 'Target URL', cell: info => (
+                        <div className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }} title={info.row.original.target_url}>
+                          {info.row.original.target_url || '—'}
+                        </div>
+                      )
+                    },
+                    { id: 'status', header: 'Status', size: 110, cell: info => <StatusIndicator status={info.row.original.status} /> },
+                    {
+                      id: 'severity', header: 'Severity Breakdown', size: 200, cell: info => {
+                        const bySev = info.row.original.summary?.by_severity || {};
+                        if (!Object.keys(bySev).length) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
+                        return (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {[['critical','bg-red-500/15 text-red-400'],['high','bg-orange-500/15 text-orange-400'],['medium','bg-yellow-500/15 text-yellow-400'],['low','bg-green-500/15 text-green-400']].map(([sev, cls]) =>
+                              bySev[sev] ? <span key={sev} className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${cls}`}>{sev[0].toUpperCase()} {bySev[sev]}</span> : null
+                            )}
+                          </div>
+                        );
+                      }
+                    },
+                    {
+                      id: 'pages', header: 'Pages', size: 70, cell: info => (
+                        <span className="text-sm tabular-nums" style={{ color: 'var(--text-secondary)' }}>{info.row.original.summary?.pages_crawled ?? '—'}</span>
+                      )
+                    },
+                    {
+                      id: 'attacks', header: 'Attacks', size: 80, cell: info => (
+                        <span className="text-sm tabular-nums" style={{ color: 'var(--text-secondary)' }}>{info.row.original.summary?.attacks_sent?.toLocaleString() ?? '—'}</span>
+                      )
+                    },
+                    {
+                      id: 'findings', header: 'Findings', size: 85, cell: info => {
+                        const n = info.row.original.total_findings || 0;
+                        return <span className={`text-sm font-bold ${n > 0 ? 'text-orange-400' : 'text-green-400'}`}>{n}</span>;
+                      }
+                    },
+                    {
+                      id: 'date', header: 'Scanned At', size: 150, cell: info => (
+                        <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{fmtDate(info.row.original.scan_timestamp)}</span>
+                      )
+                    },
+                  ]}
+                  pageSize={15}
+                  loading={loading}
+                  emptyMessage="No DAST scans found. Launch a scan pipeline with a target URL to get started."
+                  onRowClick={row => router.push(`/secops/dast/${row.dast_scan_id}`)}
+                />
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ── SCA TAB ── */}
+        {activeTab === 'sca' && (() => {
+          const totalVulns = scaScans.reduce((a, s) => a + (s.vulnerability_count || 0), 0);
+          const critHigh   = scaScans.reduce((a, s) => a + (s.critical_count || 0) + (s.high_count || 0), 0);
+          const lastScaTs  = scaScans[0]?.created_at;
+          return (
+            <div className="space-y-4">
+              {/* KPI row */}
+              <div className="grid grid-cols-4 gap-3">
+                {[
+                  { label: 'Total SBOMs',       value: scaScans.length, sub: 'software bill of materials scanned', color: 'blue',   icon: <Package className="w-4 h-4" /> },
+                  { label: 'Total Vulnerabilities', value: totalVulns.toLocaleString(), sub: 'across all SBOMs', color: totalVulns > 0 ? 'orange' : 'green', icon: <AlertTriangle className="w-4 h-4" /> },
+                  { label: 'Critical + High',    value: critHigh || '—', sub: 'highest severity vulnerabilities', color: critHigh > 0 ? 'red' : 'green', icon: <Shield className="w-4 h-4" /> },
+                  { label: 'Last Scan',          value: lastScaTs ? new Date(lastScaTs).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—', sub: lastScaTs ? new Date(lastScaTs).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : 'no scans yet', color: 'green', icon: <Clock className="w-4 h-4" /> },
+                ].map(k => (
+                  <KpiCard key={k.label} title={k.label} value={k.value} subtitle={k.sub} icon={k.icon} color={k.color} />
+                ))}
+              </div>
+              {/* SCA scans table */}
+              <div className="rounded-xl border overflow-hidden" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+                <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: 'var(--border-primary)' }}>
+                  <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>SCA Scan Results</span>
+                  <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Software Composition Analysis · click row to view SBOM details</span>
+                </div>
+                <DataTable
+                  data={scaScans}
+                  columns={[
+                    {
+                      id: 'project', header: 'Project', cell: info => {
+                        const s = info.row.original;
+                        const name = s.project_name || s.repo_url?.split('/').pop()?.replace(/\.git$/, '') || s.sbom_id || '—';
+                        return (
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{name}</div>
+                            {s.sbom_format && <div className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>{s.sbom_format}</div>}
+                          </div>
+                        );
+                      }
+                    },
+                    { id: 'status', header: 'Status', size: 110, cell: info => <StatusIndicator status={info.row.original.status || 'completed'} /> },
+                    {
+                      id: 'vulns', header: 'Vulnerabilities', size: 120, cell: info => {
+                        const n = info.row.original.vulnerability_count || 0;
+                        return <span className={`text-sm font-bold ${n > 0 ? 'text-orange-400' : 'text-green-400'}`}>{n}</span>;
+                      }
+                    },
+                    {
+                      id: 'critical', header: 'Critical', size: 80, cell: info => {
+                        const n = info.row.original.critical_count || 0;
+                        return <span className={`text-sm font-bold ${n > 0 ? 'text-red-400' : ''}`} style={n === 0 ? { color: 'var(--text-muted)' } : {}}>{n || '—'}</span>;
+                      }
+                    },
+                    {
+                      id: 'high', header: 'High', size: 70, cell: info => {
+                        const n = info.row.original.high_count || 0;
+                        return <span className={`text-sm font-bold ${n > 0 ? 'text-orange-400' : ''}`} style={n === 0 ? { color: 'var(--text-muted)' } : {}}>{n || '—'}</span>;
+                      }
+                    },
+                    {
+                      id: 'packages', header: 'Packages', size: 90, cell: info => (
+                        <span className="text-sm tabular-nums" style={{ color: 'var(--text-secondary)' }}>{info.row.original.total_packages ?? '—'}</span>
+                      )
+                    },
+                    {
+                      id: 'date', header: 'Created At', size: 150, cell: info => (
+                        <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{fmtDate(info.row.original.created_at)}</span>
+                      )
+                    },
+                  ]}
+                  pageSize={15}
+                  loading={loading}
+                  emptyMessage="No SCA scans found. Launch a scan pipeline to generate an SBOM."
+                  onRowClick={row => router.push(`/secops/sca/${row.sbom_id}`)}
+                />
+              </div>
+            </div>
+          );
+        })()}
 
       </div>
 
