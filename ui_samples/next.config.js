@@ -3,7 +3,13 @@
 // NLB endpoint — used by Next.js rewrites to proxy API calls in local development.
 // In production (Docker build), NEXT_PUBLIC_API_BASE is baked in and the browser
 // calls the NLB directly, so these rewrites are never hit.
+//
+// Override for local development:
+//   Create ui_samples/.env.local and set:
+//   NEXT_PUBLIC_GATEWAY_URL=http://localhost:8000
+// This routes all engine/BFF calls to a locally-running API gateway.
 const NLB_URL =
+  process.env.NEXT_PUBLIC_GATEWAY_URL ||
   'http://a248499a3e9da47248ad0adca7dac106-365a099e4a3b2214.elb.ap-south-1.amazonaws.com';
 
 // All engine prefixes that the nginx ingress routes on the cluster
@@ -53,8 +59,12 @@ const nextConfig = {
       },
     ];
 
+    // Django catch-all (/api/*) moves to afterFiles so that local Next.js API
+    // route handlers (e.g. /api/bff/*) are served from the file system first.
+    // beforeFiles still handles the engine prefixes (gateway, compliance, etc.).
     return {
-      beforeFiles: [...engineRewrites, ...djangoRedirectRewrites],
+      beforeFiles: [...engineRewrites],
+      afterFiles:  [...djangoRedirectRewrites],
     };
   },
 };

@@ -1,10 +1,8 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
-import { ChevronDown, ChevronRight, Info, AlertCircle } from 'lucide-react';
+import { useState } from 'react';
+import { ChevronDown, Info, AlertCircle } from 'lucide-react';
 import DataTable from './DataTable';
-import SeverityBadge from './SeverityBadge';
-import FilterBar from './FilterBar';
 
 /**
  * Standardized page layout for all CSPM pages.
@@ -31,83 +29,20 @@ export default function PageLayout({
   error = null,
   defaultTab = '',
   onRowClick = null,
+  hideHeader = false,
+  topNav = false,
 }) {
   const tabs = pageContext.tabs || [];
   const firstTab = defaultTab || tabs[0]?.id || '';
 
   const [activeTab, setActiveTab] = useState(firstTab);
-  const [search, setSearch] = useState('');
-  const [activeFilters, setActiveFilters] = useState({});
-  const [groupBy, setGroupBy] = useState('');
-  const [expandedGroups, setExpandedGroups] = useState({});
   const [detailsExpanded, setDetailsExpanded] = useState(false);
 
-  // Reset on tab change
-  const handleTabChange = (id) => {
-    setActiveTab(id);
-    setSearch('');
-    setActiveFilters({});
-    setGroupBy('');
-  };
+  const handleTabChange = (id) => setActiveTab(id);
 
   const currentTab = tabData[activeTab] || {};
   const rawData = currentTab.data || [];
   const columns = currentTab.columns || [];
-  const filters = currentTab.filters || [];
-  const extraFilters = currentTab.extraFilters || [];
-  const groupByOptions = currentTab.groupByOptions || [];
-
-  // Apply search + filters
-  const filtered = useMemo(() => {
-    let result = rawData;
-    if (search) {
-      const q = search.toLowerCase();
-      result = result.filter(row =>
-        Object.values(row).some(v => v && String(v).toLowerCase().includes(q))
-      );
-    }
-    Object.entries(activeFilters).forEach(([key, value]) => {
-      if (!value) return;
-      // Special handling for numeric range filters (risk_score, etc.)
-      if (key.endsWith('_range')) {
-        const realKey = key.replace('_range', '');
-        const threshold = parseInt(value, 10);
-        if (threshold === 0) result = result.filter(row => (row[realKey] || 0) < 25);
-        else result = result.filter(row => (row[realKey] || 0) >= threshold);
-        return;
-      }
-      result = result.filter(row => {
-        const rowVal = row[key];
-        if (rowVal === undefined || rowVal === null) return false;
-        return String(rowVal).toLowerCase() === value.toLowerCase();
-      });
-    });
-    return result;
-  }, [rawData, search, activeFilters]);
-
-  // Group
-  const grouped = useMemo(() => {
-    if (!groupBy || !filtered.length) return null;
-    const groups = {};
-    filtered.forEach(row => {
-      const key = String(row[groupBy] ?? 'Other');
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(row);
-    });
-    return Object.entries(groups)
-      .sort(([, a], [, b]) => b.length - a.length)
-      .map(([key, items]) => ({ key, items, count: items.length }));
-  }, [filtered, groupBy]);
-
-  useEffect(() => {
-    if (grouped) {
-      const exp = {};
-      grouped.forEach(g => { exp[g.key] = true; });
-      setExpandedGroups(exp);
-    }
-  }, [groupBy]);
-
-  const toggleGroup = (key) => setExpandedGroups(prev => ({ ...prev, [key]: !prev[key] }));
 
   if (loading) {
     return (
@@ -127,32 +62,25 @@ export default function PageLayout({
     );
   }
 
-  return (
-    <div className="space-y-5">
-      {/* ── Heading ── */}
-      <div>
-        <div className="flex items-center gap-3 mb-1">
-          {Icon && <Icon className="w-6 h-6" style={{ color: 'var(--accent-primary)' }} />}
-          <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>{pageContext.title || ''}</h1>
-        </div>
-        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{pageContext.brief || ''}</p>
-        {pageContext.details?.length > 0 && (
-          <>
-            <button onClick={() => setDetailsExpanded(!detailsExpanded)}
-              className="flex items-center gap-1 text-xs mt-1 hover:underline" style={{ color: 'var(--accent-primary)' }}>
-              <Info className="w-3.5 h-3.5" />
-              {detailsExpanded ? 'Hide' : 'Best practices'}
-              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${detailsExpanded ? 'rotate-180' : ''}`} />
-            </button>
-            {detailsExpanded && (
-              <ul className="mt-2 ml-4 space-y-1 text-xs list-disc" style={{ color: 'var(--text-tertiary)' }}>
-                {pageContext.details.map((d, i) => <li key={i}>{d}</li>)}
-              </ul>
-            )}
-          </>
-        )}
-      </div>
+  // Shared tab bar markup
+  const tabBar = tabs.length > 0 && (
+    <div className="flex gap-1 border-b" style={{ borderColor: 'var(--border-primary)' }}>
+      {tabs.map(tab => (
+        <button key={tab.id} onClick={() => handleTabChange(tab.id)}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === tab.id ? 'border-current' : 'border-transparent hover:border-gray-600'}`}
+          style={{ color: activeTab === tab.id ? 'var(--accent-primary)' : 'var(--text-tertiary)' }}>
+          {tab.label}
+          {tab.count > 0 && (
+            <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>{tab.count}</span>
+          )}
+        </button>
+      ))}
+    </div>
+  );
 
+  // KPI groups + insight row — only shown on the overview (first) tab when topNav is active
+  const overviewContent = (
+    <>
       {/* ── KPI Groups ── */}
       {kpiGroups.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -179,66 +107,57 @@ export default function PageLayout({
           })}
         </div>
       )}
-
-      {/* ── Slot 3: Insight Row (optional charts) ── */}
+      {/* ── Insight Row (optional charts) ── */}
       {insightRow}
+    </>
+  );
 
-      {/* ── Tabs ── */}
-      {tabs.length > 0 && (
-        <div className="flex gap-1 border-b" style={{ borderColor: 'var(--border-primary)' }}>
-          {tabs.map(tab => (
-            <button key={tab.id} onClick={() => handleTabChange(tab.id)}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === tab.id ? 'border-current' : 'border-transparent hover:border-gray-600'}`}
-              style={{ color: activeTab === tab.id ? 'var(--accent-primary)' : 'var(--text-tertiary)' }}>
-              {tab.label}
-              {tab.count > 0 && (
-                <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>{tab.count}</span>
-              )}
-            </button>
-          ))}
+  return (
+    <div className="space-y-5">
+      {/* ── Heading ── */}
+      {!hideHeader && <div>
+        <div className="flex items-center gap-3 mb-1">
+          {Icon && <Icon className="w-6 h-6" style={{ color: 'var(--accent-primary)' }} />}
+          <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>{pageContext.title || ''}</h1>
         </div>
+        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{pageContext.brief || ''}</p>
+        {pageContext.details?.length > 0 && (
+          <>
+            <button onClick={() => setDetailsExpanded(!detailsExpanded)}
+              className="flex items-center gap-1 text-xs mt-1 hover:underline" style={{ color: 'var(--accent-primary)' }}>
+              <Info className="w-3.5 h-3.5" />
+              {detailsExpanded ? 'Hide' : 'Best practices'}
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${detailsExpanded ? 'rotate-180' : ''}`} />
+            </button>
+            {detailsExpanded && (
+              <ul className="mt-2 ml-4 space-y-1 text-xs list-disc" style={{ color: 'var(--text-tertiary)' }}>
+                {pageContext.details.map((d, i) => <li key={i}>{d}</li>)}
+              </ul>
+            )}
+          </>
+        )}
+      </div>}
+
+      {topNav ? (
+        <>
+          {/* topNav=true: Tab bar sits right below header */}
+          {tabBar}
+          {/* KPIs + charts only visible on the first/overview tab */}
+          {activeTab === firstTab && overviewContent}
+        </>
+      ) : (
+        <>
+          {/* Default order: KPIs → charts → tab bar */}
+          {overviewContent}
+          {tabBar}
+        </>
       )}
 
-      {/* ── Custom renderTab or standard FilterBar+DataTable ── */}
+      {/* ── Custom renderTab or standard DataTable ── */}
       {currentTab.renderTab ? (
         currentTab.renderTab()
       ) : (
-        <>
-          {/* ── Filter Bar ── */}
-          <FilterBar
-            search={search}
-            onSearchChange={setSearch}
-            searchPlaceholder="Search..."
-            filters={filters}
-            onFilterChange={(k, v) => setActiveFilters(prev => ({ ...prev, [k]: v }))}
-            activeFilters={activeFilters}
-            extraFilters={extraFilters}
-            groupByOptions={groupByOptions}
-            groupBy={groupBy}
-            onGroupByChange={setGroupBy}
-          />
-
-          {/* ── Table / Grouped ── */}
-          {grouped ? (
-            <div className="space-y-3">
-              {grouped.map(({ key, items, count }) => (
-                <div key={key} className="rounded-lg border" style={{ borderColor: 'var(--border-primary)' }}>
-                  <button onClick={() => toggleGroup(key)}
-                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-medium"
-                    style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
-                    {expandedGroups[key] ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                    <span>{key}</span>
-                    <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>{count}</span>
-                  </button>
-                  {expandedGroups[key] && <DataTable data={items} columns={columns} pageSize={25} hideToolbar onRowClick={onRowClick} />}
-                </div>
-              ))}
-              <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{grouped.length} groups, {filtered.length} total</div>
-            </div>
-          ) : (
-            <DataTable data={filtered} columns={columns} pageSize={25} hideToolbar onRowClick={onRowClick} />
-          )}
-        </>
+        <DataTable data={rawData} columns={columns} pageSize={25} onRowClick={onRowClick} />
       )}
     </div>
   );

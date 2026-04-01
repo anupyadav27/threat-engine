@@ -58,27 +58,23 @@ export default function GaugeChart({ score = 0, label = '', size = 120 }) {
               transformOrigin: `${centerX}px ${centerY}px`
             }}
           />
-          {/* Center text - Score */}
+          {/* Score + /100 as a single inline unit — no split lines */}
           <text
             x={centerX}
-            y={centerY - 8}
+            y={centerY - 6}
             textAnchor="middle"
             dominantBaseline="middle"
-            className="text-2xl font-bold"
-            fill="var(--text-primary)"
           >
-            {validScore}
-          </text>
-          {/* Center text - Percentage */}
-          <text
-            x={centerX}
-            y={centerY + 12}
-            textAnchor="middle"
-            dominantBaseline="middle"
-            className="text-xs"
-            fill="var(--text-tertiary)"
-          >
-            %
+            <tspan
+              fontSize="22"
+              fontWeight="700"
+              fill="var(--text-primary)"
+            >{validScore}</tspan><tspan
+              fontSize="10"
+              fill="var(--text-tertiary)"
+              dx="2"
+              dy="6"
+            >/100</tspan>
           </text>
         </svg>
       </div>

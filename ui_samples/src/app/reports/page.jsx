@@ -31,11 +31,39 @@ const ATTESTATIONS = [
   { framework: 'PCI-DSS', auditPeriod: 'Rolling', collected: '100%', assessed: '300+/300', status: 'Compliant', attestedBy: 'Internal QSA', date: '2026-03-05' },
 ];
 
+const TABS = [
+  { id: 'overview',     label: 'Overview' },
+  { id: 'scheduled',   label: 'Scheduled' },
+  { id: 'history',     label: 'History' },
+  { id: 'attestations', label: 'Attestations' },
+];
+
+const SectionHeader = ({ title }) => (
+  <div style={{
+    fontSize: 11, fontWeight: 700, color: 'var(--text-muted)',
+    textTransform: 'uppercase', letterSpacing: '0.06em',
+    marginBottom: 10, paddingBottom: 6,
+    borderBottom: '1px solid var(--border-primary)',
+  }}>
+    {title}
+  </div>
+);
+
 export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [reports, setReports] = useState([]);
   const [scheduledReports, setScheduledReports] = useState([]);
+  const [activeTab, setActiveTab] = useState('overview');
   const [activeBuilder, setActiveBuilder] = useState(false);
+  const [builderConfig, setBuilderConfig] = useState({
+    sections: [],
+    frameworks: [],
+    providers: [],
+    dateRange: 'last-30-days',
+    format: 'PDF',
+    schedule: 'one-time',
+    recipients: '',
+  });
 
   useEffect(() => {
     const fetchData = async () => {
@@ -52,15 +80,6 @@ export default function ReportsPage() {
     };
     fetchData();
   }, []);
-  const [builderConfig, setBuilderConfig] = useState({
-    sections: [],
-    frameworks: [],
-    providers: [],
-    dateRange: 'last-30-days',
-    format: 'PDF',
-    schedule: 'one-time',
-    recipients: '',
-  });
 
   const reportColumns = [
     { accessorKey: 'name', header: 'Report Name', cell: (info) => <span style={{ color: 'var(--text-primary)' }} className="font-medium">{info.getValue()}</span> },
@@ -95,140 +114,162 @@ export default function ReportsPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-bold" style={{ color: 'var(--text-primary)' }}>Reports & Evidence</h1>
-          <p style={{ color: 'var(--text-tertiary)' }} className="mt-1">Generate, schedule, and manage security reports and audit evidence</p>
+          <div className="flex items-center gap-3 mb-1">
+            <FileText className="w-6 h-6" style={{ color: 'var(--accent-primary)' }} />
+            <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Reports & Evidence</h1>
+          </div>
+          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Generate, schedule, and manage security reports and audit evidence</p>
         </div>
         <button className="flex items-center gap-2 px-4 py-2 rounded-lg text-white font-medium transition-colors" style={{ backgroundColor: 'var(--accent-primary)' }}>
           <Plus className="w-4 h-4" /> Generate Report
         </button>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <KpiCard title="Reports Generated" value={reports.length} subtitle="Available" icon={<FileText className="w-5 h-5" />} color="blue" />
-        <KpiCard title="Scheduled Reports" value={scheduledReports.length} subtitle="Automated delivery" icon={<Clock className="w-5 h-5" />} color="purple" />
-        <KpiCard title="Templates Available" value={TEMPLATES.length} subtitle="Pre-built and custom" icon={<FileText className="w-5 h-5" />} color="green" />
-        <KpiCard title="Attestations" value={ATTESTATIONS.length} subtitle="Tracked" icon={<Calendar className="w-5 h-5" />} color="orange" />
-      </div>
-
-      {/* Report Templates Grid */}
-      <div className="space-y-4">
-        <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Report Templates</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {TEMPLATES.map((tpl) => (
-            <div key={tpl.id} className="rounded-lg border p-4 hover:border-blue-500 transition-colors" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-              <h3 style={{ color: 'var(--text-primary)' }} className="font-semibold mb-1">{tpl.name}</h3>
-              <p style={{ color: 'var(--text-tertiary)' }} className="text-sm mb-3">{tpl.desc}</p>
-              <div className="flex justify-between items-center text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
-                <span>Last: {tpl.lastGen}</span>
-                <span>{tpl.schedule}</span>
-              </div>
-              <button className="w-full px-3 py-2 rounded text-sm font-medium transition-colors text-white" style={{ backgroundColor: 'var(--accent-primary)' }}>Generate Now</button>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Scheduled Reports Table */}
-      <div className="space-y-4">
-        <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Scheduled Reports</h2>
-        <DataTable data={scheduledReports} columns={scheduledColumns} pageSize={10} loading={loading} emptyMessage="No scheduled reports" />
-      </div>
-
-      {/* Report History Table */}
-      <div className="space-y-4">
-        <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Report History</h2>
-        <DataTable data={reports} columns={reportColumns} pageSize={10} loading={loading} emptyMessage="No reports generated" />
-      </div>
-
-      {/* Custom Report Builder */}
-      <div className="rounded-lg border p-6" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-        <div className="flex items-center justify-between mb-4">
-          <h3 style={{ color: 'var(--text-primary)' }} className="text-lg font-semibold">Custom Report Builder</h3>
-          <button onClick={() => setActiveBuilder(!activeBuilder)} className="text-sm" style={{ color: 'var(--accent-primary)' }}>
-            {activeBuilder ? 'Hide' : 'Show'}
+      {/* Tab Bar */}
+      <div className="flex gap-1 border-b" style={{ borderColor: 'var(--border-primary)' }}>
+        {TABS.map(tab => (
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === tab.id ? 'border-current' : 'border-transparent hover:border-gray-600'}`}
+            style={{ color: activeTab === tab.id ? 'var(--accent-primary)' : 'var(--text-tertiary)' }}>
+            {tab.label}
           </button>
-        </div>
-        {activeBuilder && (
-          <div className="space-y-4 pt-4">
-            <div>
-              <label style={{ color: 'var(--text-secondary)' }} className="text-sm font-medium">Report Sections</label>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-2">
-                {['Executive Summary', 'Compliance Status', 'Findings Overview', 'Threat Analysis', 'Vulnerability Report', 'IAM Assessment', 'Data Security', 'Risk Scores'].map((s) => (
-                  <label key={s} className="flex items-center gap-2">
-                    <input type="checkbox" className="w-4 h-4 rounded" onChange={() => setBuilderConfig({ ...builderConfig, sections: (builderConfig.sections || []).includes(s) ? (builderConfig.sections || []).filter(x => x !== s) : [...(builderConfig.sections || []), s] })} />
-                    <span style={{ color: 'var(--text-secondary)' }} className="text-sm">{s}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label style={{ color: 'var(--text-secondary)' }} className="text-sm font-medium">Frameworks</label>
-                <select multiple className="w-full mt-2 px-3 py-2 rounded-lg border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}>
-                  <option>CIS Benchmarks</option>
-                  <option>NIST 800-53</option>
-                  <option>PCI-DSS</option>
-                  <option>ISO 27001</option>
-                  <option>SOC 2</option>
-                </select>
-              </div>
-              <div>
-                <label style={{ color: 'var(--text-secondary)' }} className="text-sm font-medium">Cloud Providers</label>
-                <select multiple className="w-full mt-2 px-3 py-2 rounded-lg border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}>
-                  <option>AWS</option>
-                  <option>Azure</option>
-                  <option>GCP</option>
-                  <option>OCI</option>
-                </select>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label style={{ color: 'var(--text-secondary)' }} className="text-sm font-medium">Date Range</label>
-                <select className="w-full mt-2 px-3 py-2 rounded-lg border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }} value={builderConfig.dateRange} onChange={(e) => setBuilderConfig({ ...builderConfig, dateRange: e.target.value })}>
-                  <option value="last-7-days">Last 7 Days</option>
-                  <option value="last-30-days">Last 30 Days</option>
-                  <option value="last-90-days">Last 90 Days</option>
-                  <option value="custom">Custom</option>
-                </select>
-              </div>
-              <div>
-                <label style={{ color: 'var(--text-secondary)' }} className="text-sm font-medium">Output Format</label>
-                <div className="flex gap-2 mt-2">
-                  {['PDF', 'Excel'].map((f) => (
-                    <button key={f} onClick={() => setBuilderConfig({ ...builderConfig, format: f })} className="flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors" style={{ backgroundColor: builderConfig.format === f ? 'var(--accent-primary)' : 'var(--bg-tertiary)', color: builderConfig.format === f ? 'white' : 'var(--text-secondary)' }}>{f}</button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label style={{ color: 'var(--text-secondary)' }} className="text-sm font-medium">Schedule</label>
-                <select className="w-full mt-2 px-3 py-2 rounded-lg border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }} value={builderConfig.schedule} onChange={(e) => setBuilderConfig({ ...builderConfig, schedule: e.target.value })}>
-                  <option value="one-time">One-time</option>
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
-                  <option value="monthly">Monthly</option>
-                </select>
-              </div>
-            </div>
-            <div>
-              <label style={{ color: 'var(--text-secondary)' }} className="text-sm font-medium">Recipients (comma-separated)</label>
-              <input type="text" placeholder="email@company.com, team@company.com" className="w-full mt-2 px-3 py-2 rounded-lg border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }} value={builderConfig.recipients} onChange={(e) => setBuilderConfig({ ...builderConfig, recipients: e.target.value })} />
-            </div>
-            <button className="w-full px-4 py-2 rounded-lg text-white font-medium transition-colors" style={{ backgroundColor: 'var(--accent-primary)' }}>Generate Report</button>
-          </div>
-        )}
+        ))}
       </div>
 
-      {/* Attestation & Evidence */}
-      <div className="space-y-4">
-        <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Attestation & Audit Evidence</h2>
+      {/* ── Overview Tab ── */}
+      {activeTab === 'overview' && (
+        <div className="space-y-6">
+          {/* KPI Summary */}
+          <div>
+            <SectionHeader title="Report Summary" />
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <KpiCard title="Reports Generated" value={reports.length} subtitle="Available" icon={<FileText className="w-5 h-5" />} color="blue" />
+              <KpiCard title="Scheduled Reports" value={scheduledReports.length} subtitle="Automated delivery" icon={<Clock className="w-5 h-5" />} color="purple" />
+              <KpiCard title="Templates Available" value={TEMPLATES.length} subtitle="Pre-built and custom" icon={<FileText className="w-5 h-5" />} color="green" />
+              <KpiCard title="Attestations" value={ATTESTATIONS.length} subtitle="Tracked" icon={<Calendar className="w-5 h-5" />} color="orange" />
+            </div>
+          </div>
+
+          {/* Report Templates Grid */}
+          <div>
+            <SectionHeader title="Report Templates" />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {TEMPLATES.map((tpl) => (
+                <div key={tpl.id} className="rounded-lg border p-4 hover:border-blue-500 transition-colors" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+                  <h3 style={{ color: 'var(--text-primary)' }} className="font-semibold mb-1">{tpl.name}</h3>
+                  <p style={{ color: 'var(--text-tertiary)' }} className="text-sm mb-3">{tpl.desc}</p>
+                  <div className="flex justify-between items-center text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
+                    <span>Last: {tpl.lastGen}</span>
+                    <span>{tpl.schedule}</span>
+                  </div>
+                  <button className="w-full px-3 py-2 rounded text-sm font-medium transition-colors text-white" style={{ backgroundColor: 'var(--accent-primary)' }}>Generate Now</button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Custom Report Builder */}
+          <div>
+            <SectionHeader title="Custom Report Builder" />
+            <div className="rounded-lg border p-6" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 style={{ color: 'var(--text-primary)' }} className="text-base font-semibold">Build a Custom Report</h3>
+                <button onClick={() => setActiveBuilder(!activeBuilder)} className="text-sm" style={{ color: 'var(--accent-primary)' }}>
+                  {activeBuilder ? 'Hide' : 'Show'}
+                </button>
+              </div>
+              {activeBuilder && (
+                <div className="space-y-4 pt-4">
+                  <div>
+                    <label style={{ color: 'var(--text-secondary)' }} className="text-sm font-medium">Report Sections</label>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-2">
+                      {['Executive Summary', 'Compliance Status', 'Findings Overview', 'Threat Analysis', 'Vulnerability Report', 'IAM Assessment', 'Data Security', 'Risk Scores'].map((s) => (
+                        <label key={s} className="flex items-center gap-2">
+                          <input type="checkbox" className="w-4 h-4 rounded" onChange={() => setBuilderConfig({ ...builderConfig, sections: (builderConfig.sections || []).includes(s) ? (builderConfig.sections || []).filter(x => x !== s) : [...(builderConfig.sections || []), s] })} />
+                          <span style={{ color: 'var(--text-secondary)' }} className="text-sm">{s}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label style={{ color: 'var(--text-secondary)' }} className="text-sm font-medium">Frameworks</label>
+                      <select multiple className="w-full mt-2 px-3 py-2 rounded-lg border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}>
+                        <option>CIS Benchmarks</option>
+                        <option>NIST 800-53</option>
+                        <option>PCI-DSS</option>
+                        <option>ISO 27001</option>
+                        <option>SOC 2</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ color: 'var(--text-secondary)' }} className="text-sm font-medium">Cloud Providers</label>
+                      <select multiple className="w-full mt-2 px-3 py-2 rounded-lg border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}>
+                        <option>AWS</option>
+                        <option>Azure</option>
+                        <option>GCP</option>
+                        <option>OCI</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label style={{ color: 'var(--text-secondary)' }} className="text-sm font-medium">Date Range</label>
+                      <select className="w-full mt-2 px-3 py-2 rounded-lg border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }} value={builderConfig.dateRange} onChange={(e) => setBuilderConfig({ ...builderConfig, dateRange: e.target.value })}>
+                        <option value="last-7-days">Last 7 Days</option>
+                        <option value="last-30-days">Last 30 Days</option>
+                        <option value="last-90-days">Last 90 Days</option>
+                        <option value="custom">Custom</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ color: 'var(--text-secondary)' }} className="text-sm font-medium">Output Format</label>
+                      <div className="flex gap-2 mt-2">
+                        {['PDF', 'Excel'].map((f) => (
+                          <button key={f} onClick={() => setBuilderConfig({ ...builderConfig, format: f })} className="flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors" style={{ backgroundColor: builderConfig.format === f ? 'var(--accent-primary)' : 'var(--bg-tertiary)', color: builderConfig.format === f ? 'white' : 'var(--text-secondary)' }}>{f}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label style={{ color: 'var(--text-secondary)' }} className="text-sm font-medium">Schedule</label>
+                      <select className="w-full mt-2 px-3 py-2 rounded-lg border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }} value={builderConfig.schedule} onChange={(e) => setBuilderConfig({ ...builderConfig, schedule: e.target.value })}>
+                        <option value="one-time">One-time</option>
+                        <option value="daily">Daily</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="monthly">Monthly</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ color: 'var(--text-secondary)' }} className="text-sm font-medium">Recipients (comma-separated)</label>
+                    <input type="text" placeholder="email@company.com, team@company.com" className="w-full mt-2 px-3 py-2 rounded-lg border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }} value={builderConfig.recipients} onChange={(e) => setBuilderConfig({ ...builderConfig, recipients: e.target.value })} />
+                  </div>
+                  <button className="w-full px-4 py-2 rounded-lg text-white font-medium transition-colors" style={{ backgroundColor: 'var(--accent-primary)' }}>Generate Report</button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Scheduled Tab ── */}
+      {activeTab === 'scheduled' && (
+        <DataTable data={scheduledReports} columns={scheduledColumns} pageSize={10} loading={loading} emptyMessage="No scheduled reports" />
+      )}
+
+      {/* ── History Tab ── */}
+      {activeTab === 'history' && (
+        <DataTable data={reports} columns={reportColumns} pageSize={10} loading={loading} emptyMessage="No reports generated" />
+      )}
+
+      {/* ── Attestations Tab ── */}
+      {activeTab === 'attestations' && (
         <DataTable data={ATTESTATIONS} columns={attestationColumns} pageSize={10} loading={loading} emptyMessage="No attestations" />
-      </div>
+      )}
     </div>
   );
 }

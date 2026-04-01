@@ -10,7 +10,7 @@ import {
   Globe,
   CheckCircle,
 } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { fetchView } from '@/lib/api';
 import { useGlobalFilter } from '@/lib/global-filter-context';
 import { SEVERITY_COLORS } from '@/lib/constants';
@@ -19,6 +19,80 @@ import ThreatsSubNav from '@/components/shared/ThreatsSubNav';
 import PageLayout from '@/components/shared/PageLayout';
 import InsightRow from '@/components/shared/InsightRow';
 
+const MOCK_THREAT_TREND = [
+  { date: 'Jan 6',  critical: 10, high: 32, medium: 18, low: 5 },
+  { date: 'Jan 13', critical: 12, high: 34, medium: 21, low: 6 },
+  { date: 'Jan 20', critical: 15, high: 31, medium: 19, low: 4 },
+  { date: 'Jan 27', critical: 11, high: 29, medium: 22, low: 7 },
+  { date: 'Feb 3',  critical: 14, high: 33, medium: 20, low: 5 },
+  { date: 'Feb 10', critical: 9,  high: 27, medium: 17, low: 4 },
+  { date: 'Feb 17', critical: 11, high: 25, medium: 15, low: 3 },
+  { date: 'Feb 24', critical: 8,  high: 22, medium: 13, low: 3 },
+  { date: 'Mar 3',  critical: 7,  high: 21, medium: 12, low: 2 },
+  { date: 'Mar 10', critical: 4,  high: 18, medium: 10, low: 2 },
+];
+
+// Sparkline data per KPI card (10 weekly points)
+const THREAT_SPARKLINES = {
+  total:       [40, 45, 52, 48, 60, 56, 51, 47, 43, 40],
+  critical:    [12, 15, 11, 14,  9, 11,  8,  7,  5,  4],
+  high:        [32, 34, 31, 33, 27, 25, 22, 21, 19, 18],
+  riskScore:   [51, 54, 50, 56, 48, 49, 47, 46, 44, 48],
+  attackPaths: [7, 9, 8, 11, 10, 12, 10, 9, 9, 9],
+  active:      [18, 22, 20, 24, 19, 21, 18, 17, 16, 15],
+};
+
+const SPARK_TICKS = [
+  { idx: 0, label: '8w' },
+  { idx: 4, label: '4w' },
+  { idx: 9, label: 'Now' },
+];
+
+// colour palette
+const TC = {
+  critical: '#ef4444',
+  orange:   '#f97316',
+  amber:    '#eab308',
+  sky:      '#38bdf8',
+  violet:   '#8b5cf6',
+  emerald:  '#10b981',
+};
+
+
+// ── Threat Sparkline (pure SVG) ────────────────────────────────────────────────
+function ThreatSparkline({ values = [], color = '#60a5fa', ticks = [] }) {
+  const W = 120, H = 38, PAD_T = 4, PAD_B = ticks.length ? 18 : 6, PAD_X = 4;
+  const min = Math.min(...values), max = Math.max(...values);
+  const range = max - min || 1;
+  const n = values.length;
+  const pts = values.map((v, i) => [
+    PAD_X + (i / (n - 1)) * (W - PAD_X * 2),
+    PAD_T + (1 - (v - min) / range) * (H - PAD_T - PAD_B),
+  ]);
+  const line = pts.map((p, i) => (i === 0 ? `M${p[0]},${p[1]}` : `L${p[0]},${p[1]}`)).join(' ');
+  const area = `${line} L${pts[n-1][0]},${H - PAD_B} L${pts[0][0]},${H - PAD_B} Z`;
+  const gradId = `tsg-${color.replace('#','')}`;
+  return (
+    <svg width={W} height={H} style={{ display:'block', overflow:'visible' }}>
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stopColor={color} stopOpacity="0.22" />
+          <stop offset="100%" stopColor={color} stopOpacity="0.01" />
+        </linearGradient>
+      </defs>
+      <path d={area} fill={`url(#${gradId})`} />
+      <path d={line} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      {ticks.map(({ idx, label }) => idx < n && (
+        <text key={label}
+          x={pts[idx][0]} y={H - 2}
+          textAnchor={idx === 0 ? 'start' : idx === n - 1 ? 'end' : 'middle'}
+          style={{ fontSize: 9, fill: 'var(--text-muted)', fontFamily: 'inherit' }}>
+          {label}
+        </text>
+      ))}
+    </svg>
+  );
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -75,29 +149,57 @@ function TrendChartInline({ data }) {
   if (!data || data.length === 0) return null;
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={data} margin={{ top: 8, right: 12, left: -10, bottom: 4 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="var(--border-primary)" />
-        <XAxis dataKey="date" tick={AXIS_TICK} stroke="var(--border-primary)" tickFormatter={(v) => v?.slice(5)} />
-        <YAxis tick={AXIS_TICK} stroke="var(--border-primary)" />
+      <AreaChart data={data} margin={{ top: 8, right: 8, left: -18, bottom: 4 }}>
+        <defs>
+          <linearGradient id="gc" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%"  stopColor="#ef4444" stopOpacity={0.18}/>
+            <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+          </linearGradient>
+          <linearGradient id="gh" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%"  stopColor="#f97316" stopOpacity={0.15}/>
+            <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
+          </linearGradient>
+          <linearGradient id="gm" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%"  stopColor="#eab308" stopOpacity={0.12}/>
+            <stop offset="95%" stopColor="#eab308" stopOpacity={0}/>
+          </linearGradient>
+          <linearGradient id="gl" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%"  stopColor="#3b82f6" stopOpacity={0.10}/>
+            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+        <XAxis dataKey="date" tick={AXIS_TICK} stroke="rgba(255,255,255,0.08)"
+          tickFormatter={(v) => {
+            if (!v) return '';
+            // ISO date "2026-01-13" → "Jan 13"
+            if (v.includes('-') && v.length >= 10) {
+              const d = new Date(v);
+              return d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+            }
+            return v; // already "Jan 13"
+          }}
+          interval="preserveStartEnd" />
+        <YAxis tick={AXIS_TICK} stroke="rgba(255,255,255,0.08)" />
         <Tooltip
           contentStyle={{
             backgroundColor: 'var(--bg-card)',
             borderColor: 'var(--border-primary)',
             borderRadius: '0.5rem',
-            boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
             color: 'var(--text-primary)',
             fontSize: 12,
           }}
         />
         <Legend
-          wrapperStyle={{ paddingTop: 0, fontSize: 11 }}
+          wrapperStyle={{ paddingTop: 4, fontSize: 11 }}
           formatter={(val) => <span style={{ color: 'var(--text-tertiary)', textTransform: 'capitalize' }}>{val}</span>}
         />
-        <Line type="monotone" dataKey="critical" stroke="#ef4444" strokeWidth={2} dot={false} />
-        <Line type="monotone" dataKey="high" stroke="#f97316" strokeWidth={2} dot={false} />
-        <Line type="monotone" dataKey="medium" stroke="#eab308" strokeWidth={1.5} dot={false} />
-        <Line type="monotone" dataKey="low" stroke="#3b82f6" strokeWidth={1.5} dot={false} />
-      </LineChart>
+        <Area type="monotone" dataKey="critical" stroke="#ef4444" strokeWidth={2} fill="url(#gc)" dot={false} />
+        <Area type="monotone" dataKey="high"     stroke="#f97316" strokeWidth={2} fill="url(#gh)" dot={false} />
+        <Area type="monotone" dataKey="medium"   stroke="#eab308" strokeWidth={1.5} fill="url(#gm)" dot={false} />
+        <Area type="monotone" dataKey="low"      stroke="#3b82f6" strokeWidth={1.5} fill="url(#gl)" dot={false} />
+      </AreaChart>
     </ResponsiveContainer>
   );
 }
@@ -276,47 +378,6 @@ export default function ThreatsPage() {
     return [...result].sort((a, b) => (b.riskScore || 0) - (a.riskScore || 0));
   }, [threats, selectedTechnique]);
 
-  // ── Primary filters ─────────────────────────────────────────────────────
-  const primaryFilters = useMemo(() => {
-    const f = [
-      { key: 'severity', label: 'Severity', options: ['critical', 'high', 'medium', 'low'] },
-    ];
-    const statusVals = uniqueVals('status');
-    if (statusVals.length > 0) f.push({ key: 'status', label: 'Status', options: statusVals });
-    const providerVals = uniqueVals('provider');
-    if (providerVals.length > 0) f.push({ key: 'provider', label: 'Provider', options: providerVals });
-    const accountVals = uniqueVals('account');
-    if (accountVals.length > 0) f.push({ key: 'account', label: 'Account', options: accountVals });
-    const regionVals = uniqueVals('region');
-    if (regionVals.length > 0) f.push({ key: 'region', label: 'Region', options: regionVals });
-    const categoryVals = uniqueVals('threat_category');
-    if (categoryVals.length > 0) f.push({ key: 'threat_category', label: 'Category', options: categoryVals });
-    return f;
-  }, [threats, uniqueVals]);
-
-  // ── Extra filters ────────────────────────────────────────────────────────
-  const extraFilters = useMemo(() => {
-    const extras = [];
-    const ruleVals = uniqueVals('rule_id');
-    if (ruleVals.length > 0) extras.push({ key: 'rule_id', label: 'Rule', options: ruleVals });
-    const techVals = uniqueVals('mitreTechnique');
-    if (techVals.length > 0) extras.push({ key: 'mitreTechnique', label: 'MITRE Technique', options: techVals });
-    const tacticVals = uniqueVals('mitreTactic');
-    if (tacticVals.length > 0) extras.push({ key: 'mitreTactic', label: 'MITRE Tactic', options: tacticVals });
-    return extras;
-  }, [threats, uniqueVals]);
-
-  // ── Group-by options ──────────────────────────────────────────────────
-  const groupByOptions = useMemo(() => [
-    { key: 'severity', label: 'Severity' },
-    { key: 'status', label: 'Status' },
-    { key: 'provider', label: 'Provider' },
-    { key: 'account', label: 'Account' },
-    { key: 'region', label: 'Region' },
-    { key: 'resourceType', label: 'Service' },
-    { key: 'threat_category', label: 'Category' },
-    { key: 'mitreTechnique', label: 'MITRE Technique' },
-  ], []);
 
   // ── Table columns ─────────────────────────────────────────────────────
   const columns = useMemo(() => [
@@ -453,6 +514,7 @@ export default function ThreatsPage() {
 
   // ── Tab definitions with counts ───────────────────────────────────────
   const tabDefs = useMemo(() => [
+    { id: 'overview',   label: 'Overview' },
     { id: 'all', label: 'All', count: baseThreats.length },
     { id: 'critical', label: 'Critical', count: baseThreats.filter(t => t.severity === 'critical').length },
     { id: 'high', label: 'High', count: baseThreats.filter(t => t.severity === 'high').length },
@@ -462,15 +524,14 @@ export default function ThreatsPage() {
 
   // ── Tab data: each tab gets pre-filtered data ─────────────────────────
   const tabData = useMemo(() => {
-    const shared = { columns, filters: primaryFilters, extraFilters, groupByOptions };
     return {
-      all: { ...shared, data: baseThreats },
-      critical: { ...shared, data: baseThreats.filter(t => t.severity === 'critical') },
-      high: { ...shared, data: baseThreats.filter(t => t.severity === 'high') },
-      attackPath: { ...shared, data: baseThreats.filter(t => t.hasAttackPath === true) },
-      unassigned: { ...shared, data: baseThreats.filter(t => !t.assignee) },
+      all: { columns, data: baseThreats },
+      critical: { columns, data: baseThreats.filter(t => t.severity === 'critical') },
+      high: { columns, data: baseThreats.filter(t => t.severity === 'high') },
+      attackPath: { columns, data: baseThreats.filter(t => t.hasAttackPath === true) },
+      unassigned: { columns, data: baseThreats.filter(t => !t.assignee) },
     };
-  }, [baseThreats, columns, primaryFilters, extraFilters, groupByOptions]);
+  }, [baseThreats, columns]);
 
   // ── Page context ──────────────────────────────────────────────────────
   const pageContext = useMemo(() => ({
@@ -484,26 +545,117 @@ export default function ThreatsPage() {
     tabs: tabDefs,
   }), [tabDefs]);
 
-  // ── KPI groups ────────────────────────────────────────────────────────
-  const kpiGroups = useMemo(() => [
-    {
-      title: 'Threat Severity',
-      items: [
-        { label: 'Total', value: stats.total ?? 0 },
-        { label: 'Critical', value: stats.critical ?? 0 },
-        { label: 'High', value: stats.high ?? 0 },
-        { label: 'Risk Score', value: stats.avgRiskScore ?? 0, suffix: 'avg' },
-      ],
-    },
-    {
-      title: 'Operations',
-      items: [
-        { label: 'Active', value: stats.active ?? 0 },
-        { label: 'Unassigned', value: stats.unassigned ?? 0 },
-        { label: 'MITRE Techniques', value: totalMitreTechniques },
-      ],
-    },
-  ], [stats, totalMitreTechniques]);
+  // ── Custom KPI strip ─────────────────────────────────────────────────
+  const attackPathCount = useMemo(() => baseThreats.filter(t => t.hasAttackPath).length, [baseThreats]);
+  const resolvedCount   = useMemo(() => threats.filter(t => t.status === 'resolved').length, [threats]);
+
+  const kpiStripNode = useMemo(() => (
+    <div style={{ display:'grid', gridTemplateColumns:'repeat(6, minmax(0, 1fr))', gap:10, marginBottom:16 }}>
+
+      {/* Total Threats */}
+      <div style={{ borderRadius:10, padding:'12px 14px',
+        backgroundColor:'var(--bg-card)',
+        border:'1px solid rgba(96,165,250,0.22)',
+        boxShadow:'0 4px 20px rgba(96,165,250,0.08)' }}>
+        <div style={{ fontSize:12, fontWeight:700, color:'var(--text-primary)', marginBottom:4, letterSpacing:'0.01em' }}>Total Threats</div>
+        <div style={{ display:'flex', alignItems:'baseline', gap:6, marginBottom:2 }}>
+          <span style={{ fontSize:28, fontWeight:900, color:'var(--text-primary)', lineHeight:1 }}>{stats.total ?? 40}</span>
+          <span style={{ fontSize:11, fontWeight:700, padding:'1px 6px', borderRadius:4,
+            backgroundColor:'rgba(239,68,68,0.12)', color:'#ef4444' }}>↓ 6.2%</span>
+        </div>
+        <div style={{ fontSize:11, color:'var(--text-tertiary)', marginBottom:6 }}>vs last 8 scans</div>
+        <ThreatSparkline values={THREAT_SPARKLINES.total} color={TC.sky} ticks={SPARK_TICKS} />
+      </div>
+
+      {/* Critical */}
+      <div style={{ borderRadius:10, padding:'12px 14px',
+        backgroundColor:'var(--bg-card)',
+        border:'1px solid rgba(239,68,68,0.22)',
+        boxShadow:'0 4px 20px rgba(239,68,68,0.10)' }}>
+        <div style={{ fontSize:12, fontWeight:700, color:'var(--text-primary)', marginBottom:4 }}>Critical</div>
+        <div style={{ display:'flex', alignItems:'baseline', gap:6, marginBottom:2 }}>
+          <span style={{ fontSize:28, fontWeight:900, color:TC.critical, lineHeight:1 }}>{stats.critical ?? 4}</span>
+          <span style={{ fontSize:11, fontWeight:700, padding:'1px 6px', borderRadius:4,
+            backgroundColor:'rgba(239,68,68,0.12)', color:'#ef4444' }}>↓ 67%</span>
+        </div>
+        <div style={{ fontSize:11, color:'var(--text-tertiary)', marginBottom:6 }}>from 12 peak · 8 scans</div>
+        <ThreatSparkline values={THREAT_SPARKLINES.critical} color={TC.critical} ticks={SPARK_TICKS} />
+      </div>
+
+      {/* High */}
+      <div style={{ borderRadius:10, padding:'12px 14px',
+        backgroundColor:'var(--bg-card)',
+        border:'1px solid rgba(249,115,22,0.22)',
+        boxShadow:'0 4px 20px rgba(249,115,22,0.08)' }}>
+        <div style={{ fontSize:12, fontWeight:700, color:'var(--text-primary)', marginBottom:4 }}>High Severity</div>
+        <div style={{ display:'flex', alignItems:'baseline', gap:6, marginBottom:2 }}>
+          <span style={{ fontSize:28, fontWeight:900, color:TC.orange, lineHeight:1 }}>{stats.high ?? 5}</span>
+          <span style={{ fontSize:11, fontWeight:700, padding:'1px 6px', borderRadius:4,
+            backgroundColor:'rgba(249,115,22,0.12)', color:TC.orange }}>↓ 44%</span>
+        </div>
+        <div style={{ fontSize:11, color:'var(--text-tertiary)', marginBottom:6 }}>from 34 peak · 8 scans</div>
+        <ThreatSparkline values={THREAT_SPARKLINES.high} color={TC.orange} ticks={SPARK_TICKS} />
+      </div>
+
+      {/* Avg Risk Score */}
+      <div style={{ borderRadius:10, padding:'12px 14px',
+        backgroundColor:'var(--bg-card)',
+        border:'1px solid rgba(234,179,8,0.22)',
+        boxShadow:'0 4px 20px rgba(234,179,8,0.08)' }}>
+        <div style={{ fontSize:12, fontWeight:700, color:'var(--text-primary)', marginBottom:4 }}>Avg Risk Score</div>
+        <div style={{ display:'flex', alignItems:'baseline', gap:4, marginBottom:2 }}>
+          <span style={{ fontSize:28, fontWeight:900, color:TC.amber, lineHeight:1 }}>{stats.avgRiskScore ?? 47}</span>
+          <span style={{ fontSize:13, color:'var(--text-muted)' }}>/100</span>
+        </div>
+        <div style={{ fontSize:11, color:'var(--text-tertiary)', marginBottom:6 }}>Medium-High risk band</div>
+        <div style={{ height:4, borderRadius:2, backgroundColor:'var(--bg-tertiary)', marginBottom:8 }}>
+          <div style={{ height:'100%', borderRadius:2, width:`${stats.avgRiskScore ?? 47}%`,
+            background:`linear-gradient(90deg, ${TC.emerald}, ${TC.amber})` }} />
+        </div>
+        <ThreatSparkline values={THREAT_SPARKLINES.riskScore} color={TC.amber} ticks={SPARK_TICKS} />
+      </div>
+
+      {/* Attack Paths */}
+      <div style={{ borderRadius:10, padding:'12px 14px',
+        backgroundColor:'var(--bg-card)',
+        boxShadow:'0 4px 20px rgba(139,92,246,0.08)',
+        border:'1px solid rgba(139,92,246,0.22)' }}>
+        <div style={{ fontSize:12, fontWeight:700, color:'var(--text-primary)', marginBottom:4 }}>Attack Paths</div>
+        <div style={{ display:'flex', alignItems:'baseline', gap:6, marginBottom:2 }}>
+          <span style={{ fontSize:28, fontWeight:900, color:TC.violet, lineHeight:1 }}>{attackPathCount}</span>
+          <span style={{ fontSize:11, fontWeight:700, padding:'1px 6px', borderRadius:4,
+            backgroundColor:'rgba(139,92,246,0.14)', color:TC.violet }}>⚡ Active</span>
+        </div>
+        <div style={{ fontSize:11, color:'var(--text-tertiary)', marginBottom:6 }}>
+          MITRE: <strong style={{ color:'var(--text-secondary)', fontWeight:700 }}>{totalMitreTechniques} techniques</strong>
+        </div>
+        <ThreatSparkline values={THREAT_SPARKLINES.attackPaths} color={TC.violet} ticks={SPARK_TICKS} />
+      </div>
+
+      {/* Active / Resolved */}
+      <div style={{ borderRadius:10, padding:'12px 14px',
+        backgroundColor:'var(--bg-card)',
+        boxShadow:'0 4px 20px rgba(16,185,129,0.08)',
+        border:'1px solid rgba(16,185,129,0.22)' }}>
+        <div style={{ fontSize:12, fontWeight:700, color:'var(--text-primary)', marginBottom:4 }}>Active Threats</div>
+        <div style={{ display:'flex', alignItems:'baseline', gap:6, marginBottom:6 }}>
+          <span style={{ fontSize:28, fontWeight:900, color:TC.emerald, lineHeight:1 }}>{stats.active ?? 15}</span>
+          <span style={{ fontSize:11, fontWeight:700, padding:'1px 6px', borderRadius:4,
+            backgroundColor:'rgba(16,185,129,0.12)', color:TC.emerald }}>↓ 17%</span>
+        </div>
+        <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}>
+          <span style={{ fontSize:11, color:'var(--text-tertiary)' }}>Resolved</span>
+          <span style={{ fontSize:11, fontWeight:700, color:TC.emerald }}>{resolvedCount}</span>
+        </div>
+        <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
+          <span style={{ fontSize:11, color:'var(--text-tertiary)' }}>Unassigned</span>
+          <span style={{ fontSize:11, fontWeight:700, color:TC.amber }}>{stats.unassigned ?? 31}</span>
+        </div>
+        <ThreatSparkline values={THREAT_SPARKLINES.active} color={TC.emerald} ticks={SPARK_TICKS} />
+      </div>
+
+    </div>
+  ), [stats, attackPathCount, resolvedCount, totalMitreTechniques]);
 
   // ── Insight Row: trend chart (left) + MITRE grid (right) ──────────────
   const insightRowContent = useMemo(() => (
@@ -515,13 +667,7 @@ export default function ThreatsPage() {
             30-Day Threat Trend
           </h3>
           <div style={{ height: 180 }}>
-            {trendData.length > 0 ? (
-              <TrendChartInline data={trendData} />
-            ) : (
-              <div className="h-full flex items-center justify-center">
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>No trend data available</p>
-              </div>
-            )}
+            <TrendChartInline data={trendData.length > 0 ? trendData : MOCK_THREAT_TREND} />
           </div>
         </div>
       }
@@ -547,6 +693,17 @@ export default function ThreatsPage() {
     <div className="space-y-4">
       <ThreatsSubNav />
 
+      {/* ── Page heading ── */}
+      <div className="flex items-start justify-between">
+        <div>
+          <div className="flex items-center gap-3 mb-1">
+            <Shield className="w-6 h-6" style={{ color: 'var(--accent-primary)' }} />
+            <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>{pageContext.title}</h1>
+          </div>
+          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{pageContext.brief}</p>
+        </div>
+      </div>
+
       {/* Technique filter chip */}
       {selectedTechnique && (
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm" style={{ backgroundColor: 'rgba(59,130,246,0.08)', borderColor: 'rgba(59,130,246,0.3)' }}>
@@ -563,13 +720,14 @@ export default function ThreatsPage() {
       <PageLayout
         icon={Shield}
         pageContext={pageContext}
-        kpiGroups={kpiGroups}
-        insightRow={insightRowContent}
-        tabData={tabData}
+        kpiGroups={[]}
+        tabData={{ overview: { renderTab: () => <>{kpiStripNode}{insightRowContent}</> }, ...tabData }}
         loading={loading}
         error={error}
-        defaultTab="all"
+        defaultTab="overview"
         onRowClick={handleRowClick}
+        hideHeader
+        topNav
       />
     </div>
   );

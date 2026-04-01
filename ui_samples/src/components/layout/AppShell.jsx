@@ -39,12 +39,12 @@ export default function AppShell({ children }) {
     <div className="flex">
       <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(p => !p)} />
       <div
-        className="flex-1 flex flex-col min-h-screen"
+        className="flex-1 flex flex-col min-h-screen min-w-0"
         style={{ marginLeft: 'var(--sidebar-width, 240px)', transition: 'margin-left 200ms ease' }}
       >
         <Header />
         <main
-          className="flex-1 p-6 transition-colors duration-200"
+          className="flex-1 p-6 transition-colors duration-200 min-w-0 overflow-x-hidden"
           style={{ backgroundColor: 'var(--bg-primary)' }}
         >
           {children}

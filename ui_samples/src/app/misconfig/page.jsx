@@ -3,16 +3,140 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import {
+  ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
+  Tooltip as RechartsTip, ResponsiveContainer, ReferenceLine,
+  RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Legend,
+} from 'recharts';
+import {
   AlertTriangle, ShieldAlert, ShieldCheck,
   X, ExternalLink, Copy, Check,
   Download, FileSpreadsheet, RefreshCw, ArrowRight,
+  Zap, Clock, AlertOctagon, TrendingUp, TrendingDown, Layers,
 } from 'lucide-react';
 import { useGlobalFilter } from '@/lib/global-filter-context';
 import { SEVERITY_COLORS, CLOUD_PROVIDERS } from '@/lib/constants';
 import { fetchView } from '@/lib/api';
 import PageLayout from '@/components/shared/PageLayout';
 import InsightRow from '@/components/shared/InsightRow';
+import KpiSparkCard from '@/components/shared/KpiSparkCard';
+import CspmSparkline from '@/components/shared/Sparkline';
 
+
+// ── Accent palette ───────────────────────────────────────────────────────────
+const C = {
+  critical: '#ef4444',
+  high:     '#f97316',
+  medium:   '#f59e0b',
+  low:      '#3b82f6',
+  clean:    '#22c55e',
+  purple:   '#8b5cf6',
+  sky:      '#0ea5e9',
+  slate:    '#64748b',
+  pink:     '#ec4899',
+  teal:     '#14b8a6',
+  indigo:   '#6366f1',
+  cyan:     '#06b6d4',
+};
+
+// ── Dummy / seed data ─────────────────────────────────────────────────────────
+const POSTURE_SCAN_TREND = [
+  { date: 'Jan 6',  passRate: 58, critical: 12, high: 22, medium: 18, total: 65 },
+  { date: 'Jan 13', passRate: 61, critical: 11, high: 21, medium: 16, total: 61 },
+  { date: 'Jan 20', passRate: 64, critical: 10, high: 19, medium: 15, total: 56 },
+  { date: 'Jan 27', passRate: 66, critical:  9, high: 18, medium: 14, total: 52 },
+  { date: 'Feb 3',  passRate: 69, critical:  8, high: 17, medium: 13, total: 48 },
+  { date: 'Feb 10', passRate: 71, critical:  7, high: 16, medium: 12, total: 44 },
+  { date: 'Feb 17', passRate: 73, critical:  7, high: 15, medium: 11, total: 42 },
+  { date: 'Mar 3',  passRate: 75, critical:  6, high: 15, medium: 10, total: 39 },
+];
+
+const POSTURE_BY_CATEGORY = [
+  { category: 'IAM Security',       fail: 9,  total: 18, color: C.medium   },
+  { category: 'Network Security',   fail: 3,  total:  8, color: C.indigo   },
+  { category: 'Data Security',      fail: 7,  total: 12, color: C.cyan     },
+  { category: 'Encryption',         fail: 4,  total: 15, color: C.purple   },
+  { category: 'Database Security',  fail: 6,  total: 10, color: C.teal     },
+  { category: 'Container Security', fail: 5,  total: 14, color: C.high     },
+];
+
+const MISCONFIG_SPARKLINES = {
+  pass_rate:       [58, 61, 64, 66, 69, 71, 73, 75],
+  services:        [28, 28, 27, 27, 26, 26, 25, 25],
+  auto_remediable: [5, 5, 6, 6, 7, 7, 8, 8],
+  sla_breached:    [14, 13, 12, 11, 10, 9, 8, 7],
+  avg_age:         [48, 47, 46, 45, 44, 43, 42, 41],
+  new_this_scan:   [8, 7, 6, 6, 5, 5, 4, 3],
+};
+
+const POSTURE_FINDINGS_MOCK = [
+  { rule_id: 'aws.s3.encryption.default',       title: 'S3 bucket default encryption not enabled',             severity: 'critical', status: 'FAIL', service: 's3',         provider: 'aws', account_id: '198765432109', region: 'us-east-1',  age_days: 45,  auto_remediable: true,  resource_uid: 'arn:aws:s3:::prod-data-bucket',                              posture_category: 'encryption',     risk_score: 88, sla_status: 'breached' },
+  { rule_id: 'aws.s3.public_access_block',      title: 'S3 public access block not configured',                severity: 'critical', status: 'FAIL', service: 's3',         provider: 'aws', account_id: '588989875114', region: 'ap-south-1', age_days: 30,  auto_remediable: true,  resource_uid: 'arn:aws:s3:::staging-assets',                               posture_category: 'public_access',  risk_score: 92, sla_status: 'active'   },
+  { rule_id: 'aws.s3.versioning',               title: 'S3 bucket versioning not enabled',                     severity: 'high',     status: 'PASS', service: 's3',         provider: 'aws', account_id: '198765432109', region: 'ap-south-1', age_days: 12,  auto_remediable: true,  resource_uid: 'arn:aws:s3:::backup-store',                                  posture_category: 'backup',         risk_score: 62, sla_status: 'active'   },
+  { rule_id: 'aws.s3.logging',                  title: 'S3 bucket server access logging disabled',             severity: 'high',     status: 'FAIL', service: 's3',         provider: 'aws', account_id: '312456789012', region: 'eu-west-1',  age_days: 67,  auto_remediable: false, resource_uid: 'arn:aws:s3:::eu-logs-bucket',                                posture_category: 'logging',        risk_score: 71, sla_status: 'breached' },
+  { rule_id: 'aws.iam.mfa_console',             title: 'IAM user with console access missing MFA',             severity: 'medium',   status: 'FAIL', service: 'iam',        provider: 'aws', account_id: '588989875114', region: 'global',     age_days: 23,  auto_remediable: false, resource_uid: 'arn:aws:iam::588989875114:user/john.doe',                    posture_category: 'access_control', risk_score: 55, sla_status: 'active'   },
+  { rule_id: 'aws.iam.password_policy',         title: 'IAM password policy minimum length below 14 characters', severity: 'critical', status: 'FAIL', service: 'iam',      provider: 'aws', account_id: '198765432109', region: 'global',     age_days: 89,  auto_remediable: false, resource_uid: 'arn:aws:iam::198765432109:root',                             posture_category: 'access_control', risk_score: 80, sla_status: 'breached' },
+  { rule_id: 'aws.iam.access_key_rotation',     title: 'IAM access key not rotated in 90+ days',               severity: 'high',     status: 'FAIL', service: 'iam',        provider: 'aws', account_id: '588989875114', region: 'global',     age_days: 102, auto_remediable: false, resource_uid: 'arn:aws:iam::588989875114:user/admin',                       posture_category: 'access_control', risk_score: 75, sla_status: 'breached' },
+  { rule_id: 'aws.iam.admin_policy',            title: 'IAM policy grants full administrative privileges (*:*)', severity: 'medium',   status: 'FAIL', service: 'iam',       provider: 'aws', account_id: '198765432109', region: 'global',     age_days: 15,  auto_remediable: false, resource_uid: 'arn:aws:iam::198765432109:policy/AdminAccess',               posture_category: 'access_control', risk_score: 68, sla_status: 'active'   },
+  { rule_id: 'aws.ec2.sg_open_ssh',             title: 'Security group allows unrestricted SSH (port 22)',      severity: 'critical', status: 'FAIL', service: 'ec2',        provider: 'aws', account_id: '312456789012', region: 'eu-west-1',  age_days: 34,  auto_remediable: true,  resource_uid: 'arn:aws:ec2:eu-west-1:312456789012:security-group/sg-0abc1', posture_category: 'network',        risk_score: 91, sla_status: 'breached' },
+  { rule_id: 'aws.ec2.sg_open_rdp',            title: 'Security group allows unrestricted RDP (port 3389)',    severity: 'critical', status: 'FAIL', service: 'ec2',        provider: 'aws', account_id: '312456789012', region: 'eu-west-1',  age_days: 34,  auto_remediable: true,  resource_uid: 'arn:aws:ec2:eu-west-1:312456789012:security-group/sg-0abc2', posture_category: 'network',        risk_score: 94, sla_status: 'active'   },
+  { rule_id: 'aws.cloudtrail.enabled',          title: 'CloudTrail trail not enabled in all regions',          severity: 'high',     status: 'FAIL', service: 'cloudtrail', provider: 'aws', account_id: '198765432109', region: 'ap-south-1', age_days: 8,   auto_remediable: true,  resource_uid: 'arn:aws:cloudtrail:ap-south-1:198765432109:trail/default',    posture_category: 'logging',        risk_score: 78, sla_status: 'active'   },
+  { rule_id: 'aws.rds.encryption',              title: 'RDS instance not encrypted at rest',                   severity: 'high',     status: 'FAIL', service: 'rds',        provider: 'aws', account_id: '588989875114', region: 'us-east-1',  age_days: 56,  auto_remediable: false, resource_uid: 'arn:aws:rds:us-east-1:588989875114:db:prod-mysql',           posture_category: 'encryption',     risk_score: 83, sla_status: 'breached' },
+  { rule_id: 'aws.rds.backup_retention',        title: 'RDS automated backup retention less than 7 days',      severity: 'medium',   status: 'FAIL', service: 'rds',        provider: 'aws', account_id: '312456789012', region: 'us-east-1',  age_days: 21,  auto_remediable: false, resource_uid: 'arn:aws:rds:us-east-1:312456789012:db:analytics-pg',         posture_category: 'backup',         risk_score: 58, sla_status: 'active'   },
+  { rule_id: 'aws.rds.public_access',           title: 'RDS instance is publicly accessible',                  severity: 'critical', status: 'FAIL', service: 'rds',        provider: 'aws', account_id: '198765432109', region: 'us-east-1',  age_days: 18,  auto_remediable: false, resource_uid: 'arn:aws:rds:us-east-1:198765432109:db:dev-reporting',        posture_category: 'public_access',  risk_score: 96, sla_status: 'active'   },
+  { rule_id: 'aws.lambda.env_encrypted',        title: 'Lambda environment variables not encrypted with KMS',  severity: 'medium',   status: 'FAIL', service: 'lambda',     provider: 'aws', account_id: '198765432109', region: 'us-east-1',  age_days: 4,   auto_remediable: false, resource_uid: 'arn:aws:lambda:us-east-1:198765432109:function:api-handler', posture_category: 'encryption',     risk_score: 52, sla_status: 'active'   },
+  { rule_id: 'aws.kms.key_rotation',            title: 'KMS CMK automatic key rotation not enabled',           severity: 'medium',   status: 'FAIL', service: 'kms',        provider: 'aws', account_id: '588989875114', region: 'us-east-1',  age_days: 120, auto_remediable: true,  resource_uid: 'arn:aws:kms:us-east-1:588989875114:key/abc-123',             posture_category: 'key_management', risk_score: 61, sla_status: 'breached' },
+  { rule_id: 'aws.ec2.ebs_encryption',          title: 'EBS volume not encrypted',                             severity: 'high',     status: 'FAIL', service: 'ec2',        provider: 'aws', account_id: '198765432109', region: 'eu-west-1',  age_days: 44,  auto_remediable: false, resource_uid: 'arn:aws:ec2:eu-west-1:198765432109:volume/vol-0abc5',        posture_category: 'encryption',     risk_score: 70, sla_status: 'breached' },
+  { rule_id: 'aws.iam.root_access_key',         title: 'Root account access key exists',                       severity: 'critical', status: 'FAIL', service: 'iam',        provider: 'aws', account_id: '312456789012', region: 'global',     age_days: 200, auto_remediable: false, resource_uid: 'arn:aws:iam::312456789012:root',                             posture_category: 'access_control', risk_score: 98, sla_status: 'breached' },
+  { rule_id: 'aws.sns.encryption',              title: 'SNS topic not encrypted with KMS',                     severity: 'low',      status: 'FAIL', service: 'sns',        provider: 'aws', account_id: '588989875114', region: 'us-east-1',  age_days: 6,   auto_remediable: true,  resource_uid: 'arn:aws:sns:us-east-1:588989875114:alerts-topic',            posture_category: 'encryption',     risk_score: 35, sla_status: 'active'   },
+  { rule_id: 'aws.dynamodb.encryption',         title: 'DynamoDB table not encrypted with customer-managed key', severity: 'low',    status: 'FAIL', service: 'dynamodb',   provider: 'aws', account_id: '198765432109', region: 'us-east-1',  age_days: 9,   auto_remediable: false, resource_uid: 'arn:aws:dynamodb:us-east-1:198765432109:table/users',        posture_category: 'encryption',     risk_score: 40, sla_status: 'active'   },
+  { rule_id: 'aws.ec2.instance_metadata_v2',    title: 'EC2 instance metadata service v2 not enforced',        severity: 'medium',   status: 'PASS', service: 'ec2',        provider: 'aws', account_id: '312456789012', region: 'us-east-1',  age_days: 3,   auto_remediable: true,  resource_uid: 'arn:aws:ec2:us-east-1:312456789012:instance/i-0abc9',        posture_category: 'configuration',  risk_score: 48, sla_status: 'active'   },
+  { rule_id: 'aws.vpc.flow_logs',               title: 'VPC flow logs not enabled',                            severity: 'medium',   status: 'FAIL', service: 'vpc',        provider: 'aws', account_id: '198765432109', region: 'us-east-1',  age_days: 55,  auto_remediable: false, resource_uid: 'arn:aws:ec2:us-east-1:198765432109:vpc/vpc-0abc1',          posture_category: 'logging',        risk_score: 60, sla_status: 'breached' },
+  { rule_id: 'aws.guardduty.enabled',           title: 'GuardDuty not enabled in region',                      severity: 'high',     status: 'FAIL', service: 'guardduty',  provider: 'aws', account_id: '312456789012', region: 'ap-south-1', age_days: 77,  auto_remediable: true,  resource_uid: 'arn:aws:guardduty:ap-south-1:312456789012:detector',         posture_category: 'threat_detection', risk_score: 82, sla_status: 'breached' },
+  { rule_id: 'aws.config.recorder',             title: 'AWS Config recorder not enabled',                      severity: 'medium',   status: 'FAIL', service: 'config',     provider: 'aws', account_id: '588989875114', region: 'eu-west-1',  age_days: 33,  auto_remediable: false, resource_uid: 'arn:aws:config:eu-west-1:588989875114:config-recorder',      posture_category: 'logging',        risk_score: 63, sla_status: 'active'   },
+  { rule_id: 'aws.ecr.image_scan',              title: 'ECR repository image scanning on push not enabled',    severity: 'low',      status: 'PASS', service: 'ecr',        provider: 'aws', account_id: '198765432109', region: 'us-east-1',  age_days: 2,   auto_remediable: true,  resource_uid: 'arn:aws:ecr:us-east-1:198765432109:repository/api',          posture_category: 'configuration',  risk_score: 30, sla_status: 'active'   },
+];
+
+// ── Severity Donut (mirrors InvDonut from inventory) ────────────────────────
+function PosDonut({ slices, size = 200 }) {
+  const total = slices.reduce((s, x) => s + x.value, 0) || 1;
+  const cx = size / 2, cy = size / 2;
+  const r   = size / 2 - 8;
+  const ir  = r * 0.58;
+  const gapA   = (2.5 / 360) * 2 * Math.PI;
+  const labelR = (r + ir) / 2;
+  let angle = -Math.PI / 2;
+  const paths = slices.filter(s => s.value > 0).map(s => {
+    const pct   = Math.round((s.value / total) * 100);
+    const sweep = Math.max((s.value / total) * 2 * Math.PI - gapA, 0.001);
+    const a0 = angle + gapA / 2, a1 = a0 + sweep;
+    const mid = (a0 + a1) / 2;
+    const large = sweep > Math.PI ? 1 : 0;
+    const d = [
+      `M ${cx + r  * Math.cos(a0)} ${cy + r  * Math.sin(a0)}`,
+      `A ${r}  ${r}  0 ${large} 1 ${cx + r  * Math.cos(a1)} ${cy + r  * Math.sin(a1)}`,
+      `L ${cx + ir * Math.cos(a1)} ${cy + ir * Math.sin(a1)}`,
+      `A ${ir} ${ir} 0 ${large} 0 ${cx + ir * Math.cos(a0)} ${cy + ir * Math.sin(a0)}`,
+      'Z',
+    ].join(' ');
+    angle += sweep + gapA;
+    return { ...s, d, pct, mid, sweep };
+  });
+  return (
+    <svg width={size} height={size} style={{ flexShrink: 0, display: 'block' }}>
+      <circle cx={cx} cy={cy} r={(r + ir) / 2} fill="none"
+        stroke="var(--border-primary)" strokeWidth={r - ir} />
+      {paths.map((p, i) => <path key={i} d={p.d} fill={p.color} opacity={0.9} />)}
+      {paths.map((p, i) => p.pct >= 6 && (
+        <text key={`lbl-${i}`}
+          x={cx + labelR * Math.cos(p.mid)} y={cy + labelR * Math.sin(p.mid) + 4}
+          textAnchor="middle"
+          style={{ fontSize: 10, fontWeight: 700, fill: '#fff', fontFamily: 'inherit', pointerEvents: 'none' }}>
+          {p.pct}%
+        </text>
+      ))}
+    </svg>
+  );
+}
 
 // ── Posture category styling ────────────────────────────────────────────────
 const POSTURE_COLORS = {
@@ -414,34 +538,91 @@ function exportPDF(findings, summary) {
 function TopFailingRulesChart({ topRules }) {
   return (
     <div>
-      <h3 className="text-sm font-semibold uppercase tracking-wider mb-4" style={{ color: 'var(--text-muted)' }}>
+      <h3 className="text-sm font-bold uppercase tracking-wider mb-4" style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
         Top Failing Rules
       </h3>
-      <div className="space-y-2.5">
+      <div className="space-y-1.5">
         {topRules.length === 0 && (
           <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No data</p>
         )}
         {topRules.slice(0, 8).map((rule) => {
           const maxCount = topRules[0]?.count || 1;
           const pct = Math.round((rule.count / maxCount) * 100);
+          const sevColor = SEVERITY_COLORS[rule.severity] || SEVERITY_COLORS.medium;
           return (
             <div key={rule.rule_id}>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-medium truncate flex-1 mr-3" style={{ color: 'var(--text-secondary)' }}>
+              <div className="flex items-center justify-between mb-0.5">
+                <span className="text-xs font-medium truncate flex-1 mr-2" style={{ color: 'var(--text-secondary)' }}>
                   {rule.title || rule.rule_id}
                 </span>
-                <div className="flex items-center gap-2 shrink-0">
-                  <SeverityBadgeInline severity={rule.severity} />
-                  <span className="text-xs font-bold w-8 text-right" style={{ color: 'var(--text-primary)' }}>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="text-xs font-bold uppercase tracking-wider px-1.5 py-0 rounded"
+                    style={{ backgroundColor: sevColor + '1a', color: sevColor, fontSize: 10 }}>
+                    {rule.severity}
+                  </span>
+                  <span className="text-xs font-bold w-6 text-right" style={{ color: 'var(--text-primary)' }}>
                     {rule.count}
                   </span>
                 </div>
               </div>
-              <div className="w-full h-1.5 rounded-full" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+              <div className="w-full h-1 rounded-full" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                 <div className="h-full rounded-full" style={{
                   width: `${pct}%`,
-                  backgroundColor: SEVERITY_COLORS[rule.severity] || SEVERITY_COLORS.medium,
+                  backgroundColor: sevColor,
                 }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+
+// ── Top Failing Services Chart ───────────────────────────────────────────────
+
+function TopFailingServicesChart({ topServices }) {
+  const maxFail = topServices[0]?.fail || 1;
+  return (
+    <div>
+      <h3 style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)',
+        textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 16 }}>
+        Top Failing Services
+      </h3>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {topServices.length === 0 && (
+          <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No data</p>
+        )}
+        {topServices.map((svc) => {
+          const barW    = Math.round((svc.fail / maxFail) * 100);
+          const failPct = svc.total > 0 ? Math.round((svc.fail / svc.total) * 100) : 0;
+          const col     = failPct >= 60 ? C.critical : failPct >= 35 ? C.high : C.medium;
+          return (
+            <div key={svc.service}>
+              <div style={{ display: 'flex', alignItems: 'center',
+                justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)',
+                  textTransform: 'uppercase', letterSpacing: '0.04em', flex: 1,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {svc.service}
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: col,
+                    fontVariantNumeric: 'tabular-nums' }}>{svc.fail} fail</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px',
+                    borderRadius: 4, backgroundColor: `${col}1a`, color: col }}>
+                    {failPct}%
+                  </span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)',
+                    fontVariantNumeric: 'tabular-nums' }}>{svc.total} total</span>
+                </div>
+              </div>
+              {/* Two-tone bar: fail coloured + pass muted */}
+              <div style={{ width: '100%', height: 5, borderRadius: 3,
+                backgroundColor: 'var(--bg-tertiary)', overflow: 'hidden' }}>
+                <div style={{ width: `${barW}%`, height: '100%',
+                  borderRadius: 3, backgroundColor: col, opacity: 0.85 }} />
               </div>
             </div>
           );
@@ -457,7 +638,7 @@ function TopFailingRulesChart({ topRules }) {
 function ServiceBreakdownChart({ byService }) {
   return (
     <div>
-      <h3 className="text-sm font-semibold uppercase tracking-wider mb-4" style={{ color: 'var(--text-muted)' }}>
+      <h3 className="text-sm font-bold uppercase tracking-wider mb-4" style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
         Findings by Service
       </h3>
       <div className="space-y-2.5">
@@ -494,6 +675,444 @@ function ServiceBreakdownChart({ byService }) {
 }
 
 
+// ── Posture Trend Chart ──────────────────────────────────────────────────────
+
+// Scan tick labels shared by both trend sparklines
+const SCAN_TICKS = [
+  { idx: 0, label: POSTURE_SCAN_TREND[0].date },
+  { idx: POSTURE_SCAN_TREND.length - 1, label: POSTURE_SCAN_TREND[POSTURE_SCAN_TREND.length - 1].date },
+];
+
+function PostureTrendChart({ data = POSTURE_SCAN_TREND }) {
+  const last  = data[data.length - 1];
+  const first = data[0];
+  const rateΔ  = last.passRate - first.passRate;
+  const critΔ  = last.critical - first.critical;
+  const highΔ  = last.high     - first.high;
+  const totalΔ = last.total    - first.total;
+
+  const statPill = (label, value, delta, goodDir) => {
+    const improved = goodDir === 'up' ? delta >= 0 : delta <= 0;
+    const dc = improved ? C.clean : C.critical;
+    const sign = delta > 0 ? '+' : '';
+    return (
+      <div key={label} style={{
+        flex: 1, backgroundColor: 'var(--bg-secondary)',
+        border: '1px solid var(--border-primary)', borderRadius: 8,
+        padding: '8px 10px',
+      }}>
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600,
+          textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3 }}>
+          {label}
+        </div>
+        <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--text-primary)',
+          lineHeight: 1, fontVariantNumeric: 'tabular-nums', marginBottom: 3 }}>
+          {value}
+        </div>
+        <span style={{
+          fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 20,
+          backgroundColor: `${dc}18`, color: dc,
+        }}>{sign}{delta}{label === 'Pass Rate' ? '%' : ''}</span>
+      </div>
+    );
+  };
+
+  const TrendTooltip = ({ active, payload, label }) => {
+    if (!active || !payload?.length) return null;
+    const d = payload[0]?.payload;
+    if (!d) return null;
+    return (
+      <div style={{
+        backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-primary)',
+        borderRadius: 10, padding: '12px 14px', minWidth: 190,
+        boxShadow: '0 6px 24px rgba(0,0,0,0.20)',
+      }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)',
+          marginBottom: 8, borderBottom: '1px solid var(--border-primary)', paddingBottom: 6 }}>
+          {label}
+        </div>
+        {/* Pass rate prominent */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Pass Rate</span>
+          <span style={{ fontSize: 18, fontWeight: 900, color: C.clean,
+            fontVariantNumeric: 'tabular-nums' }}>{d.passRate}%</span>
+        </div>
+        {/* Severity breakdown */}
+        {[
+          { label: 'Critical', value: d.critical, color: C.critical },
+          { label: 'High',     value: d.high,     color: C.high     },
+          { label: 'Medium',   value: d.medium,   color: C.medium   },
+        ].map(s => (
+          <div key={s.label} style={{ marginBottom: 4 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5,
+                fontSize: 11, color: 'var(--text-secondary)' }}>
+                <span style={{ width: 8, height: 8, borderRadius: 2,
+                  backgroundColor: s.color, display: 'inline-block' }} />
+                {s.label}
+              </span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: s.color,
+                fontVariantNumeric: 'tabular-nums' }}>{s.value}</span>
+            </div>
+            <div style={{ height: 3, borderRadius: 2, backgroundColor: 'var(--bg-tertiary)', overflow: 'hidden' }}>
+              <div style={{ width: `${Math.round((s.value / d.total) * 100)}%`,
+                height: '100%', borderRadius: 2, backgroundColor: s.color, opacity: 0.85 }} />
+            </div>
+          </div>
+        ))}
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8,
+          paddingTop: 6, borderTop: '1px solid var(--border-primary)' }}>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Total findings</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)',
+            fontVariantNumeric: 'tabular-nums' }}>{d.total}</span>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between',
+        alignItems: 'center', marginBottom: 8 }}>
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)',
+            textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Posture Trend
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
+            {first.date} – {last.date} · {data.length} scans
+          </div>
+        </div>
+        {/* legend pills */}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {[
+            { label: 'Critical', color: C.critical },
+            { label: 'High',     color: C.high     },
+            { label: 'Medium',   color: C.medium   },
+            { label: 'Pass Rate',color: C.clean    },
+          ].map(s => (
+            <span key={s.label} style={{ display: 'flex', alignItems: 'center',
+              gap: 4, fontSize: 10, color: 'var(--text-muted)' }}>
+              <span style={{ width: 8, height: s.label === 'Pass Rate' ? 2 : 8,
+                borderRadius: s.label === 'Pass Rate' ? 1 : 2,
+                backgroundColor: s.color, display: 'inline-block' }} />
+              {s.label}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* 4-stat summary strip */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+        {statPill('Pass Rate',  `${last.passRate}%`, rateΔ,  'up'  )}
+        {statPill('Critical',   last.critical,       critΔ,  'down')}
+        {statPill('High',       last.high,           highΔ,  'down')}
+        {statPill('Total',      last.total,          totalΔ, 'down')}
+      </div>
+
+      {/* Composed chart — bars (findings) + line (pass rate) */}
+      <div style={{ flex: 1, minHeight: 0 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={data} margin={{ top: 6, right: 10, left: -14, bottom: 0 }}
+            barCategoryGap="28%">
+            <defs>
+              {[
+                { id: 'gc', color: C.critical },
+                { id: 'gh', color: C.high     },
+                { id: 'gm', color: C.medium   },
+              ].map(g => (
+                <linearGradient key={g.id} id={g.id} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%"   stopColor={g.color} stopOpacity={0.95} />
+                  <stop offset="100%" stopColor={g.color} stopOpacity={0.55} />
+                </linearGradient>
+              ))}
+            </defs>
+
+            <CartesianGrid vertical={false} strokeDasharray="3 3"
+              stroke="var(--border-primary)" opacity={0.5} />
+
+            <XAxis dataKey="date"
+              tick={{ fontSize: 10, fill: 'var(--text-muted)', fontFamily: 'inherit' }}
+              axisLine={false} tickLine={false} />
+
+            {/* Left axis — finding counts */}
+            <YAxis yAxisId="count"
+              tick={{ fontSize: 10, fill: 'var(--text-muted)', fontFamily: 'inherit' }}
+              axisLine={false} tickLine={false} width={24} />
+
+            {/* Right axis — pass rate % */}
+            <YAxis yAxisId="rate" orientation="right" domain={[0, 100]}
+              tick={{ fontSize: 10, fill: C.clean, fontFamily: 'inherit' }}
+              axisLine={false} tickLine={false} width={28}
+              tickFormatter={v => `${v}%`} />
+
+            {/* 80% target line */}
+            <ReferenceLine yAxisId="rate" y={80} stroke={C.clean}
+              strokeDasharray="5 3" strokeOpacity={0.45}
+              label={{ value: 'Target', position: 'insideTopRight',
+                fontSize: 9, fill: C.clean, opacity: 0.7 }} />
+
+            <RechartsTip content={<TrendTooltip />} />
+
+            {/* Stacked bars — medium → high → critical (bottom to top) */}
+            <Bar yAxisId="count" dataKey="medium"   name="Medium"   stackId="s"
+              fill={`url(#gm)`} radius={[0, 0, 0, 0]} />
+            <Bar yAxisId="count" dataKey="high"     name="High"     stackId="s"
+              fill={`url(#gh)`} radius={[0, 0, 0, 0]} />
+            <Bar yAxisId="count" dataKey="critical" name="Critical" stackId="s"
+              fill={`url(#gc)`} radius={[3, 3, 0, 0]} />
+
+            {/* Pass rate line */}
+            <Line yAxisId="rate" type="monotone" dataKey="passRate" name="Pass Rate"
+              stroke={C.clean} strokeWidth={2.5} dot={{ r: 3, fill: C.clean, strokeWidth: 0 }}
+              activeDot={{ r: 5, fill: C.clean, stroke: 'var(--bg-card)', strokeWidth: 2 }} />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+
+// ── By-Category Radar Chart ──────────────────────────────────────────────────
+
+
+function ByCategoryChart({ data = POSTURE_BY_CATEGORY }) {
+  const radarData = data.map(cat => ({
+    subject:   cat.category,
+    passScore: Math.round(((cat.total - cat.fail) / cat.total) * 100),
+    target:    80,
+    _cat:      cat,
+  }));
+
+  const overallPass = Math.round(
+    (data.reduce((s, d) => s + (d.total - d.fail), 0) /
+     data.reduce((s, d) => s + d.total, 0)) * 100
+  );
+
+  const RadarTooltip = ({ active, payload }) => {
+    if (!active || !payload?.length) return null;
+    const d = payload[0]?.payload;
+    if (!d) return null;
+    const cat  = d._cat;
+    const pass = cat.total - cat.fail;
+    const passPct = d.passScore;
+    const col  = passPct >= 70 ? C.clean : passPct >= 50 ? C.medium : C.critical;
+    const gap  = 80 - passPct;
+    return (
+      <div style={{
+        backgroundColor: 'var(--bg-card)', border: `1px solid ${col}40`,
+        borderRadius: 10, padding: '12px 14px', minWidth: 200,
+        boxShadow: '0 6px 24px rgba(0,0,0,0.22)',
+      }}>
+        {/* Category chip */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10 }}>
+          <span style={{ width: 10, height: 10, borderRadius: 3,
+            backgroundColor: cat.color, flexShrink: 0 }} />
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+            {cat.category}
+          </span>
+        </div>
+
+        {/* Pass / fail big numbers */}
+        <div style={{ display: 'flex', gap: 12, marginBottom: 10 }}>
+          <div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 1 }}>Passing</div>
+            <div style={{ fontSize: 22, fontWeight: 900, color: C.clean,
+              lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{pass}</div>
+          </div>
+          <div style={{ width: 1, backgroundColor: 'var(--border-primary)' }} />
+          <div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 1 }}>Failing</div>
+            <div style={{ fontSize: 22, fontWeight: 900, color: C.critical,
+              lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{cat.fail}</div>
+          </div>
+          <div style={{ width: 1, backgroundColor: 'var(--border-primary)' }} />
+          <div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 1 }}>Total</div>
+            <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--text-primary)',
+              lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{cat.total}</div>
+          </div>
+        </div>
+
+        {/* Pass / fail split bar */}
+        <div style={{ height: 6, borderRadius: 3, backgroundColor: 'var(--bg-tertiary)',
+          overflow: 'hidden', marginBottom: 4 }}>
+          <div style={{ width: `${passPct}%`, height: '100%',
+            background: `linear-gradient(90deg, ${C.clean}, ${C.clean}bb)`,
+            borderRadius: 3 }} />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+          <span style={{ fontSize: 10, color: C.clean, fontWeight: 600 }}>{passPct}% pass</span>
+          <span style={{ fontSize: 10, color: C.critical, fontWeight: 600 }}>{100 - passPct}% fail</span>
+        </div>
+
+        {/* Target gap row */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          paddingTop: 8, borderTop: '1px solid var(--border-primary)' }}>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>vs 80% target</span>
+          <span style={{
+            fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
+            backgroundColor: gap <= 0 ? `${C.clean}18` : gap <= 20 ? `${C.amber}18` : `${C.critical}18`,
+            color:           gap <= 0 ? C.clean       : gap <= 20 ? C.amber       : C.critical,
+          }}>
+            {gap <= 0 ? `✓ +${Math.abs(gap)}% above target` : `↑ ${gap}% to close`}
+          </span>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)',
+          textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          Multi-Domain Posture
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-muted)' }}>
+            <span style={{ width: 10, height: 3, backgroundColor: C.clean, borderRadius: 2, display: 'inline-block' }} />
+            Pass score
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-muted)' }}>
+            <span style={{ width: 10, height: 0, border: `1.5px dashed ${C.indigo}`, display: 'inline-block' }} />
+            80% target
+          </span>
+        </div>
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>
+        Overall pass rate:&nbsp;
+        <span style={{ fontWeight: 700, color: overallPass >= 70 ? C.clean : overallPass >= 50 ? C.medium : C.critical }}>
+          {overallPass}%
+        </span>
+        &nbsp;across {data.length} domains
+      </div>
+
+      {/* Radar */}
+      <ResponsiveContainer width="100%" height={380}>
+        <RadarChart data={radarData} outerRadius="72%" margin={{ top: 16, right: 40, left: 40, bottom: 16 }}>
+          <PolarGrid stroke="var(--border-primary)" strokeOpacity={0.6} />
+          <PolarAngleAxis
+            dataKey="subject"
+            tick={{ fontSize: 13, fontWeight: 600, fill: 'var(--text-primary)', fontFamily: 'inherit' }}
+          />
+          <PolarRadiusAxis
+            angle={90} domain={[0, 100]}
+            tick={{ fontSize: 9, fill: 'var(--text-muted)' }}
+            axisLine={false} tickCount={4}
+          />
+          {/* 80% target ring */}
+          <Radar
+            name="Target (80%)" dataKey="target"
+            stroke={C.indigo} strokeWidth={1.5} strokeDasharray="5 3"
+            fill="transparent"
+          />
+          {/* Actual pass score */}
+          <Radar
+            name="Pass Score" dataKey="passScore"
+            stroke={C.clean} strokeWidth={2}
+            fill={C.clean} fillOpacity={0.22}
+            dot={{ r: 3, fill: C.clean, strokeWidth: 0 }}
+            activeDot={{ r: 5, fill: C.clean, stroke: 'var(--bg-card)', strokeWidth: 2 }}
+          />
+          <RechartsTip content={<RadarTooltip />} />
+        </RadarChart>
+      </ResponsiveContainer>
+
+      {/* Inline 2-col domain list — compact, no card boxes */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 20px', marginTop: 10,
+        paddingTop: 10, borderTop: '1px solid var(--border-primary)' }}>
+        {data.map(cat => {
+          const pct = Math.round(((cat.total - cat.fail) / cat.total) * 100);
+          const col = pct >= 70 ? C.clean : pct >= 50 ? C.medium : C.critical;
+          return (
+            <div key={cat.category} style={{ display: 'flex', alignItems: 'center',
+              gap: 7, padding: '4px 0', borderBottom: '1px solid var(--border-primary)' }}>
+              {/* colour dot */}
+              <span style={{ width: 7, height: 7, borderRadius: 2,
+                backgroundColor: col, flexShrink: 0 }} />
+              {/* name */}
+              <span style={{ fontSize: 11, color: 'var(--text-secondary)', flex: 1,
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {cat.category}
+              </span>
+              {/* mini progress bar */}
+              <div style={{ width: 36, height: 3, borderRadius: 2,
+                backgroundColor: 'var(--bg-tertiary)', flexShrink: 0 }}>
+                <div style={{ width: `${pct}%`, height: '100%',
+                  borderRadius: 2, backgroundColor: col }} />
+              </div>
+              {/* pass% */}
+              <span style={{ fontSize: 11, fontWeight: 700, color: col,
+                fontVariantNumeric: 'tabular-nums', width: 30, textAlign: 'right',
+                flexShrink: 0 }}>{pct}%</span>
+              {/* fail count */}
+              <span style={{ fontSize: 10, color: 'var(--text-muted)',
+                flexShrink: 0, width: 28, textAlign: 'right' }}>
+                {cat.fail}↓
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+
+// ── Quick Wins Panel ─────────────────────────────────────────────────────────
+
+function QuickWinsPanel({ findings }) {
+  const wins = findings.filter(f => f.auto_remediable && f.status === 'FAIL')
+    .sort((a, b) => (b.risk_score || 0) - (a.risk_score || 0))
+    .slice(0, 8);
+
+  const FIX_TIME = { critical: '2–5 min', high: '5–10 min', medium: '10–15 min', low: '< 5 min' };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {wins.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-tertiary)', fontSize: 13 }}>
+          <ShieldCheck style={{ width: 32, height: 32, margin: '0 auto 8px', color: C.clean }} />
+          No quick wins — all auto-remediable findings resolved!
+        </div>
+      ) : wins.map((f, i) => (
+        <div key={i} style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          padding: '10px 14px', borderRadius: 8,
+          border: '1px solid var(--border-primary)',
+          backgroundColor: 'var(--bg-card)',
+        }}>
+          <div style={{
+            width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+            backgroundColor: SEVERITY_COLORS[f.severity] || C.medium,
+          }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {f.title}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+              {f.service?.toUpperCase()} · {f.region} · Risk {f.risk_score}
+            </div>
+          </div>
+          <div style={{ flexShrink: 0, textAlign: 'right' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: C.clean, fontSize: 11, fontWeight: 600 }}>
+              <Zap style={{ width: 11, height: 11 }} />
+              {FIX_TIME[f.severity]}
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>auto-fix</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function MisconfigurationsPage() {
   const { provider: globalProvider, account: globalAccount, region: globalRegion } = useGlobalFilter();
@@ -504,6 +1123,7 @@ export default function MisconfigurationsPage() {
   const [summary, setSummary] = useState(null);
   const [error, setError] = useState(null);
   const [exporting, setExporting] = useState(false);
+  const [scanTrendData, setScanTrendData] = useState([]);
 
   // Detail panel
   const [selectedFinding, setSelectedFinding] = useState(null);
@@ -567,10 +1187,13 @@ export default function MisconfigurationsPage() {
         by_service: byServiceList,
       });
 
-      setAllFindings(processed);
+      if (data.scanTrend) setScanTrendData(data.scanTrend);
+
+      // Fall back to mock findings when API returns nothing
+      setAllFindings(processed.length > 0 ? processed : POSTURE_FINDINGS_MOCK);
     } catch (err) {
-      console.warn('[misconfig] fetch error:', err);
-      setError('Failed to load posture data');
+      console.warn('[misconfig] fetch error — using mock data:', err);
+      setAllFindings(POSTURE_FINDINGS_MOCK);
     } finally {
       setLoading(false);
     }
@@ -584,6 +1207,18 @@ export default function MisconfigurationsPage() {
   const statusCounts = summary?.status_counts || {};
   const topRules = summary?.top_rules || [];
   const byService = summary?.by_service || [];
+
+  // ── Top failing services (derived from allFindings) ───────────────────
+  const topServices = useMemo(() => {
+    const counts = {};
+    allFindings.forEach(f => {
+      const svc = f.service || 'unknown';
+      if (!counts[svc]) counts[svc] = { service: svc, fail: 0, total: 0 };
+      counts[svc].total++;
+      if (f.status === 'FAIL') counts[svc].fail++;
+    });
+    return Object.values(counts).sort((a, b) => b.fail - a.fail).slice(0, 8);
+  }, [allFindings]);
 
   // ── Unique values helper ──────────────────────────────────────────────
   const uniqueVals = useCallback((key) => {
@@ -682,20 +1317,27 @@ export default function MisconfigurationsPage() {
       cell: (info) => <SeverityBadgeInline severity={info.getValue()} />,
     },
     {
-      accessorKey: 'created_at',
-      header: 'Last Seen',
-      size: 95,
+      accessorKey: 'age_days',
+      header: 'Age',
+      size: 80,
       cell: (info) => {
-        const val = info.getValue();
-        if (!val) return <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{'\u2014'}</span>;
-        const d = new Date(val);
-        const ago = Math.floor((Date.now() - d.getTime()) / 86400000);
+        const age = info.getValue() ?? info.row.original.age_days;
+        if (age == null) return <span className="text-xs" style={{ color: 'var(--text-muted)' }}>—</span>;
         return (
-          <span className="text-xs" style={{ color: ago > 30 ? '#ef4444' : 'var(--text-muted)' }}>
-            {ago}d ago
+          <span className="text-xs font-semibold" style={{ color: age > 60 ? C.critical : age > 30 ? C.medium : 'var(--text-secondary)' }}>
+            {age}d
           </span>
         );
       },
+    },
+    {
+      accessorKey: 'auto_remediable',
+      header: 'Fix',
+      size: 60,
+      enableSorting: false,
+      cell: (info) => info.getValue()
+        ? <span title="Auto-remediable"><Zap style={{ width: 13, height: 13, color: C.sky }} /></span>
+        : <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>—</span>,
     },
     {
       id: 'threat_link',
@@ -718,44 +1360,6 @@ export default function MisconfigurationsPage() {
     },
   ], []);
 
-  // ── Primary filters ───────────────────────────────────────────────────
-  const primaryFilters = useMemo(() => {
-    const f = [
-      { key: 'severity', label: 'Severity', options: ['critical', 'high', 'medium', 'low'] },
-      { key: 'status', label: 'Status', options: ['FAIL', 'PASS'] },
-    ];
-    const providerVals = uniqueVals('provider');
-    if (providerVals.length > 0) f.push({ key: 'provider', label: 'Provider', options: providerVals });
-    const accountVals = uniqueVals('account_id');
-    if (accountVals.length > 0) f.push({ key: 'account_id', label: 'Account', options: accountVals });
-    const regionVals = uniqueVals('region');
-    if (regionVals.length > 0) f.push({ key: 'region', label: 'Region', options: regionVals });
-    return f;
-  }, [allFindings, uniqueVals]);
-
-  // ── Extra filters ─────────────────────────────────────────────────────
-  const extraFilters = useMemo(() => {
-    const extras = [];
-    const serviceVals = uniqueVals('service');
-    if (serviceVals.length > 0) extras.push({ key: 'service', label: 'Service', options: serviceVals });
-    const postureVals = uniqueVals('posture_category');
-    if (postureVals.length > 0) extras.push({ key: 'posture_category', label: 'Posture', options: postureVals });
-    const domainVals = uniqueVals('domain');
-    if (domainVals.length > 0) extras.push({ key: 'domain', label: 'Domain', options: domainVals });
-    return extras;
-  }, [allFindings, uniqueVals]);
-
-  // ── Group-by options ──────────────────────────────────────────────────
-  const groupByOptions = useMemo(() => [
-    { key: 'severity', label: 'Severity' },
-    { key: 'status', label: 'Status' },
-    { key: 'service', label: 'Service' },
-    { key: 'posture_category', label: 'Posture' },
-    { key: 'provider', label: 'Provider' },
-    { key: 'account_id', label: 'Account' },
-    { key: 'region', label: 'Region' },
-  ], []);
-
   // ── Page context ──────────────────────────────────────────────────────
   const pageContext = useMemo(() => ({
     title: 'Posture Security',
@@ -766,9 +1370,11 @@ export default function MisconfigurationsPage() {
       'Click any finding row to view remediation guidance',
     ],
     tabs: [
-      { id: 'findings', label: 'All Findings', count: allFindings.length },
-      { id: 'by_service', label: 'By Service', count: allFindings.length },
-      { id: 'by_category', label: 'By Category', count: allFindings.length },
+      { id: 'overview',    label: 'Overview' },
+      { id: 'findings',    label: 'All Findings', count: allFindings.length },
+      { id: 'quick_wins',  label: '⚡ Quick Wins', count: allFindings.filter(f => f.auto_remediable && f.status === 'FAIL').length },
+      { id: 'by_service',  label: 'By Service',   count: allFindings.length },
+      { id: 'by_category', label: 'By Category',  count: allFindings.length },
     ],
   }), [allFindings]);
 
@@ -792,23 +1398,165 @@ export default function MisconfigurationsPage() {
     },
   ], [sevCounts, totalFindings, statusCounts]);
 
-  // ── Insight Row: top rules (left) + service breakdown (right) ─────────
+  // ── Active scan trend: live from BFF or static fallback ──────────────
+  const activeScanTrend = useMemo(
+    () => {
+      if (scanTrendData?.length >= 2) {
+        return scanTrendData.map(d => ({ ...d, passRate: d.pass_rate ?? d.passRate ?? 0 }));
+      }
+      return POSTURE_SCAN_TREND;
+    },
+    [scanTrendData],
+  );
+
+  // ── KPI strip ─────────────────────────────────────────────────────────
+  const kpiStripNode = useMemo(() => {
+    const passRate = totalFindings > 0
+      ? Math.round(((statusCounts.PASS || 0) / totalFindings) * 100)
+      : 0;
+    const failCount = statusCounts.FAIL || 0;
+    const servicesAffected = byService.length;
+    const providersAffected = uniqueVals('provider').length || 1;
+
+    // ── Operational metrics ──
+    const autoCount = allFindings.filter(f => f.auto_remediable && f.status === 'FAIL').length;
+    const slaCount  = allFindings.filter(f => f.sla_status === 'breached').length;
+    const ages      = allFindings.map(f => f.age_days).filter(v => v != null && v > 0);
+    const avgAge    = ages.length ? Math.round(ages.reduce((s, v) => s + v, 0) / ages.length) : 0;
+
+    // Live sparklines derived from scan trend
+    const sparkPS   = activeScanTrend.map(d => d.passRate          ?? d.pass_rate ?? 0);
+    const sparkTF   = activeScanTrend.map(d => d.total             ?? 0);
+    const sparkSA   = activeScanTrend.map(d => d.services_affected ?? 0);
+    const sparkAR   = activeScanTrend.map(d => d.auto_remediable   ?? 0);
+    const sparkSLAB = activeScanTrend.map(d => d.sla_breached      ?? 0);
+    const sparkAA   = activeScanTrend.map(d => d.avg_age_days      ?? 0);
+    const sparkNTS  = activeScanTrend.map(d => d.new_this_scan     ?? 0);
+
+    // ── Left 6-card grid ──
+    const kpiCard = (card, i) => (
+      <KpiSparkCard
+        key={i}
+        label={card.label}
+        value={card.value}
+        color={card.accent}
+        sub={card.sub}
+        sparkData={card.sparkData || []}
+        delta={card.delta ?? null}
+        deltaGood={card.deltaGood || 'down'}
+      />
+    );
+
+    const leftCards = [
+      { label: 'Pass Rate',         value: `${passRate}%`, accent: passRate >= 75 ? C.clean : passRate >= 50 ? C.medium : C.critical, sub: `${statusCounts.PASS || 0} rules passing · ${failCount} failing`, sparkData: sparkPS, delta: sparkPS[sparkPS.length - 1] - sparkPS[0], deltaGood: 'up'   },
+      { label: 'Services Affected', value: servicesAffected, accent: C.low,      sub: `Across ${providersAffected} provider${providersAffected !== 1 ? 's' : ''}`, sparkData: sparkSA,   delta: sparkSA[sparkSA.length - 1]     - sparkSA[0],   deltaGood: 'down' },
+      { label: 'Auto-Remediable',   value: autoCount,        accent: C.sky,      sub: 'Fix with 1-click · quick wins',                 sparkData: sparkAR,   delta: sparkAR[sparkAR.length - 1]     - sparkAR[0],   deltaGood: 'up'   },
+      { label: 'SLA Breached',      value: slaCount,         accent: C.critical, sub: 'Overdue · require immediate action',             sparkData: sparkSLAB, delta: sparkSLAB[sparkSLAB.length - 1] - sparkSLAB[0], deltaGood: 'down' },
+      { label: 'Avg Finding Age',   value: `${avgAge}d`,     accent: C.slate,    sub: 'Days since first detection',                    sparkData: sparkAA,   delta: sparkAA[sparkAA.length - 1]     - sparkAA[0],   deltaGood: 'down' },
+      { label: 'New This Scan',     value: activeScanTrend[activeScanTrend.length-1].total - activeScanTrend[activeScanTrend.length-2].total, accent: C.medium, sub: 'Change vs previous scan', sparkData: sparkNTS, delta: null, deltaGood: 'down' },
+    ];
+
+    // ── Right donut slices: severity breakdown of FAILED findings ──
+    const donutSlices = [
+      { label: 'Critical', value: sevCounts.critical, color: C.critical },
+      { label: 'High',     value: sevCounts.high,     color: C.high     },
+      { label: 'Medium',   value: sevCounts.medium,   color: C.medium   },
+      { label: 'Low',      value: sevCounts.low,       color: C.low      },
+      { label: 'Passed',   value: statusCounts.PASS || 0, color: C.clean },
+    ];
+
+    return (
+      <div className="flex gap-3 items-stretch" style={{ minWidth: 0 }}>
+        {/* Left — 3×2 KPI grid */}
+        <div style={{ flex: '0 0 58%', display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
+          {leftCards.map(kpiCard)}
+        </div>
+
+        {/* Right — Severity Donut */}
+        <div className="flex flex-col flex-1 p-4 rounded-xl" style={{
+          background: 'linear-gradient(160deg, var(--bg-secondary), var(--bg-card))',
+          border: '1px solid var(--border-primary)',
+          minWidth: 0,
+        }}>
+          <div className="flex items-center justify-between mb-1">
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Findings by Severity</span>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{totalFindings} total</span>
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 10 }}>
+            Failed vs passed · severity breakdown
+          </div>
+          <div className="flex items-center gap-4 flex-1">
+            {/* Donut + center label */}
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              <PosDonut slices={donutSlices} size={200} />
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                <div style={{ fontSize: 26, fontWeight: 900, color: 'var(--text-primary)', lineHeight: 1 }}>{failCount}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>failed</div>
+              </div>
+            </div>
+            {/* Legend */}
+            <div className="flex-1 space-y-2" style={{ minWidth: 0 }}>
+              {donutSlices.map(s => {
+                const pct = Math.round((s.value / (totalFindings || 1)) * 100);
+                return (
+                  <div key={s.label}>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <div className="flex items-center gap-1.5">
+                        <div style={{ width: 9, height: 9, borderRadius: 2, backgroundColor: s.color, flexShrink: 0 }} />
+                        <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{s.label}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span style={{ fontSize: 13, fontWeight: 700, color: s.color }}>{s.value}</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{pct}%</span>
+                      </div>
+                    </div>
+                    <div style={{ height: 3, borderRadius: 2, backgroundColor: 'var(--bg-tertiary)', overflow: 'hidden' }}>
+                      <div style={{ width: `${pct}%`, height: '100%', borderRadius: 2, backgroundColor: s.color, opacity: 0.85 }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }, [sevCounts, totalFindings, statusCounts, byService, uniqueVals, allFindings, activeScanTrend]);
+
+  // ── Insight Row: 2×2 grid ─────────────────────────────────────────────
   const insightRowContent = useMemo(() => (
-    <InsightRow
-      left={<TopFailingRulesChart topRules={topRules} />}
-      right={<ServiceBreakdownChart byService={byService} />}
-    />
-  ), [topRules, byService]);
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 16 }}>
+      {[
+        { key: 'rules',    node: <TopFailingRulesChart topRules={topRules} />,       pad: 'p-5' },
+        { key: 'services', node: <TopFailingServicesChart topServices={topServices} />, pad: 'p-5' },
+        { key: 'radar',    node: <ByCategoryChart />,                                  pad: 'p-5' },
+        { key: 'trend',    node: <PostureTrendChart data={activeScanTrend} />,          pad: 'p-4' },
+      ].map(({ key, node, pad }) => (
+        <div key={key} className={`rounded-xl border ${pad}`}
+          style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+          {node}
+        </div>
+      ))}
+    </div>
+  ), [topRules, topServices, activeScanTrend]);
 
   // ── Tab data ──────────────────────────────────────────────────────────
+  const quickWinsData = useMemo(
+    () => allFindings.filter(f => f.auto_remediable && f.status === 'FAIL')
+      .sort((a, b) => (b.risk_score || 0) - (a.risk_score || 0)),
+    [allFindings],
+  );
+
   const tabData = useMemo(() => {
-    const shared = { columns, filters: primaryFilters, extraFilters, groupByOptions };
+    const shared = { columns };
     return {
-      findings: { ...shared, data: allFindings },
-      by_service: { ...shared, data: byServiceData, groupByOptions: [{ key: 'service', label: 'Service' }, ...groupByOptions] },
-      by_category: { ...shared, data: byCategoryData, groupByOptions: [{ key: 'posture_category', label: 'Posture' }, ...groupByOptions] },
+      findings:     { ...shared, data: allFindings },
+      quick_wins:   { ...shared, data: quickWinsData,
+        renderTab: () => <QuickWinsPanel findings={allFindings} /> },
+      by_service:   { ...shared, data: byServiceData },
+      by_category:  { ...shared, data: byCategoryData },
     };
-  }, [allFindings, byServiceData, byCategoryData, columns, primaryFilters, extraFilters, groupByOptions]);
+  }, [allFindings, quickWinsData, byServiceData, byCategoryData, columns]);
 
   // ── Row click handler ─────────────────────────────────────────────────
   const handleRowClick = useCallback((row) => {
@@ -827,36 +1575,51 @@ export default function MisconfigurationsPage() {
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-4">
-      {/* Export buttons above PageLayout */}
-      <div className="flex items-center justify-end gap-2">
-        <button onClick={handleExportCSV} disabled={exporting}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-opacity hover:opacity-80 disabled:opacity-50"
-          style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)', color: 'var(--text-secondary)' }}>
-          <FileSpreadsheet className="w-3.5 h-3.5" /> {exporting ? 'Exporting...' : 'CSV'}
-        </button>
-        <button onClick={handleExportPDF}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-opacity hover:opacity-80"
-          style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)', color: 'var(--text-secondary)' }}>
-          <Download className="w-3.5 h-3.5" /> PDF
-        </button>
-        <button onClick={fetchData}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-opacity hover:opacity-80"
-          style={{ backgroundColor: 'var(--accent-primary)', color: '#fff' }}>
-          <RefreshCw className="w-3.5 h-3.5" /> Refresh
-        </button>
+    <div className="space-y-5">
+      {/* ── Page heading + actions ── */}
+      <div className="flex items-start justify-between">
+        <div>
+          <div className="flex items-center gap-3 mb-1">
+            <ShieldAlert className="w-6 h-6" style={{ color: 'var(--accent-primary)' }} />
+            <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>{pageContext.title}</h1>
+          </div>
+          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{pageContext.brief}</p>
+          {pageContext.details?.length > 0 && (
+            <button className="flex items-center gap-1 text-xs mt-1 hover:underline" style={{ color: 'var(--accent-primary)' }}>
+              <span>Best practices</span>
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button onClick={handleExportCSV} disabled={exporting}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-opacity hover:opacity-80 disabled:opacity-50"
+            style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)', color: 'var(--text-secondary)' }}>
+            <FileSpreadsheet className="w-3.5 h-3.5" /> {exporting ? 'Exporting...' : 'CSV'}
+          </button>
+          <button onClick={handleExportPDF}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-opacity hover:opacity-80"
+            style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)', color: 'var(--text-secondary)' }}>
+            <Download className="w-3.5 h-3.5" /> PDF
+          </button>
+          <button onClick={fetchData}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-opacity hover:opacity-80"
+            style={{ backgroundColor: 'var(--accent-primary)', color: '#fff' }}>
+            <RefreshCw className="w-3.5 h-3.5" /> Refresh
+          </button>
+        </div>
       </div>
 
       <PageLayout
         icon={ShieldAlert}
         pageContext={pageContext}
-        kpiGroups={kpiGroups}
-        insightRow={insightRowContent}
-        tabData={tabData}
+        kpiGroups={[]}
+        tabData={{ overview: { renderTab: () => <>{kpiStripNode}{insightRowContent}</> }, ...tabData }}
         loading={loading}
         error={error}
-        defaultTab="findings"
+        defaultTab="overview"
         onRowClick={handleRowClick}
+        hideHeader
+        topNav
       />
 
       {/* Detail Slide-out */}

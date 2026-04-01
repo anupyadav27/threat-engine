@@ -15,6 +15,14 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Synchronous theme script — runs before first paint to prevent FOUC */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('cspm-theme')||'dark';document.documentElement.classList.add(t)}catch(e){document.documentElement.classList.add('dark')}})()`,
+          }}
+        />
+      </head>
       <body className="min-h-screen font-sans antialiased" suppressHydrationWarning>
         <ThemeProvider>
           <AuthProvider>

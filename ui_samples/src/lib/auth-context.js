@@ -9,7 +9,7 @@ const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_URL || process.env.NEXT_PUBLIC_API
 // a synthetic admin session. This survives HMR and page reloads because
 // auth-context.js checks sessionStorage FIRST on every mount.
 const DEV_BYPASS_AUTH = process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === 'true';
-const DEV_TENANT_ID  = process.env.NEXT_PUBLIC_TENANT_ID || '5a8b072b-8867-4476-a52f-f331b1cbacb3';
+const DEV_TENANT_ID  = process.env.NEXT_PUBLIC_TENANT_ID || 'default-tenant';
 
 const DEV_SESSION = {
   user: {

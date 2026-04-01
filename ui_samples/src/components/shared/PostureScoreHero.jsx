@@ -1,111 +1,179 @@
 'use client';
 
-import GaugeChart from '@/components/charts/GaugeChart';
-import { TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowRight } from 'lucide-react';
 
-const DOMAIN_LABELS = {
-  iam:        'IAM',
-  compliance: 'Compliance',
-  threats:    'Threats',
-  misconfigs: 'Misconfigs',
-  dataSec:    'Data Sec',
+/* All platform domains */
+const DOMAIN_META = {
+  compliance: { label: 'Compliance', href: '?tab=compliance' },
+  threats:    { label: 'Threats',    href: '?tab=threats'    },
+  iam:        { label: 'IAM',        href: '?tab=iam'        },
+  misconfigs: { label: 'Misconfigs', href: '?tab=posture'    },
+  dataSec:    { label: 'Data Sec',   href: '?tab=datasec'    },
+  network:    { label: 'Network',    href: '?tab=network'    },
+  codeSec:    { label: 'Code Sec',   href: '?tab=codesec'    },
+  risk:       { label: 'Risk',       href: '?tab=risk'       },
 };
 
-const DOMAIN_COLORS = {
-  iam:        '#f97316',
-  compliance: '#22c55e',
-  threats:    '#ef4444',
-  misconfigs: '#eab308',
-  dataSec:    '#3b82f6',
-};
+function scoreThreshold(v) {
+  if (v >= 75) return { color: '#22c55e', label: 'Good' };
+  if (v >= 50) return { color: '#f97316', label: 'Fair' };
+  return { color: '#ef4444', label: 'Poor' };
+}
+
+/* SVG donut ring — score 0-100 fills the arc */
+function DonutRing({ score, size = 64 }) {
+  const r     = (size - 10) / 2;
+  const circ  = 2 * Math.PI * r;
+  const fill  = circ * (score / 100);
+  const cx    = size / 2;
+  const cy    = size / 2;
+  const color = scoreThreshold(score).color;
+
+  return (
+    <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+      {/* Track */}
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--bg-tertiary)" strokeWidth="6" />
+      {/* Fill arc */}
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth="6"
+        strokeDasharray={`${fill} ${circ}`} strokeLinecap="round"
+        style={{ transition: 'stroke-dasharray 0.6s ease' }} />
+    </svg>
+  );
+}
 
 /**
- * PostureScoreHero — full-width security posture score card.
+ * PostureScoreHero — domain breakdown as donut ring grid.
+ * The overall 67/100 score has been promoted to the PostureScoreBanner
+ * in the KPI strip above. This component shows WHERE the risk sits.
  *
  * @param {{
  *   score: number,
- *   prevScore: number,
- *   delta: number,
- *   status: string,
  *   criticalActions: number,
- *   domainScores: Record<string,number>,
+ *   domainScores: Record<string, number>,
+ *   domainCritical: Record<string, number>,
  * }} props
  */
-export default function PostureScoreHero({ score, prevScore, delta, status, criticalActions, domainScores }) {
-  const isImproving = delta >= 0;
-  const statusColor = score >= 75 ? '#22c55e' : score >= 50 ? '#f97316' : '#ef4444';
+export default function PostureScoreHero({
+  criticalActions,
+  domainScores,
+  domainCritical = {},
+  filterLabel = null,   // e.g. "Acme Corp / AWS Production" — shows active filter context
+}) {
+  const activeDomains = Object.keys(DOMAIN_META).filter(
+    key => domainScores?.[key] != null
+  );
+
+  const poorCount = activeDomains.filter(k => domainScores[k] < 50).length;
+  const fairCount = activeDomains.filter(k => domainScores[k] >= 50 && domainScores[k] < 75).length;
+  const goodCount = activeDomains.filter(k => domainScores[k] >= 75).length;
 
   return (
     <div
-      className="rounded-xl p-6 border transition-colors duration-200"
+      className="rounded-xl border transition-colors duration-200"
       style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}
     >
-      <div className="flex flex-col lg:flex-row items-center gap-8">
-
-        {/* Left — gauge + score */}
-        <div className="flex flex-col items-center gap-2 flex-shrink-0">
-          <GaugeChart score={score} size={160} label="Overall Posture" />
-          <div className="flex items-center gap-1.5 mt-1">
-            {isImproving
-              ? <TrendingUp className="w-4 h-4" style={{ color: '#22c55e' }} />
-              : <TrendingDown className="w-4 h-4" style={{ color: '#ef4444' }} />}
-            <span
-              className="text-sm font-semibold"
-              style={{ color: isImproving ? '#22c55e' : '#ef4444' }}
-            >
-              {isImproving ? '+' : ''}{delta} pts from last week
-            </span>
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between px-5 py-3 border-b"
+        style={{ borderColor: 'var(--border-primary)' }}>
+        <div>
+          <div className="flex items-center gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wider"
+              style={{ color: 'var(--text-muted)' }}>
+              Security Domain Breakdown
+            </p>
+            {filterLabel && (
+              <span className="text-xs font-semibold px-2 py-0.5 rounded"
+                style={{ backgroundColor: '#8b5cf620', color: '#8b5cf6' }}>
+                {filterLabel}
+              </span>
+            )}
           </div>
-          <span
-            className="text-xs px-2 py-0.5 rounded font-semibold mt-0.5"
-            style={{ backgroundColor: `${statusColor}20`, color: statusColor }}
-          >
-            {status} Posture
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+            <span className="font-semibold" style={{ color: '#22c55e' }}>{goodCount} good</span>
+            {' · '}
+            <span className="font-semibold" style={{ color: '#f97316' }}>{fairCount} fair</span>
+            {' · '}
+            <span className="font-semibold" style={{ color: '#ef4444' }}>{poorCount} poor</span>
+          </p>
+        </div>
+        {/* Summary chip */}
+        {criticalActions > 0 && (
+          <span className="text-xs font-semibold px-2.5 py-1 rounded-full"
+            style={{ backgroundColor: '#ef444420', color: '#ef4444' }}>
+            {criticalActions} critical actions
           </span>
-        </div>
+        )}
+      </div>
 
-        {/* Middle — domain scores */}
-        <div className="flex-1 w-full">
-          <p className="text-sm font-semibold mb-4" style={{ color: 'var(--text-secondary)' }}>
-            Security Domain Breakdown
-          </p>
-          <div className="space-y-3">
-            {Object.entries(domainScores || {}).map(([key, val]) => {
-              const color = DOMAIN_COLORS[key] || '#888';
-              const label = DOMAIN_LABELS[key] || key;
-              const barColor = val >= 75 ? '#22c55e' : val >= 50 ? '#f97316' : '#ef4444';
-              return (
-                <div key={key} className="flex items-center gap-3">
-                  <span className="text-xs w-24 flex-shrink-0" style={{ color: 'var(--text-secondary)' }}>
-                    {label}
+      {/* ── Donut Ring Grid ── */}
+      <div className="p-5 grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {activeDomains.map(key => {
+          const val       = domainScores[key];
+          const meta      = DOMAIN_META[key];
+          const theme     = scoreThreshold(val);
+          const critCount = domainCritical[key];
+
+          return (
+            <Link key={key} href={meta.href}
+              className="flex flex-col items-center gap-2 p-3 rounded-lg border cursor-pointer group
+                         hover:border-slate-600 transition-colors"
+              style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)' }}>
+
+              {/* Ring with score centered */}
+              <div className="relative">
+                <DonutRing score={val} size={60} />
+                <span className="absolute inset-0 flex items-center justify-center text-sm font-black"
+                  style={{ color: theme.color }}>
+                  {val}
+                </span>
+              </div>
+
+              {/* Domain label */}
+              <span className="text-xs font-medium text-center leading-tight"
+                style={{ color: 'var(--text-secondary)' }}>
+                {meta.label}
+              </span>
+
+              {/* Status label + critical count */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs px-1.5 py-0.5 rounded font-semibold"
+                  style={{ backgroundColor: `${theme.color}18`, color: theme.color }}>
+                  {theme.label}
+                </span>
+                {critCount != null && critCount > 0 && (
+                  <span className="text-xs font-semibold px-1.5 py-0.5 rounded"
+                    style={{ backgroundColor: '#ef444420', color: '#ef4444' }}>
+                    ▲{critCount}
                   </span>
-                  <div className="flex-1 h-2 rounded-full" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-                    <div
-                      className="h-full rounded-full transition-all duration-500"
-                      style={{ width: `${val}%`, backgroundColor: barColor }}
-                    />
-                  </div>
-                  <span className="text-xs font-semibold w-8 text-right" style={{ color: barColor }}>
-                    {val}
-                  </span>
-                </div>
-              );
-            })}
+                )}
+              </div>
+
+              {/* Hover arrow */}
+              <ArrowRight className="w-3 h-3 opacity-0 group-hover:opacity-50 transition-opacity"
+                style={{ color: 'var(--text-muted)' }} />
+            </Link>
+          );
+        })}
+      </div>
+
+      {/* ── Legend ── */}
+      <div className="flex items-center gap-4 px-5 py-3 border-t"
+        style={{ borderColor: 'var(--border-primary)' }}>
+        {[
+          { color: '#22c55e', label: 'Good  ≥75' },
+          { color: '#f97316', label: 'Fair  50–74' },
+          { color: '#ef4444', label: 'Poor  <50' },
+        ].map(({ color, label }) => (
+          <div key={label} className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{label}</span>
           </div>
-        </div>
-
-        {/* Right — quick stats */}
-        <div
-          className="flex-shrink-0 rounded-lg p-4 border text-center w-44"
-          style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)' }}
-        >
-          <AlertTriangle className="w-8 h-8 mx-auto mb-2" style={{ color: '#f97316' }} />
-          <p className="text-3xl font-bold" style={{ color: 'var(--text-primary)' }}>{criticalActions}</p>
-          <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>Critical actions needed</p>
-          <p className="text-xs mt-3" style={{ color: 'var(--text-muted)' }}>
-            Score:{' '}
-            <span className="font-semibold" style={{ color: statusColor }}>{score}/100</span>
-          </p>
+        ))}
+        <div className="ml-auto flex items-center gap-1">
+          <span className="text-xs px-1.5 py-0.5 rounded font-semibold"
+            style={{ backgroundColor: '#ef444420', color: '#ef4444' }}>▲n</span>
+          <span className="text-xs ml-1" style={{ color: 'var(--text-muted)' }}>= critical findings</span>
         </div>
       </div>
     </div>

@@ -20,7 +20,11 @@ export function ThemeProvider({ children }) {
   const toggleTheme = () => {
     const next = theme === 'dark' ? 'light' : 'dark';
     setTheme(next);
-    if (typeof window !== 'undefined') localStorage.setItem('cspm-theme', next);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('cspm-theme', next);
+      document.documentElement.classList.remove('dark', 'light');
+      document.documentElement.classList.add(next);
+    }
   };
 
   return (
