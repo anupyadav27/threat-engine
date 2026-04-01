@@ -127,6 +127,27 @@ function DbDonut({ slices, size = 160 }) {
 }
 
 
+// ── Demo / fallback data ──────────────────────────────────────────────────────
+const DEMO_DB_DATABASES = [
+  { id: 'db-001', db_name: 'prod-postgres-01',    engine: 'PostgreSQL', provider: 'aws', region: 'us-east-1',      account_id: '123456789012', encryption: 'encrypted',   public_access: false, backup_enabled: true,  mfa_enabled: true,  risk_score: 18, status: 'healthy'  },
+  { id: 'db-002', db_name: 'prod-mysql-orders',   engine: 'MySQL',      provider: 'aws', region: 'us-east-1',      account_id: '123456789012', encryption: 'encrypted',   public_access: false, backup_enabled: true,  mfa_enabled: true,  risk_score: 22, status: 'healthy'  },
+  { id: 'db-003', db_name: 'staging-rds-aurora',  engine: 'RDS',        provider: 'aws', region: 'us-west-2',      account_id: '123456789012', encryption: 'unencrypted', public_access: true,  backup_enabled: false, mfa_enabled: false, risk_score: 87, status: 'at_risk'  },
+  { id: 'db-004', db_name: 'analytics-redshift',  engine: 'Redshift',   provider: 'aws', region: 'eu-west-1',      account_id: '987654321098', encryption: 'encrypted',   public_access: false, backup_enabled: true,  mfa_enabled: false, risk_score: 41, status: 'warning'  },
+  { id: 'db-005', db_name: 'dev-postgres-test',   engine: 'PostgreSQL', provider: 'aws', region: 'us-east-2',      account_id: '123456789012', encryption: 'unencrypted', public_access: true,  backup_enabled: false, mfa_enabled: false, risk_score: 79, status: 'at_risk'  },
+  { id: 'db-006', db_name: 'prod-dynamodb-users', engine: 'DynamoDB',   provider: 'aws', region: 'ap-southeast-1', account_id: '123456789012', encryption: 'encrypted',   public_access: false, backup_enabled: true,  mfa_enabled: true,  risk_score: 12, status: 'healthy'  },
+];
+
+const DEMO_DB_FINDINGS = [
+  { id: 'dbf-001', title: 'RDS instance publicly accessible',                    severity: 'critical', db_name: 'staging-rds-aurora',  provider: 'aws', region: 'us-west-2',      category: 'access_control', status: 'FAIL', description: 'RDS instance has PubliclyAccessible=true, exposing it to the internet.',             recommendation: 'Set PubliclyAccessible=false and place in a private subnet.'     },
+  { id: 'dbf-002', title: 'RDS storage not encrypted at rest',                   severity: 'critical', db_name: 'staging-rds-aurora',  provider: 'aws', region: 'us-west-2',      category: 'encryption',     status: 'FAIL', description: 'RDS instance storage encryption is disabled.',                                     recommendation: 'Enable AES-256 storage encryption via AWS KMS.'                  },
+  { id: 'dbf-003', title: 'Database automated backups disabled',                 severity: 'high',     db_name: 'staging-rds-aurora',  provider: 'aws', region: 'us-west-2',      category: 'backup',         status: 'FAIL', description: 'Automated backup retention period is set to 0 days.',                              recommendation: 'Enable automated backups with at least 7 days retention.'        },
+  { id: 'dbf-004', title: 'PostgreSQL audit logging not enabled',                severity: 'high',     db_name: 'dev-postgres-test',   provider: 'aws', region: 'us-east-2',      category: 'audit_logging',  status: 'FAIL', description: 'pgaudit extension is not configured; DDL/DML actions are not logged.',              recommendation: 'Enable pgaudit and ship logs to CloudWatch Logs.'                },
+  { id: 'dbf-005', title: 'Database instance uses default master username',      severity: 'medium',   db_name: 'dev-postgres-test',   provider: 'aws', region: 'us-east-2',      category: 'access_control', status: 'FAIL', description: 'Master username is set to the default value "admin".',                             recommendation: 'Use a non-default username and rotate credentials via Secrets Manager.' },
+  { id: 'dbf-006', title: 'Redshift cluster not encrypted',                      severity: 'medium',   db_name: 'analytics-redshift',  provider: 'aws', region: 'eu-west-1',      category: 'encryption',     status: 'FAIL', description: 'Redshift cluster encryption is disabled.',                                         recommendation: 'Enable cluster encryption with an AWS KMS customer managed key.' },
+  { id: 'dbf-007', title: 'IAM database authentication disabled',                severity: 'medium',   db_name: 'prod-mysql-orders',   provider: 'aws', region: 'us-east-1',      category: 'access_control', status: 'FAIL', description: 'IAM authentication for RDS is not enabled; password-only auth in use.',             recommendation: 'Enable IAM database authentication and create IAM DB users.'     },
+  { id: 'dbf-008', title: 'Multi-AZ deployment not enabled',                     severity: 'low',      db_name: 'prod-postgres-01',    provider: 'aws', region: 'us-east-1',      category: 'backup',         status: 'PASS', description: 'RDS instance has Multi-AZ enabled for high availability.',                         recommendation: 'No action required.'                                             },
+];
+
 export default function DatabaseSecurityPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -156,8 +177,10 @@ export default function DatabaseSecurityPage() {
   }, [provider, account, region]);
 
   const pageContext = data.pageContext || {};
-  const databases = (data.data || {}).databases || [];
-  const findings = (data.data || {}).findings || [];
+  const rawDatabases = (data.data || {}).databases || [];
+  const rawFindings  = (data.data || {}).findings  || [];
+  const databases = rawDatabases.length ? rawDatabases : DEMO_DB_DATABASES;
+  const findings  = rawFindings.length  ? rawFindings  : DEMO_DB_FINDINGS;
   const domainScores = (data.data || {}).domain_scores || {};
 
   // ── Helper: unique values from an array ──

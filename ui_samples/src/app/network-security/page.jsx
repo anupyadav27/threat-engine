@@ -116,6 +116,48 @@ function NetDonut({ slices, size = 160 }) {
 }
 
 
+// ── Demo / fallback data ──────────────────────────────────────────────────────
+const DEMO_NET_FINDINGS = [
+  { id: 'nf-001', title: 'Security group allows unrestricted SSH access', severity: 'critical', resource_id: 'sg-0a1b2c3d4e5f', resource_type: 'SecurityGroup', provider: 'aws', region: 'us-east-1', status: 'FAIL', finding_type: 'security_groups', description: 'Inbound rule 0.0.0.0/0 on port 22 exposes SSH to the internet.', first_seen: '2024-01-15', last_seen: '2024-03-03' },
+  { id: 'nf-002', title: 'Security group allows unrestricted RDP access', severity: 'critical', resource_id: 'sg-0b2c3d4e5f6a', resource_type: 'SecurityGroup', provider: 'aws', region: 'us-west-2', status: 'FAIL', finding_type: 'security_groups', description: 'Inbound rule 0.0.0.0/0 on port 3389 exposes RDP to the internet.', first_seen: '2024-01-18', last_seen: '2024-03-03' },
+  { id: 'nf-003', title: 'EC2 instance has public IP and no WAF association', severity: 'high', resource_id: 'i-0c3d4e5f6a7b', resource_type: 'EC2Instance', provider: 'aws', region: 'us-east-1', status: 'FAIL', finding_type: 'internet_exposure', description: 'Instance is internet-accessible with no WAF rule group attached.', first_seen: '2024-02-01', last_seen: '2024-03-03' },
+  { id: 'nf-004', title: 'Load balancer listener uses HTTP instead of HTTPS', severity: 'high', resource_id: 'arn:aws:elasticloadbalancing:us-east-1:123456789:loadbalancer/app/prod-alb', resource_type: 'LoadBalancer', provider: 'aws', region: 'us-east-1', status: 'FAIL', finding_type: 'internet_exposure', description: 'ALB listener on port 80 forwards traffic without TLS termination.', first_seen: '2024-01-28', last_seen: '2024-03-03' },
+  { id: 'nf-005', title: 'VPC flow logs disabled', severity: 'medium', resource_id: 'vpc-0d4e5f6a7b8c', resource_type: 'VPC', provider: 'aws', region: 'eu-west-1', status: 'FAIL', finding_type: 'vpc_topology', description: 'VPC flow logging is not enabled; network traffic cannot be audited.', first_seen: '2024-02-05', last_seen: '2024-03-03' },
+  { id: 'nf-006', title: 'WAF web ACL has no rate-based rules', severity: 'medium', resource_id: 'arn:aws:wafv2:us-east-1:123456789:webacl/prod-waf', resource_type: 'WAFWebACL', provider: 'aws', region: 'us-east-1', status: 'FAIL', finding_type: 'waf_protection', description: 'No rate-based rules are configured; DDoS mitigation is incomplete.', first_seen: '2024-02-10', last_seen: '2024-03-03' },
+  { id: 'nf-007', title: 'Subnet routes all traffic through NAT gateway', severity: 'low', resource_id: 'subnet-0e5f6a7b8c9d', resource_type: 'Subnet', provider: 'aws', region: 'us-west-2', status: 'PASS', finding_type: 'vpc_topology', description: 'Private subnet correctly routes outbound traffic through NAT gateway.', first_seen: '2024-01-10', last_seen: '2024-03-03' },
+  { id: 'nf-008', title: 'Security group egress unrestricted on all ports', severity: 'medium', resource_id: 'sg-0f6a7b8c9d0e', resource_type: 'SecurityGroup', provider: 'aws', region: 'ap-southeast-1', status: 'FAIL', finding_type: 'security_groups', description: 'Outbound rule 0.0.0.0/0 allows all egress; data exfiltration risk.', first_seen: '2024-02-14', last_seen: '2024-03-03' },
+];
+
+const DEMO_NET_SGS = [
+  { id: 'sg-001', group_name: 'prod-web-sg',     group_id: 'sg-0a1b2c3d4e5f', provider: 'aws', region: 'us-east-1',      inbound_rules: 3, outbound_rules: 1, attached_resources: 4, risk_level: 'critical', public_exposure: true  },
+  { id: 'sg-002', group_name: 'prod-db-sg',      group_id: 'sg-0b2c3d4e5f6a', provider: 'aws', region: 'us-east-1',      inbound_rules: 2, outbound_rules: 1, attached_resources: 2, risk_level: 'low',      public_exposure: false },
+  { id: 'sg-003', group_name: 'bastion-sg',      group_id: 'sg-0c3d4e5f6a7b', provider: 'aws', region: 'us-west-2',      inbound_rules: 1, outbound_rules: 1, attached_resources: 1, risk_level: 'high',     public_exposure: true  },
+  { id: 'sg-004', group_name: 'internal-app-sg', group_id: 'sg-0d4e5f6a7b8c', provider: 'aws', region: 'eu-west-1',      inbound_rules: 5, outbound_rules: 2, attached_resources: 6, risk_level: 'medium',   public_exposure: false },
+  { id: 'sg-005', group_name: 'cache-sg',        group_id: 'sg-0e5f6a7b8c9d', provider: 'aws', region: 'ap-southeast-1', inbound_rules: 1, outbound_rules: 1, attached_resources: 3, risk_level: 'low',      public_exposure: false },
+];
+
+const DEMO_NET_EXPOSURE = [
+  { id: 'ex-001', resource_name: 'prod-web-01',      resource_type: 'EC2Instance',   provider: 'aws', region: 'us-east-1',      exposure_type: 'direct',          public_ip: '54.23.101.12',  ports_exposed: '22,80,443', risk_score: 92, status: 'FAIL' },
+  { id: 'ex-002', resource_name: 'prod-alb',          resource_type: 'LoadBalancer',  provider: 'aws', region: 'us-east-1',      exposure_type: 'load_balancer',   public_ip: '54.23.100.50',  ports_exposed: '80,443',    risk_score: 45, status: 'PASS' },
+  { id: 'ex-003', resource_name: 'dev-jump-host',     resource_type: 'EC2Instance',   provider: 'aws', region: 'us-west-2',      exposure_type: 'direct',          public_ip: '44.12.67.88',   ports_exposed: '22,3389',   risk_score: 87, status: 'FAIL' },
+  { id: 'ex-004', resource_name: 'staging-rds-proxy', resource_type: 'RDSInstance',   provider: 'aws', region: 'eu-west-1',      exposure_type: 'direct',          public_ip: '18.185.9.23',   ports_exposed: '5432',      risk_score: 78, status: 'FAIL' },
+  { id: 'ex-005', resource_name: 'analytics-elb',     resource_type: 'LoadBalancer',  provider: 'aws', region: 'ap-southeast-1', exposure_type: 'load_balancer',   public_ip: '54.251.80.44',  ports_exposed: '443',       risk_score: 20, status: 'PASS' },
+];
+
+const DEMO_NET_TOPOLOGY = [
+  { id: 'tp-001', source: 'prod-vpc (10.0.0.0/16)',  destination: 'staging-vpc (10.1.0.0/16)',  protocol: 'TCP', port: '5432', direction: 'inbound',  risk_level: 'medium', provider: 'aws', region: 'us-east-1', status: 'FAIL' },
+  { id: 'tp-002', source: 'igw-prod',                destination: 'prod-web-subnet',            protocol: 'TCP', port: '443',  direction: 'inbound',  risk_level: 'low',    provider: 'aws', region: 'us-east-1', status: 'PASS' },
+  { id: 'tp-003', source: 'prod-private-subnet',     destination: 'nat-gw-prod',                protocol: 'TCP', port: '*',    direction: 'outbound', risk_level: 'low',    provider: 'aws', region: 'us-east-1', status: 'PASS' },
+  { id: 'tp-004', source: 'dev-vpc (10.2.0.0/16)',   destination: 'prod-vpc (10.0.0.0/16)',     protocol: 'ALL', port: '*',    direction: 'inbound',  risk_level: 'high',   provider: 'aws', region: 'us-west-2', status: 'FAIL' },
+];
+
+const DEMO_NET_WAF = [
+  { id: 'waf-001', rule_name: 'AWSManagedRulesCommonRuleSet',      waf_name: 'prod-waf', provider: 'aws', region: 'us-east-1',      action: 'Block',  requests_blocked: 14823, false_positives: 12, status: 'active'   },
+  { id: 'waf-002', rule_name: 'AWSManagedRulesSQLiRuleSet',        waf_name: 'prod-waf', provider: 'aws', region: 'us-east-1',      action: 'Block',  requests_blocked: 2341,  false_positives: 3,  status: 'active'   },
+  { id: 'waf-003', rule_name: 'AWSManagedRulesAmazonIpReputationList', waf_name: 'prod-waf', provider: 'aws', region: 'us-east-1', action: 'Block',  requests_blocked: 8912,  false_positives: 0,  status: 'active'   },
+  { id: 'waf-004', rule_name: 'RateLimitRule-500rpm',               waf_name: 'prod-waf', provider: 'aws', region: 'ap-southeast-1', action: 'Count', requests_blocked: 0,    false_positives: 0,  status: 'inactive' },
+];
+
 export default function NetworkSecurityPage() {
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState(null);
@@ -144,11 +186,16 @@ export default function NetworkSecurityPage() {
     fetchData();
   }, [provider, account, region]);
 
-  const findings        = (data.data || {}).findings        || [];
-  const securityGroups  = (data.data || {}).security_groups || [];
-  const internetExposure= (data.data || {}).internet_exposure|| [];
-  const topology        = (data.data || {}).topology        || [];
-  const waf             = (data.data || {}).waf             || [];
+  const rawFindings        = (data.data || {}).findings         || [];
+  const rawSecurityGroups  = (data.data || {}).security_groups  || [];
+  const rawInternetExposure= (data.data || {}).internet_exposure || [];
+  const rawTopology        = (data.data || {}).topology         || [];
+  const rawWaf             = (data.data || {}).waf              || [];
+  const findings         = rawFindings.length         ? rawFindings         : DEMO_NET_FINDINGS;
+  const securityGroups   = rawSecurityGroups.length   ? rawSecurityGroups   : DEMO_NET_SGS;
+  const internetExposure = rawInternetExposure.length ? rawInternetExposure : DEMO_NET_EXPOSURE;
+  const topology         = rawTopology.length         ? rawTopology         : DEMO_NET_TOPOLOGY;
+  const waf              = rawWaf.length              ? rawWaf              : DEMO_NET_WAF;
 
   // ── Derive KPI numbers ──────────────────────────────────────────────────
   const kpiNums = useMemo(() => {

@@ -128,6 +128,28 @@ function CtrDonut({ slices, size = 160 }) {
 }
 
 
+// ── Demo / fallback data ──────────────────────────────────────────────────────
+const DEMO_CTR_CLUSTERS = [
+  { id: 'cl-001', cluster_name: 'prod-eks-us-east-1',      provider: 'aws', region: 'us-east-1',      version: '1.29', node_count: 12, pods_running: 148, security_domain: 'cluster_security', risk_score: 32, status: 'healthy',  public_endpoint: false },
+  { id: 'cl-002', cluster_name: 'prod-eks-eu-west-1',      provider: 'aws', region: 'eu-west-1',      version: '1.28', node_count: 8,  pods_running: 92,  security_domain: 'cluster_security', risk_score: 47, status: 'warning',  public_endpoint: false },
+  { id: 'cl-003', cluster_name: 'staging-eks-us-west-2',   provider: 'aws', region: 'us-west-2',      version: '1.27', node_count: 4,  pods_running: 38,  security_domain: 'cluster_security', risk_score: 74, status: 'at_risk',  public_endpoint: true  },
+  { id: 'cl-004', cluster_name: 'dev-eks-us-east-2',       provider: 'aws', region: 'us-east-2',      version: '1.26', node_count: 3,  pods_running: 21,  security_domain: 'cluster_security', risk_score: 81, status: 'at_risk',  public_endpoint: true  },
+  { id: 'cl-005', cluster_name: 'prod-eks-ap-southeast-1', provider: 'aws', region: 'ap-southeast-1', version: '1.29', node_count: 6,  pods_running: 74,  security_domain: 'cluster_security', risk_score: 28, status: 'healthy',  public_endpoint: false },
+];
+
+const DEMO_CTR_FINDINGS = [
+  { id: 'cf-001', title: 'EKS cluster endpoint publicly accessible',               severity: 'critical', resource_name: 'staging-eks-us-west-2',   resource_type: 'EKSCluster',  provider: 'aws', region: 'us-west-2',      security_domain: 'cluster_security',  category: 'network',     status: 'FAIL', description: 'Kubernetes API server endpoint is publicly accessible without IP whitelist restrictions.'  },
+  { id: 'cf-002', title: 'Container running with privileged mode enabled',          severity: 'critical', resource_name: 'payment-service',          resource_type: 'Pod',         provider: 'aws', region: 'us-east-1',      security_domain: 'workload_security', category: 'runtime',     status: 'FAIL', description: 'Pod spec sets securityContext.privileged=true, granting host-level access.'                },
+  { id: 'cf-003', title: 'Container image with critical CVEs deployed',             severity: 'critical', resource_name: 'nginx:1.18.0',             resource_type: 'ContainerImage', provider: 'aws', region: 'us-east-1',   security_domain: 'image_security',    category: 'vulnerability', status: 'FAIL', description: 'Image contains 3 critical and 11 high CVEs; last scanned 2024-02-28.'                     },
+  { id: 'cf-004', title: 'Cluster RBAC allows wildcard verb on core resources',     severity: 'high',     resource_name: 'cluster-admin-binding',    resource_type: 'ClusterRoleBinding', provider: 'aws', region: 'us-east-1', security_domain: 'rbac_access',      category: 'iam',         status: 'FAIL', description: 'ClusterRoleBinding grants wildcard (*) verbs on all core API resources to a service account.' },
+  { id: 'cf-005', title: 'Container image not scanned before deployment',           severity: 'high',     resource_name: 'api-gateway:latest',       resource_type: 'ContainerImage', provider: 'aws', region: 'eu-west-1',   security_domain: 'image_security',    category: 'compliance',  status: 'FAIL', description: 'No ECR image scan result found for this image tag at deployment time.'                    },
+  { id: 'cf-006', title: 'EKS node group uses outdated AMI',                        severity: 'high',     resource_name: 'prod-eks-eu-west-1',       resource_type: 'EKSNodeGroup', provider: 'aws', region: 'eu-west-1',     security_domain: 'cluster_security',  category: 'patching',    status: 'FAIL', description: 'Node group AMI is 90 days behind current EKS-optimized AMI release.'                     },
+  { id: 'cf-007', title: 'Pod security policy not enforced',                        severity: 'medium',   resource_name: 'dev-eks-us-east-2',        resource_type: 'EKSCluster',  provider: 'aws', region: 'us-east-2',      security_domain: 'workload_security', category: 'policy',      status: 'FAIL', description: 'Pod Security Admission is not configured in enforce mode for any namespace.'              },
+  { id: 'cf-008', title: 'Service account token auto-mounted on all pods',          severity: 'medium',   resource_name: 'default/default',          resource_type: 'ServiceAccount', provider: 'aws', region: 'us-east-1',  security_domain: 'rbac_access',       category: 'iam',         status: 'FAIL', description: 'Default service account has automountServiceAccountToken=true in all namespaces.'         },
+  { id: 'cf-009', title: 'Container resource limits not defined',                   severity: 'medium',   resource_name: 'worker-service',           resource_type: 'Deployment',  provider: 'aws', region: 'us-west-2',      security_domain: 'workload_security', category: 'configuration', status: 'FAIL', description: 'No CPU or memory limits set; potential DoS via resource exhaustion.'                     },
+  { id: 'cf-010', title: 'EKS control plane logging enabled for all log types',     severity: 'low',      resource_name: 'prod-eks-us-east-1',       resource_type: 'EKSCluster',  provider: 'aws', region: 'us-east-1',      security_domain: 'cluster_security',  category: 'logging',     status: 'PASS', description: 'All control plane log types (api, audit, authenticator, controllerManager, scheduler) are enabled.' },
+];
+
 export default function ContainerSecurityPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(null);
@@ -157,8 +179,10 @@ export default function ContainerSecurityPage() {
   }, [provider, account, region]);
 
   const pageContext   = data.pageContext || {};
-  const clusters      = (data.data || {}).clusters      || [];
-  const findings      = (data.data || {}).findings      || [];
+  const rawClusters = (data.data || {}).clusters || [];
+  const rawFindings = (data.data || {}).findings || [];
+  const clusters = rawClusters.length ? rawClusters : DEMO_CTR_CLUSTERS;
+  const findings = rawFindings.length ? rawFindings : DEMO_CTR_FINDINGS;
   const domainScores  = (data.data || {}).domain_scores || {};
 
   // ── Derive KPI numbers ──────────────────────────────────────────────────

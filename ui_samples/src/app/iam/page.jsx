@@ -15,6 +15,42 @@ import PageLayout from '@/components/shared/PageLayout';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import KpiSparkCard from '@/components/shared/KpiSparkCard';
 
+// ── Demo fallback data (shown when backend returns no data) ───────────────────
+const DEMO_IAM_IDENTITIES = [
+  { username: 'admin-deploy-user',   type: 'User',            account: '123456789012', policies: 14, severity: 'critical', risk_score: 91, mfa: false },
+  { username: 'svc-data-pipeline',   type: 'Service Account', account: '123456789012', policies: 22, severity: 'critical', risk_score: 87, mfa: false },
+  { username: 'dev-lead-jsmith',     type: 'User',            account: '234567890123', policies: 9,  severity: 'high',     risk_score: 73, mfa: true  },
+  { username: 'ci-cd-automation',    type: 'Service Account', account: '123456789012', policies: 18, severity: 'high',     risk_score: 68, mfa: false },
+  { username: 'analytics-reader',    type: 'User',            account: '345678901234', policies: 4,  severity: 'medium',   risk_score: 44, mfa: true  },
+  { username: 'ops-oncall-role',     type: 'Role',            account: '123456789012', policies: 7,  severity: 'medium',   risk_score: 39, mfa: true  },
+  { username: 'backup-restore-svc',  type: 'Service Account', account: '234567890123', policies: 11, severity: 'low',      risk_score: 22, mfa: true  },
+  { username: 'readonly-auditor',    type: 'User',            account: '345678901234', policies: 2,  severity: 'low',      risk_score: 11, mfa: true  },
+];
+
+const DEMO_IAM_ROLES = [
+  { name: 'AdminFullAccess',       type: 'Role', rule_id: 'IAM-R-001', severity: 'critical', status: 'FAIL', account_id: '123456789012', region: 'us-east-1' },
+  { name: 'CrossAccountDeploy',    type: 'Role', rule_id: 'IAM-R-002', severity: 'critical', status: 'FAIL', account_id: '123456789012', region: 'us-east-1' },
+  { name: 'EC2InstanceProfileProd',type: 'Role', rule_id: 'IAM-R-003', severity: 'high',     status: 'FAIL', account_id: '234567890123', region: 'us-west-2' },
+  { name: 'LambdaExecutionRole',   type: 'Role', rule_id: 'IAM-R-004', severity: 'high',     status: 'FAIL', account_id: '123456789012', region: 'us-east-1' },
+  { name: 'DataScienceNotebook',   type: 'Role', rule_id: 'IAM-R-005', severity: 'medium',   status: 'FAIL', account_id: '345678901234', region: 'eu-west-1' },
+  { name: 'ReadOnlyReporting',     type: 'Role', rule_id: 'IAM-R-006', severity: 'low',      status: 'PASS', account_id: '345678901234', region: 'eu-west-1' },
+];
+
+const DEMO_IAM_ACCESS_KEYS = [
+  { user: 'admin-deploy-user', type: 'Access Key', rule_id: 'IAM-K-001', severity: 'critical', status: 'FAIL', account_id: '123456789012', region: 'global' },
+  { user: 'svc-data-pipeline', type: 'Access Key', rule_id: 'IAM-K-002', severity: 'high',     status: 'FAIL', account_id: '123456789012', region: 'global' },
+  { user: 'ci-cd-automation',  type: 'Access Key', rule_id: 'IAM-K-003', severity: 'high',     status: 'FAIL', account_id: '234567890123', region: 'global' },
+  { user: 'dev-lead-jsmith',   type: 'Access Key', rule_id: 'IAM-K-004', severity: 'medium',   status: 'FAIL', account_id: '234567890123', region: 'global' },
+  { user: 'analytics-reader',  type: 'Access Key', rule_id: 'IAM-K-005', severity: 'low',      status: 'PASS', account_id: '345678901234', region: 'global' },
+];
+
+const DEMO_IAM_PRIVESC = [
+  { name: 'User → AdminRole via iam:PassRole',          type: 'Attack Path', rule_id: 'IAM-P-001', severity: 'critical', status: 'FAIL', account_id: '123456789012', region: 'us-east-1' },
+  { name: 'SvcAccount → S3:* via inline policy attach', type: 'Attack Path', rule_id: 'IAM-P-002', severity: 'critical', status: 'FAIL', account_id: '123456789012', region: 'us-east-1' },
+  { name: 'Lambda → RDS admin via wildcard resource',   type: 'Attack Path', rule_id: 'IAM-P-003', severity: 'high',     status: 'FAIL', account_id: '234567890123', region: 'us-west-2' },
+  { name: 'CI/CD Role → secrets:GetSecretValue *',      type: 'Attack Path', rule_id: 'IAM-P-004', severity: 'high',     status: 'FAIL', account_id: '123456789012', region: 'us-east-1' },
+];
+
 // ── Color palette ──
 const C = {
   critical: '#ef4444',
@@ -131,10 +167,15 @@ export default function IamSecurityPage() {
     fetchData();
   }, [provider, account, region]);
 
-  const identities          = data.identities          || [];
-  const roles               = data.roles               || [];
-  const accessKeys          = data.accessKeys          || [];
-  const privilegeEscalation = data.privilegeEscalation || [];
+  const rawIdentities          = data.identities          || [];
+  const rawRoles               = data.roles               || [];
+  const rawAccessKeys          = data.accessKeys          || [];
+  const rawPrivilegeEscalation = data.privilegeEscalation || [];
+
+  const identities          = rawIdentities.length          ? rawIdentities          : DEMO_IAM_IDENTITIES;
+  const roles               = rawRoles.length               ? rawRoles               : DEMO_IAM_ROLES;
+  const accessKeys          = rawAccessKeys.length          ? rawAccessKeys          : DEMO_IAM_ACCESS_KEYS;
+  const privilegeEscalation = rawPrivilegeEscalation.length ? rawPrivilegeEscalation : DEMO_IAM_PRIVESC;
 
   // ── Derive KPI numbers ──
   const kpiNums = useMemo(() => {

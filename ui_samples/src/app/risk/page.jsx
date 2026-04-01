@@ -27,6 +27,36 @@ const C = {
   teal:     '#14b8a6',
 };
 
+// ── Demo fallback data (shown when backend returns no data) ───────────────────
+const DEMO_RISK_SCENARIOS = [
+  { scenario_name: 'Ransomware via Unpatched EC2 Fleet',           threat_category: 'malware',           probability: 35, expected_loss: 4200000, worst_case_loss: 12000000, risk_rating: 'critical' },
+  { scenario_name: 'Insider Data Exfiltration — PII Records',      threat_category: 'insider_threat',     probability: 22, expected_loss: 2800000, worst_case_loss: 8500000,  risk_rating: 'critical' },
+  { scenario_name: 'Supply Chain Compromise via Third-Party SDK',  threat_category: 'supply_chain',       probability: 18, expected_loss: 1950000, worst_case_loss: 6200000,  risk_rating: 'high'     },
+  { scenario_name: 'Credential Stuffing Attack on Customer Portal',threat_category: 'credential_access',  probability: 42, expected_loss: 870000,  worst_case_loss: 2100000,  risk_rating: 'high'     },
+  { scenario_name: 'Cloud Misconfiguration Leads to Data Breach',  threat_category: 'misconfig',          probability: 29, expected_loss: 1400000, worst_case_loss: 4800000,  risk_rating: 'high'     },
+  { scenario_name: 'DDoS Attack Causing 72-Hour Service Outage',   threat_category: 'availability',       probability: 15, expected_loss: 560000,  worst_case_loss: 1800000,  risk_rating: 'medium'   },
+];
+
+const DEMO_RISK_REGISTER = [
+  { id: 'RSK-001', title: 'Unencrypted PII in S3 Buckets',                    category: 'Data Security',       inherent: 88, residual: 72, owner: 'CISO',          status: 'Open'       },
+  { id: 'RSK-002', title: 'Overpermissive IAM Roles in Production',           category: 'IAM Security',        inherent: 85, residual: 64, owner: 'Cloud Ops',     status: 'Open'       },
+  { id: 'RSK-003', title: 'Missing MFA on Privileged Accounts',               category: 'Identity Security',   inherent: 82, residual: 58, owner: 'IT Security',   status: 'Open'       },
+  { id: 'RSK-004', title: 'Public RDS Snapshots in Non-Prod Accounts',        category: 'Data Security',       inherent: 76, residual: 45, owner: 'DB Admin',      status: 'Mitigated'  },
+  { id: 'RSK-005', title: 'Unrestricted Inbound Security Groups (0.0.0.0/0)', category: 'Network Security',    inherent: 79, residual: 31, owner: 'NetSec',        status: 'Mitigated'  },
+  { id: 'RSK-006', title: 'Stale Access Keys Older Than 180 Days',            category: 'IAM Security',        inherent: 68, residual: 52, owner: 'Cloud Ops',     status: 'Open'       },
+  { id: 'RSK-007', title: 'Missing Encryption at Rest for EBS Volumes',       category: 'Encryption',          inherent: 62, residual: 28, owner: 'Platform Eng',  status: 'Mitigated'  },
+  { id: 'RSK-008', title: 'CloudTrail Not Enabled in All Regions',            category: 'Compliance',          inherent: 74, residual: 40, owner: 'GRC Team',      status: 'In Review'  },
+];
+
+const DEMO_RISK_ROADMAP = [
+  { action: 'Enable MFA enforcement via SCP on all AWS accounts', current_risk: 82, target_risk: 35, cost: '$12,000',  priority: 'Critical', owner: 'IT Security',  due_date: '2026-05-15' },
+  { action: 'Implement automated IAM role right-sizing',          current_risk: 85, target_risk: 40, cost: '$28,000',  priority: 'Critical', owner: 'Cloud Ops',    due_date: '2026-05-31' },
+  { action: 'Deploy S3 bucket policy guardrails via AWS Config',  current_risk: 88, target_risk: 42, cost: '$8,500',   priority: 'Critical', owner: 'CISO',         due_date: '2026-04-30' },
+  { action: 'Rotate all access keys older than 90 days',          current_risk: 68, target_risk: 22, cost: '$5,000',   priority: 'High',     owner: 'Cloud Ops',    due_date: '2026-05-01' },
+  { action: 'Enable EBS default encryption in all regions',       current_risk: 62, target_risk: 15, cost: '$3,200',   priority: 'High',     owner: 'Platform Eng', due_date: '2026-04-20' },
+  { action: 'Remediate public-facing security group rules',       current_risk: 79, target_risk: 28, cost: '$14,000',  priority: 'High',     owner: 'NetSec',       due_date: '2026-06-15' },
+];
+
 // ── Static fallback scan trend ─────────────────────────────────────────────────
 const RISK_SCAN_TREND = [
   { date: 'Jan 13', risk_score: 72 },
@@ -278,8 +308,13 @@ export default function RiskPage() {
   }, [provider, account, region]);
 
   // ── BFF data extraction ─────────────────────────────────────────────────────
-  const riskRegister     = riskData?.riskRegister     ?? riskData?.risk_register     ?? [];
-  const mitigationRoadmap = riskData?.mitigationRoadmap ?? riskData?.mitigation_roadmap ?? [];
+  const rawRiskRegister      = riskData?.riskRegister      ?? riskData?.risk_register      ?? [];
+  const rawMitigationRoadmap = riskData?.mitigationRoadmap ?? riskData?.mitigation_roadmap ?? [];
+  const rawScenariosData     = scenariosData;
+
+  const riskRegister      = rawRiskRegister.length      ? rawRiskRegister      : DEMO_RISK_REGISTER;
+  const mitigationRoadmap = rawMitigationRoadmap.length ? rawMitigationRoadmap : DEMO_RISK_ROADMAP;
+  const scenariosDisplay  = rawScenariosData.length     ? rawScenariosData     : DEMO_RISK_SCENARIOS;
 
   // Risk score — read from BFF kpiGroups (where BFF stores it)
   const riskScore = useMemo(() => {
@@ -813,14 +848,14 @@ export default function RiskPage() {
     brief: 'Financial risk quantification, scenario modeling, and mitigation roadmap using FAIR methodology',
     tabs: [
       { id: 'overview',  label: 'Overview' },
-      { id: 'scenarios', label: 'Risk Scenarios',    count: scenariosData.length     },
+      { id: 'scenarios', label: 'Risk Scenarios',    count: scenariosDisplay.length  },
       { id: 'register',  label: 'Risk Register',     count: riskRegister.length      },
       { id: 'roadmap',   label: 'Mitigation Roadmap', count: mitigationRoadmap.length },
     ],
   };
 
   const tabData = {
-    scenarios: { data: scenariosData,      columns: scenarioColumns },
+    scenarios: { data: scenariosDisplay,    columns: scenarioColumns },
     register:  { data: riskRegister,       columns: registerColumns },
     roadmap:   { data: mitigationRoadmap,  columns: roadmapColumns  },
   };

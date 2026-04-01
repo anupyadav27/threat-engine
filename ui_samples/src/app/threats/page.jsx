@@ -19,6 +19,18 @@ import ThreatsSubNav from '@/components/shared/ThreatsSubNav';
 import PageLayout from '@/components/shared/PageLayout';
 import InsightRow from '@/components/shared/InsightRow';
 
+// ── Demo fallback threats (shown when backend returns no data) ─────────────────
+const DEMO_THREATS = [
+  { id: 'T-001', title: 'Privilege Escalation via IAM Role Assumption', severity: 'critical', status: 'open', mitreTechnique: 'T1548', threat_category: 'privilege_escalation', affected_resource: 'arn:aws:iam::123456789012:role/AdminRole', provider: 'AWS', account: '123456789012', region: 'us-east-1', riskScore: 92, resourceType: 'IAM', lastSeen: '2026-04-01', assignee: null, hasAttackPath: true },
+  { id: 'T-002', title: 'Exposed S3 Bucket with Sensitive Data', severity: 'critical', status: 'investigating', mitreTechnique: 'T1530', threat_category: 'data_exfiltration', affected_resource: 'arn:aws:s3:::prod-customer-pii-bucket', provider: 'AWS', account: '123456789012', region: 'us-east-1', riskScore: 89, resourceType: 'S3', lastSeen: '2026-03-31', assignee: 'alice@corp.com', hasAttackPath: true },
+  { id: 'T-003', title: 'Root Account Login Without MFA', severity: 'critical', status: 'open', mitreTechnique: 'T1078', threat_category: 'initial_access', affected_resource: 'arn:aws:iam::123456789012:root', provider: 'AWS', account: '123456789012', region: 'us-east-1', riskScore: 95, resourceType: 'IAM', lastSeen: '2026-04-01', assignee: null, hasAttackPath: false },
+  { id: 'T-004', title: 'Lateral Movement via EC2 Instance Metadata Service', severity: 'high', status: 'open', mitreTechnique: 'T1552', threat_category: 'credential_access', affected_resource: 'arn:aws:ec2:us-east-1:123456789012:instance/i-0abc123def456', provider: 'AWS', account: '123456789012', region: 'us-east-1', riskScore: 77, resourceType: 'EC2', lastSeen: '2026-03-30', assignee: null, hasAttackPath: true },
+  { id: 'T-005', title: 'Suspicious Lambda Function Invocation Pattern', severity: 'high', status: 'investigating', mitreTechnique: 'T1059', threat_category: 'execution', affected_resource: 'arn:aws:lambda:us-west-2:123456789012:function:DataProcessor', provider: 'AWS', account: '123456789012', region: 'us-west-2', riskScore: 74, resourceType: 'Lambda', lastSeen: '2026-03-29', assignee: 'bob@corp.com', hasAttackPath: false },
+  { id: 'T-006', title: 'RDS Snapshot Shared with Unknown External Account', severity: 'high', status: 'open', mitreTechnique: 'T1537', threat_category: 'exfiltration', affected_resource: 'arn:aws:rds:us-east-1:123456789012:snapshot:prod-db-backup-2026', provider: 'AWS', account: '123456789012', region: 'us-east-1', riskScore: 71, resourceType: 'RDS', lastSeen: '2026-03-28', assignee: null, hasAttackPath: false },
+  { id: 'T-007', title: 'Overpermissive Cross-Account Role Trust Policy', severity: 'medium', status: 'open', mitreTechnique: 'T1098', threat_category: 'persistence', affected_resource: 'arn:aws:iam::123456789012:role/CrossAccountAccess', provider: 'AWS', account: '123456789012', region: 'us-east-1', riskScore: 58, resourceType: 'IAM', lastSeen: '2026-03-27', assignee: null, hasAttackPath: false },
+  { id: 'T-008', title: 'CloudTrail Logging Disabled in Production Region', severity: 'medium', status: 'resolved', mitreTechnique: 'T1562', threat_category: 'defense_evasion', affected_resource: 'arn:aws:cloudtrail:eu-west-1:123456789012:trail/prod-trail', provider: 'AWS', account: '123456789012', region: 'eu-west-1', riskScore: 53, resourceType: 'CloudTrail', lastSeen: '2026-03-25', assignee: 'carol@corp.com', hasAttackPath: false },
+];
+
 const MOCK_THREAT_TREND = [
   { date: 'Jan 6',  critical: 10, high: 32, medium: 18, low: 5 },
   { date: 'Jan 13', critical: 12, high: 34, medium: 21, low: 6 },
@@ -371,7 +383,8 @@ export default function ThreatsPage() {
 
   // ── Base threats (technique-filtered) ─────────────────────────────────
   const baseThreats = useMemo(() => {
-    let result = threats;
+    const rawThreats = threats.length ? threats : DEMO_THREATS;
+    let result = rawThreats;
     if (selectedTechnique) {
       result = result.filter((t) => t.mitreTechnique === selectedTechnique);
     }

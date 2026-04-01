@@ -12,6 +12,44 @@ import PageLayout from '@/components/shared/PageLayout';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import KpiSparkCard from '@/components/shared/KpiSparkCard';
 
+// ── Demo fallback data (shown when backend returns no data) ───────────────────
+const DEMO_CIEM_TOP_CRITICAL = [
+  { severity: 'critical', title: 'Root account login without MFA detected', rule_id: 'CIEM-L1-001', actor_principal: 'arn:aws:iam::123456789012:root', resource_uid: 'arn:aws:iam::123456789012:root', event_time: '2026-04-01T02:14:33Z' },
+  { severity: 'critical', title: 'IAM role privilege escalation via PassRole', rule_id: 'CIEM-L2-007', actor_principal: 'arn:aws:iam::123456789012:user/admin-deploy', resource_uid: 'arn:aws:iam::123456789012:role/AdminRole', event_time: '2026-03-31T18:47:10Z' },
+  { severity: 'critical', title: 'Anomalous mass S3 GetObject from new IP', rule_id: 'CIEM-L3-022', actor_principal: 'arn:aws:iam::123456789012:user/svc-data-pipeline', resource_uid: 'arn:aws:s3:::prod-customer-data', event_time: '2026-03-31T09:22:05Z' },
+  { severity: 'high', title: 'CloudTrail disabled in eu-west-1 production', rule_id: 'CIEM-L1-014', actor_principal: 'arn:aws:iam::234567890123:user/ops-automation', resource_uid: 'arn:aws:cloudtrail:eu-west-1:234567890123:trail/main', event_time: '2026-03-30T14:05:55Z' },
+  { severity: 'high', title: 'Unusual cross-account role assumption chain', rule_id: 'CIEM-L2-031', actor_principal: 'arn:aws:iam::234567890123:role/CrossAccountDeploy', resource_uid: 'arn:aws:iam::123456789012:role/ProdAdminRole', event_time: '2026-03-29T22:11:40Z' },
+  { severity: 'high', title: 'SecretsManager bulk retrieval by CI/CD principal', rule_id: 'CIEM-L1-019', actor_principal: 'arn:aws:iam::123456789012:role/CICDAutomation', resource_uid: 'arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/*', event_time: '2026-03-29T06:33:17Z' },
+];
+
+const DEMO_CIEM_IDENTITIES = [
+  { actor_principal: 'arn:aws:iam::123456789012:user/admin-deploy',      risk_score: 94, total_findings: 18, critical: 3, high: 7, rules_triggered: 12, services_used: 9, resources_touched: 47 },
+  { actor_principal: 'arn:aws:iam::123456789012:user/svc-data-pipeline', risk_score: 87, total_findings: 15, critical: 2, high: 8, rules_triggered: 11, services_used: 6, resources_touched: 38 },
+  { actor_principal: 'arn:aws:iam::234567890123:role/CrossAccountDeploy',risk_score: 79, total_findings: 11, critical: 1, high: 6, rules_triggered: 8,  services_used: 5, resources_touched: 21 },
+  { actor_principal: 'arn:aws:iam::123456789012:role/CICDAutomation',    risk_score: 72, total_findings: 9,  critical: 1, high: 4, rules_triggered: 7,  services_used: 4, resources_touched: 18 },
+  { actor_principal: 'arn:aws:iam::123456789012:user/ops-automation',    risk_score: 65, total_findings: 7,  critical: 0, high: 5, rules_triggered: 5,  services_used: 4, resources_touched: 14 },
+  { actor_principal: 'arn:aws:iam::345678901234:user/dev-lead-jsmith',   risk_score: 48, total_findings: 5,  critical: 0, high: 2, rules_triggered: 4,  services_used: 3, resources_touched: 9  },
+  { actor_principal: 'arn:aws:iam::234567890123:role/DataScienceRole',   risk_score: 37, total_findings: 4,  critical: 0, high: 1, rules_triggered: 3,  services_used: 2, resources_touched: 7  },
+  { actor_principal: 'arn:aws:iam::345678901234:user/readonly-auditor',  risk_score: 12, total_findings: 1,  critical: 0, high: 0, rules_triggered: 1,  services_used: 1, resources_touched: 2  },
+];
+
+const DEMO_CIEM_TOP_RULES = [
+  { rule_id: 'CIEM-L1-001', severity: 'critical', title: 'Root account MFA not enabled',               finding_count: 3,  rule_source: 'baseline',    unique_actors: 1, unique_resources: 1  },
+  { rule_id: 'CIEM-L2-007', severity: 'critical', title: 'IAM privilege escalation via PassRole',      finding_count: 8,  rule_source: 'correlation', unique_actors: 4, unique_resources: 6  },
+  { rule_id: 'CIEM-L3-022', severity: 'high',     title: 'Anomalous bulk S3 data access',              finding_count: 12, rule_source: 'baseline',    unique_actors: 3, unique_resources: 14 },
+  { rule_id: 'CIEM-L1-014', severity: 'high',     title: 'CloudTrail logging disabled in region',      finding_count: 5,  rule_source: 'baseline',    unique_actors: 2, unique_resources: 3  },
+  { rule_id: 'CIEM-L2-031', severity: 'high',     title: 'Cross-account role assumption chain',        finding_count: 7,  rule_source: 'correlation', unique_actors: 3, unique_resources: 5  },
+  { rule_id: 'CIEM-L1-019', severity: 'medium',   title: 'SecretsManager bulk retrieval detected',     finding_count: 4,  rule_source: 'baseline',    unique_actors: 2, unique_resources: 9  },
+];
+
+const DEMO_CIEM_LOG_SOURCES = [
+  { source_type: 'CloudTrail',   source_bucket: 's3://prod-cloudtrail-logs-123456789012', source_region: 'us-east-1', event_count: 284710, earliest: '2026-03-01T00:00:00Z', latest: '2026-04-01T06:00:00Z' },
+  { source_type: 'VPC Flow Logs',source_bucket: 's3://prod-vpc-flow-logs-123456789012',  source_region: 'us-east-1', event_count: 1823450, earliest: '2026-03-01T00:00:00Z', latest: '2026-04-01T06:00:00Z' },
+  { source_type: 'CloudTrail',   source_bucket: 's3://prod-cloudtrail-logs-234567890123', source_region: 'eu-west-1', event_count: 91340, earliest: '2026-03-10T00:00:00Z', latest: '2026-04-01T05:45:00Z' },
+  { source_type: 'GuardDuty',    source_bucket: 'GuardDuty Findings',                    source_region: 'us-east-1', event_count: 1247,   earliest: '2026-03-01T00:00:00Z', latest: '2026-04-01T06:00:00Z' },
+  { source_type: 'CloudTrail',   source_bucket: 's3://prod-cloudtrail-logs-345678901234', source_region: 'us-west-2', event_count: 47890, earliest: '2026-03-15T00:00:00Z', latest: '2026-04-01T04:30:00Z' },
+];
+
 // ── Colour palette ─────────────────────────────────────────────────────────────
 const C = {
   critical: '#ef4444',
@@ -145,10 +183,16 @@ export default function CiemPage() {
   const l2Findings = data.l2Findings || 0;
   const l3Findings = data.l3Findings || 0;
   const severityBreakdown = data.severityBreakdown || [];
-  const topCritical = data.topCritical || [];
-  const identities = data.identities || [];
-  const topRules = data.topRules || [];
-  const logSources = data.logSources || [];
+
+  const rawTopCritical = data.topCritical || [];
+  const rawIdentities  = data.identities  || [];
+  const rawTopRules    = data.topRules    || [];
+  const rawLogSources  = data.logSources  || [];
+
+  const topCritical = rawTopCritical.length ? rawTopCritical : DEMO_CIEM_TOP_CRITICAL;
+  const identities  = rawIdentities.length  ? rawIdentities  : DEMO_CIEM_IDENTITIES;
+  const topRules    = rawTopRules.length    ? rawTopRules    : DEMO_CIEM_TOP_RULES;
+  const logSources  = rawLogSources.length  ? rawLogSources  : DEMO_CIEM_LOG_SOURCES;
 
   // ── Severity counts ──
   const sevCounts = {};

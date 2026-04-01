@@ -60,6 +60,60 @@ const ENC_DOMAIN_MAP = {
   certificates:     { label: 'Certificates',  color: '#10b981' },
 };
 
+// ── Demo fallback data ────────────────────────────────────────────────────────
+const DEMO_ENC_OVERVIEW = [
+  { id: 1,  resource_name: 'prod-rds-postgres-01',    resource_type: 'RDS Instance',   provider: 'aws', region: 'us-east-1',    encryption_status: 'encrypted',         algorithm: 'AES-256', key_type: 'AWS_MANAGED', rotation_enabled: true,  expiry_date: null,         risk_score: 12 },
+  { id: 2,  resource_name: 'data-lake-s3-raw',        resource_type: 'S3 Bucket',      provider: 'aws', region: 'us-east-1',    encryption_status: 'unencrypted',       algorithm: null,      key_type: null,          rotation_enabled: false, expiry_date: null,         risk_score: 92 },
+  { id: 3,  resource_name: 'analytics-ebs-vol-07f2',  resource_type: 'EBS Volume',     provider: 'aws', region: 'us-west-2',   encryption_status: 'encrypted',         algorithm: 'AES-256', key_type: 'CUSTOMER_MANAGED', rotation_enabled: true, expiry_date: null,    risk_score: 8  },
+  { id: 4,  resource_name: 'legacy-app-ebs-vol-003a', resource_type: 'EBS Volume',     provider: 'aws', region: 'eu-west-1',   encryption_status: 'unencrypted',       algorithm: null,      key_type: null,          rotation_enabled: false, expiry_date: null,         risk_score: 88 },
+  { id: 5,  resource_name: 'ml-sagemaker-notebook',   resource_type: 'SageMaker',      provider: 'aws', region: 'us-east-1',    encryption_status: 'partially',         algorithm: 'AES-128', key_type: 'AWS_MANAGED', rotation_enabled: false, expiry_date: null,         risk_score: 54 },
+  { id: 6,  resource_name: 'dynamodb-sessions-prod',  resource_type: 'DynamoDB Table', provider: 'aws', region: 'ap-southeast-1', encryption_status: 'encrypted',       algorithm: 'AES-256', key_type: 'AWS_OWNED',   rotation_enabled: true,  expiry_date: null,         risk_score: 20 },
+];
+
+const DEMO_ENC_FINDINGS = [
+  { id: 1,  title: 'S3 bucket missing server-side encryption',       severity: 'critical', resource_name: 'data-lake-s3-raw',       resource_type: 'S3 Bucket',      provider: 'aws', region: 'us-east-1',      category: 'missing_encryption', status: 'FAIL', description: 'Bucket stores sensitive data without SSE-S3 or SSE-KMS enabled.' },
+  { id: 2,  title: 'KMS key rotation not enabled',                   severity: 'high',     resource_name: 'prod-cmk-app-data',      resource_type: 'KMS Key',        provider: 'aws', region: 'us-east-1',      category: 'key_rotation',       status: 'FAIL', description: 'Customer-managed CMK has automatic annual rotation disabled.'    },
+  { id: 3,  title: 'EBS volume at rest unencrypted',                 severity: 'high',     resource_name: 'legacy-app-ebs-vol-003a', resource_type: 'EBS Volume',    provider: 'aws', region: 'eu-west-1',      category: 'missing_encryption', status: 'FAIL', description: 'Volume attached to production EC2 instance is not encrypted.'    },
+  { id: 4,  title: 'TLS 1.0 still accepted on load balancer',        severity: 'high',     resource_name: 'prod-alb-public',        resource_type: 'ALB',            provider: 'aws', region: 'us-east-1',      category: 'weak_algorithm',     status: 'FAIL', description: 'Security policy allows deprecated TLS 1.0 connections.'          },
+  { id: 5,  title: 'ACM certificate expiring in 18 days',            severity: 'medium',   resource_name: 'api.prod.example.com',   resource_type: 'ACM Certificate', provider: 'aws', region: 'us-east-1',     category: 'expired_cert',       status: 'FAIL', description: 'Certificate will expire on 2026-04-19; auto-renewal not set.'    },
+  { id: 6,  title: 'Secrets Manager secret rotation overdue',        severity: 'medium',   resource_name: 'prod/db/master-creds',   resource_type: 'SM Secret',      provider: 'aws', region: 'us-east-1',      category: 'key_rotation',       status: 'FAIL', description: 'Last rotation was 127 days ago; policy requires 90-day cycle.'   },
+  { id: 7,  title: 'SageMaker notebook lacks full volume encryption', severity: 'medium',   resource_name: 'ml-sagemaker-notebook',  resource_type: 'SageMaker',      provider: 'aws', region: 'us-east-1',      category: 'missing_encryption', status: 'FAIL', description: 'Only model artefacts are encrypted; scratch volume is plaintext.' },
+  { id: 8,  title: 'RDS snapshot public and unencrypted',            severity: 'critical', resource_name: 'rds-snap-2026-02-14',    resource_type: 'RDS Snapshot',   provider: 'aws', region: 'us-west-2',      category: 'missing_encryption', status: 'FAIL', description: 'Snapshot is publicly accessible and not encrypted at rest.'       },
+];
+
+const DEMO_ENC_KEYS = [
+  { id: 1,  key_id: 'mrk-a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6', alias: 'alias/prod-app-data',      provider: 'aws', region: 'us-east-1',    key_type: 'SYMMETRIC_DEFAULT', rotation_enabled: true,  last_rotated: '2026-01-07', expiry_date: null,         status: 'Enabled', usage_count: 8412 },
+  { id: 2,  key_id: 'mrk-b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7', alias: 'alias/rds-master-key',      provider: 'aws', region: 'us-east-1',    key_type: 'SYMMETRIC_DEFAULT', rotation_enabled: false, last_rotated: '2024-11-03', expiry_date: null,         status: 'Enabled', usage_count: 3201 },
+  { id: 3,  key_id: 'mrk-c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8', alias: 'alias/s3-data-lake',        provider: 'aws', region: 'us-west-2',   key_type: 'SYMMETRIC_DEFAULT', rotation_enabled: true,  last_rotated: '2026-02-14', expiry_date: null,         status: 'Enabled', usage_count: 19874 },
+  { id: 4,  key_id: 'mrk-d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9', alias: 'alias/secrets-manager-key', provider: 'aws', region: 'eu-west-1',   key_type: 'SYMMETRIC_DEFAULT', rotation_enabled: false, last_rotated: '2025-06-20', expiry_date: null,         status: 'Enabled', usage_count: 540  },
+  { id: 5,  key_id: 'mrk-e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0', alias: 'alias/ebs-backup-key',      provider: 'aws', region: 'ap-southeast-1', key_type: 'SYMMETRIC_DEFAULT', rotation_enabled: true, last_rotated: '2026-03-01', expiry_date: null,        status: 'Enabled', usage_count: 2293 },
+  { id: 6,  key_id: 'mrk-f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1', alias: 'alias/deprecated-hmac',     provider: 'aws', region: 'us-east-1',    key_type: 'HMAC_256',          rotation_enabled: false, last_rotated: '2024-08-11', expiry_date: '2026-08-11', status: 'Pending deletion', usage_count: 0 },
+];
+
+const DEMO_ENC_CERTS = [
+  { id: 1, domain: 'api.prod.example.com',      cert_type: 'ACM',         provider: 'aws', region: 'us-east-1',    issuer: 'Amazon',       valid_from: '2025-04-01', valid_to: '2026-04-01', days_until_expiry: 0,   status: 'EXPIRING', auto_renew: false },
+  { id: 2, domain: 'app.prod.example.com',      cert_type: 'ACM',         provider: 'aws', region: 'us-east-1',    issuer: 'Amazon',       valid_from: '2025-07-15', valid_to: '2026-07-15', days_until_expiry: 105, status: 'ISSUED',   auto_renew: true  },
+  { id: 3, domain: 'internal.corp.example.com', cert_type: 'Self-Signed', provider: 'aws', region: 'eu-west-1',    issuer: 'Corp CA',      valid_from: '2024-01-10', valid_to: '2026-04-19', days_until_expiry: 18,  status: 'EXPIRING', auto_renew: false },
+  { id: 4, domain: 'cdn.example.com',           cert_type: 'ACM',         provider: 'aws', region: 'us-east-1',    issuer: 'Amazon',       valid_from: '2025-10-22', valid_to: '2026-10-22', days_until_expiry: 204, status: 'ISSUED',   auto_renew: true  },
+  { id: 5, domain: 'legacy-api.example.com',    cert_type: 'DigiCert',    provider: 'aws', region: 'us-west-2',    issuer: 'DigiCert',     valid_from: '2025-03-01', valid_to: '2026-03-01', days_until_expiry: -31, status: 'EXPIRED',  auto_renew: false },
+];
+
+const DEMO_ENC_SECRETS = [
+  { id: 1, secret_name: 'prod/db/master-creds',        provider: 'aws', region: 'us-east-1',    last_rotated: '2025-11-25', rotation_enabled: false, days_since_rotation: 127, status: 'Rotation overdue', usage_type: 'Database credentials' },
+  { id: 2, secret_name: 'prod/app/api-keys',           provider: 'aws', region: 'us-east-1',    last_rotated: '2026-02-10', rotation_enabled: true,  days_since_rotation: 50,  status: 'Active',           usage_type: 'API keys'             },
+  { id: 3, secret_name: 'prod/integrations/stripe-sk', provider: 'aws', region: 'us-east-1',    last_rotated: '2025-09-01', rotation_enabled: false, days_since_rotation: 212, status: 'Rotation overdue', usage_type: 'Payment integration'  },
+  { id: 4, secret_name: 'staging/db/replica-creds',    provider: 'aws', region: 'eu-west-1',    last_rotated: '2026-03-15', rotation_enabled: true,  days_since_rotation: 17,  status: 'Active',           usage_type: 'Database credentials' },
+  { id: 5, secret_name: 'prod/infra/k8s-service-acct', provider: 'aws', region: 'ap-southeast-1', last_rotated: '2025-12-01', rotation_enabled: false, days_since_rotation: 121, status: 'Rotation overdue', usage_type: 'Service account' },
+];
+
+const DEMO_ENC_REMEDIATIONS = [
+  { id: 1, title: 'Enable SSE-KMS on data-lake-s3-raw bucket',              priority: 'P1-URGENT', affected_resource: 'data-lake-s3-raw',       action: 'Enable bucket encryption with CMK',       effort: 'Low',    owner: 'Platform',  due_date: '2026-04-08', status: 'Open'        },
+  { id: 2, title: 'Enable rotation on prod-cmk-app-data KMS key',           priority: 'P1-URGENT', affected_resource: 'prod-cmk-app-data',      action: 'Enable automatic annual key rotation',    effort: 'Low',    owner: 'SecOps',    due_date: '2026-04-10', status: 'In Progress' },
+  { id: 3, title: 'Encrypt legacy-app-ebs-vol-003a at rest',                priority: 'P2-HIGH',   affected_resource: 'legacy-app-ebs-vol-003a', action: 'Snapshot, copy with encryption, swap',   effort: 'Medium', owner: 'Platform',  due_date: '2026-04-15', status: 'Open'        },
+  { id: 4, title: 'Renew internal.corp.example.com certificate',            priority: 'P2-HIGH',   affected_resource: 'internal.corp.example.com', action: 'Issue new cert via Corp CA pipeline',  effort: 'Low',    owner: 'NetOps',    due_date: '2026-04-12', status: 'In Progress' },
+  { id: 5, title: 'Rotate prod/db/master-creds secret and enable schedule', priority: 'P3-MEDIUM', affected_resource: 'prod/db/master-creds',    action: 'Rotate via Secrets Manager + set Lambda', effort: 'Medium', owner: 'AppTeam',   due_date: '2026-04-22', status: 'Open'        },
+];
+
 // ── KPI fallback ──────────────────────────────────────────────────────────────
 const ENC_KPI_FALLBACK = {
   posture_score: 67, total_findings: 202,
@@ -169,12 +223,19 @@ export default function EncryptionPage() {
     fetchRemediations();
   }, [provider, account, region, remFetched]);
 
-  // ── Extract data arrays ──
-  const overview     = data.overview     || [];
-  const findings     = data.findings     || [];
-  const keys         = data.keys         || [];
-  const certificates = data.certificates || [];
-  const secrets      = data.secrets      || [];
+  // ── Extract data arrays (with DEMO fallback when API returns nothing) ──
+  const rawOverview     = data.overview     || [];
+  const rawFindings     = data.findings     || [];
+  const rawKeys         = data.keys         || [];
+  const rawCertificates = data.certificates || [];
+  const rawSecrets      = data.secrets      || [];
+
+  const overview     = rawOverview.length     ? rawOverview     : DEMO_ENC_OVERVIEW;
+  const findings     = rawFindings.length     ? rawFindings     : DEMO_ENC_FINDINGS;
+  const keys         = rawKeys.length         ? rawKeys         : DEMO_ENC_KEYS;
+  const certificates = rawCertificates.length ? rawCertificates : DEMO_ENC_CERTS;
+  const secrets      = rawSecrets.length      ? rawSecrets      : DEMO_ENC_SECRETS;
+  const remediationsFinal = remediations.length ? remediations : DEMO_ENC_REMEDIATIONS;
 
   // Ensure remediations tab exists in pageContext
   const pageContext = useMemo(() => {
@@ -756,11 +817,11 @@ export default function EncryptionPage() {
         columns: secretsColumns,
       },
       remediations: {
-        data: remediations,
+        data: remediationsFinal,
         columns: remediationsColumns,
       },
     };
-  }, [overview, findings, keys, certificates, secrets, remediations]);
+  }, [overview, findings, keys, certificates, secrets, remediationsFinal]);
 
   return (
     <div className="space-y-5">
@@ -790,7 +851,8 @@ export default function EncryptionPage() {
         icon={Lock}
         pageContext={pageContext}
         kpiGroups={[]}
-        tabData={{ overview: { renderTab: () => insightStrip }, ...tabData }}
+        tabData={tabData}
+        insightRow={insightStrip}
         loading={loading}
         error={error}
         defaultTab="overview"
