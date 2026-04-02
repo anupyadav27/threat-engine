@@ -23,8 +23,10 @@ export default function AppShell({ children }) {
   // Detail pages (/secops/<uuid>, /secops/dast/<id>, /secops/sca/<id>, etc.)
   // have their own in-page filters and the global bar adds no value there.
   const SECOPS_OVERVIEW_PAGES = ['/secops', '/secops/projects', '/secops/reports'];
-  const isSecOpsOverview = SECOPS_OVERVIEW_PAGES.includes(pathname);
-  const isSecOpsRoute    = pathname.startsWith('/secops');
+  const isSecOpsOverview    = SECOPS_OVERVIEW_PAGES.includes(pathname);
+  const isSecOpsRoute       = pathname.startsWith('/secops');
+  // Vulnerability pages have their own agent-scoped filters — skip the global bar
+  const isVulnerabilityRoute = pathname.startsWith('/vulnerability');
 
   // Redirect to login if not authenticated and not on auth route
   useEffect(() => {
@@ -49,18 +51,22 @@ export default function AppShell({ children }) {
     <div className="flex">
       <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(p => !p)} />
       <div
-        className="flex-1 flex flex-col min-h-screen"
-        style={{ marginLeft: 'var(--sidebar-width, 240px)', transition: 'margin-left 200ms ease' }}
+        className="flex flex-col min-h-screen overflow-x-hidden"
+        style={{
+          marginLeft: 'var(--sidebar-width, 240px)',
+          width: 'calc(100vw - var(--sidebar-width, 240px))',
+          transition: 'margin-left 200ms ease, width 200ms ease',
+        }}
       >
         <Header />
         {isSecOpsOverview
           ? <SecOpsFilterBar />
-          : !isSecOpsRoute
+          : (!isSecOpsRoute && !isVulnerabilityRoute)
             ? <GlobalFilterBar />
-            : null   /* detail pages: no global bar, page has its own filters */
+            : null   /* detail/vulnerability pages: no global bar, pages have their own filters */
         }
         <main
-          className="flex-1 px-0 pt-0 pb-6 transition-colors duration-200"
+          className="flex-1 px-0 pt-0 pb-6 transition-colors duration-200 overflow-x-hidden"
           style={{ backgroundColor: 'var(--bg-primary)' }}
         >
           {children}

@@ -53,6 +53,7 @@ export default function DataTable({
   onExportExcel,
   showExport = false,
   renderExpandedRow,
+  defaultDensity = 'comfortable',
 }) {
   const [searchText, setSearchText] = useState('');
   const [columnSearches, setColumnSearches] = useState({});
@@ -62,7 +63,7 @@ export default function DataTable({
   const [exportProgress, setExportProgress] = useState(null);
   // Column visibility & density
   const [columnVisibility, setColumnVisibility] = useState({});
-  const [density, setDensity] = useState('comfortable'); // 'compact' | 'comfortable' | 'spacious'
+  const [density, setDensity] = useState(defaultDensity); // 'compact' | 'comfortable' | 'spacious'
   const [showColPicker, setShowColPicker] = useState(false);
 
   const densityPadding = { compact: 'px-4 py-1.5 text-xs', comfortable: 'px-6 py-4 text-sm', spacious: 'px-6 py-6 text-sm' };
