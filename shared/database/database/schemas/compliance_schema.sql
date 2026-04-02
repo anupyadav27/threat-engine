@@ -272,6 +272,7 @@ CREATE INDEX IF NOT EXISTS idx_remediation_technical_gin ON remediation_tracking
 CREATE INDEX IF NOT EXISTS idx_cf_severity_status ON compliance_findings(severity, status);
 CREATE INDEX IF NOT EXISTS idx_cf_rule_status ON compliance_findings(rule_id, status);
 CREATE INDEX IF NOT EXISTS idx_cf_tenant_severity ON compliance_findings(tenant_id, severity, last_seen_at DESC);
+CREATE INDEX IF NOT EXISTS idx_cf_account_id ON compliance_findings(account_id) WHERE account_id IS NOT NULL;
 
 -- Full-text search indexes
 CREATE INDEX IF NOT EXISTS idx_cf_resource_uid_trgm ON compliance_findings USING gin(resource_uid gin_trgm_ops);

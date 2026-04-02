@@ -32,16 +32,18 @@ def _insert_findings_batch(conn, batch: list):
     with conn.cursor() as cur:
         execute_values(cur, """
             INSERT INTO compliance_findings (
-                finding_id, scan_run_id, tenant_id, scan_run_id,
+                finding_id, scan_run_id, tenant_id,
                 rule_id, rule_version, category,
                 severity, confidence, status,
                 first_seen_at, last_seen_at,
                 resource_type, resource_id, resource_uid, region,
                 finding_data,
-                compliance_framework, control_id, control_name
+                compliance_framework, control_id, control_name,
+                account_id
             )
             VALUES %s
-            ON CONFLICT (finding_id) DO NOTHING
+            ON CONFLICT (finding_id) DO UPDATE SET
+                account_id = COALESCE(EXCLUDED.account_id, compliance_findings.account_id)
         """, batch, page_size=500)
 
 
@@ -68,6 +70,7 @@ def save_compliance_report_to_db(compliance_report: Dict[str, Any]) -> str:
         scan_run_id = compliance_report.get('scan_run_id') or compliance_report.get('report_id') or str(uuid.uuid4())
         scan_id = compliance_report.get('scan_id', '')
         tenant_id = compliance_report.get('tenant_id', '')
+        account_id = compliance_report.get('account_id') or None
         csp = compliance_report.get('csp', 'aws')
         generated_at_str = compliance_report.get('generated_at', '')
 
@@ -109,7 +112,7 @@ def save_compliance_report_to_db(compliance_report: Dict[str, Any]) -> str:
         with conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO compliance_report (
-                    scan_run_id, tenant_id, scan_run_id, cloud,
+                    compliance_scan_id, scan_run_id, tenant_id, cloud,
                     trigger_type, collection_mode,
                     started_at, completed_at,
                     total_controls, controls_passed, controls_failed,
@@ -124,9 +127,9 @@ def save_compliance_report_to_db(compliance_report: Dict[str, Any]) -> str:
                     total_findings = EXCLUDED.total_findings,
                     report_data = EXCLUDED.report_data
             """, (
-                str(scan_run_id),
+                str(scan_run_id),  # compliance_scan_id
+                str(scan_run_id),  # scan_run_id
                 tenant_id or 'default',
-                scan_id,
                 csp,
                 'manual',
                 'full',
@@ -161,7 +164,6 @@ def save_compliance_report_to_db(compliance_report: Dict[str, Any]) -> str:
                             finding_id,
                             str(scan_run_id),
                             tenant_id or 'default',
-                            scan_id,
                             check.get('rule_id'),
                             None,  # rule_version
                             check.get('service'),
@@ -183,6 +185,7 @@ def save_compliance_report_to_db(compliance_report: Dict[str, Any]) -> str:
                             fw_name,
                             ctrl_id,
                             ctrl_title,
+                            account_id,
                         ))
 
                         if len(batch) >= BATCH_SIZE:

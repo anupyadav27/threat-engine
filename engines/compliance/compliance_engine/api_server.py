@@ -100,16 +100,9 @@ trend_tracker = TrendTracker()
 report_storage = ReportStorage()
 
 
-# DEPRECATED: All engines now use the same scan_run_id. No per-engine scan ID
-# columns exist in scan_orchestration. This function simply returns scan_run_id.
-def get_check_scan_id_from_orchestration(scan_run_id: str) -> Optional[str]:
-    """Return scan_run_id directly — all engines share the same ID."""
-    return scan_run_id
-
-
 class GenerateReportRequest(BaseModel):
     """Request to generate compliance report."""
-    scan_id: Optional[str] = None  # Direct check_scan_id (ad-hoc mode)
+    scan_id: Optional[str] = None  # Direct scan_run_id (ad-hoc mode)
     scan_run_id: Optional[str] = None  # Pipeline scan_run_id (pipeline mode)
     csp: str  # aws, azure, gcp, alicloud, oci, ibm
     frameworks: Optional[List[str]] = None  # Optional: filter specific frameworks
@@ -438,24 +431,24 @@ async def generate_compliance_report(
     start_time = time.time()
     report_id = str(uuid.uuid4())
 
-    # Determine which check_scan_id to use
-    # Priority: direct scan_id > scan_run_id (all engines share the same ID)
-    check_query_scan_id = None
+    # Determine which scan_run_id to use
+    # Priority: direct scan_id (ad-hoc) > scan_run_id (pipeline)
+    resolved_scan_run_id = None
 
     if request.scan_id:
         # MODE 1: Direct scan_id provided (ad-hoc testing)
-        check_query_scan_id = request.scan_id
-        logger.info(f"Using direct check_scan_id: {check_query_scan_id}")
+        resolved_scan_run_id = request.scan_id
+        logger.info(f"Using direct scan_run_id: {resolved_scan_run_id}")
     elif request.scan_run_id:
         # MODE 2: Pipeline mode - scan_run_id is the same across all engines
-        check_query_scan_id = request.scan_run_id
+        resolved_scan_run_id = request.scan_run_id
     else:
         raise HTTPException(status_code=400, detail="Either scan_id or scan_run_id must be provided")
 
-    with LogContext(scan_run_id=check_query_scan_id):
+    with LogContext(scan_run_id=resolved_scan_run_id):
         logger.info("Generating compliance report", extra={
             "extra_fields": {
-                "check_scan_id": check_query_scan_id,
+                "scan_run_id": resolved_scan_run_id,
                 "csp": request.csp,
                 "frameworks": request.frameworks,
                 "report_id": report_id
@@ -465,7 +458,7 @@ async def generate_compliance_report(
         try:
             # Load scan results
             logger.info("Loading scan results")
-            scan_results = load_scan_results_from_s3(check_query_scan_id, request.csp)
+            scan_results = load_scan_results_from_s3(resolved_scan_run_id, request.csp)
 
             # Generate executive dashboard
             dashboard = executive_dashboard.generate(
@@ -491,7 +484,7 @@ async def generate_compliance_report(
             # Store report
             report = {
                 'report_id': report_id,
-                'scan_id': check_query_scan_id,  # Use resolved check_scan_id
+                'scan_id': resolved_scan_run_id,  # Use resolved check_scan_id
                 'csp': request.csp,
                 'generated_at': datetime.now(timezone.utc).isoformat() + 'Z',
                 'executive_dashboard': dashboard,
@@ -1119,12 +1112,10 @@ async def generate_enterprise_report(request: GenerateEnterpriseReportRequest):
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e))
 
-        # All engines use the same scan_run_id — no per-engine column lookup needed
-        check_scan_id = scan_run_id
-
+        # All engines use the same scan_run_id — no per-engine IDs needed
         csp = (metadata.get("provider_type") or metadata.get("provider", "aws")).lower()
         tenant_id = metadata.get("tenant_id", "default-tenant")
-        logger.info(f"Pipeline mode: scan_run_id={scan_run_id} check={check_scan_id} csp={csp}")
+        logger.info(f"Pipeline mode: scan_run_id={scan_run_id} csp={csp}")
     else:
         # Ad-hoc: scan_run_id is required for Job-based execution
         raise HTTPException(status_code=400, detail="scan_run_id is required for Job-based execution")
@@ -1138,7 +1129,7 @@ async def generate_enterprise_report(request: GenerateEnterpriseReportRequest):
                    (scan_run_id, tenant_id, provider, check_scan_id, status, completed_at, metadata)
                    VALUES (%s, %s, %s, %s, 'running', NOW(), %s)
                    ON CONFLICT (scan_run_id) DO UPDATE SET status = 'running'""",
-                (compliance_scan_id, tenant_id, csp, check_scan_id,
+                (compliance_scan_id, tenant_id, csp, scan_run_id,
                  json.dumps({"scan_run_id": scan_run_id, "mode": "job"})),
             )
         conn.commit()
@@ -2438,45 +2429,84 @@ except ImportError as e:
 async def get_compliance_findings_for_resource(
     resource_uid: str,
     tenant_id: str = Query(...),
+    scan_run_id: Optional[str] = Query(None),
     limit: int = Query(200, ge=1, le=1000),
 ):
     """
     Return compliance findings for a specific resource.
 
-    Used by the BFF layer to enrich asset detail views with
-    per-resource framework compliance status.
-    Matches on both resource_uid and resource_arn to handle format differences.
+    Used by the BFF layer to enrich asset detail views with per-resource
+    framework compliance status.
+
+    Resolution order for account_id (needed to find findings across tenant variants):
+    1. Parse ARN using shared/common/arn.py — works for regional resources (EC2, RDS, etc.)
+    2. If ARN has no account_id (S3, IAM, CloudFront — global services), look it up
+       from scan_orchestration via scan_run_id when provided.
+    3. Query: resource_uid = %s AND (tenant_id = %s OR account_id = %s)
+       where account_id is stored on compliance_findings from the write path.
     """
     try:
-        conn = _get_compliance_db_connection()
+        conn = _get_compliance_conn()
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Database unavailable: {e}")
 
     try:
         from psycopg2.extras import RealDictCursor
+        import sys, os as _os
+        # Use the shared ARN parser — handles global services (S3, IAM, CloudFront, etc.)
+        # that have no account_id embedded in the ARN.
+        try:
+            _shared = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "..", "..", "..", "..", "shared")
+            if _shared not in sys.path:
+                sys.path.insert(0, _shared)
+            from common.arn import parse_arn
+            parsed = parse_arn(resource_uid)
+            arn_account_id = parsed.account_id if (parsed and parsed.account_id) else None
+        except Exception:
+            # Fallback to naive split if shared module unavailable
+            _parts = resource_uid.split(":")
+            arn_account_id = _parts[4] if len(_parts) > 4 and _parts[4] else None
+
+        # For global-service ARNs (S3, IAM, etc.) where account_id is empty in the ARN,
+        # look it up from scan_orchestration using the provided scan_run_id.
+        if not arn_account_id and scan_run_id:
+            try:
+                meta = get_orchestration_metadata(scan_run_id)
+                arn_account_id = meta.get("account_id") or None
+            except Exception:
+                pass
+
+        # Build the WHERE clause: match by tenant_id OR account_id column.
+        # account_id column is populated from scan metadata since the write-path fix.
+        # Older findings with account_id as tenant_id are also caught by tenant_id = arn_account_id.
+        _ORDER = """
+            ORDER BY
+                CASE LOWER(COALESCE(severity, 'medium'))
+                    WHEN 'critical' THEN 1 WHEN 'high' THEN 2
+                    WHEN 'medium' THEN 3 WHEN 'low' THEN 4 ELSE 5
+                END,
+                compliance_framework, control_id
+            LIMIT %s
+        """
+        _COLS = """
+            SELECT compliance_framework, control_id, control_name,
+                   severity, status, rule_id, category, last_seen_at
+            FROM compliance_findings
+            WHERE resource_uid = %s
+        """
 
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("""
-                SELECT
-                    compliance_framework,
-                    control_id,
-                    control_name,
-                    severity,
-                    status,
-                    rule_id,
-                    category,
-                    last_seen_at
-                FROM compliance_findings
-                WHERE (resource_uid = %s OR resource_arn = %s)
-                  AND tenant_id = %s
-                ORDER BY
-                    CASE LOWER(COALESCE(severity, 'medium'))
-                        WHEN 'critical' THEN 1 WHEN 'high' THEN 2
-                        WHEN 'medium' THEN 3 WHEN 'low' THEN 4 ELSE 5
-                    END,
-                    compliance_framework, control_id
-                LIMIT %s
-            """, (resource_uid, resource_uid, tenant_id, limit))
+            if arn_account_id and arn_account_id != tenant_id:
+                # Match tenant_id OR account_id column OR legacy (account stored as tenant_id)
+                cur.execute(
+                    _COLS + "  AND (tenant_id = %s OR account_id = %s OR tenant_id = %s)" + _ORDER,
+                    (resource_uid, tenant_id, arn_account_id, arn_account_id, limit),
+                )
+            else:
+                cur.execute(
+                    _COLS + "  AND tenant_id = %s" + _ORDER,
+                    (resource_uid, tenant_id, limit),
+                )
             rows = cur.fetchall()
 
         findings = []

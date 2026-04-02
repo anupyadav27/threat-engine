@@ -24,6 +24,28 @@ logger = logging.getLogger("api-gateway.bff")
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
 
+def _type_from_arn(arn: str) -> str:
+    """Derive a human-readable resource type from an AWS ARN.
+
+    e.g. arn:aws:ec2:...:security-group/sg-xxx  → 'ec2.security-group'
+         arn:aws:s3:::bucket-name               → 's3.bucket'
+         arn:aws:iam::123:role/MyRole           → 'iam.role'
+    """
+    if not arn or not arn.startswith("arn:"):
+        return "Resource"
+    parts = arn.split(":")
+    if len(parts) < 6:
+        return "Resource"
+    service = parts[2]          # ec2, s3, iam, rds, …
+    resource_part = parts[-1]   # e.g. security-group/sg-xxx or bucket-name
+    if "/" in resource_part:
+        rtype = resource_part.split("/")[0]   # security-group, role, subnet, …
+        return f"{service}.{rtype}"
+    if resource_part:
+        return f"{service}.{resource_part}"
+    return service or "Resource"
+
+
 @router.get("/inventory")
 async def view_inventory(
     tenant_id: str = Query(...),
@@ -520,7 +542,7 @@ async def view_asset_detail(
             scan_run_id=scan_run_id,
         )
 
-    # ── 4 parallel calls ──────────────────────────────────────────────
+    # ── 5 parallel calls (asset + relationships fetched separately) ────
     results = await fetch_many([
         ("inventory",  f"/api/v1/inventory/assets/{resource_uid}",
          {"tenant_id": tenant_id, "scan_run_id": scan_run_id}),
@@ -529,16 +551,43 @@ async def view_asset_detail(
         ("threat",     f"/api/v1/threat/findings/resource/{resource_uid}",
          {"tenant_id": tenant_id}),
         ("compliance", f"/api/v1/compliance/findings/resource/{resource_uid}",
-         {"tenant_id": tenant_id}),
+         {"tenant_id": tenant_id, "scan_run_id": scan_run_id}),
+        ("inventory",  f"/api/v1/inventory/assets/{resource_uid}/relationships",
+         {"tenant_id": tenant_id, "scan_run_id": scan_run_id, "depth": "2"}),
     ])
 
-    inventory_data, check_data, threat_data, compliance_data = results
+    inventory_data, check_data, threat_data, compliance_data, rels_data = results
 
     # Safely unwrap — failed calls return None
     inventory_data = inventory_data if isinstance(inventory_data, dict) else {}
     check_data = check_data if isinstance(check_data, dict) else {}
     threat_data = threat_data if isinstance(threat_data, dict) else {}
     compliance_data = compliance_data if isinstance(compliance_data, dict) else {}
+    rels_data = rels_data if isinstance(rels_data, dict) else {}
+
+    # ── Normalize relationships for the frontend table ─────────────
+    raw_rels = rels_data.get("relationships", [])
+    relationships = []
+    for r in raw_rels:
+        # Support both from_uid/to_uid and source/target field names
+        from_uid = r.get("from_uid") or r.get("source") or ""
+        to_uid = r.get("to_uid") or r.get("target") or ""
+        rel_type = r.get("relation_type") or r.get("relationship_type") or "related_to"
+        if from_uid == resource_uid:
+            related = to_uid
+            rtype = r.get("to_resource_type") or _type_from_arn(to_uid)
+            direction = "outbound"
+        else:
+            related = from_uid
+            rtype = r.get("from_resource_type") or _type_from_arn(from_uid)
+            direction = "inbound"
+        if related:
+            relationships.append({
+                "relationship_type": rel_type,
+                "related_resource": related,
+                "related_type": rtype,
+                "direction": direction,
+            })
 
     # ── Transform drift into timeline view ───────────────────────────
     raw_drift = inventory_data.get("drift_info", {})
@@ -555,7 +604,7 @@ async def view_asset_detail(
         "threat_severity": threat_data.get("severity_counts", {}),
         "compliance_findings": compliance_data.get("findings", []),
         "drift": drift_timeline,
-        "relationships": inventory_data.get("relationships", []),
+        "relationships": relationships,
     }
 
 

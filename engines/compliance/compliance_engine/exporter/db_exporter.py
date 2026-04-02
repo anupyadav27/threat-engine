@@ -180,12 +180,14 @@ class DatabaseExporter:
         except Exception:
             return datetime.now()
 
-    def export_report(self, report: EnterpriseComplianceReport) -> str:
+    def export_report(self, report: EnterpriseComplianceReport, account_id: str = "") -> str:
         """
         Export enterprise compliance report to PostgreSQL.
 
         Args:
             report: EnterpriseComplianceReport to export
+            account_id: Cloud account ID (e.g. AWS account number). Stored alongside
+                        tenant_id so findings can be located when queried by account.
 
         Returns:
             scan_run_id string
@@ -204,7 +206,7 @@ class DatabaseExporter:
                 SET tenant_name = EXCLUDED.tenant_name
             """, (report.tenant.tenant_id, report.tenant.tenant_name))
 
-            # Insert report
+            # Insert report (upsert — pre-created row with status='running' exists)
             cursor.execute("""
                 INSERT INTO compliance_report (
                     scan_run_id, tenant_id, cloud, trigger_type,
@@ -212,6 +214,14 @@ class DatabaseExporter:
                     total_controls, controls_passed, controls_failed,
                     total_findings, report_data
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (scan_run_id) DO UPDATE SET
+                    cloud = EXCLUDED.cloud,
+                    completed_at = EXCLUDED.completed_at,
+                    total_controls = EXCLUDED.total_controls,
+                    controls_passed = EXCLUDED.controls_passed,
+                    controls_failed = EXCLUDED.controls_failed,
+                    total_findings = EXCLUDED.total_findings,
+                    report_data = EXCLUDED.report_data
             """, (
                 scan_run_id,
                 report.tenant.tenant_id,
@@ -280,7 +290,8 @@ class DatabaseExporter:
                                 for m in (finding.compliance_mappings or [])
                             ],
                             'remediation': finding.remediation.description if finding.remediation else None,
-                        }, default=str)
+                        }, default=str),
+                        account_id or None,
                     ))
 
                 execute_values(
@@ -291,12 +302,15 @@ class DatabaseExporter:
                         rule_id, rule_version, category, severity, confidence,
                         status, first_seen_at, last_seen_at,
                         resource_type, resource_id, resource_uid, region,
-                        finding_data
+                        finding_data, account_id
                     ) VALUES %s
                     ON CONFLICT (finding_id) DO UPDATE
-                    SET last_seen_at = EXCLUDED.last_seen_at,
+                    SET scan_run_id = EXCLUDED.scan_run_id,
+                        last_seen_at = EXCLUDED.last_seen_at,
                         status = EXCLUDED.status,
-                        finding_data = EXCLUDED.finding_data
+                        severity = EXCLUDED.severity,
+                        finding_data = EXCLUDED.finding_data,
+                        account_id = COALESCE(EXCLUDED.account_id, compliance_findings.account_id)
                     """,
                     finding_rows
                 )

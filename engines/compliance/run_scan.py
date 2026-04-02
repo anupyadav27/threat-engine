@@ -69,6 +69,11 @@ def _create_report_row(scan_run_id: str, tenant_id: str, provider: str,
         conn = _get_compliance_conn()
         with conn.cursor() as cur:
             cur.execute(
+                """INSERT INTO tenants (tenant_id, tenant_name)
+                   VALUES (%s, %s) ON CONFLICT (tenant_id) DO NOTHING""",
+                (tenant_id, tenant_id),
+            )
+            cur.execute(
                 """INSERT INTO compliance_report
                    (scan_run_id, tenant_id, provider, check_scan_id,
                     trigger_type, collection_mode, cloud,
@@ -115,9 +120,10 @@ def main():
         check_scan_id = scan_run_id
 
         tenant_id = metadata.get("tenant_id", "default-tenant")
+        account_id = metadata.get("account_id", "")
         provider = (metadata.get("provider") or metadata.get("provider_type", "aws")).lower()
 
-        logger.info(f"Resolved: tenant={tenant_id} provider={provider} check_scan_id={check_scan_id}")
+        logger.info(f"Resolved: tenant={tenant_id} account={account_id} provider={provider} check_scan_id={check_scan_id}")
 
         # 2. Pre-create report row
         _create_report_row(scan_run_id, tenant_id, provider, check_scan_id, {
@@ -178,38 +184,20 @@ def main():
             from compliance_engine.exporter.db_exporter import DatabaseExporter
             db_exporter = DatabaseExporter()
             db_exporter.create_schema()
-            db_report_id = db_exporter.export_report(enterprise_report)
+            db_report_id = db_exporter.export_report(enterprise_report, account_id=account_id)
             logger.info(f"Compliance report exported to database: {db_report_id}")
         except Exception as e:
             logger.warning(f"Database export failed (non-fatal): {e}")
 
-        # Save to compliance_report / compliance_findings via the writer
+        # 4c. CIEM audit evidence (logging completeness from log_events)
         try:
-            from compliance_engine.storage.compliance_db_writer import save_compliance_report_to_db
-            # Build a dict that save_compliance_report_to_db expects
-            report_dict = {
-                "report_id": scan_run_id,
-                "scan_id": check_scan_id,
-                "csp": provider,
-                "tenant_id": tenant_id,
-                "generated_at": datetime.now(timezone.utc).isoformat() + "Z",
-                "source": "check_db",
-            }
-            if hasattr(enterprise_report, "posture_summary"):
-                ps = enterprise_report.posture_summary
-                report_dict["posture_summary"] = {
-                    "total_controls": ps.total_controls,
-                    "controls_passed": ps.controls_passed,
-                    "controls_failed": ps.controls_failed,
-                    "total_findings": ps.total_findings,
-                    "findings_by_severity": ps.findings_by_severity,
-                }
-            if hasattr(enterprise_report, "frameworks"):
-                report_dict["framework_ids"] = [f.framework_id for f in enterprise_report.frameworks]
-            save_compliance_report_to_db(report_dict)
-            logger.info("Compliance report saved to compliance DB tables")
-        except Exception as e:
-            logger.warning(f"Compliance DB writer failed (non-fatal): {e}")
+            from engine_common.ciem_reader import CIEMReader
+            ciem = CIEMReader(tenant_id=tenant_id, account_id=account_id or "", days=30)
+            audit_completeness = ciem.get_audit_completeness()
+            if audit_completeness:
+                logger.info(f"CIEM: audit logging evidence for {list(audit_completeness.keys())}")
+        except Exception as ciem_exc:
+            logger.warning(f"CIEM audit evidence failed (non-fatal): {ciem_exc}")
 
         duration = (datetime.now(timezone.utc) - start).total_seconds()
 
