@@ -61,46 +61,46 @@ def init_remediation_rows(
 def write_fix_result(fix: FixResult, fix_branch: str, repo_url: str) -> str:
     """
     Upsert a FixResult into secops_remediation.
+    Uses INSERT ... ON CONFLICT so it works with or without pre-created rows.
     Returns the remediation_id.
     """
+    status = "fix_generated" if fix.suggested_fix else "matched" if fix.matched_rule_id else "skipped"
     conn = get_connection()
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                UPDATE secops_remediation SET
-                    rule_id            = %s,
-                    file_path          = %s,
-                    line_number        = %s,
-                    language           = %s,
-                    severity           = %s,
-                    match_layer        = %s,
-                    matched_rule_id    = %s,
-                    original_code      = %s,
-                    suggested_fix      = %s,
-                    fix_explanation    = %s,
-                    compliant_example  = %s,
-                    repo_url           = %s,
-                    fix_branch         = %s,
-                    status             = %s,
-                    error_message      = NULL
-                WHERE finding_id = %s
+                INSERT INTO secops_remediation
+                    (secops_scan_id, finding_id, tenant_id, customer_id,
+                     rule_id, file_path, line_number, language, severity,
+                     match_layer, matched_rule_id, original_code,
+                     suggested_fix, fix_explanation, compliant_example,
+                     repo_url, fix_branch, status, error_message)
+                VALUES (%s,%s,%s,%s, %s,%s,%s,%s,%s, %s,%s,%s, %s,%s,%s, %s,%s,%s,NULL)
+                ON CONFLICT (finding_id) DO UPDATE SET
+                    rule_id           = EXCLUDED.rule_id,
+                    file_path         = EXCLUDED.file_path,
+                    line_number       = EXCLUDED.line_number,
+                    language          = EXCLUDED.language,
+                    severity          = EXCLUDED.severity,
+                    match_layer       = EXCLUDED.match_layer,
+                    matched_rule_id   = EXCLUDED.matched_rule_id,
+                    original_code     = EXCLUDED.original_code,
+                    suggested_fix     = EXCLUDED.suggested_fix,
+                    fix_explanation   = EXCLUDED.fix_explanation,
+                    compliant_example = EXCLUDED.compliant_example,
+                    repo_url          = EXCLUDED.repo_url,
+                    fix_branch        = EXCLUDED.fix_branch,
+                    status            = EXCLUDED.status,
+                    error_message     = NULL
                 RETURNING remediation_id
             """, (
-                fix.rule_id,
-                fix.file_path,
-                fix.line_number,
-                fix.language,
-                fix.severity,
-                fix.match_layer,
-                fix.matched_rule_id,
-                fix.original_code,
-                fix.suggested_fix,
-                fix.fix_explanation,
-                fix.compliant_example,
-                repo_url,
-                fix_branch,
-                "fix_generated" if fix.suggested_fix else "matched" if fix.matched_rule_id else "skipped",
-                fix.finding_id,
+                fix.secops_scan_id, fix.finding_id,
+                "system", None,
+                fix.rule_id, fix.file_path, fix.line_number,
+                fix.language, fix.severity,
+                fix.match_layer, fix.matched_rule_id, fix.original_code,
+                fix.suggested_fix, fix.fix_explanation, fix.compliant_example,
+                repo_url, fix_branch, status,
             ))
             row = cur.fetchone()
             remediation_id = str(row[0]) if row else str(uuid.uuid4())
