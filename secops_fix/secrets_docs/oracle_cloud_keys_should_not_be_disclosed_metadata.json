@@ -1,0 +1,88 @@
+{
+  "filename": "oracle_cloud_keys_should_not_be_disclosed_metadata.json",
+  "rule_id": "oracle_cloud_keys_disclosed",
+  "title": "Oracle Cloud Infrastructure (OCI) credentials should not be disclosed",
+  "description": "Oracle Cloud Infrastructure (OCI) API signing keys and auth tokens provide programmatic access to Oracle Cloud services including compute, storage, database, and networking. Exposing these credentials enables unauthorized management of your entire OCI infrastructure.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Security",
+  "recommendation": "Remove OCI credentials from source code. Use OCI Instance Principal authentication for workloads running on OCI, or store credentials in environment variables or OCI Vault. Never hardcode OCI API signing keys or auth tokens.",
+  "impact": "Unauthorized access to Oracle Cloud infrastructure including compute instances, databases, object storage, and network configuration.",
+  "tags": [
+    "security",
+    "cwe",
+    "cloud",
+    "oracle"
+  ],
+  "examples": {
+    "noncompliant": [],
+    "compliant": [
+      "oci_config = oci.config.from_file()",
+      "auth_token = os.getenv('OCI_AUTH_TOKEN')"
+    ]
+  },
+  "references": [
+    "https://docs.oracle.com/en-us/iaas/Content/API/Concepts/apisigningkey.htm",
+    "https://cwe.mitre.org/data/definitions/798.html"
+  ],
+  "logic": {
+    "node_types": [],
+    "checks": [
+      {
+        "type": "regex",
+        "pattern": "(?:ocid1\\.[a-z]+\\.[a-z]{2,3}\\.[a-z0-9-]*\\.[a-z0-9]{60})",
+        "message": "Oracle Cloud Infrastructure (OCI) resource OCID detected. OCIDs (Oracle Cloud Identifiers) uniquely identify OCI resources and are used in API calls. While OCIDs are not secrets themselves, their presence in code often accompanies hardcoded API credentials. This finding should trigger a review of surrounding code for exposed OCI API signing keys, auth tokens, or private keys.",
+        "context_keywords": [
+          "oci",
+          "OCI",
+          "oracle",
+          "Oracle",
+          "ORACLE",
+          "ocid",
+          "OCID",
+          "cloud",
+          "tenancy",
+          "compartment",
+          "region"
+        ]
+      },
+      {
+        "type": "regex",
+        "pattern": "(?:oci_auth_token|OCI_AUTH_TOKEN|ociAuthToken|oci_token|OCI_TOKEN|oracle_auth_token|ORACLE_AUTH_TOKEN)[\"'\\s]*[:=][\"'\\s]*[A-Za-z0-9+/]{20,}",
+        "message": "Oracle Cloud Infrastructure (OCI) auth token detected. OCI auth tokens are alternative authentication credentials for OCI services. Exposing an auth token allows unauthorized access to OCI resources including object storage, registry services, and other APIs that accept token-based authentication. Revoke immediately in the OCI Console under User Settings > Auth Tokens.",
+        "context_keywords": [
+          "oci",
+          "OCI",
+          "oracle",
+          "Oracle",
+          "auth_token",
+          "authToken",
+          "AUTH_TOKEN",
+          "oracle_cloud",
+          "cloud",
+          "object_storage",
+          "registry"
+        ]
+      },
+      {
+        "type": "regex",
+        "pattern": "(?:oci_api_key_fingerprint|OCI_API_KEY_FINGERPRINT|key_fingerprint|KEY_FINGERPRINT)[\"'\\s]*[:=][\"'\\s]*[0-9a-f]{2}(?::[0-9a-f]{2}){15}",
+        "message": "OCI API Key fingerprint detected. API key fingerprints identify the RSA signing key used with OCI API authentication. Exposing a fingerprint combined with the private key found nearby constitutes complete OCI API credentials. Review surrounding code for the associated RSA private key and revoke both from OCI Console > User Settings > API Keys.",
+        "context_keywords": [
+          "oci",
+          "OCI",
+          "oracle",
+          "Oracle",
+          "fingerprint",
+          "api_key",
+          "apiKey",
+          "API_KEY",
+          "signing_key",
+          "signingKey",
+          "tenancy",
+          "user_ocid"
+        ]
+      }
+    ]
+  }
+}

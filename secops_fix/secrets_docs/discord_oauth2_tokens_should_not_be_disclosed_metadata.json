@@ -1,0 +1,102 @@
+{
+  "filename": "discord_oauth2_tokens_should_not_be_disclosed_metadata.json",
+  "rule_id": "discord_oauth2_tokens_disclosed",
+  "title": "Discord OAuth2 tokens should not be disclosed",
+  "description": "Discord OAuth2 tokens are authentication credentials used in OAuth2 flows to authorize applications and access user data through Discord's API. These include access tokens (used to make API requests on behalf of users), refresh tokens (used to obtain new access tokens), client secrets (used by applications to authenticate with Discord's OAuth2 service), and authorization codes (temporary codes in the OAuth2 flow). When these credentials are hardcoded in source code, configuration files, or version control systems, they create severe security vulnerabilities. Exposed OAuth2 tokens can allow unauthorized access to user accounts, personal information, and Discord servers, potentially leading to identity theft, privacy violations, and service abuse.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Security",
+  "recommendation": "Remove hardcoded Discord OAuth2 credentials from source code immediately. Store tokens securely using environment variables, encrypted configuration files, or dedicated secret management services. Regenerate any exposed client secrets through the Discord Developer Portal. Implement proper token refresh mechanisms and use short-lived access tokens. Never commit OAuth2 credentials to version control and ensure proper token rotation policies.",
+  "impact": "Critical security risk - unauthorized user account access, privacy violations, identity theft, service abuse, and potential Discord Terms of Service violations",
+  "tags": [
+    "security",
+    "cwe",
+    "cwe-798",
+    "discord",
+    "oauth2",
+    "authentication",
+    "authorization",
+    "api-tokens",
+    "secrets",
+    "privacy",
+    "user-data"
+  ],
+  "examples": {
+    "noncompliant": [],
+    "compliant": [
+      {
+        "code": "ACCESS_TOKEN = os.environ.get('DISCORD_ACCESS_TOKEN')",
+        "description": "Reading access token from environment variable"
+      },
+      {
+        "code": "# TODO: Configure your Discord OAuth2 credentials\nclient_secret = \"your-client-secret-here\"",
+        "description": "Placeholder text, not a real secret"
+      },
+      {
+        "code": "headers = {'Authorization': f'Bearer {os.getenv(\"DISCORD_TOKEN\")}'}",
+        "description": "Using environment variable for authorization header"
+      },
+      {
+        "code": "def refresh_discord_token():\n    # Implement token refresh logic\n    return requests.post(DISCORD_TOKEN_URL, data=refresh_data)",
+        "description": "Proper token refresh implementation without hardcoded credentials"
+      }
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/secrets/RSPEC-7603"
+  ],
+  "logic": {
+    "node_types": [],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "detect_discord_oauth2_tokens",
+        "message": "Discord OAuth2 token detected in source code. This exposes authentication credentials that could allow unauthorized access to user accounts and Discord services."
+      },
+      {
+        "type": "pattern",
+        "pattern": "Bearer\\s+([A-Za-z0-9_-]{30,})",
+        "context_keywords": [
+          "discord",
+          "oauth",
+          "authorization",
+          "bearer"
+        ],
+        "message": "Discord OAuth2 bearer token detected in Authorization header"
+      },
+      {
+        "type": "pattern",
+        "pattern": "\\b[A-Za-z0-9_-]{32,64}\\b",
+        "context_keywords": [
+          "discord",
+          "client_secret",
+          "oauth_secret",
+          "oauth2"
+        ],
+        "message": "Discord OAuth2 client secret detected"
+      },
+      {
+        "type": "pattern",
+        "pattern": "\\b[A-Za-z0-9_-]{30,}\\b",
+        "context_keywords": [
+          "discord",
+          "access_token",
+          "refresh_token",
+          "oauth"
+        ],
+        "message": "Discord OAuth2 access/refresh token detected"
+      },
+      {
+        "type": "pattern",
+        "pattern": "\\b[A-Za-z0-9]{16,32}\\b",
+        "context_keywords": [
+          "discord",
+          "authorization_code",
+          "auth_code",
+          "oauth"
+        ],
+        "message": "Discord OAuth2 authorization code detected"
+      }
+    ]
+  }
+}

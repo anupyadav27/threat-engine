@@ -1,0 +1,73 @@
+{
+  "filename": "workos_api_keys_should_not_be_disclosed_metadata.json",
+  "rule_id": "workos_api_keys_disclosed",
+  "title": "WorkOS API keys should not be disclosed",
+  "description": "WorkOS provides enterprise authentication features including SSO, Directory Sync (SCIM), and Admin Portal. API keys authenticate all WorkOS API calls for managing enterprise connections and user directories. Exposing keys grants full access to enterprise authentication infrastructure.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Security",
+  "recommendation": "Remove WorkOS API keys from source code. Store in environment variables. Rotate at dashboard.workos.com.",
+  "impact": "Full access to enterprise SSO configurations, user directories, and authentication connections for all enterprise customers.",
+  "tags": [
+    "security",
+    "cwe",
+    "authentication",
+    "enterprise",
+    "sso"
+  ],
+  "examples": {
+    "noncompliant": [],
+    "compliant": [
+      "workos_api_key = os.getenv('WORKOS_API_KEY')"
+    ]
+  },
+  "references": [
+    "https://workos.com/docs/reference/api-keys",
+    "https://cwe.mitre.org/data/definitions/798.html"
+  ],
+  "logic": {
+    "node_types": [],
+    "checks": [
+      {
+        "type": "regex",
+        "pattern": "\\bsk_(?:live|test)_[A-Za-z0-9]{40,}",
+        "message": "WorkOS API key detected (sk_live_ or sk_test_ prefix). WorkOS API keys manage enterprise authentication infrastructure including SSO connections for all enterprise customers, Directory Sync (SCIM) integrations and user/group data, Admin Portal sessions, and authentication audit logs. Exposing this key allows reading all enterprise user directories, manipulating SSO configurations, and potentially accessing enterprise customer identity data. Rotate immediately at dashboard.workos.com.",
+        "context_keywords": [
+          "workos",
+          "WorkOS",
+          "WORKOS",
+          "api_key",
+          "apiKey",
+          "API_KEY",
+          "sso",
+          "SSO",
+          "saml",
+          "SAML",
+          "directory_sync",
+          "directorysync",
+          "scim",
+          "SCIM",
+          "enterprise",
+          "authentication"
+        ]
+      },
+      {
+        "type": "regex",
+        "pattern": "(?:workos_api_key|WORKOS_API_KEY|workosApiKey|workos_key|WORKOS_KEY)[\"'\\s]*[:=][\"'\\s]*[A-Za-z0-9_-]{32,}",
+        "message": "WorkOS API key detected in variable assignment. WorkOS manages enterprise authentication and SSO. Rotate immediately at dashboard.workos.com.",
+        "context_keywords": [
+          "workos",
+          "WorkOS",
+          "WORKOS",
+          "api_key",
+          "sso",
+          "saml",
+          "scim",
+          "enterprise",
+          "authentication",
+          "directory"
+        ]
+      }
+    ]
+  }
+}

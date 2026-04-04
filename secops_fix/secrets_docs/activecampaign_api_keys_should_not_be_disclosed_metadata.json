@@ -1,0 +1,70 @@
+{
+  "filename": "activecampaign_api_keys_should_not_be_disclosed_metadata.json",
+  "rule_id": "activecampaign_api_keys_disclosed",
+  "title": "ActiveCampaign API keys should not be disclosed",
+  "description": "ActiveCampaign is a marketing automation and CRM platform used for email marketing, automation workflows, and customer relationship management. API keys provide access to contact data, email campaigns, automation workflows, and CRM records. Exposing these keys allows unauthorized access to customer data and marketing operations.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Security",
+  "recommendation": "Remove ActiveCampaign API keys from source code. Store in environment variables. Rotate immediately in ActiveCampaign Settings > Developer > API Access.",
+  "impact": "Unauthorized access to customer contact data, email campaign management, automation workflow manipulation, and CRM records.",
+  "tags": [
+    "security",
+    "cwe",
+    "marketing",
+    "crm"
+  ],
+  "examples": {
+    "noncompliant": [],
+    "compliant": [
+      "ac_api_key = os.getenv('ACTIVECAMPAIGN_API_KEY')",
+      "api_key = config.get('activecampaign.api_key')"
+    ]
+  },
+  "references": [
+    "https://developers.activecampaign.com/reference/authentication",
+    "https://cwe.mitre.org/data/definitions/798.html"
+  ],
+  "logic": {
+    "node_types": [],
+    "checks": [
+      {
+        "type": "regex",
+        "pattern": "(?:activecampaign_api_key|ACTIVECAMPAIGN_API_KEY|activecampaignApiKey|ac_api_key|AC_API_KEY|active_campaign_key|ACTIVE_CAMPAIGN_KEY)[\"'\\s]*[:=][\"'\\s]*[A-Za-z0-9]{64}",
+        "message": "ActiveCampaign API key detected in variable assignment. ActiveCampaign API keys provide full access to marketing automation including all contact and customer records, email campaign creation and sending, automation workflow management, CRM deals and pipelines, and account configuration. Exposing this key allows exfiltration of all customer contact data, unauthorized email campaigns, and manipulation of marketing workflows. Rotate immediately in ActiveCampaign Settings > Developer.",
+        "context_keywords": [
+          "activecampaign",
+          "ActiveCampaign",
+          "ACTIVECAMPAIGN",
+          "active_campaign",
+          "api_key",
+          "apiKey",
+          "API_KEY",
+          "marketing",
+          "automation",
+          "crm",
+          "contacts",
+          "email_campaign",
+          "workflows"
+        ]
+      },
+      {
+        "type": "regex",
+        "pattern": "(?:activecampaign|active_campaign|ACTIVECAMPAIGN)[\"'\\s,]*[A-Za-z0-9]{60,}",
+        "message": "ActiveCampaign API key detected near ActiveCampaign context. A long alphanumeric string near ActiveCampaign references likely represents an API key for marketing automation access. Verify and rotate if confirmed.",
+        "context_keywords": [
+          "activecampaign",
+          "ActiveCampaign",
+          "ACTIVECAMPAIGN",
+          "api_key",
+          "marketing",
+          "automation",
+          "crm",
+          "contacts",
+          "campaigns",
+          "workflows"
+        ]
+      }
+    ]
+  }
+}

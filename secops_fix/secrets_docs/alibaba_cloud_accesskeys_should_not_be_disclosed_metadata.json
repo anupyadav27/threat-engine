@@ -1,0 +1,78 @@
+{
+  "filename": "alibaba_cloud_accesskeys_should_not_be_disclosed_metadata.json",
+  "rule_id": "alibaba_cloud_accesskeys_disclosed",
+  "title": "Alibaba Cloud AccessKeys should not be disclosed",
+  "description": "In most cases, trust boundaries are violated when a secret is exposed in a source code repository or an uncontrolled deployment environment. Unintended people who don\u2019t need to know the secret might get access to it. They might then be able to use it to gain unwanted access to associated services or resources.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "cwe",
+    "design"
+  ],
+  "examples": {
+    "noncompliant": [],
+    "compliant": [
+      {
+        "code": "ALIBABA_ACCESS_KEY_ID = os.environ.get('ALIBABA_CLOUD_ACCESS_KEY_ID')",
+        "description": "Alibaba Cloud Access Key ID retrieved from environment variable"
+      },
+      {
+        "code": "const accessKeySecret = process.env.ALIBABA_CLOUD_ACCESS_KEY_SECRET",
+        "description": "Alibaba Cloud Access Key Secret retrieved from environment"
+      }
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/secrets/RSPEC-6336"
+  ],
+  "logic": {
+    "node_types": [],
+    "checks": [
+      {
+        "type": "regex",
+        "pattern": "\\bLTAI[A-Za-z0-9]{12,28}\\b",
+        "message": "Alibaba Cloud Access Key ID (LTAI prefix) detected in source code",
+        "context_keywords": [
+          "alibaba",
+          "aliyun",
+          "ALIBABA_CLOUD",
+          "ALIBABA_ACCESS_KEY",
+          "AccessKeyId",
+          "access_key_id",
+          "ALIYUN",
+          "AcsClient"
+        ]
+      },
+      {
+        "type": "regex",
+        "pattern": "\\b[A-Za-z0-9]{30}\\b",
+        "message": "Potential Alibaba Cloud Access Key Secret (30-char) detected in source code",
+        "context_keywords": [
+          "alibaba",
+          "aliyun",
+          "AccessKeySecret",
+          "access_key_secret",
+          "ALIBABA_CLOUD_ACCESS_KEY_SECRET",
+          "ALIYUN_ACCESS_KEY_SECRET",
+          "secret",
+          "AcsClient"
+        ]
+      },
+      {
+        "type": "regex",
+        "pattern": "AcsClient\\(['\"]\\s*LTAI[A-Za-z0-9]{12,28}\\s*['\"]\\s*,\\s*['\"]\\s*[A-Za-z0-9]{28,32}",
+        "message": "Alibaba Cloud credentials in AcsClient initialization detected in source code",
+        "context_keywords": [
+          "alibaba",
+          "aliyun",
+          "AcsClient",
+          "aliyunsdkcore"
+        ]
+      }
+    ]
+  }
+}

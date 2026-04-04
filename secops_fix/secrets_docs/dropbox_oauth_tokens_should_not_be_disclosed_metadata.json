@@ -1,0 +1,68 @@
+{
+  "filename": "dropbox_oauth_tokens_should_not_be_disclosed_metadata.json",
+  "rule_id": "dropbox_oauth_tokens_disclosed",
+  "title": "Dropbox OAuth tokens should not be disclosed",
+  "description": "In most cases, trust boundaries are violated when a secret is exposed in a source code repository or an uncontrolled deployment environment. Unintended people who don't need to know the secret might get access to it. They might then be able to use it to gain unwanted access to associated services or resources.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "cwe"
+  ],
+  "examples": {
+    "noncompliant": [],
+    "compliant": [
+      "oauth_access_token = os.getenv('DROPBOX_OAUTH_ACCESS_TOKEN')",
+      "refresh_token = config.get('dropbox_oauth_refresh_token')"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/secrets/RSPEC-7162"
+  ],
+  "logic": {
+    "node_types": [],
+    "checks": [
+      {
+        "type": "regex",
+        "pattern": "\\bsl\\.[A-Za-z0-9+/_-]{50,200}",
+        "message": "Dropbox OAuth Access Token detected (sl. prefix). Dropbox OAuth access tokens provide authenticated access to a user's Dropbox files and account. Exposing this token enables reading, downloading, uploading, and deleting files in the linked account. Token access persists until explicitly revoked. Revoke immediately at dropbox.com/account/connected_apps and audit file access logs.",
+        "context_keywords": [
+          "dropbox",
+          "Dropbox",
+          "DROPBOX",
+          "dbx",
+          "oauth",
+          "OAuth",
+          "access_token",
+          "accessToken",
+          "bearer",
+          "authorization",
+          "dropbox_oauth",
+          "dbx_oauth"
+        ]
+      },
+      {
+        "type": "regex",
+        "pattern": "(?:dropbox_oauth|DROPBOX_OAUTH|dropbox_refresh_token|DROPBOX_REFRESH_TOKEN|dropbox_access_token|DROPBOX_ACCESS_TOKEN)[\"'\\s]*[:=][\"'\\s]*[A-Za-z0-9+/_-]{40,}",
+        "message": "Dropbox OAuth token detected in variable assignment. Dropbox OAuth tokens (access and refresh) enable continuous authenticated access to user files and account data. Refresh tokens are particularly dangerous as they can generate new access tokens indefinitely. Revoke immediately from Dropbox account settings.",
+        "context_keywords": [
+          "dropbox",
+          "Dropbox",
+          "DROPBOX",
+          "dbx",
+          "oauth",
+          "OAuth",
+          "refresh_token",
+          "refreshToken",
+          "access_token",
+          "accessToken",
+          "authorization",
+          "dropbox_auth"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "filename": "digitalocean_tokens_should_not_be_disclosed_metadata.json",
+  "rule_id": "digitalocean_tokens_disclosed",
+  "title": "DigitalOcean tokens should not be disclosed",
+  "description": "DigitalOcean API tokens (Personal Access Tokens) provide programmatic access to the DigitalOcean API, allowing management of droplets, load balancers, databases, and other cloud resources. When these tokens are hardcoded in source code, configuration files, or version control systems, they create critical security vulnerabilities. Exposed tokens can allow unauthorized users to create, modify, or delete cloud infrastructure, access sensitive data, and incur unexpected charges. Modern DigitalOcean tokens typically start with 'dop_v1_' followed by 64 hexadecimal characters, though legacy formats may also exist. Trust boundaries are violated when these secrets are exposed in uncontrolled environments.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Security",
+  "recommendation": "Remove hardcoded DigitalOcean API tokens from source code immediately. Use environment variables, secure secret management services, or DigitalOcean's App Platform environment secrets. Rotate any exposed tokens through the DigitalOcean control panel. Consider using scoped tokens with minimal required permissions and implement proper secret rotation policies.",
+  "impact": "Critical security risk - unauthorized access to DigitalOcean infrastructure, potential resource manipulation, data breaches, and unexpected billing charges",
+  "tags": [
+    "security",
+    "cwe",
+    "cwe-798",
+    "cloud",
+    "credentials",
+    "digitalocean",
+    "api-tokens",
+    "infrastructure",
+    "secrets"
+  ],
+  "examples": {
+    "noncompliant": [],
+    "compliant": [
+      {
+        "code": "DO_TOKEN = os.environ.get('DIGITALOCEAN_TOKEN')",
+        "description": "Reading token from environment variable"
+      },
+      {
+        "code": "# TODO: Add your DigitalOcean token here\ndo_token = \"your-digitalocean-token-here\"",
+        "description": "Placeholder text, not a real token"
+      },
+      {
+        "code": "const client = digitalocean({\n  token: process.env.DIGITALOCEAN_TOKEN\n})",
+        "description": "Using environment variable instead of hardcoded value"
+      }
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/secrets/RSPEC-6755"
+  ],
+  "logic": {
+    "node_types": [],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "detect_digitalocean_api_tokens",
+        "message": "DigitalOcean API token detected in source code. This exposes authentication credentials that could allow unauthorized access to your DigitalOcean infrastructure."
+      },
+      {
+        "type": "pattern",
+        "pattern": "\\bdop_v1_[a-f0-9]{64}\\b",
+        "context_keywords": [
+          "digitalocean",
+          "digital-ocean",
+          "do_token",
+          "api_token"
+        ],
+        "message": "DigitalOcean v1 API token detected"
+      },
+      {
+        "type": "pattern",
+        "pattern": "\\bdop_(?!v1_)[A-Za-z0-9_-]{40,80}\\b",
+        "context_keywords": [
+          "digitalocean",
+          "digital-ocean",
+          "do_token",
+          "droplet"
+        ],
+        "message": "DigitalOcean API token (alternative format) detected"
+      },
+      {
+        "type": "pattern",
+        "pattern": "\\b[a-f0-9]{64}\\b",
+        "context_keywords": [
+          "digitalocean",
+          "digital-ocean",
+          "do_token",
+          "droplet",
+          "doctl"
+        ],
+        "message": "Potential DigitalOcean legacy API token detected"
+      }
+    ]
+  }
+}

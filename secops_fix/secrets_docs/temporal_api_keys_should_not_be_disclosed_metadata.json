@@ -1,0 +1,67 @@
+{
+  "filename": "temporal_api_keys_should_not_be_disclosed_metadata.json",
+  "rule_id": "temporal_api_keys_disclosed",
+  "title": "Temporal Cloud API keys should not be disclosed",
+  "description": "Temporal is a workflow orchestration platform. Temporal Cloud API keys authenticate management operations and namespace access. Exposing keys allows unauthorized access to workflow definitions, executions, and namespace configuration.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Security",
+  "recommendation": "Remove Temporal API keys from source code. Store in environment variables. Rotate at cloud.temporal.io/settings/api-keys.",
+  "impact": "Unauthorized access to workflow execution data, namespace management, worker configuration, and workflow history containing sensitive business data.",
+  "tags": [
+    "security",
+    "cwe",
+    "workflow",
+    "orchestration"
+  ],
+  "examples": {
+    "noncompliant": [],
+    "compliant": [
+      "temporal_api_key = os.getenv('TEMPORAL_API_KEY')"
+    ]
+  },
+  "references": [
+    "https://docs.temporal.io/cloud/api-keys",
+    "https://cwe.mitre.org/data/definitions/798.html"
+  ],
+  "logic": {
+    "node_types": [],
+    "checks": [
+      {
+        "type": "regex",
+        "pattern": "(?:temporal_api_key|TEMPORAL_API_KEY|temporalApiKey|temporal_cloud_api_key|TEMPORAL_CLOUD_API_KEY|temporal_key|TEMPORAL_KEY)[\"'\\s]*[:=][\"'\\s]*[A-Za-z0-9_/+=-]{20,}",
+        "message": "Temporal Cloud API key detected. Temporal API keys authenticate cloud management requests including namespace creation and configuration, accessing workflow execution history and data, managing worker authentication certificates, viewing and terminating workflow executions, and exporting workflow data. Workflow histories may contain sensitive business data passed as workflow inputs and outputs. Rotate immediately at cloud.temporal.io/settings/api-keys.",
+        "context_keywords": [
+          "temporal",
+          "Temporal",
+          "TEMPORAL",
+          "api_key",
+          "apiKey",
+          "API_KEY",
+          "workflow",
+          "namespace",
+          "worker",
+          "orchestration",
+          "activity",
+          "task_queue"
+        ]
+      },
+      {
+        "type": "regex",
+        "pattern": "(?:temporal_tls_cert|TEMPORAL_TLS_CERT|temporal_tls_key|TEMPORAL_TLS_KEY|temporal_client_cert|TEMPORAL_CLIENT_CERT)[\"'\\s]*[:=][\"'\\s]*[A-Za-z0-9+/=]{40,}",
+        "message": "Temporal TLS certificate credential detected. TLS certificates authenticate Temporal workers and clients to namespaces. Rotate at cloud.temporal.io.",
+        "context_keywords": [
+          "temporal",
+          "Temporal",
+          "TEMPORAL",
+          "tls",
+          "TLS",
+          "cert",
+          "certificate",
+          "namespace",
+          "worker"
+        ]
+      }
+    ]
+  }
+}

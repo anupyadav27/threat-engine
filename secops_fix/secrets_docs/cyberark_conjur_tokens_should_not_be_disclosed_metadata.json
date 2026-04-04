@@ -1,0 +1,70 @@
+{
+  "filename": "cyberark_conjur_tokens_should_not_be_disclosed_metadata.json",
+  "rule_id": "cyberark_conjur_tokens_disclosed",
+  "title": "CyberArk Conjur tokens should not be disclosed",
+  "description": "CyberArk Conjur is an enterprise secrets management platform used by large organizations to secure credentials, certificates, and API keys. Conjur authentication tokens provide access to all secrets the authenticated identity is permitted to read. Exposing tokens grants access to enterprise infrastructure credentials.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Security",
+  "recommendation": "Remove CyberArk Conjur tokens from source code. Tokens should be obtained at runtime using Conjur's authentication API. Revoke exposed tokens via the Conjur API.",
+  "impact": "Unauthorized access to enterprise secrets vault containing infrastructure passwords, database credentials, API keys, and certificates managed by CyberArk.",
+  "tags": [
+    "security",
+    "cwe",
+    "secrets-management",
+    "enterprise"
+  ],
+  "examples": {
+    "noncompliant": [],
+    "compliant": [
+      "token = conjur_client.authenticate()"
+    ]
+  },
+  "references": [
+    "https://docs.conjur.org/Latest/en/Content/Developer/Conjur_API_Authenticate.htm",
+    "https://cwe.mitre.org/data/definitions/798.html"
+  ],
+  "logic": {
+    "node_types": [],
+    "checks": [
+      {
+        "type": "regex",
+        "pattern": "(?:conjur_token|CONJUR_TOKEN|conjurToken|conjur_api_token|CONJUR_API_TOKEN|cyberark_token|CYBERARK_TOKEN)[\"'\\s]*[:=][\"'\\s]*eyJ[A-Za-z0-9+/=]{40,}",
+        "message": "CyberArk Conjur authentication token detected. Conjur tokens grant access to enterprise secrets vaults containing infrastructure passwords, database credentials, API keys, PKI certificates, and other sensitive materials managed by CyberArk. Exposing this token allows retrieving any secret the authenticated identity has permission to access \u2014 potentially compromising entire enterprise infrastructure. Revoke immediately via the Conjur API and audit secret access logs.",
+        "context_keywords": [
+          "conjur",
+          "Conjur",
+          "CONJUR",
+          "cyberark",
+          "CyberArk",
+          "CYBERARK",
+          "token",
+          "vault",
+          "secret",
+          "enterprise",
+          "pam",
+          "PAM",
+          "privileged_access"
+        ]
+      },
+      {
+        "type": "regex",
+        "pattern": "(?:conjur_api_key|CONJUR_API_KEY|conjurApiKey|conjur_authn_token|CONJUR_AUTHN_TOKEN)[\"'\\s]*[:=][\"'\\s]*[A-Za-z0-9+/=_-]{32,}",
+        "message": "CyberArk Conjur API key detected. Conjur API keys are used to authenticate workloads and obtain session tokens for accessing the secrets vault. Rotate immediately and audit vault access logs.",
+        "context_keywords": [
+          "conjur",
+          "Conjur",
+          "CONJUR",
+          "cyberark",
+          "CyberArk",
+          "api_key",
+          "authn",
+          "vault",
+          "secret",
+          "enterprise",
+          "pam"
+        ]
+      }
+    ]
+  }
+}

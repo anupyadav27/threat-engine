@@ -1,0 +1,77 @@
+{
+  "filename": "pgp_private_keys_should_not_be_disclosed_metadata.json",
+  "rule_id": "pgp_private_keys_disclosed",
+  "title": "PGP private keys should not be disclosed",
+  "description": "In most cases, trust boundaries are violated when a secret is exposed in a source code repository or an uncontrolled deployment environment. Unintended people who don't need to know the secret might get access to it. They might then be able to use it to gain unwanted access to associated services or resources.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "cwe"
+  ],
+  "examples": {
+    "noncompliant": [],
+    "compliant": [
+      "pgp_key_path = os.getenv('PGP_PRIVATE_KEY_PATH')",
+      "private_key = load_from_keyring()"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/secrets/RSPEC-7218"
+  ],
+  "logic": {
+    "node_types": [],
+    "checks": [
+      {
+        "type": "regex",
+        "pattern": "-----BEGIN PGP PRIVATE KEY BLOCK-----[\\s\\S]*?-----END PGP PRIVATE KEY BLOCK-----",
+        "message": "PGP Private Key Block detected. PGP (Pretty Good Privacy) private keys are used for email encryption, file encryption, code signing, and authentication. Exposing a PGP private key allows attackers to decrypt all messages encrypted with the corresponding public key (including historical communications), forge digital signatures appearing to come from the key owner, impersonate the key owner in encrypted communications, and decrypt sensitive files or backups protected by this key. Generate a new PGP key pair immediately, revoke the exposed key by publishing a revocation certificate, and re-encrypt all sensitive data.",
+        "context_keywords": [
+          "pgp",
+          "PGP",
+          "gpg",
+          "GPG",
+          "gnupg",
+          "GnuPG",
+          "pgp_key",
+          "pgpKey",
+          "PGP_KEY",
+          "pgp_private_key",
+          "gpg_private_key",
+          "openpgp",
+          "OpenPGP",
+          "private_key",
+          "encryption",
+          "signature",
+          "keyring",
+          "armored"
+        ]
+      },
+      {
+        "type": "regex",
+        "pattern": "-----BEGIN PGP PRIVATE KEY BLOCK-----",
+        "message": "PGP Private Key Block header detected. A PGP private key appears to be present in this file. PGP private keys protect email communications, encrypted files, and digital signatures. Even if the full key block is split across lines or partially redacted, the presence of this header indicates a private key may be stored in source code. Ensure the complete key is not committed to version control and remove it immediately if found.",
+        "context_keywords": [
+          "pgp",
+          "PGP",
+          "gpg",
+          "GPG",
+          "gnupg",
+          "private_key",
+          "privateKey",
+          "secret_key",
+          "secretKey",
+          "encryption",
+          "signature",
+          "armor",
+          "armored",
+          "keyring",
+          "openpgp"
+        ]
+      }
+    ]
+  }
+}

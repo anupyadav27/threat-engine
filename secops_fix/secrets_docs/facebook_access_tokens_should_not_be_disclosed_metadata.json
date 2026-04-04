@@ -1,0 +1,90 @@
+{
+  "filename": "facebook_access_tokens_should_not_be_disclosed_metadata.json",
+  "rule_id": "facebook_access_tokens_disclosed",
+  "title": "Facebook access tokens should not be disclosed",
+  "description": "In most cases, trust boundaries are violated when a secret is exposed in a source code repository or an uncontrolled deployment environment. Unintended people who don't need to know the secret might get access to it. They might then be able to use it to gain unwanted access to associated services or resources.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "cwe"
+  ],
+  "examples": {
+    "noncompliant": [],
+    "compliant": [
+      "facebook_token = os.getenv('FACEBOOK_ACCESS_TOKEN')",
+      "token = config.get('facebook.access_token')"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/secrets/RSPEC-7256",
+    "https://developers.facebook.com/docs/facebook-login/access-tokens"
+  ],
+  "logic": {
+    "node_types": [],
+    "checks": [
+      {
+        "type": "regex",
+        "pattern": "\\bEAA[A-Za-z0-9]{80,}",
+        "message": "Facebook Graph API Access Token detected (EAA prefix). Facebook Graph API tokens grant access to user profiles, posts, pages, groups, ads, and other Facebook data based on requested permissions. Long-lived tokens persist for 60 days and page tokens never expire. Exposing these tokens allows reading private data, posting content, managing ads, and accessing friends' information based on granted permissions. Revoke immediately at facebook.com/settings/applications.",
+        "context_keywords": [
+          "facebook",
+          "Facebook",
+          "FACEBOOK",
+          "fb",
+          "FB",
+          "graph_api",
+          "graphApi",
+          "GRAPH_API",
+          "access_token",
+          "accessToken",
+          "token",
+          "graph.facebook.com",
+          "meta",
+          "Meta",
+          "META"
+        ]
+      },
+      {
+        "type": "regex",
+        "pattern": "\\d{15,17}\\|[A-Za-z0-9_-]{27,40}",
+        "message": "Facebook App Access Token detected (app_id|token format). Facebook app access tokens are used to make requests on behalf of an application rather than a user. They grant access to app-level data, user lists, and management functions. Exposing this token allows unauthorized use of your Facebook app, manipulation of app settings, and access to aggregated user data. Regenerate via Facebook App Dashboard.",
+        "context_keywords": [
+          "facebook",
+          "Facebook",
+          "FACEBOOK",
+          "fb",
+          "FB",
+          "app_token",
+          "appToken",
+          "APP_TOKEN",
+          "app_access_token",
+          "facebook_app",
+          "graph_api",
+          "meta"
+        ]
+      },
+      {
+        "type": "regex",
+        "pattern": "(?:facebook_access_token|FACEBOOK_ACCESS_TOKEN|facebookAccessToken|fb_access_token|FB_ACCESS_TOKEN|facebook_token|FACEBOOK_TOKEN|fb_token|FB_TOKEN|page_access_token|PAGE_ACCESS_TOKEN)[\"'\\s]*[:=][\"'\\s]*[A-Za-z0-9_-]{80,}",
+        "message": "Facebook access token detected in variable assignment. Facebook access tokens provide authenticated API access to user and page data. Exposing these tokens allows unauthorized reading of private information, posting on behalf of users or pages, managing advertising accounts, and accessing connected Instagram data. Revoke immediately via Facebook's token debugger at developers.facebook.com/tools/debug.",
+        "context_keywords": [
+          "facebook",
+          "Facebook",
+          "FACEBOOK",
+          "fb",
+          "FB",
+          "access_token",
+          "page_token",
+          "user_token",
+          "graph_api",
+          "meta",
+          "instagram"
+        ]
+      }
+    ]
+  }
+}

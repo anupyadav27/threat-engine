@@ -1,0 +1,99 @@
+{
+  "filename": "solana_private_keys_should_not_be_disclosed_metadata.json",
+  "rule_id": "solana_private_keys_disclosed",
+  "title": "Solana private keys and keypairs should not be disclosed",
+  "description": "Solana is a high-performance blockchain. Solana private keys control wallet addresses and can be represented as base58-encoded 64-byte arrays (full keypair) or 32-byte private key scalars. Exposing Solana private keys results in permanent, irreversible loss of all SOL tokens, SPL tokens, NFTs, and any other assets in the wallet.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Security",
+  "recommendation": "Remove all Solana private keys and keypair arrays from source code immediately. Use hardware wallets or secure key management systems for production. For development, use dedicated test wallets funded only from devnet. Transfer all assets to a new wallet immediately if a key is exposed.",
+  "impact": "Permanent and irreversible loss of all SOL, SPL tokens, and NFTs in the compromised wallet. Solana private keys cannot be revoked or rotated.",
+  "tags": [
+    "security",
+    "cwe",
+    "cryptocurrency",
+    "blockchain",
+    "solana"
+  ],
+  "examples": {
+    "noncompliant": [],
+    "compliant": [
+      "keypair = Keypair.from_secret_key(bytes(json.loads(os.getenv('SOLANA_PRIVATE_KEY'))))",
+      "wallet = load_keypair_from_file(os.getenv('SOLANA_KEYPAIR_PATH'))"
+    ]
+  },
+  "references": [
+    "https://docs.solana.com/developing/clients/javascript-api",
+    "https://cwe.mitre.org/data/definitions/321.html"
+  ],
+  "logic": {
+    "node_types": [],
+    "checks": [
+      {
+        "type": "regex",
+        "pattern": "\\[(?:\\s*(?:2[0-4]\\d|25[0-5]|1\\d\\d|[1-9]\\d|\\d)\\s*,\\s*){63}(?:2[0-4]\\d|25[0-5]|1\\d\\d|[1-9]\\d|\\d)\\s*\\]",
+        "message": "Solana keypair byte array detected (64-byte JSON array). Solana keypairs are stored as 64-byte arrays where the first 32 bytes are the private key and the last 32 bytes are the public key. Exposing this array gives complete permanent control over the associated Solana wallet and all its assets including SOL, SPL tokens, NFTs, and staking positions. Transfer ALL assets to a new wallet immediately \u2014 this key cannot be revoked.",
+        "context_keywords": [
+          "solana",
+          "Solana",
+          "SOLANA",
+          "keypair",
+          "Keypair",
+          "KEYPAIR",
+          "private_key",
+          "privateKey",
+          "PRIVATE_KEY",
+          "wallet",
+          "sol",
+          "SOL",
+          "spl",
+          "SPL",
+          "anchor",
+          "Anchor",
+          "web3",
+          "phantom",
+          "Phantom",
+          "blockchain"
+        ]
+      },
+      {
+        "type": "regex",
+        "pattern": "(?:solana_private_key|SOLANA_PRIVATE_KEY|solanaPrivateKey|sol_private_key|SOL_PRIVATE_KEY|solana_keypair|SOLANA_KEYPAIR|solana_secret|SOLANA_SECRET)[\"'\\s]*[:=][\"'\\s]*[1-9A-HJ-NP-Za-km-z]{87,88}",
+        "message": "Solana private key in base58 format detected. This base58-encoded string is a Solana wallet private key. Exposing it grants irreversible permanent access to all assets in the associated wallet. Transfer all SOL, SPL tokens, and NFTs to a new wallet immediately and never use this key again.",
+        "context_keywords": [
+          "solana",
+          "Solana",
+          "SOLANA",
+          "private_key",
+          "keypair",
+          "wallet",
+          "sol",
+          "SOL",
+          "anchor",
+          "web3",
+          "phantom",
+          "base58",
+          "blockchain"
+        ]
+      },
+      {
+        "type": "regex",
+        "pattern": "(?:solana_private_key|SOLANA_PRIVATE_KEY|solanaPrivateKey)[\"'\\s]*[:=][\"'\\s]*[0-9a-fA-F]{64}",
+        "message": "Solana private key in hex format detected. A 64-character hex string assigned to a Solana private key variable represents a complete wallet private key. This provides permanent irrevocable access to all assets in the Solana wallet. Transfer all funds to a new wallet immediately.",
+        "context_keywords": [
+          "solana",
+          "Solana",
+          "SOLANA",
+          "private_key",
+          "keypair",
+          "wallet",
+          "sol",
+          "SOL",
+          "anchor",
+          "blockchain",
+          "web3"
+        ]
+      }
+    ]
+  }
+}

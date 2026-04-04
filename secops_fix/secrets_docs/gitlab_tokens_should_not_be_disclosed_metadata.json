@@ -1,0 +1,96 @@
+{
+  "filename": "gitlab_tokens_should_not_be_disclosed_metadata.json",
+  "rule_id": "gitlab_tokens_disclosed",
+  "title": "GitLab tokens should not be disclosed",
+  "description": "In most cases, trust boundaries are violated when a secret is exposed in a source code repository or an uncontrolled deployment environment. Unintended people who don\u2019t need to know the secret might get access to it. They might then be able to use it to gain unwanted access to associated services or resources.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "cwe"
+  ],
+  "examples": {
+    "noncompliant": [],
+    "compliant": [
+      "GITLAB_PAT = os.environ.get('GITLAB_PAT')",
+      "deploy_token = config.get('gitlab_deploy_token')"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/secrets/RSPEC-6690"
+  ],
+  "logic": {
+    "node_types": [],
+    "checks": [
+      {
+        "type": "regex",
+        "pattern": "glpat-[\\w.-]{20,}",
+        "message": "A GitLab Personal Access Token (PAT) is exposed. Tokens prefixed with 'glpat-' grant API and repository access on behalf of a GitLab user. Exposure allows an attacker to read/write code, modify CI/CD pipelines, and access all resources the user can reach. Revoke the token immediately and store it in an environment variable or secrets manager.",
+        "context_keywords": []
+      },
+      {
+        "type": "regex",
+        "pattern": "gldt-[0-9a-zA-Z_-]{20}",
+        "message": "A GitLab Deploy Token is exposed. Tokens prefixed with 'gldt-' provide read access to repositories and container/package registries without user credentials. Exposure allows unauthorized code or package access. Revoke the token and use environment variables or a secrets manager.",
+        "context_keywords": []
+      },
+      {
+        "type": "regex",
+        "pattern": "glrt-[\\w.-]{20,}",
+        "message": "A GitLab Runner Authentication Token is exposed. Tokens prefixed with 'glrt-' allow a runner to poll and execute CI/CD jobs for a project or group. Exposure enables an attacker to intercept CI/CD jobs and exfiltrate secrets injected at runtime. Revoke the token and re-register the runner.",
+        "context_keywords": []
+      },
+      {
+        "type": "regex",
+        "pattern": "glcbt-[0-9a-zA-Z]{1,5}_[0-9a-zA-Z_-]{20}",
+        "message": "A GitLab CI/CD Job Token is exposed. Tokens prefixed with 'glcbt-' are scoped to a running CI job and allow access to GitLab APIs within that job's scope. Hardcoding a job token enables replay attacks against the pipeline. Remove the hardcoded value and use the built-in CI_JOB_TOKEN variable instead.",
+        "context_keywords": []
+      },
+      {
+        "type": "regex",
+        "pattern": "glptt-[0-9a-f]{40}",
+        "message": "A GitLab Pipeline Trigger Token is exposed. Tokens prefixed with 'glptt-' can trigger pipelines on a project. Exposure allows an attacker to launch arbitrary pipelines, potentially executing malicious code in your CI/CD environment. Revoke the token and use environment variables or a secrets manager.",
+        "context_keywords": []
+      },
+      {
+        "type": "regex",
+        "pattern": "GR1348941[\\w-]{20}",
+        "message": "A GitLab Runner Registration Token is exposed. Tokens starting with 'GR1348941' allow registering new runners against a GitLab instance, project, or group. Exposure lets an attacker register a rogue runner to capture CI/CD job secrets and code. Revoke the token immediately from GitLab's runner settings.",
+        "context_keywords": []
+      },
+      {
+        "type": "regex",
+        "pattern": "glsoat-[0-9a-zA-Z_-]{20}",
+        "message": "A GitLab SCIM Token is exposed. Tokens prefixed with 'glsoat-' are used to authenticate SCIM provisioning requests for group membership synchronisation. Exposure allows an attacker to add or remove users from GitLab groups. Revoke and rotate the token in the group's SAML/SCIM settings.",
+        "context_keywords": []
+      },
+      {
+        "type": "regex",
+        "pattern": "glft-[0-9a-zA-Z_-]{20}",
+        "message": "A GitLab Feed Token is exposed. Tokens prefixed with 'glft-' authenticate RSS/Atom feed requests for a user's activity feed. While lower risk than PATs, exposure leaks the user's activity data. Rotate the token in the user profile settings.",
+        "context_keywords": []
+      },
+      {
+        "type": "regex",
+        "pattern": "glffct-[0-9a-zA-Z_-]{20}",
+        "message": "A GitLab Feature Flag Client Token is exposed. Tokens prefixed with 'glffct-' allow an application to poll GitLab's feature flag service. Exposure reveals the feature flag configuration of your application. Rotate the token in the project's feature flag settings.",
+        "context_keywords": []
+      },
+      {
+        "type": "regex",
+        "pattern": "glimt-[0-9a-zA-Z_-]{25}",
+        "message": "A GitLab Incoming Mail Token is exposed. Tokens prefixed with 'glimt-' authenticate email replies routed through GitLab's incoming mail service, allowing creation of issues, comments, and merge request activity via email. Exposure lets an attacker post content on behalf of the user. Rotate the token in the user's notification email settings.",
+        "context_keywords": []
+      },
+      {
+        "type": "regex",
+        "pattern": "glagent-[0-9a-zA-Z_-]{50}",
+        "message": "A GitLab Kubernetes Agent Token is exposed. Tokens prefixed with 'glagent-' authenticate the GitLab Agent for Kubernetes (kas) and provide access to the connected cluster's resources for CI/CD and GitOps workflows. Exposure allows an attacker to enumerate or modify Kubernetes resources. Revoke the token from the project's Infrastructure > Kubernetes clusters settings.",
+        "context_keywords": []
+      }
+    ]
+  }
+}

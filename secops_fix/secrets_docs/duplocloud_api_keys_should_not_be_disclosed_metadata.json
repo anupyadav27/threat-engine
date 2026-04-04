@@ -1,0 +1,78 @@
+{
+  "filename": "duplocloud_api_keys_should_not_be_disclosed_metadata.json",
+  "rule_id": "duplocloud_api_keys_disclosed",
+  "title": "DuploCloud API keys should not be disclosed",
+  "description": "In most cases, trust boundaries are violated when a secret is exposed in a source code repository or an uncontrolled deployment environment. Unintended people who don\u2019t need to know the secret might get access to it. They might then be able to use it to gain unwanted access to associated services or resources.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "cwe"
+  ],
+  "examples": {
+    "noncompliant": [],
+    "compliant": [
+      {
+        "code": "# Retrieve DuploCloud API key from environment\nimport os\nduplocloud_api_key = os.getenv('DUPLOCLOUD_API_KEY')",
+        "description": "Using environment variable for DuploCloud API key"
+      },
+      {
+        "code": "# Load from secure configuration\nduplo_token = config.get('duplo_token')",
+        "description": "Loading DuploCloud token from secure config"
+      },
+      {
+        "code": "# Using secrets manager\nfrom aws_secretsmanager import get_secret\nduplo_api_key = get_secret('duplocloud/api_key')",
+        "description": "Retrieving DuploCloud credentials from secrets manager"
+      },
+      {
+        "code": "# Placeholder documentation\n# Set your DUPLOCLOUD_API_KEY environment variable\n# export DUPLOCLOUD_API_KEY=your_key_here",
+        "description": "Documentation comment with placeholder"
+      }
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/secrets/RSPEC-7250"
+  ],
+  "logic": {
+    "custom_function": "detect_duplocloud_api_keys",
+    "patterns": [
+      {
+        "pattern": "\\b[A-Za-z0-9]{40,64}\\b",
+        "description": "DuploCloud API token (40-64 chars alphanumeric)"
+      },
+      {
+        "pattern": "\\b[A-Za-z0-9_-]{40,64}\\b",
+        "description": "DuploCloud API token with underscores/dashes"
+      },
+      {
+        "pattern": "\\beyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\b",
+        "description": "DuploCloud JWT token"
+      }
+    ],
+    "context_keywords": [
+      "duplocloud",
+      "duplo_cloud",
+      "duplo-cloud",
+      "duplo",
+      "duplo_api",
+      "duplo_token",
+      "duplo_key",
+      "duplo_auth",
+      "duplo_access",
+      "duplo_secret",
+      "duplocloud_api_key",
+      "duplocloud_token",
+      "duplocloud_auth"
+    ],
+    "validation": {
+      "min_length": 40,
+      "max_length": 64,
+      "min_entropy": 4.2,
+      "min_unique_chars": 10,
+      "context_required": true
+    }
+  }
+}

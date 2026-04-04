@@ -1,0 +1,84 @@
+{
+  "filename": "mixpanel_tokens_should_not_be_disclosed_metadata.json",
+  "rule_id": "mixpanel_tokens_disclosed",
+  "title": "Mixpanel API credentials should not be disclosed",
+  "description": "Mixpanel is a product analytics platform used for event tracking, user analytics, and A/B testing. Mixpanel credentials include project tokens (for client-side tracking), API secret (for data export and management), and service accounts. Exposing these credentials allows unauthorized data access and event injection.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Security",
+  "recommendation": "Remove Mixpanel credentials from source code. Store project tokens and API secrets in environment variables. Project tokens intended for client-side use should still be treated carefully. Rotate the API secret immediately if exposed.",
+  "impact": "Unauthorized access to user analytics data, event exports with PII, A/B test results, and ability to inject fraudulent events corrupting analytics.",
+  "tags": [
+    "security",
+    "cwe",
+    "analytics"
+  ],
+  "examples": {
+    "noncompliant": [],
+    "compliant": [
+      "mixpanel_token = os.getenv('MIXPANEL_TOKEN')",
+      "api_secret = config.get('mixpanel.api_secret')"
+    ]
+  },
+  "references": [
+    "https://developer.mixpanel.com/reference/overview",
+    "https://cwe.mitre.org/data/definitions/798.html"
+  ],
+  "logic": {
+    "node_types": [],
+    "checks": [
+      {
+        "type": "regex",
+        "pattern": "(?:mixpanel_token|MIXPANEL_TOKEN|mixpanelToken|mixpanel_project_token|MIXPANEL_PROJECT_TOKEN)[\"'\\s]*[:=][\"'\\s]*[a-f0-9]{32}",
+        "message": "Mixpanel Project Token detected. Mixpanel project tokens identify your project for event tracking. While project tokens are used client-side, exposing them server-side allows attackers to inject fraudulent events, inflate user counts, corrupt funnel analytics, and impersonate any user ID in your system, making your analytics data completely unreliable for business decisions. Rotate in Mixpanel Project Settings.",
+        "context_keywords": [
+          "mixpanel",
+          "Mixpanel",
+          "MIXPANEL",
+          "project_token",
+          "projectToken",
+          "PROJECT_TOKEN",
+          "analytics",
+          "events",
+          "tracking",
+          "funnel",
+          "product_analytics"
+        ]
+      },
+      {
+        "type": "regex",
+        "pattern": "(?:mixpanel_api_secret|MIXPANEL_API_SECRET|mixpanelApiSecret|mixpanel_secret|MIXPANEL_SECRET)[\"'\\s]*[:=][\"'\\s]*[a-f0-9]{32}",
+        "message": "Mixpanel API Secret detected in variable assignment. Mixpanel API secrets authenticate data export API requests and management operations including raw event exports, user profile data downloads, and cohort management. Exposing this secret allows complete export of all user behavioral data and PII tracked in Mixpanel, representing a significant privacy breach. Rotate immediately in Mixpanel Project Settings > Access Security.",
+        "context_keywords": [
+          "mixpanel",
+          "Mixpanel",
+          "MIXPANEL",
+          "api_secret",
+          "apiSecret",
+          "API_SECRET",
+          "export",
+          "management",
+          "analytics",
+          "data_export",
+          "user_profiles"
+        ]
+      },
+      {
+        "type": "regex",
+        "pattern": "(?:mixpanel_service_account|MIXPANEL_SERVICE_ACCOUNT)[\"'\\s]*[:=][\"'\\s]*[A-Za-z0-9.@_-]+",
+        "message": "Mixpanel Service Account credential detected. Mixpanel service accounts provide programmatic access to management APIs for data export and project management. Exposing service account credentials allows unauthorized data access and manipulation of your analytics configuration.",
+        "context_keywords": [
+          "mixpanel",
+          "Mixpanel",
+          "MIXPANEL",
+          "service_account",
+          "serviceAccount",
+          "SERVICE_ACCOUNT",
+          "analytics",
+          "management_api",
+          "export"
+        ]
+      }
+    ]
+  }
+}

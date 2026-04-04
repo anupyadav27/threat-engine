@@ -1,0 +1,86 @@
+{
+  "filename": "posthog_api_keys_should_not_be_disclosed_metadata.json",
+  "rule_id": "posthog_api_keys_disclosed",
+  "title": "PostHog API keys should not be disclosed",
+  "description": "PostHog is an open-source product analytics platform. PostHog credentials include project API keys (for event ingestion), personal API keys (for management API), and private keys for server-side operations. Exposing these credentials allows unauthorized analytics access and event injection.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Security",
+  "recommendation": "Remove PostHog API keys from source code. Store in environment variables. Rotate personal API keys immediately at app.posthog.com/me/settings.",
+  "impact": "Unauthorized access to product analytics data, user session recordings, feature flag configurations, and ability to inject fraudulent events.",
+  "tags": [
+    "security",
+    "cwe",
+    "analytics"
+  ],
+  "examples": {
+    "noncompliant": [],
+    "compliant": [
+      "posthog_api_key = os.getenv('POSTHOG_API_KEY')",
+      "personal_api_key = config.get('posthog.personal_api_key')"
+    ]
+  },
+  "references": [
+    "https://posthog.com/docs/api",
+    "https://cwe.mitre.org/data/definitions/798.html"
+  ],
+  "logic": {
+    "node_types": [],
+    "checks": [
+      {
+        "type": "regex",
+        "pattern": "\\bphc_[A-Za-z0-9]{40,}",
+        "message": "PostHog Project API key detected (phc_ prefix). PostHog project API keys are used for event ingestion and client-side analytics. Exposing this key allows injecting fraudulent events, inflating user metrics, corrupting funnel analytics, and identifying real user IDs tracked in your system. This can completely corrupt your product analytics data and compromise user privacy. Rotate at app.posthog.com/project/settings.",
+        "context_keywords": [
+          "posthog",
+          "PostHog",
+          "POSTHOG",
+          "api_key",
+          "apiKey",
+          "API_KEY",
+          "analytics",
+          "events",
+          "tracking",
+          "feature_flag",
+          "session_recording",
+          "product_analytics"
+        ]
+      },
+      {
+        "type": "regex",
+        "pattern": "\\bphx_[A-Za-z0-9]{40,}",
+        "message": "PostHog Personal API key detected (phx_ prefix). PostHog personal API keys authenticate management API requests including querying analytics data, managing feature flags, accessing session recordings, and exporting user data. Exposing this key allows reading all user behavioral analytics, accessing session recordings that may contain sensitive UI interactions, and managing your PostHog configuration. Rotate at app.posthog.com/me/settings.",
+        "context_keywords": [
+          "posthog",
+          "PostHog",
+          "POSTHOG",
+          "personal_api_key",
+          "personalApiKey",
+          "PERSONAL_API_KEY",
+          "management_api",
+          "analytics",
+          "session_recording",
+          "feature_flag",
+          "export"
+        ]
+      },
+      {
+        "type": "regex",
+        "pattern": "(?:posthog_api_key|POSTHOG_API_KEY|posthogApiKey|posthog_key|POSTHOG_KEY|posthog_personal_api_key|POSTHOG_PERSONAL_API_KEY)[\"'\\s]*[:=][\"'\\s]*[A-Za-z0-9_-]{32,}",
+        "message": "PostHog API key detected in variable assignment. PostHog credentials enable access to product analytics, feature flags, A/B tests, and session recordings. Exposing these keys allows unauthorized analytics data access and event manipulation. Rotate immediately at app.posthog.com.",
+        "context_keywords": [
+          "posthog",
+          "PostHog",
+          "POSTHOG",
+          "api_key",
+          "analytics",
+          "feature_flag",
+          "session_recording",
+          "events",
+          "tracking",
+          "cohort"
+        ]
+      }
+    ]
+  }
+}

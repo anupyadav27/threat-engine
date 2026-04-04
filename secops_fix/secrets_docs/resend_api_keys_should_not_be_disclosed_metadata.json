@@ -1,0 +1,70 @@
+{
+  "filename": "resend_api_keys_should_not_be_disclosed_metadata.json",
+  "rule_id": "resend_api_keys_disclosed",
+  "title": "Resend API keys should not be disclosed",
+  "description": "Resend is a modern email API platform for developers used to send transactional and marketing emails. API keys provide access to send emails from verified domains, manage contacts, and access email analytics. Exposing keys allows spam campaigns from your domain and damage to email deliverability reputation.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Security",
+  "recommendation": "Remove Resend API keys from source code. Store in environment variables. Rotate immediately at resend.com/api-keys.",
+  "impact": "Unauthorized email sending from your verified domain, potential spam/phishing campaigns, deliverability reputation damage, and cost abuse.",
+  "tags": [
+    "security",
+    "cwe",
+    "email"
+  ],
+  "examples": {
+    "noncompliant": [],
+    "compliant": [
+      "resend_api_key = os.getenv('RESEND_API_KEY')",
+      "client = Resend(api_key=os.getenv('RESEND_API_KEY'))"
+    ]
+  },
+  "references": [
+    "https://resend.com/docs/api-reference/introduction",
+    "https://cwe.mitre.org/data/definitions/798.html"
+  ],
+  "logic": {
+    "node_types": [],
+    "checks": [
+      {
+        "type": "regex",
+        "pattern": "\\bre_[A-Za-z0-9]{32,}\\b",
+        "message": "Resend API key detected (re_ prefix). Resend API keys provide access to send emails from your verified domains, manage email contacts, access delivery analytics, and configure webhooks. Exposing this key allows attackers to send phishing emails or spam from your trusted domain (damaging your sender reputation), access email delivery data and analytics, and potentially exfiltrate recipient lists. Revoke immediately at resend.com/api-keys.",
+        "context_keywords": [
+          "resend",
+          "Resend",
+          "RESEND",
+          "api_key",
+          "apiKey",
+          "API_KEY",
+          "email",
+          "send_email",
+          "sendEmail",
+          "transactional_email",
+          "from_email",
+          "domain",
+          "smtp"
+        ]
+      },
+      {
+        "type": "regex",
+        "pattern": "(?:resend_api_key|RESEND_API_KEY|resendApiKey|resend_key|RESEND_KEY)[\"'\\s]*[:=][\"'\\s]*[A-Za-z0-9_-]{24,}",
+        "message": "Resend API key detected in variable assignment. Resend is a developer email API used for transactional emails. Exposing this key enables sending emails from your verified domain, potentially for phishing or spam, and damages your domain's email reputation. Rotate at resend.com/api-keys.",
+        "context_keywords": [
+          "resend",
+          "Resend",
+          "RESEND",
+          "api_key",
+          "email",
+          "send",
+          "domain",
+          "transactional",
+          "from",
+          "to",
+          "subject"
+        ]
+      }
+    ]
+  }
+}

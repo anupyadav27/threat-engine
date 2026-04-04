@@ -1,0 +1,66 @@
+{
+  "filename": "railway_api_tokens_should_not_be_disclosed_metadata.json",
+  "rule_id": "railway_api_tokens_disclosed",
+  "title": "Railway API tokens should not be disclosed",
+  "description": "Railway is a modern cloud deployment platform for containerized applications and databases. API tokens provide full control over projects, deployments, environment variables, and services. Exposing tokens allows complete infrastructure takeover.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Security",
+  "recommendation": "Remove Railway API tokens from source code. Store in environment variables. Rotate immediately at railway.app/account/tokens.",
+  "impact": "Full control over Railway projects, deployments, and stored environment secrets.",
+  "tags": [
+    "security",
+    "cwe",
+    "cloud",
+    "deployment"
+  ],
+  "examples": {
+    "noncompliant": [],
+    "compliant": [
+      "railway_token = os.getenv('RAILWAY_TOKEN')"
+    ]
+  },
+  "references": [
+    "https://docs.railway.app/reference/public-api",
+    "https://cwe.mitre.org/data/definitions/798.html"
+  ],
+  "logic": {
+    "node_types": [],
+    "checks": [
+      {
+        "type": "regex",
+        "pattern": "(?:railway_token|RAILWAY_TOKEN|railwayToken|railway_api_token|RAILWAY_API_TOKEN)[\"'\\s]*[:=][\"'\\s]*[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+        "message": "Railway API token detected in variable assignment. Railway tokens control cloud deployments, environment variables (secrets), database services, and project configuration. Exposing this token allows attackers to access all stored environment secrets (API keys, database URLs, etc.), redeploy or destroy services, and pivot to all connected downstream credentials. Rotate immediately at railway.app/account/tokens.",
+        "context_keywords": [
+          "railway",
+          "Railway",
+          "RAILWAY",
+          "api_token",
+          "apiToken",
+          "deploy",
+          "service",
+          "project",
+          "environment",
+          "deployment",
+          "database"
+        ]
+      },
+      {
+        "type": "regex",
+        "pattern": "(?:railway_token|RAILWAY_TOKEN|railwayToken)[\"'\\s]*[:=][\"'\\s]*[A-Za-z0-9_-]{32,}",
+        "message": "Railway API token detected. Railway deployment tokens provide access to project infrastructure and all stored environment variables. Rotate immediately at railway.app/account/tokens.",
+        "context_keywords": [
+          "railway",
+          "Railway",
+          "RAILWAY",
+          "token",
+          "deploy",
+          "project",
+          "service",
+          "environment",
+          "cloud"
+        ]
+      }
+    ]
+  }
+}

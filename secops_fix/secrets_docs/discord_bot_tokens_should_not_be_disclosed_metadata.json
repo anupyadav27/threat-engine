@@ -1,0 +1,89 @@
+{
+  "filename": "discord_bot_tokens_should_not_be_disclosed_metadata.json",
+  "rule_id": "discord_bot_tokens_disclosed",
+  "title": "Discord bot tokens should not be disclosed",
+  "description": "Discord bot tokens are authentication credentials that allow applications to interact with Discord's API on behalf of a bot user. These tokens follow a specific format with three base64-encoded parts separated by dots: [BOT_ID].[TIMESTAMP].[HMAC]. When bot tokens are hardcoded in source code, configuration files, or version control systems, they create severe security vulnerabilities. Exposed tokens allow unauthorized users to control the bot, access Discord servers, read messages, send spam, and potentially compromise entire Discord communities. Discord bot tokens are sensitive credentials that should be treated with the same security as passwords.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Security",
+  "recommendation": "Remove hardcoded Discord bot tokens from source code immediately. Store tokens in environment variables, secure secret management services, or encrypted configuration files. Regenerate any exposed bot tokens through the Discord Developer Portal. Use Discord's OAuth2 flow for user authentication instead of storing bot tokens when possible. Implement proper token rotation policies and never commit tokens to version control.",
+  "impact": "Critical security risk - unauthorized bot access, message manipulation, server compromise, spam distribution, and potential Discord Terms of Service violations",
+  "tags": [
+    "security",
+    "cwe",
+    "cwe-798",
+    "discord",
+    "bot",
+    "authentication",
+    "api-tokens",
+    "secrets",
+    "gaming",
+    "social"
+  ],
+  "examples": {
+    "noncompliant": [],
+    "compliant": [
+      {
+        "code": "BOT_TOKEN = os.environ.get('DISCORD_BOT_TOKEN')",
+        "description": "Reading bot token from environment variable"
+      },
+      {
+        "code": "# TODO: Add your Discord bot token here\nbot_token = \"your-bot-token-here\"",
+        "description": "Placeholder text, not a real token"
+      },
+      {
+        "code": "client = discord.Client(token=os.getenv('DISCORD_TOKEN'))",
+        "description": "Using environment variable instead of hardcoded token"
+      },
+      {
+        "code": "with open('config.json') as f:\n    config = json.load(f)\n    token = config['discord_token']",
+        "description": "Loading token from external configuration file (should be encrypted)"
+      }
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/secrets/RSPEC-7246"
+  ],
+  "logic": {
+    "node_types": [],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "detect_discord_bot_tokens",
+        "message": "Discord bot token detected in source code. This exposes authentication credentials that could allow unauthorized access to your Discord bot and associated servers."
+      },
+      {
+        "type": "pattern",
+        "pattern": "Bot\\s+([A-Za-z0-9+/]{24,28}\\.[A-Za-z0-9+/=]{6}\\.[A-Za-z0-9+/=_-]{38,})",
+        "context_keywords": [
+          "discord",
+          "bot",
+          "token"
+        ],
+        "message": "Discord bot token with 'Bot' prefix detected"
+      },
+      {
+        "type": "pattern",
+        "pattern": "\\b[A-Za-z0-9+/]{24,28}\\.[A-Za-z0-9+/=]{6}\\.[A-Za-z0-9+/=_-]{38,}\\b",
+        "context_keywords": [
+          "discord",
+          "bot_token",
+          "discord_token",
+          "guild"
+        ],
+        "message": "Discord bot token detected"
+      },
+      {
+        "type": "pattern",
+        "pattern": "\\b[A-Za-z0-9+/=_-]{70,}\\b",
+        "context_keywords": [
+          "discord",
+          "discord_bot",
+          "bot_secret",
+          "discord_client"
+        ],
+        "message": "Potential Discord bot token (alternative format) detected"
+      }
+    ]
+  }
+}

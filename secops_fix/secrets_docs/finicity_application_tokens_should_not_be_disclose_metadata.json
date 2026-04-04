@@ -1,0 +1,86 @@
+{
+  "filename": "finicity_application_tokens_should_not_be_disclose_metadata.json",
+  "rule_id": "finicity_application_tokens_disclosed",
+  "title": "Finicity application tokens should not be disclosed",
+  "description": "Finicity (now owned by Mastercard) is a financial data aggregation platform that provides API access to bank account data, transaction history, income verification, and account verification services. Finicity API credentials include Partner IDs, Partner Secrets, App Keys, and OAuth Access Tokens. When these credentials are hardcoded in source code or configuration files, they create critical security vulnerabilities that could allow unauthorized access to sensitive financial data.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Security",
+  "recommendation": "Remove hardcoded Finicity credentials from source code immediately. Store Partner Secrets, App Keys, and Access Tokens in environment variables or a secrets management service. Never commit Finicity credentials to version control. Rotate any exposed credentials immediately.",
+  "impact": "Exposed Finicity credentials allow unauthorized parties to access sensitive financial data including bank account information, transaction history, balances, and income data, potentially leading to financial fraud and regulatory violations.",
+  "tags": [
+    "security",
+    "cwe",
+    "financial"
+  ],
+  "examples": {
+    "noncompliant": [],
+    "compliant": [
+      "partner_secret = os.getenv('FINICITY_PARTNER_SECRET')",
+      "finicity_creds = secrets_client.get_secret_value(SecretId='prod/finicity/credentials')"
+    ]
+  },
+  "references": [
+    "https://developer.finicity.com/",
+    "https://developer.finicity.com/docs/authentication",
+    "https://cwe.mitre.org/data/definitions/798.html"
+  ],
+  "logic": {
+    "node_types": [],
+    "checks": [
+      {
+        "type": "regex",
+        "pattern": "(?:finicity_partner_secret|FINICITY_PARTNER_SECRET|finicityPartnerSecret|partner_secret|PARTNER_SECRET)[\"'\\s]*[:=][\"'\\s]*[A-Za-z0-9]{32,50}",
+        "message": "Finicity Partner Secret detected in variable assignment. Finicity partner secrets are the master authentication credential for Finicity's financial data API. Combined with a Partner ID, this secret grants access to all consumer financial data across your entire Finicity integration including bank accounts, transaction history, income verification, and account verification data. Exposing this secret is a critical compliance risk under financial regulations. Revoke and rotate immediately.",
+        "context_keywords": [
+          "finicity",
+          "Finicity",
+          "FINICITY",
+          "mastercard",
+          "partner_secret",
+          "partnerSecret",
+          "PARTNER_SECRET",
+          "partner_id",
+          "financial",
+          "banking",
+          "open_banking"
+        ]
+      },
+      {
+        "type": "regex",
+        "pattern": "(?:finicity_access_token|FINICITY_ACCESS_TOKEN|finicityAccessToken)[\"'\\s]*[:=][\"'\\s]*[A-Za-z0-9_-]{50,}",
+        "message": "Finicity OAuth Access Token detected. Finicity access tokens provide time-limited authenticated access to consumer financial data APIs. Exposing these tokens allows unauthorized retrieval of bank account data, transaction history, balances, and income information for enrolled consumers. Revoke and rotate immediately through the Finicity developer portal.",
+        "context_keywords": [
+          "finicity",
+          "Finicity",
+          "FINICITY",
+          "mastercard",
+          "access_token",
+          "accessToken",
+          "oauth",
+          "financial",
+          "banking",
+          "consumer",
+          "bank_account"
+        ]
+      },
+      {
+        "type": "regex",
+        "pattern": "(?:finicity)[\"'\\s,]*eyJ[A-Za-z0-9_-]*\\.[A-Za-z0-9_-]*\\.[A-Za-z0-9_-]*",
+        "message": "Finicity JWT access token detected. JWT tokens used with Finicity APIs carry authentication claims for accessing consumer financial data. Exposing these tokens enables unauthorized access to sensitive banking and financial information during the token's validity period.",
+        "context_keywords": [
+          "finicity",
+          "Finicity",
+          "FINICITY",
+          "jwt",
+          "JWT",
+          "access_token",
+          "bearer",
+          "authorization",
+          "financial",
+          "banking"
+        ]
+      }
+    ]
+  }
+}

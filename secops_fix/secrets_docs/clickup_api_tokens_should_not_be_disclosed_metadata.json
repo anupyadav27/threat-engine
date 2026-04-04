@@ -1,0 +1,66 @@
+{
+  "filename": "clickup_api_tokens_should_not_be_disclosed_metadata.json",
+  "rule_id": "clickup_api_tokens_disclosed",
+  "title": "ClickUp API tokens should not be disclosed",
+  "description": "ClickUp is a project management platform. Personal API tokens provide full access to tasks, spaces, lists, documents, and team data. Exposing tokens allows complete project management data access and modification.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Security",
+  "recommendation": "Remove ClickUp API tokens from source code. Store in environment variables. Rotate at app.clickup.com/settings/apps.",
+  "impact": "Full access to tasks, documents, team data, goals, and organizational project management information.",
+  "tags": [
+    "security",
+    "cwe",
+    "project-management"
+  ],
+  "examples": {
+    "noncompliant": [],
+    "compliant": [
+      "clickup_token = os.getenv('CLICKUP_API_TOKEN')"
+    ]
+  },
+  "references": [
+    "https://clickup.com/api/developer-portal/authentication/",
+    "https://cwe.mitre.org/data/definitions/798.html"
+  ],
+  "logic": {
+    "node_types": [],
+    "checks": [
+      {
+        "type": "regex",
+        "pattern": "\\bpk_[0-9]+_[A-Za-z0-9]{32,}",
+        "message": "ClickUp Personal API token detected (pk_ prefix). ClickUp API tokens provide access to all workspace data including tasks, lists, spaces, docs, goals, and team member information. Exposing this token allows reading all project data the user can access, creating/modifying/deleting tasks, accessing time tracking data, and manipulating team workflows. Rotate immediately at app.clickup.com/settings/apps.",
+        "context_keywords": [
+          "clickup",
+          "ClickUp",
+          "CLICKUP",
+          "api_token",
+          "apiToken",
+          "API_TOKEN",
+          "task",
+          "space",
+          "list",
+          "workspace",
+          "project_management",
+          "goals"
+        ]
+      },
+      {
+        "type": "regex",
+        "pattern": "(?:clickup_api_token|CLICKUP_API_TOKEN|clickupApiToken|clickup_token|CLICKUP_TOKEN)[\"'\\s]*[:=][\"'\\s]*[A-Za-z0-9_-]{32,}",
+        "message": "ClickUp API token detected in variable assignment. Rotate at app.clickup.com/settings/apps immediately.",
+        "context_keywords": [
+          "clickup",
+          "ClickUp",
+          "CLICKUP",
+          "api_token",
+          "task",
+          "workspace",
+          "project",
+          "list",
+          "space"
+        ]
+      }
+    ]
+  }
+}

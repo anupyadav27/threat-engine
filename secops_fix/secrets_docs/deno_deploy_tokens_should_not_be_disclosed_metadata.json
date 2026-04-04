@@ -1,0 +1,65 @@
+{
+  "filename": "deno_deploy_tokens_should_not_be_disclosed_metadata.json",
+  "rule_id": "deno_deploy_tokens_disclosed",
+  "title": "Deno Deploy API tokens should not be disclosed",
+  "description": "Deno Deploy is a serverless JavaScript/TypeScript deployment platform. API tokens authenticate deployments and management operations. Exposing tokens allows unauthorized deployment of code and access to project configurations.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Security",
+  "recommendation": "Remove Deno Deploy tokens from source code. Store in environment variables or CI/CD secrets. Rotate at dash.deno.com/account#access-tokens.",
+  "impact": "Unauthorized code deployments, project configuration access, environment variable exposure, and custom domain manipulation.",
+  "tags": [
+    "security",
+    "cwe",
+    "deployment",
+    "serverless"
+  ],
+  "examples": {
+    "noncompliant": [],
+    "compliant": [
+      "deno_deploy_token = os.getenv('DENO_DEPLOY_TOKEN')"
+    ]
+  },
+  "references": [
+    "https://docs.deno.com/deploy/api/rest/",
+    "https://cwe.mitre.org/data/definitions/798.html"
+  ],
+  "logic": {
+    "node_types": [],
+    "checks": [
+      {
+        "type": "regex",
+        "pattern": "\\bddp_[A-Za-z0-9_-]{32,}",
+        "message": "Deno Deploy API token detected (ddp_ prefix). Deno Deploy tokens authenticate deployment platform requests including deploying new code versions to production, accessing project environment variables and secrets, managing custom domains and TLS certificates, viewing deployment logs and analytics, and deleting or rolling back deployments. Exposing this token allows unauthorized access to your Deno Deploy projects. Rotate immediately at dash.deno.com/account#access-tokens.",
+        "context_keywords": [
+          "deno",
+          "Deno",
+          "DENO",
+          "deploy",
+          "Deploy",
+          "DEPLOY",
+          "api_token",
+          "apiToken",
+          "API_TOKEN",
+          "serverless",
+          "deployment",
+          "edge"
+        ]
+      },
+      {
+        "type": "regex",
+        "pattern": "(?:deno_deploy_token|DENO_DEPLOY_TOKEN|denoDeployToken|deno_token|DENO_TOKEN)[\"'\\s]*[:=][\"'\\s]*[A-Za-z0-9_-]{20,}",
+        "message": "Deno Deploy token detected in variable assignment. Rotate at dash.deno.com/account#access-tokens.",
+        "context_keywords": [
+          "deno",
+          "Deno",
+          "DENO",
+          "deploy",
+          "token",
+          "serverless",
+          "deployment"
+        ]
+      }
+    ]
+  }
+}

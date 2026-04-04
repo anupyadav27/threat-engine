@@ -1,0 +1,90 @@
+{
+  "filename": "easypost_api_keys_should_not_be_disclosed_metadata.json",
+  "rule_id": "easypost_api_keys_disclosed",
+  "title": "EasyPost API keys should not be disclosed",
+  "description": "In most cases, trust boundaries are violated when a secret is exposed in a source code repository or an uncontrolled deployment environment. Unintended people who don\u2019t need to know the secret might get access to it. They might then be able to use it to gain unwanted access to associated services or resources.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "cwe"
+  ],
+  "examples": {
+    "noncompliant": [],
+    "compliant": [
+      {
+        "code": "# Retrieve EasyPost API key from environment\nimport os\neasypost_api_key = os.getenv('EASYPOST_API_KEY')",
+        "description": "Using environment variable for EasyPost API key"
+      },
+      {
+        "code": "# Load from secure configuration\neasypost_key = config.get('easypost_api_key')",
+        "description": "Loading EasyPost key from secure config"
+      },
+      {
+        "code": "# Using secrets manager\nfrom aws_secretsmanager import get_secret\neasypost_key = get_secret('easypost/api_key')",
+        "description": "Retrieving EasyPost credentials from secrets manager"
+      },
+      {
+        "code": "# Placeholder documentation\n# Set your EASYPOST_API_KEY environment variable\n# Production: EZAK...\n# Test: EZTK...",
+        "description": "Documentation comment with placeholder"
+      }
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/secrets/RSPEC-7252"
+  ],
+  "logic": {
+    "custom_function": "detect_easypost_api_keys",
+    "patterns": [
+      {
+        "pattern": "\\bEZAK[A-Za-z0-9]{28,}\\b",
+        "description": "EasyPost production API key (EZAK prefix)"
+      },
+      {
+        "pattern": "\\bEZTK[A-Za-z0-9]{28,}\\b",
+        "description": "EasyPost test API key (EZTK prefix)"
+      },
+      {
+        "pattern": "\\bEZWS[A-Za-z0-9]{28,}\\b",
+        "description": "EasyPost webhook secret (EZWS prefix)"
+      },
+      {
+        "pattern": "\\bEZ[A-Z]{2}[A-Za-z0-9]{28,}\\b",
+        "description": "Generic EasyPost key pattern"
+      }
+    ],
+    "context_keywords": [
+      "easypost",
+      "easy_post",
+      "easy-post",
+      "easypost_api",
+      "easypost_key",
+      "easypost_token",
+      "ezak",
+      "eztk",
+      "ezws",
+      "shipping_api",
+      "shipment_api",
+      "easypost_auth",
+      "easypost_secret",
+      "easypost_prod",
+      "easypost_test",
+      "easypost_webhook"
+    ],
+    "validation": {
+      "prefixes": [
+        "EZAK",
+        "EZTK",
+        "EZWS"
+      ],
+      "min_length": 32,
+      "max_length": 100,
+      "min_entropy": 4.0,
+      "min_unique_chars": 10,
+      "context_required": true
+    }
+  }
+}

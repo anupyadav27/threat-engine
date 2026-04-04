@@ -1,0 +1,107 @@
+{
+  "filename": "elastic_email_api_keys_should_not_be_disclosed_metadata.json",
+  "rule_id": "elastic_email_api_keys",
+  "title": "Elastic Email API keys should not be disclosed",
+  "description": "In most cases, trust boundaries are violated when a secret is exposed in a source code repository or an uncontrolled deployment environment. Unintended people who don\u2019t need to know the secret might get access to it. They might then be able to use it to gain unwanted access to associated services or resources.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "cwe"
+  ],
+  "examples": {
+    "noncompliant": [],
+    "compliant": [
+      {
+        "description": "Elastic Email API key from environment variables",
+        "code": "elastic_email_api_key = os.getenv('ELASTIC_EMAIL_API_KEY')\napi_key = os.environ['EE_API_KEY']"
+      },
+      {
+        "description": "ElasticEmail credentials from configuration service",
+        "code": "email_config = config_manager.get('elastic_email')\napi_key = email_config['api_key']"
+      },
+      {
+        "description": "Elastic Email credentials using secrets manager",
+        "code": "from vault import secrets_manager\nelastic_email_creds = secrets_manager.get_secret('elastic_email/production')"
+      },
+      {
+        "description": "Elastic Email credentials in documentation (placeholders)",
+        "code": "# Configure your Elastic Email credentials:\n# ELASTIC_EMAIL_API_KEY=your_api_key_here\n# ELASTIC_EMAIL_SMTP_PASSWORD=your_smtp_password_here"
+      }
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/secrets/RSPEC-7253"
+  ],
+  "logic": {
+    "custom_function": "detect_elastic_email_api_keys",
+    "patterns": [
+      {
+        "type": "elastic_email_api_key_hex",
+        "regex": "\\b[A-Fa-f0-9]{32,96}\\b",
+        "description": "Elastic Email API key in hexadecimal format"
+      },
+      {
+        "type": "elastic_email_api_key_alpha",
+        "regex": "\\b[A-Za-z0-9_-]{32,96}\\b",
+        "description": "Elastic Email API key in alphanumeric format"
+      },
+      {
+        "type": "elastic_email_smtp_password",
+        "regex": "\\b[A-Za-z0-9+/=]{20,64}\\b",
+        "description": "Elastic Email SMTP password"
+      }
+    ],
+    "context_keywords": [
+      "elastic_email",
+      "elasticemail",
+      "elastic-email",
+      "elastic_email_api",
+      "elasticemail_api",
+      "elastic_email_key",
+      "elasticemail.com",
+      "api.elasticemail.com",
+      "elastic_email_smtp",
+      "elasticemail_smtp",
+      "elastic_email_password",
+      "elasticemail_password",
+      "elastic_email_token",
+      "elasticemail_token",
+      "elastic_email_auth",
+      "elasticemail_auth",
+      "smtp.elasticemail.com",
+      "smtp_elasticemail",
+      "ee_api",
+      "ee_key",
+      "ee_token"
+    ],
+    "validation": {
+      "api_key_hex": {
+        "min_length": 32,
+        "max_length": 96,
+        "format": "hexadecimal",
+        "entropy_threshold": 3.0,
+        "character_diversity": 8
+      },
+      "api_key_alphanumeric": {
+        "min_length": 32,
+        "max_length": 96,
+        "format": "alphanumeric_with_dash_underscore",
+        "entropy_threshold": 4.0,
+        "character_diversity": 12
+      },
+      "smtp_password": {
+        "min_length": 20,
+        "max_length": 64,
+        "format": "base64_like",
+        "entropy_threshold": 3.8,
+        "character_diversity": 10
+      },
+      "requires_context": true,
+      "context_required": "elastic_email"
+    }
+  }
+}

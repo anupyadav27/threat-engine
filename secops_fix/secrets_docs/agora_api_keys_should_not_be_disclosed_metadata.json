@@ -1,0 +1,89 @@
+{
+  "filename": "agora_api_keys_should_not_be_disclosed_metadata.json",
+  "rule_id": "agora_api_keys_disclosed",
+  "title": "Agora API keys should not be disclosed",
+  "description": "Agora API keys should not be hardcoded in source code. These credentials include Agora App IDs, App Certificates, and temporary tokens that provide access to Agora's real-time engagement platform for video, audio, and messaging services. When exposed in code repositories, they can lead to unauthorized access to Agora services and potential misuse of communication resources.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Security",
+  "recommendation": "Store Agora API credentials securely using environment variables, secure configuration management, or Agora's recommended secure storage practices. Never commit App IDs, App Certificates, or tokens directly to source code repositories.",
+  "impact": "Critical security risk - unauthorized access to Agora real-time communication services and potential abuse of video/audio resources",
+  "tags": [
+    "security",
+    "secrets",
+    "agora",
+    "api-key",
+    "app-id",
+    "app-certificate",
+    "real-time",
+    "video",
+    "audio",
+    "rtc",
+    "cwe"
+  ],
+  "examples": {
+    "noncompliant": [],
+    "compliant": [
+      {
+        "code": "import os\nAGORA_APP_ID = os.getenv('AGORA_APP_ID')",
+        "description": "Using environment variable for Agora App ID"
+      },
+      {
+        "code": "# Use secure configuration management\napp_certificate = config.get_secret('agora_app_certificate')",
+        "description": "Using secure configuration management"
+      }
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/secrets/RSPEC-7210"
+  ],
+  "logic": {
+    "checks": [
+      {
+        "type": "regex",
+        "pattern": "\\b[a-f0-9]{32}\\b",
+        "message": "Agora App ID or App Certificate detected in source code",
+        "context_keywords": [
+          "agora",
+          "app_id",
+          "appid",
+          "app_certificate",
+          "certificate",
+          "rtc",
+          "rtm",
+          "AGORA_APP_ID",
+          "AGORA_CERT"
+        ]
+      },
+      {
+        "type": "regex",
+        "pattern": "\\b00[67][a-f0-9]{33,50}\\b",
+        "message": "Agora temporary token detected in source code",
+        "context_keywords": [
+          "agora",
+          "token",
+          "rtc",
+          "rtm",
+          "join_channel",
+          "authentication",
+          "temp_token"
+        ]
+      },
+      {
+        "type": "regex",
+        "pattern": "\\b[A-Za-z0-9+/]{40,}={0,2}\\b",
+        "message": "Potential Agora credential detected in source code",
+        "context_keywords": [
+          "agora",
+          "credential",
+          "auth",
+          "rtc",
+          "rtm",
+          "video",
+          "audio",
+          "channel"
+        ]
+      }
+    ]
+  }
+}

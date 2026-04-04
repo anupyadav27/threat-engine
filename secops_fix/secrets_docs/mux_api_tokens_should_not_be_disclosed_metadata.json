@@ -1,0 +1,70 @@
+{
+  "filename": "mux_api_tokens_should_not_be_disclosed_metadata.json",
+  "rule_id": "mux_api_tokens_disclosed",
+  "title": "Mux API credentials should not be disclosed",
+  "description": "Mux is a video infrastructure platform for streaming, live video, and video analytics. Mux credentials include Token ID and Token Secret pairs. Exposing these allows unauthorized video uploads, live stream management, and access to video analytics and viewer data.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Security",
+  "recommendation": "Remove Mux credentials from source code. Store token ID and secret in environment variables. Rotate at dashboard.mux.com/settings/access-tokens.",
+  "impact": "Unauthorized video content management, live stream control, video upload capabilities, and access to video analytics data.",
+  "tags": [
+    "security",
+    "cwe",
+    "video",
+    "media"
+  ],
+  "examples": {
+    "noncompliant": [],
+    "compliant": [
+      "mux_token_id = os.getenv('MUX_TOKEN_ID')",
+      "mux_token_secret = os.getenv('MUX_TOKEN_SECRET')"
+    ]
+  },
+  "references": [
+    "https://docs.mux.com/guides/make-api-requests",
+    "https://cwe.mitre.org/data/definitions/798.html"
+  ],
+  "logic": {
+    "node_types": [],
+    "checks": [
+      {
+        "type": "regex",
+        "pattern": "(?:mux_token_secret|MUX_TOKEN_SECRET|muxTokenSecret|mux_secret|MUX_SECRET)[\"'\\s]*[:=][\"'\\s]*[A-Za-z0-9+/=]{20,}",
+        "message": "Mux Token Secret detected in variable assignment. Mux token secrets authenticate all video infrastructure API calls. Exposing this secret allows unauthorized video asset management, live stream creation and termination, video upload operations billed to your account, deletion of video content, and access to viewer analytics data. Rotate immediately at dashboard.mux.com/settings/access-tokens.",
+        "context_keywords": [
+          "mux",
+          "Mux",
+          "MUX",
+          "token_secret",
+          "tokenSecret",
+          "TOKEN_SECRET",
+          "video",
+          "streaming",
+          "live_stream",
+          "liveStream",
+          "video_asset",
+          "upload",
+          "playback"
+        ]
+      },
+      {
+        "type": "regex",
+        "pattern": "(?:mux_token_id|MUX_TOKEN_ID|muxTokenId)[\"'\\s]*[:=][\"'\\s]*[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+        "message": "Mux Token ID detected. Mux token IDs identify API credentials and are always paired with a Token Secret. Ensure no Token Secret is hardcoded alongside this ID in the same file.",
+        "context_keywords": [
+          "mux",
+          "Mux",
+          "MUX",
+          "token_id",
+          "tokenId",
+          "TOKEN_ID",
+          "video",
+          "streaming",
+          "api",
+          "access_token"
+        ]
+      }
+    ]
+  }
+}

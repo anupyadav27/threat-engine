@@ -1,0 +1,67 @@
+{
+  "filename": "render_api_keys_should_not_be_disclosed_metadata.json",
+  "rule_id": "render_api_keys_disclosed",
+  "title": "Render API keys should not be disclosed",
+  "description": "Render is a unified cloud platform for deploying web services, databases, cron jobs, and static sites. API keys provide access to manage all deployed services, environment groups (shared secrets), and infrastructure. Exposing keys grants full control over deployed infrastructure and stored secrets.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Security",
+  "recommendation": "Remove Render API keys from source code. Store in environment variables. Rotate immediately at dashboard.render.com/u/settings.",
+  "impact": "Full control over Render services, databases, environment groups (shared secrets), and deployment configuration.",
+  "tags": [
+    "security",
+    "cwe",
+    "cloud",
+    "deployment"
+  ],
+  "examples": {
+    "noncompliant": [],
+    "compliant": [
+      "render_api_key = os.getenv('RENDER_API_KEY')"
+    ]
+  },
+  "references": [
+    "https://api-docs.render.com/reference/authentication",
+    "https://cwe.mitre.org/data/definitions/798.html"
+  ],
+  "logic": {
+    "node_types": [],
+    "checks": [
+      {
+        "type": "regex",
+        "pattern": "\\brnd_[A-Za-z0-9]{32,}",
+        "message": "Render API key detected (rnd_ prefix). Render API keys provide complete control over deployed web services, background workers, cron jobs, PostgreSQL databases, Redis instances, and environment groups. Exposing this key allows accessing all environment variables stored in Render (including downstream API keys and database URLs), deploying or destroying services, and reading database connection strings. Rotate immediately at dashboard.render.com/u/settings.",
+        "context_keywords": [
+          "render",
+          "Render",
+          "RENDER",
+          "api_key",
+          "apiKey",
+          "API_KEY",
+          "render_api",
+          "deploy",
+          "service",
+          "web_service",
+          "database",
+          "environment"
+        ]
+      },
+      {
+        "type": "regex",
+        "pattern": "(?:render_api_key|RENDER_API_KEY|renderApiKey|render_key|RENDER_KEY)[\"'\\s]*[:=][\"'\\s]*[A-Za-z0-9_-]{32,}",
+        "message": "Render API key detected in variable assignment. Render controls cloud infrastructure including databases and shared environment secrets. Rotate immediately at dashboard.render.com.",
+        "context_keywords": [
+          "render",
+          "Render",
+          "RENDER",
+          "api_key",
+          "deploy",
+          "service",
+          "environment",
+          "database",
+          "cloud"
+        ]
+      }
+    ]
+  }
+}

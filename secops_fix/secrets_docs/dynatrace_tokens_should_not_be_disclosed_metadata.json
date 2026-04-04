@@ -1,0 +1,88 @@
+{
+  "filename": "dynatrace_tokens_should_not_be_disclosed_metadata.json",
+  "rule_id": "dynatrace_tokens_disclosed",
+  "title": "Dynatrace tokens should not be disclosed",
+  "description": "In most cases, trust boundaries are violated when a secret is exposed in a source code repository or an uncontrolled deployment environment. Unintended people who don\u2019t need to know the secret might get access to it. They might then be able to use it to gain unwanted access to associated services or resources.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "cwe"
+  ],
+  "examples": {
+    "noncompliant": [],
+    "compliant": [
+      {
+        "code": "# Retrieve Dynatrace token from environment\nimport os\ndynatrace_token = os.getenv('DYNATRACE_API_TOKEN')",
+        "description": "Using environment variable for Dynatrace API token"
+      },
+      {
+        "code": "# Load from secure configuration\ndt_token = config.get('dynatrace_token')",
+        "description": "Loading Dynatrace token from secure config"
+      },
+      {
+        "code": "# Using secrets manager\nfrom aws_secretsmanager import get_secret\ndt_api_token = get_secret('dynatrace/api_token')",
+        "description": "Retrieving Dynatrace credentials from secrets manager"
+      },
+      {
+        "code": "# Placeholder documentation\n# Set your DYNATRACE_API_TOKEN environment variable\n# export DYNATRACE_API_TOKEN=dt0c01.XXXXXXXX.YYYYYYYY",
+        "description": "Documentation comment with placeholder"
+      }
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/secrets/RSPEC-7251"
+  ],
+  "logic": {
+    "custom_function": "detect_dynatrace_tokens",
+    "patterns": [
+      {
+        "pattern": "\\bdt0c01\\.[A-Z0-9]{8}\\.[A-Z0-9]{64}\\b",
+        "description": "Dynatrace API token (dt0c01 prefix)"
+      },
+      {
+        "pattern": "\\bdt0s02\\.[A-Za-z0-9_-]{24,}\\b",
+        "description": "Dynatrace token secret (dt0s02 prefix)"
+      },
+      {
+        "pattern": "\\bdt0c01\\.ST2[A-Z0-9]{8}\\.[A-Z0-9]{64}\\b",
+        "description": "Dynatrace PaaS token (ST2 identifier)"
+      },
+      {
+        "pattern": "\\bdt0[a-z0-9]{3}\\.[A-Za-z0-9_.-]{40,}\\b",
+        "description": "Generic Dynatrace token pattern"
+      }
+    ],
+    "context_keywords": [
+      "dynatrace",
+      "dyna_trace",
+      "dyna-trace",
+      "dynatrace_token",
+      "dynatrace_api",
+      "dynatrace_key",
+      "dt_token",
+      "dt_api",
+      "dt_key",
+      "dt_access",
+      "dynatrace_env",
+      "dynatrace_environment",
+      "dynatrace_paas",
+      "dynatrace_api_token",
+      "dynatrace_auth",
+      "dynatrace_secret"
+    ],
+    "validation": {
+      "token_prefixes": [
+        "dt0c01",
+        "dt0s02"
+      ],
+      "min_length": 40,
+      "min_entropy": 4.0,
+      "min_unique_chars": 10,
+      "context_required": true
+    }
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "filename": "neon_database_tokens_should_not_be_disclosed_metadata.json",
+  "rule_id": "neon_database_tokens_disclosed",
+  "title": "Neon database credentials should not be disclosed",
+  "description": "Neon is a serverless PostgreSQL platform with branching capabilities. Neon credentials include API keys for management and connection strings with embedded passwords for database access. Exposing these allows unauthorized database access and infrastructure management.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Security",
+  "recommendation": "Remove Neon credentials from source code. Use environment variables for connection strings and API keys. Rotate immediately at console.neon.tech.",
+  "impact": "Unauthorized PostgreSQL database access, data exfiltration, and control over database branching and infrastructure.",
+  "tags": [
+    "security",
+    "cwe",
+    "database",
+    "serverless"
+  ],
+  "examples": {
+    "noncompliant": [],
+    "compliant": [
+      "database_url = os.getenv('DATABASE_URL')",
+      "neon_api_key = os.getenv('NEON_API_KEY')"
+    ]
+  },
+  "references": [
+    "https://neon.tech/docs/reference/api-reference",
+    "https://cwe.mitre.org/data/definitions/798.html"
+  ],
+  "logic": {
+    "node_types": [],
+    "checks": [
+      {
+        "type": "regex",
+        "pattern": "postgresql://[^:@\\s]+:[^@\\s]{3,}@[a-z0-9-]+\\.(?:us-east-[12]|eu-central-1|ap-southeast-1)\\.aws\\.neon\\.tech",
+        "message": "Neon serverless PostgreSQL connection string with embedded credentials detected. This URL contains database username and password for a Neon PostgreSQL instance. Exposing this string provides direct database access to all tables and data in the Neon database. Rotate the database password immediately at console.neon.tech and use environment variables for connection strings.",
+        "context_keywords": [
+          "neon",
+          "Neon",
+          "NEON",
+          "neon.tech",
+          "neondb",
+          "postgresql",
+          "database_url",
+          "DATABASE_URL",
+          "connection_string",
+          "serverless",
+          "postgres"
+        ]
+      },
+      {
+        "type": "regex",
+        "pattern": "(?:neon_api_key|NEON_API_KEY|neonApiKey|neon_key|NEON_KEY)[\"'\\s]*[:=][\"'\\s]*[A-Za-z0-9_-]{32,}",
+        "message": "Neon API key detected in variable assignment. Neon API keys manage serverless PostgreSQL projects, branches, endpoints, and connection poolers. Exposing this key allows creating and deleting database branches, modifying database configurations, and managing compute resources. Rotate immediately at console.neon.tech.",
+        "context_keywords": [
+          "neon",
+          "Neon",
+          "NEON",
+          "api_key",
+          "apiKey",
+          "API_KEY",
+          "serverless",
+          "postgres",
+          "database",
+          "branch",
+          "project"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "filename": "flyio_api_tokens_should_not_be_disclosed_metadata.json",
+  "rule_id": "flyio_api_tokens_disclosed",
+  "title": "Fly.io API tokens should not be disclosed",
+  "description": "Fly.io is a modern container deployment platform that runs applications globally. API tokens provide access to deploy applications, manage machines, access secrets, configure networking, and control all resources within a Fly.io organization. Exposing these tokens allows complete control over deployed infrastructure.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Security",
+  "recommendation": "Remove Fly.io API tokens from source code. Store in environment variables. Rotate immediately at fly.io/user/personal_access_tokens.",
+  "impact": "Full control over Fly.io infrastructure including app deployments, machine access, network configuration, stored secrets, and organizational resources.",
+  "tags": [
+    "security",
+    "cwe",
+    "cloud",
+    "deployment"
+  ],
+  "examples": {
+    "noncompliant": [],
+    "compliant": [
+      "fly_api_token = os.getenv('FLY_API_TOKEN')",
+      "token = config.get('flyio.api_token')"
+    ]
+  },
+  "references": [
+    "https://fly.io/docs/machines/api/",
+    "https://cwe.mitre.org/data/definitions/798.html"
+  ],
+  "logic": {
+    "node_types": [],
+    "checks": [
+      {
+        "type": "regex",
+        "pattern": "\\bFlyV1\\s+fm[12]_[A-Za-z0-9_-]{40,}",
+        "message": "Fly.io API token detected (FlyV1 fm prefix). Fly.io API tokens provide complete control over your Fly.io organization including deploying and scaling applications, accessing and modifying app secrets, managing Machines (VMs), configuring networking and certificates, and accessing databases. Exposing this token allows attackers to take over your deployed applications, exfiltrate environment secrets, and cause service disruption. Revoke immediately at fly.io/user/personal_access_tokens.",
+        "context_keywords": [
+          "fly",
+          "flyio",
+          "fly.io",
+          "FLY",
+          "FLYIO",
+          "api_token",
+          "apiToken",
+          "API_TOKEN",
+          "fly_token",
+          "FLY_TOKEN",
+          "deploy",
+          "machine",
+          "app",
+          "organization"
+        ]
+      },
+      {
+        "type": "regex",
+        "pattern": "\\bfm[12]_[A-Za-z0-9_-]{40,}",
+        "message": "Fly.io token detected (fm1_/fm2_ prefix). Fly.io management tokens (fm1_ for personal access, fm2_ for deploy tokens) control infrastructure deployments and machine management. Exposing these tokens enables unauthorized application deployments, access to stored application secrets, VM management, and network configuration changes. Revoke at fly.io/user/personal_access_tokens.",
+        "context_keywords": [
+          "fly",
+          "flyio",
+          "fly.io",
+          "FLY",
+          "FLYIO",
+          "api_token",
+          "deploy_token",
+          "deployToken",
+          "machine",
+          "app",
+          "organization",
+          "secrets"
+        ]
+      },
+      {
+        "type": "regex",
+        "pattern": "(?:fly_api_token|FLY_API_TOKEN|flyApiToken|fly_token|FLY_TOKEN|flyio_token|FLYIO_TOKEN)[\"'\\s]*[:=][\"'\\s]*[A-Za-z0-9_\\s-]{20,}",
+        "message": "Fly.io API token detected in variable assignment. Fly.io tokens control container deployment infrastructure. Exposing this token gives full control over deployed apps, access to their secrets and environment variables, and ability to modify or destroy your infrastructure. Rotate immediately.",
+        "context_keywords": [
+          "fly",
+          "flyio",
+          "fly.io",
+          "FLY",
+          "FLYIO",
+          "token",
+          "api",
+          "deploy",
+          "machine",
+          "app",
+          "secret",
+          "organization"
+        ]
+      }
+    ]
+  }
+}
