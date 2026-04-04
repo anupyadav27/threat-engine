@@ -1,0 +1,51 @@
+{
+  "filename": "if_and_switch_initializer_should_be_preferred_to_r_metadata.json",
+  "rule_id": "if_switch_initializer_preferred",
+  "title": "if and switch initializer should be preferred to reduce scope of variables",
+  "description": "C++17 introduced a construct to create and initialize a variable within the condition of if and switch statements and C++20 added this construct to range-based for loops. Using this new feature simplifies common code patterns and helps in giving variables the right scope. Previously, variables were either declared before the statement, hence leaked into the ambient scope, or an explicit scope was used to keep the scope tight, especially when using RAII objects.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cpp"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant: Variable declared before if statement\nint result = get_value();\nif (result > 0) {\n    process(result);\n} else {\n    handle_error();\n}\n// 'result' is still in scope here\nsome_other_function();",
+      "// Noncompliant: Variable scope extends beyond switch\nauto status = get_status();\nswitch (status) {\n    case Status::OK:\n        handle_ok();\n        break;\n    case Status::ERROR:\n        handle_error();\n        break;\n}\n// 'status' unnecessarily available here"
+    ],
+    "compliant": [
+      "// Compliant: if with initializer (C++17)\nif (int result = get_value(); result > 0) {\n    process(result);\n} else {\n    handle_error();\n}\n// 'result' is out of scope here\nsome_other_function();",
+      "// Compliant: switch with initializer (C++17)\nswitch (auto status = get_status(); status) {\n    case Status::OK:\n        handle_ok();\n        break;\n    case Status::ERROR:\n        handle_error();\n        break;\n}\n// 'status' is out of scope here"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-6004"
+  ],
+  "logic": {
+    "node_types": [
+      "*"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "(\\w+\\s+\\w+\\s*=\\s*[^;]+;)\\s*(?://[^\\n]*)?\\s*\\n?\\s*if\\s*\\(",
+          "(\\w+\\s+\\w+\\s*=\\s*[^;]+;)\\s*(?://[^\\n]*)?\\s*\\n?\\s*switch\\s*\\(",
+          "(const\\s+\\w+\\s+\\w+\\s*=\\s*[^;]+;)\\s*(?://[^\\n]*)?\\s*\\n?\\s*if\\s*\\(",
+          "(auto\\s+\\w+\\s*=\\s*[^;]+;)\\s*(?://[^\\n]*)?\\s*\\n?\\s*if\\s*\\(",
+          "(auto\\s+\\w+\\s*=\\s*[^;]+;)\\s*(?://[^\\n]*)?\\s*\\n?\\s*switch\\s*\\(",
+          "(\\w+\\*\\s+\\w+\\s*=\\s*[^;]+;)\\s*(?://[^\\n]*)?\\s*\\n?\\s*if\\s*\\(",
+          "(std::\\w+\\s+\\w+\\s*=\\s*[^;]+;)\\s*(?://[^\\n]*)?\\s*\\n?\\s*if\\s*\\(",
+          "(\\w+&\\s+\\w+\\s*=\\s*[^;]+;)\\s*(?://[^\\n]*)?\\s*\\n?\\s*if\\s*\\"
+        ],
+        "message": "Consider using if/switch initializer to reduce variable scope"
+      }
+    ]
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "filename": "method_calls_should_not_resolve_ambiguously_to_ove_metadata.json",
+  "rule_id": "method_calls_resolve_ambiguously",
+  "title": "Method calls should not resolve ambiguously to overloads with params",
+  "description": "Method calls should not resolve ambiguously to overloads with \"params\"Analyze your codeintentionality-clearmaintainabilityCode SmellpitfallWhy is this an issue?The rules for method resolution are complex and perhaps not properly understood by all coders. Theparamskeyword can make method declarations overlap in non-obvious ways, so that slight changes in the argument types of an invocation can resolve to different methods.This rule raises an issue when an invocation resolves to a method declaration withparams, but could also resolve to another non-paramsmethod too.Noncompliant code examplepublic class MyClass { private void Format(string a, params object[] b) { } private void Format(object a, object b, object c) { } } // ... MyClass myClass = new MyClass(); myClass.Format(\"\", null, null); /",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class MyClass\n{\n    private void Format(string a, params object[] b) { }\n    private void Format(object a, object b, object c) { }\n}\n\nMyClass myClass = new MyClass();\nmyClass.Format(\"\", null, null); // Noncompliant: ambiguous resolution between params and non-params overload"
+    ],
+    "compliant": [
+      "public class MyClass\n{\n    private void Format(string a, object[] b) { }\n    private void Format(object a, object b, object c) { }\n}\n\nMyClass myClass = new MyClass();\nmyClass.Format(\"\", new object[] { null, null }); // Compliant: clear overload resolution"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3220"
+  ],
+  "logic": {
+    "custom_function": "check_method_calls_resolve_ambiguously",
+    "node_types": [
+      "ClassDeclaration"
+    ],
+    "never_trigger_on": [
+      "Logging: Console.*, Logger.*, Debug.*",
+      "String formatting: $\"\", string.Format",
+      "Unit tests: [Test], [Fact], [TestFixture], [TestClass], Assert.*",
+      "Comments: //, /*, ///",
+      "Non-params overloads (no params keyword)",
+      "Different method names (no overloading)",
+      "Incompatible parameter types that cannot cause ambiguity"
+    ],
+    "reasoning": "This rule uses a custom function that analyzes method overloads to detect potential ambiguous resolution between params and non-params versions. The function: 1) Parses all classes/interfaces and identifies method declarations. 2) Groups methods by name to find overloads. 3) Identifies params versions (with 'params' keyword) and non-params versions. 4) Checks if parameter types could cause ambiguous resolution - where both the params array element type and the non-params version's extra parameters are type-compatible (same type or object). 5) Excludes test classes and cases where types are clearly incompatible.",
+    "validation_examples": {
+      "should_trigger": [
+        "public class MyClass\n{\n    private void Format(string a, params object[] b) { }\n    private void Format(object a, object b, object c) { }\n}",
+        "class Service\n{\n    void Process(int x, params string[] items) { }\n    void Process(int x, string a, string b) { }\n}"
+      ],
+      "should_not_trigger": [
+        "public class MyClass\n{\n    private void Format(string a, object[] b) { }\n    private void Format(object a, object b, object c) { }\n}",
+        "class Service\n{\n    void Process(int x, params string[] items) { }\n    void Execute(object a, object b, object c) { }\n}",
+        "class Different\n{\n    void Handle(int code, params string[] items) { }\n    void Handle(string name, int a, int b) { }\n}",
+        "[TestFixture]\npublic class TestClass\n{\n    void Format(string a, params object[] b) { }\n    void Format(object a, object b, object c) { }\n}"
+      ]
+    }
+  }
+}

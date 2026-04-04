@@ -1,0 +1,63 @@
+{
+  "filename": "parameter_names_should_match_base_declaration_and__metadata.json",
+  "rule_id": "parameter_names_match_base",
+  "title": "Parameter names should match base declaration and other partial definitions",
+  "description": "Parameter names should match base declaration and other partial definitionsAnalyze your codeconsistency-identifiablemaintainabilityCode SmellsuspiciousWhy is this an issue?More InfoParameters are part of themethod signatureand its identity.Implementing a method from an interface, a base class, or a partial method and changing one of its parameters' names will confuse and impact the method’s readability.interface IBankAccount { void AddMoney(int money); } class BankAccount : IBankAccount { void AddMoney(int amount) // Noncompliant: parameter's name differs from base { // ... } }To avoid any ambiguity in the code, a parameter’s name should match the initial declaration, whether its initial declaration is from an interface, a base class, or a partial method.interface IBankAccount { void AddMo",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "interface IBankAccount\n{\n  void AddMoney(int money);\n}\n\nclass BankAccount : IBankAccount\n{\n  void AddMoney(int amount) // Noncompliant: parameter's name differs from base\n  {\n    // ...\n  }\n}"
+    ],
+    "compliant": [
+      "interface IBankAccount\n{\n  void AddMoney(int money);\n}\n\nclass BankAccount : IBankAccount\n{\n  void AddMoney(int money) // Compliant: parameter's name match base name\n  {\n    // ...\n  }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-927"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_parameter_names_match_base"
+      }
+    ],
+    "target_ast_nodes": ["MethodDeclaration"],
+    "detection_conditions": "Detects method declarations that appear to override or implement base methods (virtual, override, abstract modifiers) - requires manual review for parameter name consistency",
+    "triggering_conditions": "MethodDeclaration nodes with public/protected virtual, override, or abstract modifiers that have parameters",
+    "exclusion_conditions": "Excludes unit tests, logging statements, generated code, private/static methods, and extension methods",
+    "never_trigger_on": [
+      "Unit test methods ([Test], [Fact], Assert.*)",
+      "Logging methods (Console.*, Logger.*, Debug.*)",
+      "Generated code (*.g.cs files)",
+      "Private methods (cannot implement interfaces)",
+      "Static methods (cannot override)",
+      "Extension methods",
+      "Methods without base declarations"
+    ],
+    "reasoning": "This rule requires semantic analysis to properly detect parameter name mismatches between base and derived implementations. The current pattern identifies candidate methods that override or implement base methods, but manual review is needed to verify parameter name consistency. A full implementation would require comparing method signatures across inheritance hierarchies.",
+    "validation_examples": {
+      "should_trigger": [
+        "public virtual void AddMoney(int amount) { }",
+        "public override bool Equals(object obj) { }",
+        "protected abstract void ProcessData(string input) { }"
+      ],
+      "should_not_trigger": [
+        "private void AddMoney(int amount) { }",
+        "public static void ProcessData(string input) { }",
+        "[Test] public override bool Equals(object obj) { }",
+        "Console.WriteLine(\"override method\");"
+      ]
+    }
+  }
+}

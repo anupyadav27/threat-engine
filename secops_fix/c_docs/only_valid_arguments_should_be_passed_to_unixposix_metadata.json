@@ -1,0 +1,88 @@
+{
+  "filename": "only_valid_arguments_should_be_passed_to_unixposix_metadata.json",
+  "rule_id": "only_valid_arguments_passed_1",
+  "title": "Only valid arguments should be passed to UNIX/POSIX functions",
+  "description": "What is the potential impact? Many UNIX/POSIX functions put certain constraints on the values of their parameters. The behavior for some of those UNIX/POSIX functions is not defined but instead, their behavior is implementation-defined, if one passes incorrectly constrained parameters. This may lead to undefined behavior depending on a function’s concrete implementation.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cert"
+  ],
+  "examples": {
+    "noncompliant": [
+      "char* ptr = malloc(0); // Noncompliant: zero size allocation",
+      "int fd = open(NULL, O_RDONLY); // Noncompliant: NULL pathname",
+      "read(-1, buffer, size); // Noncompliant: invalid file descriptor",
+      "write(fd, NULL, 10); // Noncompliant: NULL buffer with non-zero count"
+    ],
+    "compliant": [
+      "char* ptr = malloc(size); // Compliant: proper size allocation",
+      "int fd = open(\"/path/file\", O_RDONLY); // Compliant: valid pathname",
+      "if (fd >= 0) read(fd, buffer, size); // Compliant: valid file descriptor",
+      "if (buffer != NULL) write(fd, buffer, size); // Compliant: validated buffer"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-5488"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionCall",
+      "AssignmentExpression", 
+      "VariableDeclaration",
+      "ExpressionStatement"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "(malloc|calloc|realloc)\\s*\\(\\s*0\\s*[,)]",
+          "read\\s*\\(\\s*-1\\s*,",
+          "write\\s*\\([^,]*,\\s*NULL\\s*,\\s*[^0)]",
+          "open\\s*\\(\\s*NULL\\s*,"
+        ],
+        "message": "Only valid arguments should be passed to UNIX/POSIX functions. Invalid arguments detected:"
+      },
+      {
+        "type": "regex_match", 
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "malloc\\s*\\(\\s*0\\s*\\)",
+          "calloc\\s*\\(\\s*0\\s*,",
+          "realloc\\s*\\([^,]*,\\s*0\\s*\\)"
+        ],
+        "message": "Zero size memory allocations are invalid and may cause undefined behavior."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source" 
+        ],
+        "patterns": [
+          "read\\s*\\(\\s*-[1-9][0-9]*\\s*,",
+          "write\\s*\\(\\s*-[1-9][0-9]*\\s*,"
+        ],
+        "message": "Negative file descriptors are invalid for read/write operations."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "write\\s*\\([^,]*,\\s*NULL\\s*,\\s*[1-9][0-9]*\\s*\\)",
+          "write\\s*\\([^,]*,\\s*NULL\\s*,\\s*[^0,)]"
+        ],
+        "message": "NULL buffer pointer with non-zero count is invalid for write operations."
+      }
+    ]
+  }
+}

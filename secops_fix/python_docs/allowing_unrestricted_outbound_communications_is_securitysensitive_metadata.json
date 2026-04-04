@@ -1,0 +1,69 @@
+{
+  "rule_id": "allowing_unrestricted_outbound_communications_is_securitysensitive",
+  "title": "Allowing unrestricted outbound communications is security-sensitive",
+  "type": "CODE_SMELL",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "description": "This rule checks for code that establishes an outbound connection without proper validation, which can lead to potential security vulnerabilities.",
+  "message": "Outbound connection without proper validation",
+  "remediation": {
+    "func": "Constant/Issue",
+    "constantCost": "5min"
+  },
+  "tags": [
+    "network",
+    "security"
+  ],
+  "impact": "Medium",
+  "recommendation": "Implement proper validation for outbound connections",
+  "references": [
+    "https://owasp.org/www-community/attacks/Unrestricted_Resource_Access"
+  ],
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "import requests\nsocket = requests.get(\"http://example.com\")",
+        "description": "Unvalidated outbound connection"
+      }
+    ],
+    "compliant": [
+      {
+        "code": "import requests\nsocket = requests.get(\"http://example.com\", verify='my_cert.pem')",
+        "description": "Validated outbound connection"
+      }
+    ]
+  },
+  "devsecops": {
+    "category": "Network",
+    "security": "Outbound Connections",
+    "automation": "",
+    "compliance": ""
+  },
+  "why_is_this_an_issue": "Unvalidated outbound connections can lead to potential security vulnerabilities such as data exfiltration, DoS attacks, and man-in-the-middle attacks.",
+  "how_to_fix": "Implement proper validation for outbound connections, such as using SSL/TLS certificates, whitelisting allowed domains, or using a secure proxy.",
+  "security_mappings": {
+    "CWE": "CWE-20",
+    "CERT": "CERT-PY-000301",
+    "OWASP": "A06"
+  },
+  "logic": {
+    "node_types": ["Call"],
+    "checks": [
+      {
+        "type": "regex",
+        "property": "func.attr",
+        "pattern": "^get$"
+      },
+      {
+        "type": "regex",
+        "property": "func.value.id",
+        "pattern": "^requests$"
+      },
+      {
+        "type": "not_present",
+        "property": "keywords.*.arg",
+        "pattern": "^verify$"
+      }
+    ]
+  }
+}

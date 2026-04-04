@@ -1,0 +1,42 @@
+{
+  "filename": "binary_operators_should_be_overloaded_as_hidden_fr_metadata.json",
+  "rule_id": "binary_operators_overloaded_as",
+  "title": "Binary operators should be overloaded as hidden friend functions",
+  "description": "This rule raises issues for overloaded binary mathematical and relational operators that are not declared as hidden friends. When overloading binary or relational operators, it is recommended that they be declared hidden friends of the class. The hidden friend pattern The hidden friend pattern consists of declaring and defining a function directly as a friend inside the class body.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "convention",
+    "design"
+  ],
+  "examples": {
+    "noncompliant": [
+      "class Point {\npublic:\n  int x, y;\n};\n\n// Non-hidden friend - not recommended\nPoint operator+(const Point& lhs, const Point& rhs) {\n  return Point{lhs.x + rhs.x, lhs.y + rhs.y};\n}\n\n// Member function - also not recommended for binary operators\nclass Point2 {\npublic:\n  Point2 operator+(const Point2& rhs) const {\n    return Point2{x + rhs.x, y + rhs.y};\n  }\n  int x, y;\n};"
+    ],
+    "compliant": [
+      "class Point {\npublic:\n  int x, y;\n  \n  // Hidden friend operator - recommended\n  friend Point operator+(const Point& lhs, const Point& rhs) {\n    return Point{lhs.x + rhs.x, lhs.y + rhs.y};\n  }\n  \n  friend bool operator==(const Point& lhs, const Point& rhs) {\n    return lhs.x == rhs.x && lhs.y == rhs.y;\n  }\n};"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-2807"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDefinition",
+      "ClassDeclaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "(operator[+\\-*/<>=!&|%^]+)\\s*\\(.*\\)(?!.*friend)",
+        "message": "Binary operators should be overloaded as hidden friend functions for better encapsulation and ADL support."
+      }
+    ]
+  }
+}

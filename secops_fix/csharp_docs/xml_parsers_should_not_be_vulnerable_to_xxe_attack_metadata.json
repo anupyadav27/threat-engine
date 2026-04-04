@@ -1,0 +1,62 @@
+{
+  "filename": "xml_parsers_should_not_be_vulnerable_to_xxe_attack_metadata.json",
+  "rule_id": "xml_parsers_vulnerable_xxe",
+  "title": "XML parsers should not be vulnerable to XXE attacks",
+  "description": "External Entity Processing allows for XML parsing with the involvement of external entities. However, when this functionality is enabled without proper precautions, it can lead to a vulnerability known as XML External Entity (XXE) attack. What is the potential impact? Exposing sensitive data One significant danger of XXE vulnerabilities is the potential for sensitive data exposure.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant - XmlReaderSettings with DTD processing enabled\nvar settings = new XmlReaderSettings();\nsettings.DtdProcessing = DtdProcessing.Parse;\nsettings.XmlResolver = new XmlUrlResolver();\nXmlReader reader = XmlReader.Create(inputStream, settings);\n\n// Noncompliant - XmlDocument with unsafe settings\nXmlDocument doc = new XmlDocument();\ndoc.XmlResolver = new XmlUrlResolver();\ndoc.LoadXml(untrustedInput);"
+    ],
+    "compliant": [
+      "// Compliant - XmlReaderSettings with DTD processing disabled\nvar settings = new XmlReaderSettings();\nsettings.DtdProcessing = DtdProcessing.Prohibit;\nsettings.XmlResolver = null;\nXmlReader reader = XmlReader.Create(inputStream, settings);\n\n// Compliant - XmlDocument with safe settings\nXmlDocument doc = new XmlDocument();\ndoc.XmlResolver = null;\ndoc.LoadXml(untrustedInput);"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2755"
+  ],
+  "logic": {
+    "node_types": ["Assignment", "ClassDeclaration", "MethodDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "(DtdProcessing\\s*=\\s*DtdProcessing\\.Parse|XmlResolver\\s*=\\s*new\\s+XmlUrlResolver)",
+        "exclude_patterns": [
+          "DtdProcessing\\.Prohibit",
+          "XmlResolver\\s*=\\s*null"
+        ],
+        "message": "XXE vulnerability: XML parser is configured with DTD processing enabled or with unsafe XmlResolver."
+      }
+    ],
+    "never_trigger_on": [
+      "DTD processing set to Prohibit",
+      "XmlResolver set to null",
+      "Comments (// or /* */)",
+      "Unit tests ([Test], [Fact])",
+      "Configuration using safe defaults"
+    ],
+    "reasoning": "Detects XML parser configurations that enable DTD processing (DtdProcessing.Parse) or use XmlUrlResolver, which can lead to XXE (XML External Entity) attacks. Safe configuration requires DtdProcessing.Prohibit and XmlResolver = null.",
+    "validation_examples": {
+      "should_trigger": [
+        "settings.DtdProcessing = DtdProcessing.Parse;",
+        "settings.XmlResolver = new XmlUrlResolver();",
+        "doc.XmlResolver = new XmlUrlResolver();"
+      ],
+      "should_not_trigger": [
+        "settings.DtdProcessing = DtdProcessing.Prohibit;",
+        "settings.XmlResolver = null;",
+        "doc.XmlResolver = null;"
+      ]
+    }
+  }
+}

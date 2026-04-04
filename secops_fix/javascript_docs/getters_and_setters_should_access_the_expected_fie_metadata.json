@@ -1,0 +1,52 @@
+{
+  "filename": "getters_and_setters_should_access_the_expected_fie_metadata.json",
+  "rule_id": "getters_setters_access_expected",
+  "title": "Getters and setters should access the expected fields",
+  "description": "Getters and setters should access the expected fieldsAnalyze your codeintentionality-clearreliabilityBugpitfallWhy is this an issue?More InfoGetters and setters provide a way to enforce encapsulation by providing methods that give controlled access to class fields. However, in classes with multiple fields, it is not unusual that copy and paste is used to quickly create the needed getters and setters, which can result in the wrong field being accessed by a getter or setter.This rule raises an issue in the following cases:A setter does not update the field with the corresponding name (if it exists).A getter:does not return any valuedoes not access the field with the corresponding name (if it exists).Underscore prefixes for fields are supported, sosetX()can assign a value to_x.The following t",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    "deprecated",
+    "async"
+  ],
+  "examples": {
+    "noncompliant": [
+      "setX()"
+    ],
+    "compliant": [
+      "_x"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-4275"
+  ],
+  "logic": {
+    "node_types": [
+      "MethodDefinition",
+      "Property"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "get\\s+\\w+\\s*\\(\\s*\\)\\s*\\{(?![^}]*return)[^}]*\\}",
+        "message": "Getter method does not return any value - getters must return a value"
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "set\\s+(\\w+)\\s*\\([^)]*\\)\\s*\\{(?![^}]*this\\._?\\1\\s*=)(?![^}]*this\\[\\'_?\\1\\'\\]\\s*=)[^}]*\\}",
+        "message": "Setter method may not update the expected field - verify setter assigns to the corresponding property"
+      }
+    ]
+  }
+}

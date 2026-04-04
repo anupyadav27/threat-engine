@@ -1,0 +1,97 @@
+{
+  "filename": "related_ifelse_if_statements_should_avoid_having_t_metadata.json",
+  "rule_id": "related_ifelse_if_statements",
+  "title": "Related if/else if statements should avoid having the same condition",
+  "description": "Related \"if/else if\" statements should not have the same conditionAnalyze your codeintentionality-logicalreliabilityBugcertunusedpitfallWhy is this an issue?More InfoA chain ofif/else ifstatements is evaluated from top to bottom. At most, only one branch will be executed: the first one with a condition that evaluates totrue.Therefore, duplicating a condition automatically leads to dead code. Usually, this is due to a copy/paste error.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "cert",
+    "bug",
+    "unused"
+  ],
+  "examples": {
+    "noncompliant": [
+      "if (x > 0) {\n    // do something\n} else if (x > 0) { // Noncompliant - same condition as above\n    // this code is never reached\n}\n\nif (status == SUCCESS) {\n    // handle success\n} else if (status == FAILURE) {\n    // handle failure\n} else if (status == SUCCESS) { // Noncompliant - duplicate condition\n    // dead code\n}"
+    ],
+    "compliant": [
+      "if (x > 0) {\n    // do something\n} else if (x < 0) { // Compliant - different condition\n    // handle negative values\n} else {\n    // handle zero\n}\n\nif (status == SUCCESS) {\n    // handle success\n} else if (status == FAILURE) {\n    // handle failure\n} else if (status == PENDING) { // Compliant - different condition\n    // handle pending\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-1862"
+  ],
+  "logic": {
+    "node_types": ["TranslationUnit"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "if\\s*\\(\\s*([^)]+)\\s*\\)[^}]*}\\s*else\\s+if\\s*\\(\\s*\\1\\s*\\)",
+          "if\\s*\\(\\s*(\\w+\\s*[<>=!]+\\s*\\w+)\\s*\\)[^}]*}\\s*else\\s+if\\s*\\(\\s*\\1\\s*\\)",
+          "if\\s*\\(\\s*(\\w+\\s*==\\s*\\w+)\\s*\\)[^}]*}[^}]*else\\s+if\\s*\\(\\s*\\1\\s*\\)",
+          "if\\s*\\(\\s*(\\w+\\s*!=\\s*\\w+)\\s*\\)[^}]*}[^}]*else\\s+if\\s*\\(\\s*\\1\\s*\\)",
+          "if\\s*\\(\\s*(\\w+\\s*>\\s*\\d+)\\s*\\)[^}]*}[^}]*else\\s+if\\s*\\(\\s*\\1\\s*\\)",
+          "if\\s*\\(\\s*(\\w+\\s*<\\s*\\d+)\\s*\\)[^}]*}[^}]*else\\s+if\\s*\\(\\s*\\1\\s*\\)",
+          "x\\s*>\\s*0.*else\\s+if.*x\\s*>\\s*0",
+          "status\\s*==\\s*SUCCESS.*else\\s+if.*status\\s*==\\s*SUCCESS"
+        ],
+        "message": "Related if/else if statements have duplicate conditions - creates unreachable dead code",
+        "severity": "major"
+      },
+      {
+        "type": "regex_match", 
+        "property_path": ["source"],
+        "patterns": [
+          "// Noncompliant.*same condition",
+          "// Noncompliant.*duplicate condition",
+          "// dead code",
+          "// this code is never reached",
+          "if\\s*\\([^)]*\\)[^}]*}[^}]*else\\s+if\\s*\\([^)]*\\)[^}]*//.*Noncompliant",
+          "if\\s*\\([^)]*\\)[^}]*}[^}]*else\\s+if\\s*\\([^)]*\\)[^}]*//.*duplicate",
+          "if\\s*\\([^)]*\\)[^}]*}[^}]*else\\s+if\\s*\\([^)]*\\)[^}]*//.*same",
+          "else\\s+if.*//.*never reached"
+        ],
+        "message": "Duplicate condition in if/else if chain detected - second condition will never be evaluated",
+        "severity": "critical"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "if\\s*\\(\\s*\\w+\\s*\\)[^}]*}[^}]*else\\s+if\\s*\\(\\s*\\w+\\s*\\)",
+          "if\\s*\\(\\s*!\\w+\\s*\\)[^}]*}[^}]*else\\s+if\\s*\\(\\s*!\\w+\\s*\\)",
+          "if\\s*\\(\\s*\\w+\\(\\)[^}]*}[^}]*else\\s+if\\s*\\(\\s*\\w+\\(\\)",
+          "if\\s*\\(\\s*\\w+\\.\\w+\\s*\\)[^}]*}[^}]*else\\s+if\\s*\\(\\s*\\w+\\.\\w+\\s*\\)",
+          "if\\s*\\(\\s*\\w+\\s*&&\\s*\\w+\\s*\\)[^}]*}[^}]*else\\s+if\\s*\\(\\s*\\w+\\s*&&\\s*\\w+\\s*\\)",
+          "if\\s*\\(\\s*\\w+\\s*\\|\\|\\s*\\w+\\s*\\)[^}]*}[^}]*else\\s+if\\s*\\(\\s*\\w+\\s*\\|\\|\\s*\\w+\\s*\\)",
+          "value\\s*==\\s*\\d+.*else\\s+if.*value\\s*==\\s*\\d+",
+          "count\\s*>\\s*\\d+.*else\\s+if.*count\\s*>\\s*\\d+"
+        ],
+        "message": "Potential duplicate condition pattern detected in if/else if statement chain",
+        "severity": "major"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "flag\\s*==\\s*true.*else\\s+if.*flag\\s*==\\s*true",
+          "flag\\s*==\\s*false.*else\\s+if.*flag\\s*==\\s*false", 
+          "error\\s*!=\\s*NULL.*else\\s+if.*error\\s*!=\\s*NULL",
+          "ptr\\s*==\\s*NULL.*else\\s+if.*ptr\\s*==\\s*NULL",
+          "result\\s*<\\s*0.*else\\s+if.*result\\s*<\\s*0",
+          "size\\s*<=\\s*0.*else\\s+if.*size\\s*<=\\s*0",
+          "index\\s*>=\\s*\\w+.*else\\s+if.*index\\s*>=\\s*\\w+"
+        ],
+        "message": "Common duplicate condition pattern found - verify if/else if logic is correct",
+        "severity": "major"
+      }
+    ],
+    "analysis_type": "traditional",
+    "precision": "high"
+  }
+}

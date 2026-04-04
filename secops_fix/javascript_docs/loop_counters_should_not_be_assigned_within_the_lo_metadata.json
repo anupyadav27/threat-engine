@@ -1,0 +1,45 @@
+{
+  "filename": "loop_counters_should_not_be_assigned_within_the_lo_metadata.json",
+  "rule_id": "loop_counters_assigned_within",
+  "title": "Loop counters should not be assigned within the loop body",
+  "description": "Loop counters, such as variables used to track the iteration count in loops, should not be assigned from within the loop body to avoid unexpected behavior and bugs. It can inadvertently lead to an infinite loop or make the loop behavior more complex and harder to reason about. To avoid these issues, you should update the loop counter only in the loop's update statement, typically located at the end of the loop header, or use break/continue statements instead.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Code Quality",
+  "recommendation": "Use break or continue statements instead of modifying loop counters within the loop body.",
+  "impact": "Code reliability and maintainability issue",
+  "tags": [
+    "code-quality",
+    "reliability",
+    "bug-prone",
+    "loop-control"
+  ],
+  "examples": {
+    "noncompliant": [
+      "const names = [ \"Jack\", \"Jim\", \"\", \"John\" ];\nfor (let i = 0; i < names.length; i++) {\n  if (!names[i]) {\n    i = names.length; // Noncompliant: The loop counter i is assigned within the loop body\n  } else {\n    console.log(names[i]);\n  }\n}"
+    ],
+    "compliant": [
+      "const names = [ \"Jack\", \"Jim\", \"\", \"John\" ];\nfor (let i = 0; i < names.length; i++) {\n  if (!names[i]) {\n    break;\n  } else {\n    console.log(names[i]);\n  }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-2310"
+  ],
+  "logic": {
+    "node_types": [
+      "ForStatement",
+      "WhileStatement",
+      "DoWhileStatement"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "for\\s*\\([^)]*\\)\\s*\\{[\\s\\S]*?(?:^|[\\s;])(?:i|j|k|index|idx|counter)\\s*(?:=(?!=)|\\+=|-=|\\*=|/=|\\+\\+|--)[\\s\\S]*?\\}",
+        "message": "Loop counter should not be assigned within the loop body - use break/continue instead"
+      }
+    ]
+  }
+}

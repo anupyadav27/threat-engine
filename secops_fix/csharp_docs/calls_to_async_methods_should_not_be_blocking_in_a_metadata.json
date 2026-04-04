@@ -1,0 +1,48 @@
+{
+  "filename": "calls_to_async_methods_should_not_be_blocking_in_a_metadata.json",
+  "rule_id": "calls_async_methods_blocking_1",
+  "title": "Calls to async methods should not be blocking in Azure Functions",
+  "description": "Making blocking calls to async methods transforms the code into a synchronous operation. Doing so inside an Azure Function can lead to thread pool exhaustion. Thread pool exhaustion refers to a situation where all available threads in a thread pool are occupied, and new tasks or work items cannot be scheduled for execution due to the lack of available threads.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "[FunctionName(nameof(ParseRequest))]\npublic static async Task<IActionResult> ParseRequest(\n  [HttpTrigger(AuthorizationLevel.Function, \"get\", \"post\", Route = null)] HttpRequest req)\n{\n  // Noncompliant: Blocking call with .Result\n  string requestBody = new StreamReader(req.Body).ReadToEndAsync().Result;\n  // ...\n}"
+    ],
+    "compliant": [
+      "[FunctionName(nameof(ParseRequest))]\npublic static async Task<IActionResult> ParseRequest(\n  [HttpTrigger(AuthorizationLevel.Function, \"get\", \"post\", Route = null)] HttpRequest req)\n{\n  // Compliant: Using await\n  string requestBody = await new StreamReader(req.Body).ReadToEndAsync();\n  // ...\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-6422"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration"],
+    "checks": [{
+      "type": "regex_match",
+      "property_path": ["source"],
+      "patterns": [
+        "ReadToEndAsync\\s*\\(\\s*\\)\\s*\\.Result",
+        "ReadAsync\\s*\\([^)]*\\)\\s*\\.Result",
+        "\\w+Async\\s*\\([^)]*\\)\\s*\\.Result",
+        "Task\\s*\\.\\s*Run\\s*\\([^;]+\\)\\s*\\.Result",
+        "\\btask\\s*\\.Result\\b",
+        "\\bvalueTask\\s*\\.Result\\b"
+      ],
+      "exclude_patterns": [
+        "NonAzureFunction",
+        "HelperMethod",
+        "RegularAsyncMethod"
+      ],
+      "message": "Do not block on async methods in Azure Functions - use await to prevent thread pool exhaustion"
+    }]
+  }
+}

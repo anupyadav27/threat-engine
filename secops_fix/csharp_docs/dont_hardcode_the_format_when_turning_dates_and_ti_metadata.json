@@ -1,0 +1,44 @@
+{
+  "filename": "dont_hardcode_the_format_when_turning_dates_and_ti_metadata.json",
+  "rule_id": "dont_hardcode_format_when",
+  "title": "Don't hardcode the format when turning dates and times to strings",
+  "description": "Don't hardcode the format when turning dates and times to stringsAnalyze your codeintentionality-completemaintainabilityCode SmellWhy is this an issue?How can I fix it?More InfoHardcoding the date and time format strings can lead to formats that consumers misunderstand. Also, if the same format is meant to be used in multiple places, it is easier to make a mistake when it’s hardcoded instead of using a format provided by anIFormatProvideror using one of the standard format strings.What is the potential impact?If a non-conventional format is used, the formatted date and time can be misunderstood. Also, if a mistake is made in the format, the formatted date can be incomplete.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public string FormatDate(DateTime date)\n{\n    return date.ToString(\"dd/MM/yyyy\"); // Noncompliant: Hardcoded format\n}",
+      "public void DisplayTime(DateTime time)\n{\n    string formatted = time.ToString(\"HH:mm:ss\"); // Noncompliant\n    Console.WriteLine(formatted);\n}",
+      "public string GetTimestamp()\n{\n    DateTime now = DateTime.Now;\n    return now.ToString(\"yyyy-MM-dd HH:mm:ss\"); // Noncompliant: Hardcoded format string\n}"
+    ],
+    "compliant": [
+      "public string FormatDate(DateTime date)\n{\n    return date.ToString(\"d\", CultureInfo.CurrentCulture); // Compliant: Using standard format\n}",
+      "public void DisplayTime(DateTime time)\n{\n    string formatted = time.ToString(\"T\", CultureInfo.InvariantCulture); // Compliant\n    Console.WriteLine(formatted);\n}",
+      "public string GetTimestamp()\n{\n    DateTime now = DateTime.Now;\n    return now.ToString(CultureInfo.CurrentCulture); // Compliant: Using culture info\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-6585"
+  ],
+  "logic": {
+    "target_ast_nodes": ["CallExpression"],
+    "detection_conditions": "Detect hardcoded date/time format strings in ToString() calls",
+    "triggering_conditions": "DateTime.ToString with hardcoded format string (not standard format, no CultureInfo)",
+    "exclusion_conditions": "Exclude standard formats (single char), ToString with CultureInfo parameter",
+    "never_trigger_on": ["Standard format specifiers (d, D, t, T, etc.)", "ToString with CultureInfo", "Non-date formats"],
+    "reasoning": "Hardcoded date/time formats can be misunderstood across cultures and are error-prone. Use standard format strings or CultureInfo for consistent, locale-appropriate formatting.",
+    "validation_examples": {
+      "should_trigger": ["date.ToString(\"dd/MM/yyyy\")", "time.ToString(\"HH:mm:ss\")"],
+      "should_not_trigger": ["date.ToString(\"d\", CultureInfo.CurrentCulture)", "time.ToString(CultureInfo.InvariantCulture)"]
+    },
+    "custom_function": "check_dont_hardcode_format_when"
+  }
+}

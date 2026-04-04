@@ -1,0 +1,53 @@
+{
+  "filename": "deprecated_react_apis_should_be_avoided_metadata.json",
+  "rule_id": "deprecated_react_apis_avoided",
+  "title": "Deprecated React APIs should be avoided",
+  "description": "Deprecated methods are functions or properties that are no longer recommended and are likely to be removed in future updates of the library. They are often replaced with newer methods that offer better performance, security, or usability. Using deprecated methods in React can lead to the following issues: Code Maintainability: As deprecated methods are removed in future versions, the code will break if not updated.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    "deprecated",
+    "async"
+  ],
+  "examples": {
+    "noncompliant": [
+      "import React, { useState, useEffect } from 'react';\n\nfunction MyComponent(props) {\n  const [state, setState] = useState(initialState);\n\n  componentWillReceiveProps(nextProps) { // Noncompliant: deprecated lifecycle method\n    // Some code here...\n  }\n\n  componentWillUpdate(nextProps, nextState) { // Noncompliant: deprecated lifecycle method\n    // Some code here...\n  }\n\n  render() {\n    return <div>Hello World</div>;\n  }\n}"
+    ],
+    "compliant": [
+      "import React, { useState, useEffect } from 'react';\n\nfunction MyComponent(props) {\n  const [state, setState] = useState(initialState);\n\n  // Using useEffect to replace deprecated lifecycle methods\n  useEffect(() => {\n    // Code to run on component update\n  }, [props]); // This will run when `props` changes\n\n  return <div>Hello World</div>;\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-6957"
+  ],
+  "logic": {
+    "node_types": [
+      "Program",
+      "CompilationUnit"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_deprecated_react_apis",
+        "message": "Deprecated React lifecycle method detected"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": ["componentWillReceiveProps\\s*\\("],
+        "message": "componentWillReceiveProps is deprecated - use useEffect or componentDidUpdate instead"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": ["componentWillUpdate\\s*\\("],
+        "message": "componentWillUpdate is deprecated - use useEffect or componentDidUpdate instead"
+      }
+    ]
+  }
+}

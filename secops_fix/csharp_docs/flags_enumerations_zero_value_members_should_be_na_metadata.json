@@ -1,0 +1,81 @@
+{
+  "filename": "flags_enumerations_zero_value_members_should_be_na_metadata.json",
+  "rule_id": "flags_enumerations_zerovalue_members",
+  "title": "Flags enumerations zero-value members should be named None",
+  "description": "An enumeration can be decorated with the FlagsAttribute to indicate that it can be used as a bit field: a set of flags, that can be independently set and reset. For example, the following definition of the day of the week: Monday = 1, // 0b00000001 Tuesday = 2, // 0b00000010 Wednesday = 4, // 0b00000100 Thursday = 8, // 0b00001000 Friday = 16, // 0b00010000 Saturday = 32, // 0b00100000 Sunday = 64 // 0b01000000 allows to define special set of days, such as WeekDays and Weekend using the | operator: None = 0, // 0b00000000 Weekdays = Monday | Tuesday | Wednesday | Thursday | Friday, // 0b00011111 Weekend = Saturday | Sunday, // 0b01100000 All = Weekdays | Weekend // 0b01111111 These can be used to write more expressive conditions, taking advantage of bitwise operators and Enum.HasFlag: var someDays = Days.Wednesday | Days.Weekend; // 0b01100100 someDays.HasFlag(Days.Wednesday); // someDays contains Wednesday var mondayAndWednesday = Days.Monday | Days.Wednesday; someDays.HasFlag(mondayAndWednesday); // someDays contains Monday and Wednesday someDays.HasFlag(Days.Monday) || someDays.HasFlag(Days.Wednesday); // someDays contains Monday or Wednesday someDays & Days.Weekend != Days.None; // someDays overlaps with the weekend someDays & Days.Weekdays == Days.Weekdays; // someDays is only made of weekdays",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "[Flags]\nenum Permissions\n{\n    Empty = 0,    // Noncompliant: zero-value member should be named 'None'\n    Read = 1,\n    Write = 2,\n    Execute = 4\n}"
+    ],
+    "compliant": [
+      "[Flags]\nenum Permissions\n{\n    None = 0,     // Compliant: zero-value member is named 'None'\n    Read = 1,\n    Write = 2,\n    Execute = 4\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2346"
+  ],
+  "logic": {
+    "target_ast_nodes": [],
+    "detection_conditions": "Detects enums decorated with [Flags] that have a zero-value member not named 'None'.",
+    "triggering_conditions": {
+        "type": "custom_function",
+        "function": "check_flags_enum_zero_value_member_named_none"
+    },
+    "node_types": [],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_flags_enum_zero_value_member_named_none"
+      }
+    ],
+      "exclusion_conditions": {
+        "exclude_patterns": [
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "\\$\"",
+          "string.Format",
+          "ToString\\(\\)",
+          "\\[Test",
+          "Assert\\.",
+          "//",
+          "/\\*",
+          "///",
+          "Configuration",
+          "GeneratedCode"
+        ]
+      },
+      "never_trigger_on": [
+        "Enums not decorated with [Flags]",
+        "Zero-value member named 'None'",
+        "Logging statements",
+        "String formatting",
+        "Unit tests",
+        "Comments",
+        "Configuration files",
+        "ToString methods",
+        "Generated code"
+      ],
+      "reasoning": "This logic targets enums with the [Flags] attribute and checks for zero-value members not named 'None'. It excludes common false positive contexts such as logging, tests, formatting, comments, config, and generated code. This ensures only relevant violations are detected.",
+      "validation_examples": {
+        "should_trigger": [
+          "[Flags]\nenum Permissions\n{\n    Empty = 0,    // Noncompliant: zero-value member should be named 'None'\n    Read = 1,\n    Write = 2,\n    Execute = 4\n}",
+          "[Flags]\nenum Status\n{\n    Zero = 0,      // Noncompliant\n    Active = 1,\n    Inactive = 2\n}"
+        ],
+        "should_not_trigger": [
+          "[Flags]\nenum Permissions\n{\n    None = 0,     // Compliant: zero-value member is named 'None'\n    Read = 1,\n    Write = 2,\n    Execute = 4\n}",
+          "enum Permissions\n{\n    Empty = 0,    // Not a Flags enum, should not trigger\n    Read = 1,\n    Write = 2\n}"
+        ]
+      }
+    }
+}

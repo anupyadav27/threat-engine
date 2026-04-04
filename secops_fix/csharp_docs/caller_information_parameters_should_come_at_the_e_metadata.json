@@ -1,0 +1,41 @@
+{
+  "filename": "caller_information_parameters_should_come_at_the_e_metadata.json",
+  "rule_id": "caller_information_parameters_come",
+  "title": "Caller information parameters should come at the end of the parameter list",
+  "description": "Caller information parameters should come at the end of the parameter listAnalyze your codeintentionality-clearreliabilityBugapi-designWhy is this an issue?How can I fix it?More InfoCaller information attributesprovide a way to get information about the caller of a method throughoptionalparameters. But they only work right if their values aren’t provided explicitly. So if you define a method with caller info attributes in the middle of the parameter list, the caller is forced to use named arguments if they want to use the method properly.This rule raises an issue when the following attributes are used on parameters before the end of the parameter list:CallerFilePathAttributeCallerLineNumberAttributeCallerMemberNameAttributeCallerArgumentExpressionAttributeAvailable In:Catch issues on the f",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant: Caller info parameter in the middle\nvoid TraceMessage([CallerMemberName] string memberName = null,\n  string message,\n  [CallerFilePath] string filePath = null)\n{\n  // ...\n}"
+    ],
+    "compliant": [
+      "// Compliant: Caller info parameters at the end\nvoid TraceMessage(string message,\n  [CallerMemberName] string memberName = null,\n  [CallerFilePath] string filePath = null)\n{\n  // ...\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3343"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration"],
+    "checks": [{
+      "type": "regex_match",
+      "property_path": ["source"],
+      "patterns": [
+        "\\[CallerFilePath\\][^,)]*,\\s*(?:string|int|bool|object|var)\\s+\\w",
+        "\\[CallerLineNumber\\][^,)]*,\\s*(?:string|int|bool|object|var)\\s+\\w",
+        "\\[CallerMemberName\\][^,)]*,\\s*(?:string|int|bool|object|var)\\s+\\w",
+        "\\[CallerArgumentExpression\\([^\\]]*\\)\\][^,]*,\\s*(?:string|int|bool|object|var)\\s+\\w"
+      ],
+      "message": "Caller information parameters should come at the end of the parameter list"
+    }]
+  }
+}

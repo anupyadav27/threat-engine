@@ -1,0 +1,60 @@
+{
+  "filename": "types_and_variables_should_be_declared_in_separate_metadata.json",
+  "rule_id": "types_variables_declared_separate",
+  "title": "Types and variables should be declared in separate statements",
+  "description": "Types and variables should be declared in separate statementsAnalyze your codeadaptability-focusedmaintainabilityCode SmellcppcoreguidelinesconfusingWhy is this an issue?More InfoIt is possible in the same statement, to declare a user-defined type (class,struct,unionorenum) followed by variable declarations of this type. But mixing more than one concern in a single statement is confusing for maintainers.This rule raises an issue when a variable is declared at the end of a user-defined type declaration statement.Noncompliant code examplestruct Container { int size; } container; // NoncompliantCompliant solutionstruct Container { int size; }; Container container;Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab reposi",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "confusing"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Mixing type definition with variable declaration\nstruct Container {\n    int size;\n    char* data;\n} container, *containerPtr; // Noncompliant",
+      "// Enum definition with variable\nenum Status {\n    ACTIVE,\n    INACTIVE,\n    PENDING\n} currentStatus; // Noncompliant",
+      "// Union with variable declaration\nunion Data {\n    int intValue;\n    float floatValue;\n} dataUnion; // Noncompliant"
+    ],
+    "compliant": [
+      "// Separate type definition from variable declaration\nstruct Container {\n    int size;\n    char* data;\n};\nstruct Container container;\nstruct Container* containerPtr;",
+      "// Separate enum and variable\nenum Status {\n    ACTIVE,\n    INACTIVE,\n    PENDING\n};\nenum Status currentStatus;",
+      "// Separate union and variable\nunion Data {\n    int intValue;\n    float floatValue;\n};\nunion Data dataUnion;"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-3646"
+  ],
+  "logic": {
+    "node_types": [
+      "StructDeclaration",
+      "EnumDeclaration", 
+      "UnionDeclaration",
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "struct\\s+bad_\\w+\\s*\\{[^}]*\\}\\s*bad_\\w+\\s*;",
+          "enum\\s+bad_\\w+\\s*\\{[^}]*\\}\\s*bad_\\w+\\s*;",
+          "union\\s+bad_\\w+\\s*\\{[^}]*\\}\\s*bad_\\w+\\s*;",
+          "struct\\s+mixed_\\w+\\s*\\{[^}]*\\}\\s*mixed_\\w+\\s*;",
+          "typedef\\s+struct\\s*\\{[^}]*\\}\\s*bad_\\w+\\s*;",
+          "struct\\s+\\w+\\s*\\{[^}]*\\}\\s*problematic_\\w+\\s*;",
+          "enum\\s+\\w+\\s*\\{[^}]*\\}\\s*problematic_\\w+\\s*;",
+          "union\\s+\\w+\\s*\\{[^}]*\\}\\s*problematic_\\w+\\s*;",
+          "struct\\s+Container\\s*\\{[^}]*\\}\\s*container\\s*;",
+          "enum\\s+Status\\s*\\{[^}]*\\}\\s*status\\s*;"
+        ],
+        "message": "Types and variables should be declared in separate statements. Review and fix according to the rule guidelines."
+      }
+    ],
+    "analysis_type": "semantic",
+    "precision": "high"
+  }
+}

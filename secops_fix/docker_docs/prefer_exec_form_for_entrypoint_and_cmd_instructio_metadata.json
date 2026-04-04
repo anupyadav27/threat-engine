@@ -1,0 +1,42 @@
+{
+  "filename": "prefer_exec_form_for_entrypoint_and_cmd_instructio_metadata.json",
+  "rule_id": "prefer_exec_form_entrypoint",
+  "title": "Prefer Exec form for ENTRYPOINT and CMD instructions",
+  "description": "Using the shell form instead of the exec form for CMD and ENTRYPOINT instructions in Dockerfiles can lead to several issues. When you use the shell form, the executable runs as a child process to a shell, which does not pass OS signals. This can cause problems when trying to gracefully stop containers because the main process will not receive the signal intended to terminate it.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Code readability problem",
+  "tags": [
+    "convention"
+  ],
+  "examples": {
+    "noncompliant": [
+      "CMD"
+    ],
+    "compliant": [
+      "ENTRYPOINT"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/docker/RSPEC-7019"
+  ],
+  "logic": {
+    "instruction_types": [
+      "CMD",
+      "ENTRYPOINT"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["value"],
+        "patterns": [
+          "^(?!\\[).*\\S",
+          "^[^\\[]+$"
+        ],
+        "message": "Prefer exec form over shell form for ENTRYPOINT and CMD instructions. Shell form causes the executable to run as a child process to a shell, which doesn't pass OS signals properly. This prevents graceful container shutdown. Use exec form with JSON array syntax: CMD [\"executable\", \"param1\", \"param2\"] instead of CMD executable param1 param2."
+      }
+    ]
+  }
+}

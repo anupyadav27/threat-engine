@@ -1,0 +1,42 @@
+{
+  "filename": "default_capture_should_be_avoided_metadata.json",
+  "rule_id": "default_capture_avoided",
+  "title": "Default capture should be avoided",
+  "description": "Lambdas can use variables from their enclosing scope (called \"capture\") either by reference or by value. Since lambdas may run asynchronously, reference capture should be used with caution because, by the time the lambda runs, the referenced variable may be out of scope, resulting in an access violation at run time. You can specify default capture by reference ([&]), or by value ([=]).",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "async"
+  ],
+  "examples": {
+    "noncompliant": [
+      "void processData() {\n    int value = 42;\n    std::string data = \"test\";\n    \n    auto lambda = [&]() {  // Noncompliant - captures all by reference\n        return value + data.length();\n    };\n    \n    std::async(std::launch::async, lambda);  // Risky: variables may be out of scope\n}"
+    ],
+    "compliant": [
+      "void processData() {\n    int value = 42;\n    std::string data = \"test\";\n    \n    auto lambda = [value, &data]() {  // Compliant - explicit capture\n        return value + data.length();\n    };\n    \n    // Or capture by value for safety\n    auto safeLambda = [value, data]() {  // Compliant - explicit capture by value\n        return value + data.length();\n    };\n    \n    std::async(std::launch::async, safeLambda);\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-3608"
+  ],
+  "logic": {
+    "node_types": [
+      "LambdaExpression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "\\[=\\]|\\[&\\]"
+        ],
+        "message": "Review and fix according to the rule guidelines."
+      }
+    ]
+  }
+}

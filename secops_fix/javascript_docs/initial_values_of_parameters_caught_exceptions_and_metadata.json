@@ -1,0 +1,50 @@
+{
+  "filename": "initial_values_of_parameters_caught_exceptions_and_metadata.json",
+  "rule_id": "initial_values_parameters_caught",
+  "title": "Initial values of parameters, caught exceptions, and loop variables should not be ignored",
+  "description": "Function parameters, caught exception variables, and loop variables should not be overwritten without first reading their initial values. When these variables are immediately reassigned without using their original values, it can indicate design issues, unused parameters, or logic errors. This makes code harder to understand and may hide bugs where the original value was intended to be used.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Code Quality",
+  "recommendation": "Use the original parameter/variable value before reassigning, or use a different variable name.",
+  "impact": "Code clarity and potential logic errors",
+  "tags": [
+    "maintainability",
+    "code-smell",
+    "design",
+    "clarity"
+  ],
+  "examples": {
+    "noncompliant": [
+      "function process(data) { data = []; return data.length; }",
+      "try { riskyOperation(); } catch (error) { error = new Error('Custom'); throw error; }",
+      "for (let i = 0; i < 10; i++) { i = i + 2; console.log(i); }",
+      "function calculate(x, y) { x = 0; return x + y; }"
+    ],
+    "compliant": [
+      "function process(data) { const result = data || []; return result.length; }",
+      "try { riskyOperation(); } catch (originalError) { const error = new Error('Custom: ' + originalError.message); throw error; }",
+      "for (let i = 0; i < 10; i += 3) { console.log(i); }",
+      "function calculate(x, y) { return (x || 0) + y; }"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-1226"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDeclaration",
+      "FunctionExpression",
+      "ArrowFunction",
+      "TryStatement",
+      "ForStatement"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "detect_ignored_initial_values",
+        "message": "Parameter, exception, or loop variable is overwritten without using its initial value"
+      }
+    ]
+  }
+}

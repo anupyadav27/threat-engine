@@ -1,0 +1,113 @@
+{
+  "filename": "multiple_orderby_calls_should_be_avoided_metadata.json",
+  "rule_id": "multiple_orderby_calls_avoided",
+  "title": "Multiple OrderBy calls should be avoided",
+  "description": "Multiple \"OrderBy\" calls should not be usedAnalyze your codeintentionality-logicalmaintainabilityCode SmellQuick FixIDE quick fixes available with SonarQube for IDEperformanceWhy is this an issue?How can I fix it?More InfoThere’s no point in chaining multipleOrderBycalls in a LINQ; only the last one will be reflected in the result because each subsequent call completely reorders the list. Thus, callingOrderBymultiple times is a performance issue as well, because all of the sorting will be executed, but only the result of the last sort will be kept.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CI©2025SonarSource Sàrl. All rights reserved.Privacy Policy|Cookie Policy|Term",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public void SortData()\n{\n    var people = GetPeople();\n    \n    var sorted = people\n        .OrderBy(p => p.LastName) // Noncompliant: Multiple OrderBy calls\n        .OrderBy(p => p.FirstName); // This overwrites the previous ordering\n    \n    var items = GetItems()\n        .OrderBy(x => x.Category)\n        .OrderBy(x => x.Priority); // Noncompliant\n}"
+    ],
+    "compliant": [
+      "public void SortData()\n{\n    var people = GetPeople();\n    \n    var sorted = people\n        .OrderBy(p => p.LastName) // Compliant: Use ThenBy for secondary sorting\n        .ThenBy(p => p.FirstName);\n    \n    var items = GetItems()\n        .OrderBy(x => x.Category)\n        .ThenBy(x => x.Priority); // Compliant\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3169"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration", "Assignment"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\.OrderBy\\([^)]*\\)[^;]*\\.OrderBy\\([^)]*\\)",
+        "exclude_patterns": [
+          "Console\\.",
+          "Debug\\.",
+          "Logger\\.",
+          "\\$\"",
+          "string\\.Format",
+          "\\[Test\\]",
+          "\\[Fact\\]",
+          "\\[TestMethod\\]",
+          "Assert\\.",
+          "// Compliant",
+          "SeparateQueries",
+          "DifferentScopes",
+          "Logging",
+          "TestMultiple"
+        ]
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\.OrderBy\\([^)]*\\)[^;]*\\.OrderByDescending\\([^)]*\\)",
+        "exclude_patterns": [
+          "Console\\.",
+          "Debug\\.",
+          "Logger\\.",
+          "\\$\"",
+          "\\[Test\\]",
+          "Assert\\.",
+          "// Compliant",
+          "SeparateQueries",
+          "DifferentScopes",
+          "Logging",
+          "TestMultiple"
+        ]
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\.OrderByDescending\\([^)]*\\)[^;]*\\.OrderBy\\([^)]*\\)",
+        "exclude_patterns": [
+          "Console\\.",
+          "Debug\\.",
+          "Logger\\.",
+          "\\$\"",
+          "\\[Test\\]",
+          "Assert\\.",
+          "// Compliant",
+          "SeparateQueries", 
+          "DifferentScopes",
+          "Logging",
+          "TestMultiple"
+        ]
+      }
+    ],
+    "never_trigger_on": [
+      "Unit test methods ([Test], [Fact], [TestMethod])",
+      "Logging statements (Console.*, Debug.*, Logger.*)",
+      "String formatting expressions",
+      "Separate variable assignments (not chained)",
+      "Methods with 'Compliant' comments",
+      "Assert statements in tests",
+      "Non-LINQ OrderBy method calls",
+      "Test methods containing 'Test' in name"
+    ],
+    "reasoning": "Detects multiple OrderBy/OrderByDescending calls in the same LINQ method chain which is inefficient and incorrect because only the last ordering operation takes effect. Targets MethodDeclaration nodes to catch multiline LINQ expressions and Assignment nodes for single-line chains. Uses regex patterns to identify chained calls within the same expression while excluding separate queries, logging, and test contexts. The rule suggests using ThenBy/ThenByDescending for secondary sorting instead.",
+    "validation_examples": {
+      "should_trigger": [
+        "items.OrderBy(x => x.Name).OrderBy(x => x.Category)",
+        "data.OrderBy(x => x.A).Where(x => x.IsValid).OrderBy(x => x.B)", 
+        "list.OrderBy(x => x.Priority).OrderByDescending(x => x.Date)"
+      ],
+      "should_not_trigger": [
+        "items.OrderBy(x => x.Name).ThenBy(x => x.Category)",
+        "var first = items.OrderBy(x => x.A); var second = items.OrderBy(x => x.B);",
+        "items.OrderBy(x => x.Name)",
+        "[Test] public void TestMultipleOrderBy() { items.OrderBy(x => x.A).OrderBy(x => x.B); }"
+      ]
+    }
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "filename": "label_names_should_follow_a_naming_convention_metadata.json",
+  "rule_id": "label_names_follow_naming",
+  "title": "Label names should follow a naming convention",
+  "description": "Label names should comply with a naming conventionAnalyze your codeconsistency-identifiablemaintainabilityCode SmellconventionWhy is this an issue?Shared coding conventions allow teams to collaborate effectively. This rule checks that labels match a provided regular expression.Noncompliant code exampleWith default provided regular expression^[A-Z][A-Z0-9_]*$:exit: // Noncompliant doCleanup();Compliant solutionEXIT: // Compliant doCleanup();Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIDeveloper EditionAvailable Since9.1©2025SonarSource Sàrl. All rights reserved.Privacy Policy|Cookie Policy|Terms of Use",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "convention"
+  ],
+  "examples": {
+    "noncompliant": [
+      "exit:  // Noncompliant - lowercase",
+      "cleanUp:  // Noncompliant - mixed case",
+      "error_handling:  // Noncompliant - lowercase with underscore"
+    ],
+    "compliant": [
+      "EXIT:  // Compliant - all uppercase",
+      "CLEAN_UP:  // Compliant - uppercase with underscore",
+      "ERROR_HANDLING:  // Compliant"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-3222"
+  ],
+  "logic": {
+    "node_types": [
+      "Statement",
+      "FunctionDefinition",
+      "LabelStatement",
+      "GotoStatement"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "^\\s*[a-z][a-zA-Z0-9_]*:\\s*(?!case|default)",
+          "^\\s*[A-Z][a-z][a-zA-Z0-9_]*:\\s*(?!case|default)",
+          "^\\s*[a-zA-Z][a-zA-Z0-9_]*[a-z][a-zA-Z0-9_]*:\\s*(?!case|default)",
+          "goto\\s+[a-z][a-zA-Z0-9_]*",
+          "goto\\s+[A-Z][a-z][a-zA-Z0-9_]*",
+          "goto\\s+[a-zA-Z][a-zA-Z0-9_]*[a-z][a-zA-Z0-9_]*"
+        ],
+        "message": "Label names should follow the naming convention ^[A-Z][A-Z0-9_]*$ (uppercase letters, digits, and underscores only)."
+      },
+      {
+        "type": "label_convention_check",
+        "property_path": ["source"],
+        "naming_pattern": "^[A-Z][A-Z0-9_]*$",
+        "conditions": [
+          "not_case_default_label",
+          "is_label_definition",
+          "is_goto_target"
+        ],
+        "message": "Label name does not conform to the required naming convention (should be UPPER_CASE)."
+      }
+    ]
+  }
+}

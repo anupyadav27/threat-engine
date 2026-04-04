@@ -1,0 +1,76 @@
+{
+  "filename": "pointers_should_not_be_cast_to_integral_types_metadata.json",
+  "rule_id": "pointers_cast_integral_types",
+  "title": "Pointers should not be cast to integral types",
+  "description": "Pointers should not be cast to integral typesAnalyze your codeintentionality-logicalreliabilityBugbased-on-misracertWhy is this an issue?More InfoThe size of integer required to hold a memory address is implementation-dependent. Therefore, casting a pointer (i.e. a memory address) to any integral data type may result in data loss because the integral type is too small to hold the full address value.When treating a memory address as integer type is absolutely required, you should be sure to use a large enough type to hold all the data.Noncompliant code exampleint *p; int addr = ( int ) &p;Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIDeveloper EditionAvailable Since9.1",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "cert",
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "int *p;\nint addr = (int) &p; // Noncompliant: casting pointer to int may lose data",
+      "char *buffer;\nshort address = (short) buffer; // Noncompliant: casting pointer to short",
+      "void *ptr;\nchar c = (char) ptr; // Noncompliant: casting pointer to char"
+    ],
+    "compliant": [
+      "int *p;\nintptr_t addr = (intptr_t) &p; // Compliant: using intptr_t which can hold pointer",
+      "char *buffer;\nuintptr_t address = (uintptr_t) buffer; // Compliant: uintptr_t is guaranteed to hold pointer",
+      "void *ptr;\nsize_t addr = (size_t) ptr; // Compliant: size_t typically large enough for pointers"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-1767"
+  ],
+  "logic": {
+    "node_types": [
+      "TranslationUnit"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "\\(\\s*int\\s*\\)\\s*&\\w+",
+          "\\(\\s*int\\s*\\)\\s*\\w*[Pp]tr\\w*",
+          "\\(\\s*int\\s*\\)\\s*\\w*[Bb]uffer\\w*",
+          "\\(\\s*int\\s*\\)\\s*\\w+\\(\\)",
+          "\\(\\s*short\\s*\\)\\s*&\\w+",
+          "\\(\\s*short\\s*\\)\\s*\\w*[Pp]tr\\w*",
+          "\\(\\s*short\\s*\\)\\s*\\w*[Bb]uffer\\w*",
+          "\\(\\s*char\\s*\\)\\s*&\\w+",
+          "\\(\\s*char\\s*\\)\\s*\\w*[Pp]tr\\w*",
+          "\\(\\s*char\\s*\\)\\s*\\w*[Bb]uffer\\w*",
+          "\\(\\s*unsigned\\s+int\\s*\\)\\s*&\\w+",
+          "\\(\\s*unsigned\\s+int\\s*\\)\\s*\\w*[Pp]tr\\w*",
+          "\\(\\s*unsigned\\s+short\\s*\\)\\s*&\\w+",
+          "\\(\\s*unsigned\\s+short\\s*\\)\\s*\\w*[Pp]tr\\w*",
+          "\\(\\s*unsigned\\s+char\\s*\\)\\s*&\\w+",
+          "\\(\\s*unsigned\\s+char\\s*\\)\\s*\\w*[Pp]tr\\w*",
+          "\\(\\s*long\\s*\\)\\s*&\\w+",
+          "\\(\\s*long\\s*\\)\\s*\\w*[Pp]tr\\w*",
+          "\\(\\s*long\\s+long\\s*\\)\\s*&\\w+",
+          "\\(\\s*long\\s+long\\s*\\)\\s*\\w*[Pp]tr\\w*",
+          "\\(\\s*unsigned\\s+long\\s*\\)\\s*&\\w+",
+          "\\(\\s*unsigned\\s+long\\s*\\)\\s*\\w*[Pp]tr\\w*",
+          "\\(\\s*int\\s*\\)\\s*&\\w+\\[\\w+\\]",
+          "\\(\\s*short\\s*\\)\\s*&\\w+\\[\\w+\\]",
+          "\\(\\s*char\\s*\\)\\s*&\\w+\\.\\w+",
+          "\\(\\s*int\\s*\\)\\s*\\*\\w+",
+          "\\(\\s*int\\s*\\)\\s*\\w+\\(",
+          "\\(\\s*long\\s*\\)\\s*\\w+\\(",
+          "\\(\\s*short\\s*\\)\\s*\\w+\\(",
+          "\\(\\s*int\\s*\\)\\s*\\(\\w+"
+        ],
+        "message": "Pointers should not be cast to integral types. This can lead to loss of data and undefined behavior on different architectures."
+      }
+    ]
+  }
+}

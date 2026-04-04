@@ -1,0 +1,59 @@
+{
+  "rule_id": "aws_lambda_handlers_should_clean_up_temporary_files_in_tmp_directory",
+  "title": "AWS Lambda handlers should clean up temporary files in tmp directory",
+  "type": "CODE_SMELL",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "description": "Ensure Lambda functions clean up temporary files in the tmp directory",
+  "message": "Lambda function does not clean up temporary files in the tmp directory",
+  "remediation": {
+    "func": "Constant/Issue",
+    "constantCost": "5min"
+  },
+  "tags": [
+    "aws",
+    "lambda",
+    "temporary-files",
+    "cleanup",
+    "tmp"
+  ],
+  "impact": "Function resource usage may grow over time",
+  "recommendation": "Implement a cleanup function to remove temporary files",
+  "references": [],
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "import tempfile\n\ntmp_file = tempfile.NamedTemporaryFile(delete=False)\ntmp_file.write(b'some data')",
+        "description": "A Lambda function creates a temporary file and does not delete it"
+      }
+    ],
+    "compliant": [
+      {
+        "code": "import tempfile\n\ntmp_file = tempfile.NamedTemporaryFile(delete=True)\ntmp_file.write(b'some data')",
+        "description": "A Lambda function creates a temporary file and deletes it after use"
+      }
+    ]
+  },
+  "devsecops": {
+    "category": "",
+    "security": "",
+    "automation": "",
+    "compliance": ""
+  },
+  "why_is_this_an_issue": "Function resource usage may grow over time, leading to increased costs and potential performance issues",
+  "how_to_fix": "Modify the Lambda function to include a cleanup function that removes temporary files",
+  "security_mappings": {
+    "CWE": "",
+    "CERT": "",
+    "OWASP": ""
+  },
+  "logic": {
+    "node_types": ["FunctionDef", "AsyncFunctionDef"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "lambda_handler_compliance_check"
+      }
+    ]
+  }
+}

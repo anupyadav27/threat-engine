@@ -1,0 +1,70 @@
+{
+  "rule_id": "authorizing_http_communications_with_s3_buckets_is_securitysensitive",
+  "title": "Authorizing HTTP communications with S3 buckets is security sensitive",
+  "type": "VULNERABILITY",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "description": "Checks for direct HTTP communication with Amazon S3 buckets, which is a security sensitive practice.",
+  "message": "Direct HTTP access to Amazon S3 bucket detected.",
+  "remediation": {
+    "func": "Constant/Issue",
+    "constantCost": "5min"
+  },
+  "tags": [
+    "amazon_s3",
+    "security"
+  ],
+  "impact": "High",
+  "recommendation": "Use a secure method such as AWS SDK to communicate with S3.",
+  "references": [
+    "https://aws.amazon.com/blogs/security/aws-security-best-practices-for-amazon-s3/"
+  ],
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "import boto3\ns3 = boto3.client('s3')\ns3.put_object(Bucket='my-bucket', Key='my-key', Body='my-data')",
+        "description": "Insecure HTTP communication with S3 bucket."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "import boto3\ns3 = boto3.resource('s3')\ns3.Object('my-bucket', 'my-key').put(Body='my-data')",
+        "description": "Secure communication with S3 bucket using AWS SDK."
+      }
+    ]
+  },
+  "devsecops": {
+    "category": "",
+    "security": "",
+    "automation": "",
+    "compliance": ""
+  },
+  "why_is_this_an_issue": "Direct HTTP access to S3 buckets can expose sensitive data and increase the attack surface.",
+  "how_to_fix": "Use a secure method such as AWS SDK to communicate with S3.",
+  "security_mappings": {
+    "CWE": "",
+    "CERT": "",
+    "OWASP": ""
+  },
+  "logic": {
+    "check_type": "pattern",
+    "property_path": [
+      "ast.Call",
+      "func.name",
+      "value"
+    ],
+    "forbidden_values": [
+      "boto3.client",
+      "s3"
+    ],
+    "new_check_type_doc": "Checks if a call is made to boto3.client('s3') or s3, indicating direct HTTP communication with S3."
+  },
+  "function_code": "def check_http_s3_communication(node):\n    for call in node.findall(ast.Call):\n        if call.func.name == 'boto3.client' and call.args[0].s == 's3':\n            return True\n    return False",
+  "metadata": {
+    "filename": "authorizing_http_communications_with_s3_buckets_is_securitysensitive.json",
+    "rule_id": "authorizing_http_communications_with_s3_buckets_is_securitysensitive",
+    "title": "Authorizing HTTP communications with S3 buckets is security sensitive",
+    "status": "ready",
+    "defaultSeverity": "Critical"
+  }
+}

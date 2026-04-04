@@ -1,0 +1,63 @@
+{
+  "filename": "member_initializer_values_should_not_be_redundant_metadata.json",
+  "rule_id": "member_initializer_values_redundant",
+  "title": "Member initializer values should not be redundant",
+  "description": "Member initializer values should not be redundantAnalyze your codeintentionality-clearmaintainabilityCode SmellWhy is this an issue?Fields, properties and events can be initialized either inline or in the constructor. Initializing them inline and in the constructor at the same time is redundant; the inline initialization will be overridden.Noncompliant code exampleclass Person { int age = 42; // Noncompliant public Person(int age) { this.age = age; } }Compliant solutionclass Person { int age; public Person(int age) { this.age = age; } }ExceptionsThis rule doesn’t report an issue if not all constructors initialize the field. If the field is initialized inline to its default value, thenS3052already reports an issue on the initialization.Available In:Catch issues on the fly,in your IDEDetect",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "class Person\n{\n  int age = 42; // Noncompliant\n  public Person(int age)\n  {\n    this.age = age;\n  }\n}"
+    ],
+    "compliant": [
+      "class Person\n{\n  int age;\n  public Person(int age)\n  {\n    this.age = age;\n  }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3604"
+  ],
+  "logic": {
+    "node_types": ["ClassDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "(int|long|string|object|bool)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*=\\s*[^;]+;[^}]*public\\s+[^(]+\\([^)]*\\1[^)]*\\)[^}]*this\\.\\2\\s*=",
+        "exclude_patterns": [
+          "const\\s",
+          "static\\s",
+          "\\[Test",
+          "Assert\\."
+        ]
+      }
+    ],
+    "triggering_conditions": "Field initialized inline AND assigned in constructor",
+    "exclusion_conditions": [
+      "const fields",
+      "static fields",
+      "Test methods"
+    ],
+    "never_trigger_on": [
+      "Fields with no inline initialization",
+      "const or static members",
+      "Unit tests with [Test] or Assert"
+    ],
+    "reasoning": "Detects redundant field initialization where a field is both initialized inline and assigned in the constructor. The inline initialization will be overwritten by the constructor assignment.",
+    "validation_examples": {
+      "should_trigger": [
+        "int age = 42; public Person(int age) { this.age = age; }"
+      ],
+      "should_not_trigger": [
+        "int age; public Person(int age) { this.age = age; }"
+      ]
+    }
+  }
+}

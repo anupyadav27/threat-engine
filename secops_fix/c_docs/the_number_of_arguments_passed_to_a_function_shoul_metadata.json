@@ -1,0 +1,59 @@
+{
+  "filename": "the_number_of_arguments_passed_to_a_function_shoul_metadata.json",
+  "rule_id": "number_arguments_passed_function",
+  "title": "The number of arguments passed to a function should match the number of parameters",
+  "description": "The number of arguments passed to a function should match the number of parametersAnalyze your codeintentionality-logicalreliabilityBugcwebased-on-misracertWhy is this an issue?More InfoThis problem is completely avoided by the use of function prototypes. See MISRA C:2004 Rule 8.1. This rule is retained since compilers may not flag this constraint error.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIDeveloper EditionAvailable Since9.1©2025SonarSource Sàrl.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Potential bug",
+  "tags": [
+    "cert",
+    "cwe",
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "int add(int a, int b) {\n  return a + b;\n}\n\nint main() {\n  int result = add(5);          // Noncompliant: missing second argument\n  int result2 = add(1, 2, 3);   // Noncompliant: too many arguments\n  return 0;\n}",
+      "void process(int x, char *str, double d);\n\nint main() {\n  process(10, \"hello\");  // Noncompliant: missing third parameter\n  return 0;\n}"
+    ],
+    "compliant": [
+      "int add(int a, int b) {\n  return a + b;\n}\n\nint main() {\n  int result = add(5, 3);  // Compliant: correct number of arguments\n  return 0;\n}",
+      "void process(int x, char *str, double d);\n\nint main() {\n  process(10, \"hello\", 3.14);  // Compliant: correct number of arguments\n  return 0;\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-930"
+  ],
+  "logic": {
+    "node_types": [
+      "CallExpression",
+      "ExpressionStatement",
+      "VariableDeclaration",
+      "AssignmentExpression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "\\b\\w+\\(\\s*\\)\\s*;\\s*//.*missing.*argument",
+          "\\b\\w+\\(\\s*\\w+\\s*\\)\\s*;\\s*//.*missing.*argument",
+          "\\b\\w+\\((?:[^,()]*,){3,}[^,()]*\\)\\s*;\\s*//.*too\\s+many",
+          "add\\(\\s*\\d+\\s*\\)(?!\\s*;\\s*//.*[Cc]ompliant)",
+          "add\\(\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*\\d+\\s*\\)(?!\\s*;\\s*//.*[Cc]ompliant)",
+          "process\\(\\s*\\d+\\s*,\\s*\"[^\"]*\"\\s*\\)(?!\\s*;\\s*//.*[Cc]ompliant)",
+          "printf\\(\\s*\"[^\"]*\"\\s*\\)\\s*;\\s*//.*missing.*argument",
+          "sprintf\\(\\s*\\w+\\s*,\\s*\"[^\"]*\"\\s*\\)\\s*;\\s*//.*missing.*argument",
+          "strcpy\\(\\s*\\w+\\s*\\)\\s*;\\s*//.*missing.*argument",
+          "strcat\\(\\s*\\w+\\s*\\)\\s*;\\s*//.*missing.*argument",
+          "memcpy\\(\\s*\\w+\\s*,\\s*\\w+\\s*\\)\\s*;\\s*//.*missing.*argument"
+        ],
+        "message": "The number of arguments passed to a function should match the number of parameters"
+      }
+    ]
+  }
+}

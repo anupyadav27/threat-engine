@@ -1,0 +1,69 @@
+{
+  "filename": "generic_event_handlers_should_be_preferred_metadata.json",
+  "rule_id": "generic_event_handlers_preferred",
+  "title": "Generic event handlers should be preferred",
+  "description": "Generic event handlers should be usedAnalyze your codeconsistency-conventionalmaintainabilityCode SmellWhy is this an issue?Since .Net Framework version 2.0 it is not necessary to declare a delegate that specifies a class derived fromSystem.EventArgs. TheSystem.EventHandler<TEventArgs>delegate mechanism should be used instead as it allows any class derived fromEventArgsto be used with that handler.This rule raises an issue when an old style delegate is used as an event handler.Noncompliant code examplepublic class MyEventArgs : EventArgs { } public delegate void MyEventHandler(object sender, MyEventArgs e); // Noncompliant public class EventProducer { public event MyEventHandler MyEvent; protected virtual void OnMyEvent(MyEventArgs e) { if (MyEvent != null) { MyEvent(e); } } } public class",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public delegate void MyEventHandler(object sender, MyEventArgs e);",
+      "public event MyEventHandler MyEvent; // Noncompliant: custom delegate instead of generic EventHandler"
+    ],
+    "compliant": [
+      "public event EventHandler<MyEventArgs> MyEvent; // Compliant: using generic EventHandler",
+      "// EventHandler<TEventArgs> is preferred over custom delegates"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3908"
+  ],
+  "logic": {
+    "target_ast_nodes": ["DelegateDeclaration"],
+    "detection_conditions": "Detects custom delegate declarations used for event handlers instead of generic EventHandler<T>",
+    "triggering_conditions": "Triggers when: delegate declaration follows event handler pattern (object sender, TEventArgs e) instead of using EventHandler<T>",
+    "exclusion_conditions": "Excludes: EventHandler<T> usage, delegates not following event handler pattern, comments",
+    "never_trigger_on": [
+      "EventHandler<TEventArgs> generic delegates",
+      "Delegates with non-event-handler signatures",
+      "Built-in event handlers",
+      "Comments and documentation",
+      "Generated code"
+    ],
+    "reasoning": "This rule detects custom delegate declarations that should use the generic EventHandler<TEventArgs> pattern instead. Since .NET 2.0, custom event handler delegates are unnecessary. The pattern identifies 'delegate void' declarations with the event handler signature pattern: (object sender, SomeEventArgs e). These should be replaced with EventHandler<TEventArgs>. The regex looks for delegate declarations with 'object' first parameter and EventArgs-derived second parameter.",
+    "validation_examples": {
+      "should_trigger": [
+        "public delegate void MyEventHandler(object sender, MyEventArgs e);",
+        "delegate void CustomHandler(object sender, CustomEventArgs args);"
+      ],
+      "should_not_trigger": [
+        "public event EventHandler<MyEventArgs> MyEvent;",
+        "EventHandler<CustomEventArgs> handler;",
+        "// Old: public delegate void MyEventHandler(object sender, MyEventArgs e);"
+      ]
+    },
+    "node_types": ["DelegateDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\bdelegate\\s+void\\s+\\w+\\s*\\(\\s*object\\s+\\w+\\s*,\\s*\\w*EventArgs\\w*\\s+\\w+\\s*\\)",
+        "exclude_patterns": [
+          "^\\s*//",
+          "^\\s*/\\*",
+          "^\\s*\\*",
+          "^\\s*///",
+          "\"[^\"]*delegate[^\"]*\""
+        ]
+      }
+    ]
+  }
+}

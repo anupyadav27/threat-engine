@@ -1,0 +1,59 @@
+{
+  "filename": "expression_complexity_limit_metadata.json",
+  "rule_id": "complexity_expression_limit",
+  "title": "Avoid overly complex expressions",
+  "description": "Complex expressions with multiple logical operators become difficult to read and understand. High expression complexity increases the likelihood of logic errors and makes code maintenance more challenging.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Maintainability",
+  "recommendation": "Break complex expressions into simpler, intermediate variables or separate conditions.",
+  "impact": "Code readability problem",
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "package main\n\n// Noncompliant: Overly complex expressions\nfunc validateUser(user *User, config *Config) bool {\n    // BAD: Complex boolean expression that's hard to read\n    return (user != nil && user.Age >= 18 && user.IsActive && !user.IsBanned) && \n           (config.AllowNewUsers || (user.RegistrationDate.Before(config.CutoffDate) && \n            user.EmailVerified && user.PhoneVerified)) && \n           (user.Subscription == \"premium\" || user.Subscription == \"standard\" || \n            (user.Subscription == \"trial\" && user.TrialDaysLeft > 0))\n}\n\nfunc calculateDiscount(user *User, order *Order, promos []Promotion) float64 {\n    // BAD: Extremely complex calculation in single expression\n    return order.Total * (((user.Type == \"premium\" && user.YearsActive > 2) || \n           (user.Type == \"gold\" && order.Total > 1000) || \n           (user.ReferralCount > 5 && order.Items > 3)) ? 0.2 : \n           (((user.Type == \"silver\" || user.NewsletterSubscribed) && \n             order.Total > 500) ? 0.1 : \n            ((order.Total > 100 && user.FirstTimeCustomer) ? 0.05 : 0)))\n}\n\nfunc shouldProcess(data *Data, rules *Rules) bool {\n    // BAD: Nested conditions with complex logic\n    return data.Type == \"important\" && (data.Priority > 5 || \n           (data.Source == \"api\" && data.Authenticated && data.Size < rules.MaxSize) || \n           (data.Source == \"batch\" && data.QueueTime.Before(rules.ProcessDeadline) && \n            data.RetryCount < rules.MaxRetries && data.Valid))\n}",
+        "description": "Complex expressions with multiple operators are difficult to read and maintain."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "package main\n\nimport \"time\"\n\n// Compliant: Breaking complex expressions into readable parts\nfunc validateUser(user *User, config *Config) bool {\n    // GOOD: Break into logical components\n    if user == nil {\n        return false\n    }\n    \n    isEligibleUser := user.Age >= 18 && user.IsActive && !user.IsBanned\n    if !isEligibleUser {\n        return false\n    }\n    \n    hasValidRegistration := config.AllowNewUsers || isLegacyUser(user, config)\n    hasValidSubscription := isActiveSubscription(user)\n    \n    return hasValidRegistration && hasValidSubscription\n}\n\nfunc isLegacyUser(user *User, config *Config) bool {\n    // GOOD: Extract complex conditions into named functions\n    return user.RegistrationDate.Before(config.CutoffDate) &&\n           user.EmailVerified &&\n           user.PhoneVerified\n}\n\nfunc isActiveSubscription(user *User) bool {\n    // GOOD: Separate subscription validation logic\n    switch user.Subscription {\n    case \"premium\", \"standard\":\n        return true\n    case \"trial\":\n        return user.TrialDaysLeft > 0\n    default:\n        return false\n    }\n}\n\nfunc calculateDiscount(user *User, order *Order, promos []Promotion) float64 {\n    // GOOD: Use intermediate variables and structured logic\n    premiumDiscount := calculatePremiumDiscount(user, order)\n    if premiumDiscount > 0 {\n        return order.Total * premiumDiscount\n    }\n    \n    standardDiscount := calculateStandardDiscount(user, order)\n    return order.Total * standardDiscount\n}\n\nfunc calculatePremiumDiscount(user *User, order *Order) float64 {\n    // GOOD: Focused function with clear logic\n    isPremiumEligible := (user.Type == \"premium\" && user.YearsActive > 2) ||\n                        (user.Type == \"gold\" && order.Total > 1000) ||\n                        (user.ReferralCount > 5 && order.Items > 3)\n    \n    if isPremiumEligible {\n        return 0.2\n    }\n    return 0\n}\n\nfunc calculateStandardDiscount(user *User, order *Order) float64 {\n    // GOOD: Clear, step-by-step evaluation\n    isSilverEligible := user.Type == \"silver\" || user.NewsletterSubscribed\n    if isSilverEligible && order.Total > 500 {\n        return 0.1\n    }\n    \n    if order.Total > 100 && user.FirstTimeCustomer {\n        return 0.05\n    }\n    \n    return 0\n}\n\nfunc shouldProcess(data *Data, rules *Rules) bool {\n    // GOOD: Use early returns and clear conditions\n    if data.Type != \"important\" {\n        return false\n    }\n    \n    if data.Priority > 5 {\n        return true\n    }\n    \n    if shouldProcessAPI(data, rules) || shouldProcessBatch(data, rules) {\n        return true\n    }\n    \n    return false\n}\n\nfunc shouldProcessAPI(data *Data, rules *Rules) bool {\n    // GOOD: Extracted API-specific logic\n    return data.Source == \"api\" &&\n           data.Authenticated &&\n           data.Size < rules.MaxSize\n}\n\nfunc shouldProcessBatch(data *Data, rules *Rules) bool {\n    // GOOD: Extracted batch-specific logic\n    return data.Source == \"batch\" &&\n           data.QueueTime.Before(rules.ProcessDeadline) &&\n           data.RetryCount < rules.MaxRetries &&\n           data.Valid\n}",
+        "description": "Break complex expressions into intermediate variables and extract logical components into separate functions."
+      }
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/go/RSPEC-1067"
+  ],
+  "logic": {
+    "node_types": [
+      "binary_expression",
+      "call_expression",
+      "parenthesized_expression",
+      "return_statement"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source_text"
+        ],
+        "patterns": [
+          "\\([^)]*\\([^)]*\\([^)]*\\([^)]*\\)",
+          "&&.*&&.*&&",
+          "\\|\\|.*\\|\\|.*\\|\\|",
+          "return.*&&.*&&.*&&",
+          "return.*\\|\\|.*\\|\\|.*\\|\\|",
+          "\\([^)]*&&[^)]*\\)\\s*&&\\s*\\([^)]*&&[^)]*\\)",
+          "\\([^)]*\\|\\|[^)]*\\)\\s*\\|\\|\\s*\\([^)]*\\|\\|[^)]*\\)",
+          "\\([^)]*\\([^)]*\\).*\\)\\s*[&|]{2}\\s*\\([^)]*\\([^)]*\\)",
+          "[&|]{2}.*[&|]{2}.*[&|]{2}.*[&|]{2}",
+          "\\?.*:.*\\?.*:",
+          "if.*&&.*&&.*&&",
+          "if.*\\|\\|.*\\|\\|.*\\|\\|"
+        ],
+        "message": "Complex expression detected: Break into intermediate variables or separate conditions. Consider extracting logic into helper functions for better readability."
+      }
+    ]
+  }
+}

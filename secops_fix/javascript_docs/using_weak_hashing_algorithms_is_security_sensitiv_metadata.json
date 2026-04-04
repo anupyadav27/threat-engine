@@ -1,0 +1,93 @@
+{
+  "filename": "using_weak_hashing_algorithms_is_security_sensitiv_metadata.json",
+  "rule_id": "using_weak_hashing_algorithms",
+  "title": "Using weak hashing algorithms is security-sensitive",
+  "description": "Using weak hashing algorithms is security-sensitiveAnalyze your coderesponsibility-trustworthysecuritySecurity HotspotcweCryptographic hash algorithms such asMD2,MD4,MD5,MD6,HAVAL-128,HMAC-MD5,DSA(which usesSHA-1),RIPEMD,RIPEMD-128,RIPEMD-160,HMACRIPEMD160andSHA-1are no longer considered secure, because it is possible to havecollisions(little computational effort is enough to find two or more different inputs that produce the same hash).Ask Yourself WhetherThe hashed value is used in a security context like:User-password storage.Security token generation (used to confirm e-mail when registering on a website, reset password, etc \u2026\u200b).To compute some message integrity.There is a risk if you answered yes to any of those questions.Recommended Secure Coding PracticesSafer alternatives, such asSH",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    "deprecated",
+    "async"
+  ],
+  "examples": {
+    "noncompliant": [
+      "MD2"
+    ],
+    "compliant": [
+      "MD4"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-4790"
+  ],
+  "logic": {
+    "node_types": [
+      "CallExpression",
+      "NewExpression",
+      "MemberExpression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "createHash\\s*\\(\\s*['\"]\\s*(md5|md4|md2|sha1|sha-1|ripemd160|ripemd-160)\\s*['\"]\\s*\\)",
+        "message": "Using weak hashing algorithm. Use SHA-256, SHA-512, or SHA-3 instead."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "createHmac\\s*\\(\\s*['\"]\\s*(md5|md4|sha1|sha-1|ripemd160)\\s*['\"]",
+        "message": "Using weak HMAC algorithm. Use HMAC-SHA256 or HMAC-SHA512 instead."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "createSign\\s*\\(\\s*['\"]\\s*(DSA-SHA1?|dsa-sha1?)\\s*['\"]",
+        "message": "Using DSA with SHA-1 is insecure. Use RSA-SHA256 or ECDSA-SHA256 instead."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "createHash\\s*\\(\\s*['\"]\\s*MD5\\s*['\"]\\s*\\)",
+        "message": "MD5 is cryptographically broken. Use SHA-256 or stronger algorithms."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "createHash\\s*\\(\\s*['\"]\\s*SHA1\\s*['\"]\\s*\\)",
+        "message": "SHA-1 is deprecated and vulnerable to collision attacks. Use SHA-256 or stronger."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "createHmac\\s*\\(\\s*['\"]\\s*MD5\\s*['\"]",
+        "message": "HMAC-MD5 is weak. Use HMAC-SHA256 or HMAC-SHA512."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "pbkdf2(Sync)?\\s*\\([^,]+,[^,]+,[^,]+,[^,]+,\\s*['\"]\\s*(md5|sha1)\\s*['\"]",
+        "message": "PBKDF2 with weak hash algorithm. Use SHA-256 or SHA-512."
+      }
+    ]
+  }
+}

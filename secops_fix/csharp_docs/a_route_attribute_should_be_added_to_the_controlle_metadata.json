@@ -1,0 +1,46 @@
+{
+  "filename": "a_route_attribute_should_be_added_to_the_controlle_metadata.json",
+  "rule_id": "route_attribute_added_controller",
+  "title": "A Route attribute should be added to the controller when a route template is specified at the action level",
+  "description": "In ASP.NET Core MVC, the routing middleware utilizes a series of rules and conventions to identify the appropriate controller and action method to handle a specific HTTP request. This process, known as conventional routing, is generally established using the MapControllerRoute method. This method is typically configured in one central location for all controllers during the application setup. NOTE: This rule may produce false positives for controllers that already have [Route] attributes due to AST parsing limitations. Manual verification is recommended for flagged controllers.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Verify that controllers with action-level route templates have [Route] attributes at the class level. This rule may flag controllers that already have Route attributes - manually verify before making changes.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class HomeController : ControllerBase\n{\n    [HttpGet(\"products/{id}\")]\n    public IActionResult GetProduct(int id)\n    {\n        return Ok();\n    }\n}",
+      "public class UserController : ControllerBase\n{\n    [HttpPost(\"api/users/{id}/update\")]\n    public IActionResult UpdateUser(int id)\n    {\n        return Ok();\n    }\n}"
+    ],
+    "compliant": [
+      "[Route(\"api/[controller]\")]\npublic class HomeController : ControllerBase\n{\n    [HttpGet(\"products/{id}\")]\n    public IActionResult GetProduct(int id)\n    {\n        return Ok();\n    }\n}",
+      "[Route(\"api/users\")]\npublic class UserController : ControllerBase\n{\n    [HttpPost(\"{id}/update\")]\n    public IActionResult UpdateUser(int id)\n    {\n        return Ok();\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-6934"
+  ],
+  "logic": {
+    "node_types": [
+      "ClassDeclaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "(?:public\\s+)?class\\s+\\w*Controller\\s*:\\s*(?:Controller|ControllerBase)[^{]*\\{[^}]*\\[Http(?:Get|Post|Put|Delete|Patch)\\s*\\(\\s*\"[^\"]*(?:\\{[^}]+\\}|/)[^\"]*\"[^)]*\\)\\]"
+        ],
+        "message": "A Route attribute should be added to the controller when a route template is specified at the action level."
+      }
+    ]
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "filename": "@enableautoconfiguration-tuning_metadata.json",
+  "rule_id": "SECURITY_CONFIGURATION_SPRING",
+  "title": "Tune \"@EnableAutoConfiguration\" for improved security",
+  "description": "This rule is deprecated, and will eventually be removed.\n\n\"@EnableAutoConfiguration\" is a convenient feature to configure the Spring Application Context by attempting to guess the beans that you are likely to need. The drawback is that it may load and configure beans the application will never use and therefore consume more CPU and RAM than really required. @EnableAutoConfiguration should be configured to exclude all the beans not required by the application. Alternatively, use the @Import annotation instead of @EnableAutoConfiguration, to explicitly import the useful AutoConfiguration classes.\n\nThis rule applies for @SpringBootApplication as well.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "SECURITY",
+  "recommendation": "Configure @EnableAutoConfiguration or use @Import annotation",
+  "impact": "Potential security vulnerabilities due to unnecessary bean loading",
+  "examples": {
+    "noncompliant": [
+      "@EnableAutoConfiguration\npublic class UntunedSpringBootApp {\n    public static void main(String[] args) {\n        SpringApplication.run(UntunedSpringBootApp.class, args);\n    }\n}",
+      "@SpringBootApplication\npublic class AnotherSpringBootApp {\n    public static void main(String[] args) {\n        SpringApplication.run(AnotherSpringBootApp.class, args);\n    }\n}"
+    ],
+    "compliant": [
+      "@EnableAutoConfiguration(exclude = {DataSourceAutoConfiguration.class})\npublic class TunedSpringBootApp {\n    public static void main(String[] args) {\n        SpringApplication.run(TunedSpringBootApp.class, args);\n    }\n}"
+    ]
+  },
+  "references": [],
+  "logic": {
+    "node_types": [
+      "Class",
+      "Annotation"
+    ],
+    "checks": [
+      {
+        "type": "forbidden_value",
+        "property_path": [
+          "annotation",
+          "id"
+        ],
+        "forbidden_values": [
+          "EnableAutoConfiguration"
+        ],
+        "message": "The '@EnableAutoConfiguration' annotation is deprecated and should be avoided."
+      },
+      {
+        "type": "node_types",
+        "property_path": [
+          "Class",
+          "modifiers"
+        ],
+        "node_types": [
+          "@SpringBootApplication"
+        ],
+        "checks": [
+          {
+            "type": "forbidden_value",
+            "property_path": [
+              "modifiers",
+              "0",
+              "name"
+            ],
+            "forbidden_values": [
+              "EnableAutoConfiguration"
+            ],
+            "message": "The '@EnableAutoConfiguration' annotation should not be present in @SpringBootApplication."
+          }
+        ]
+      }
+    ]
+  }
+}

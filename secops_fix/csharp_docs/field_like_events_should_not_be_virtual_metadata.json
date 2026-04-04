@@ -1,0 +1,45 @@
+{
+  "filename": "field_like_events_should_not_be_virtual_metadata.json",
+  "rule_id": "fieldlike_events_virtual",
+  "title": "Field-like events should not be virtual",
+  "description": "Field-like events are events that do not have explicit add and remove accessors. The compiler generates a private delegate field to back the event, as well as generating the implicit add and remove accessors. When a virtual field-like event is overridden by another field-like event, the C# compiler generates a new private delegate field in the derived class, separate from the parent's field. This results in multiple and separate events being created, which is rarely what's actually intended.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class MyClass\n{\n    public virtual event EventHandler MyEvent; // Noncompliant\n}"
+    ],
+    "compliant": [
+      "public class MyClass\n{\n    public event EventHandler MyEvent; // Compliant\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2290"
+  ],
+  "logic": {
+    "custom_function": "check_fieldlike_events_virtual",
+    "never_trigger_on": [
+      "Events with explicit add/remove accessors",
+      "Comments"
+    ],
+    "reasoning": "Detects virtual field-like events (without explicit add/remove). Virtual field-like events create separate delegate instances in derived classes, which is rarely intended.",
+    "validation_examples": {
+      "should_trigger": [
+        "public virtual event EventHandler MyEvent;",
+        "protected virtual event EventHandler DataChanged;"
+      ],
+      "should_not_trigger": [
+        "public event EventHandler MyEvent;",
+        "public virtual event EventHandler MyEvent { add { } remove { } }"
+      ]
+    }
+  }
+}

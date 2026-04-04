@@ -1,0 +1,41 @@
+{
+  "filename": "security_avoid_unencrypted_files_metadata.json",
+  "rule_id": "security_avoid_unencrypted_files",
+  "title": "Avoid unencrypted files in mobile apps",
+  "description": "Storing sensitive data in unencrypted files on mobile devices exposes it to unauthorized access if the device is compromised. Always use strong encryption for files that contain confidential or personal information to protect users and comply with security standards.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "security",
+  "recommendation": "Encrypt all sensitive files using platform-provided secure storage APIs such as Android's EncryptedFile.",
+  "impact": "Security risk",
+  "examples": {
+    "noncompliant": [
+      "FileOutputStream fos = context.openFileOutput(\"data.txt\", Context.MODE_PRIVATE);\nfos.write(secret.getBytes());\nfos.close();"
+    ],
+    "compliant": [
+      "EncryptedFile encryptedFile = ...;\nOutputStream os = encryptedFile.openFileOutput();\nos.write(secret.getBytes());\nos.close();"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/java/RSPEC-6300",
+    "https://developer.android.com/reference/androidx/security/crypto/EncryptedFile",
+    "https://owasp.org/www-project-top-ten/2017/A3_2017-Sensitive_Data_Exposure",
+    "https://cwe.mitre.org/data/definitions/311.html"
+  ],
+  "logic": {
+    "node_types": ["MethodInvocation"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "openFileOutput\\s*\\(",
+          "FileOutputStream\\s*\\(",
+          "FileWriter\\s*\\(",
+          "new\\s+File\\s*\\("
+        ],
+        "message": "Avoid unencrypted files. Use EncryptedFile or similar secure storage APIs."
+      }
+    ]
+  }
+}

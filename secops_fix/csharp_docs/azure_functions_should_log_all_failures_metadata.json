@@ -1,0 +1,37 @@
+{
+  "filename": "azure_functions_should_log_all_failures_metadata.json",
+  "rule_id": "azure_functions_log_all",
+  "title": "Azure Functions should log all failures",
+  "description": "Azure Functions should log all failuresAnalyze your codeintentionality-completemaintainabilityCode Smellazureerror-handlingWhy is this an issue?More InfoCapturing and logging errors is critical to monitoring the health of your Azure Functions application.Eachcatchblock inside an Azure Function should log helpful details about the failure. Moreover, the logging should not be done atDebugorTracelevel.Consider using the built-in integration with Application Insights for better monitoring of your Application.Noncompliant code example[FunctionName(\"Foo\")] public static async Task<IActionResult> Run( [HttpTrigger(AuthorizationLevel.Anonymous, \"get\", \"post\", Route = null)] HttpRequest req, ILogger log) { try { // do stuff that can fail } catch (Exception ex) { // the failure is not logged at all",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "[FunctionName(\"ProcessData\")]\npublic static async Task<IActionResult> Run(HttpRequest req, ILogger log)\n{\n    try\n    {\n        // process data\n        return new OkResult();\n    }\n    catch (Exception ex)\n    {\n        // Noncompliant: exception not logged\n        return new BadRequestResult();\n    }\n}",
+      "[FunctionName(\"ProcessData\")]\npublic static async Task<IActionResult> Run(HttpRequest req, ILogger log)\n{\n    try\n    {\n        // process data\n    }\n    catch (Exception ex)\n    {\n        log.LogDebug(ex.Message); // Noncompliant: using Debug level\n        return new BadRequestResult();\n    }\n}"
+    ],
+    "compliant": [
+      "[FunctionName(\"ProcessData\")]\npublic static async Task<IActionResult> Run(HttpRequest req, ILogger log)\n{\n    try\n    {\n        // process data\n        return new OkResult();\n    }\n    catch (Exception ex)\n    {\n        log.LogError(ex, \"Error processing data\"); // Compliant: proper logging\n        return new BadRequestResult();\n    }\n}",
+      "[FunctionName(\"ProcessData\")]\npublic static async Task<IActionResult> Run(HttpRequest req, ILogger log)\n{\n    try\n    {\n        // process data\n    }\n    catch (BusinessException ex)\n    {\n        log.LogWarning(ex, \"Business logic error: {Message}\", ex.Message); // Compliant\n        return new BadRequestObjectResult(ex.Message);\n    }\n    catch (Exception ex)\n    {\n        log.LogError(ex, \"Unexpected error occurred\"); // Compliant\n        throw; // Re-throw for retry if needed\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-6423"
+  ],
+  "logic": {
+    "custom_function": "check_azure_functions_log_all_failures",
+    "node_types": [
+      "ClassDeclaration",
+      "MethodDeclaration", 
+      "CompilationUnit"
+    ]
+  }
+}

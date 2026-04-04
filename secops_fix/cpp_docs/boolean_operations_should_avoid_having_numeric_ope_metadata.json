@@ -1,0 +1,44 @@
+{
+  "filename": "boolean_operations_should_avoid_having_numeric_ope_metadata.json",
+  "rule_id": "boolean_operations_avoid_having",
+  "title": "Boolean operations should avoid having numeric operands, and vice versa",
+  "description": "There are several constructs in the language that work with boolean: If statements: if (b) ... Conditional operator: int i = b ? 0 : 42; Logical operators: (b1 || b2) && !b3 Those operations would also work with arithmetic or enum values operands, because there is a conversion from those types to bool. However, this conversion might not always be obvious, for instance, an integer return code might use the value 0 to indicate that everything worked as expected, but converted to boolean, this value would be false, which often denotes failure.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Potential bug",
+  "tags": [
+    "cert",
+    "bug",
+    "design"
+  ],
+  "examples": {
+    "noncompliant": [
+      "int returnCode = getStatus();\nif (returnCode) {  // Noncompliant: 0 means success but converts to false\n    handleError();\n}\n\nbool flag = true;\nint result = flag + 10;  // Noncompliant: mixing boolean with arithmetic\n\nif (getValue() || 0) {  // Noncompliant: mixing logical operator with numeric\n    doSomething();\n}"
+    ],
+    "compliant": [
+      "int returnCode = getStatus();\nif (returnCode != 0) {  // Compliant: explicit comparison\n    handleError();\n}\n\nbool flag = true;\nint result = flag ? 1 : 0;  // Compliant: explicit conditional\nresult += 10;\n\nif (getValue() || getFlag()) {  // Compliant: both operands are boolean\n    doSomething();\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-867"
+  ],
+  "logic": {
+    "node_types": [
+      "IfStatement",
+      "declaration",
+      "BinaryExpression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "\\b(true|false)\\s*[+\\-*/]|[a-zA-Z_]\\w*\\s*[+\\-*/]\\s*(true|false)|\\b\\w+\\s*(\\|\\||&&)\\s*\\d+|\\d+\\s*(\\|\\||&&)\\s*\\w+|(true|false)\\s*(\\|\\||&&)\\s*\\d+|\\d+\\s*(\\|\\||&&)\\s*(true|false)",
+        "message": "Avoid mixing boolean and numeric operands in operations."
+      }
+    ]
+  }
+}

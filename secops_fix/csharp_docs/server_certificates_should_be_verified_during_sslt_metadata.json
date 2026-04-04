@@ -1,0 +1,79 @@
+{
+  "filename": "server_certificates_should_be_verified_during_sslt_metadata.json",
+  "rule_id": "server_certificates_verified_during",
+  "title": "Server certificates should be verified during SSL/TLS connections",
+  "description": "Transport Layer Security (TLS) provides secure communication between systems over the internet by encrypting the data sent between them. Certificate validation adds an extra layer of trust and security to this process to ensure that a system is indeed the one it claims to be. When certificate validation is disabled, the client skips a critical security check.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Disabling certificate validation globally\nServicePointManager.ServerCertificateValidationCallback = (sender, certificate, chain, sslPolicyErrors) => true;",
+      "var handler = new HttpClientHandler();\n// Bypassing certificate validation\nhandler.ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true;\nvar client = new HttpClient(handler);",
+      "// Ignoring SSL errors\nvar request = WebRequest.Create(\"https://example.com\");\nrequest.ServerCertificateValidationCallback = delegate { return true; };"
+    ],
+    "compliant": [
+      "// Use default certificate validation\nvar client = new HttpClient();\nvar response = await client.GetAsync(\"https://api.example.com\");",
+      "// Custom validation with proper checks\nvar handler = new HttpClientHandler();\nhandler.ServerCertificateCustomValidationCallback = (message, cert, chain, errors) =>\n{\n    return errors == SslPolicyErrors.None && \n           cert.Subject.Contains(\"CN=api.example.com\");\n};\nvar client = new HttpClient(handler);",
+      "// Using certificate pinning\nvar handler = new HttpClientHandler();\nhandler.ServerCertificateCustomValidationCallback = (message, cert, chain, errors) =>\n{\n    var expectedThumbprint = \"1234567890ABCDEF\";\n    return cert.GetCertHashString() == expectedThumbprint;\n};"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-4830"
+  ],
+  "logic": {
+    "node_types": ["Assignment", "CallExpression"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_ssl_certificate_validation_disabled"
+      }
+    ],
+    "target_ast_nodes": ["Assignment", "CallExpression"],
+    "detection_conditions": "Certificate validation callback that always returns true",
+    "triggering_conditions": {
+      "logic": "OR",
+      "conditions": [
+        "ServerCertificateValidationCallback = (...) => true",
+        "ServerCertificateCustomValidationCallback = (...) => true",
+        "Delegate that always returns true for certificate validation",
+        "DangerousAcceptAnyServerCertificateValidator usage"
+      ]
+    },
+    "exclusion_conditions": [
+      "Comments and test code",
+      "Callbacks that check SslPolicyErrors.None",
+      "Callbacks that verify certificate properties (Subject, Thumbprint)",
+      "Callbacks with conditional return based on errors parameter"
+    ],
+    "never_trigger_on": [
+      "Logging statements (Console.*, Logger.*, Debug.*)",
+      "Unit tests ([Test], [Fact], Assert.*)",
+      "Comments (//*, /*/, ///)",
+      "Callbacks checking SslPolicyErrors.None",
+      "Callbacks checking certificate Subject or Thumbprint",
+      "Certificate pinning implementations",
+      "Conditional validation logic"
+    ],
+    "reasoning": "Disabled certificate validation exposes connections to man-in-the-middle attacks. Callbacks that unconditionally return true skip critical security checks. Uses custom function to detect always-true patterns while excluding legitimate validation with error/certificate checks.",
+    "validation_examples": {
+      "should_trigger": [
+        "ServicePointManager.ServerCertificateValidationCallback = (s, c, ch, e) => true;",
+        "handler.ServerCertificateCustomValidationCallback = (m, c, ch, e) => true;",
+        "request.ServerCertificateValidationCallback = delegate { return true; };"
+      ],
+      "should_not_trigger": [
+        "// Default validation is used",
+        "handler.ServerCertificateCustomValidationCallback = (m, c, ch, e) => e == SslPolicyErrors.None;",
+        "callback = (m, c, ch, e) => c.GetCertHashString() == expectedThumbprint;"
+      ]
+    }
+  }
+}

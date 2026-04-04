@@ -1,0 +1,39 @@
+{
+  "filename": "administration_services_access_should_be_restricte_metadata.json",
+  "rule_id": "administration_services_access_restricted",
+  "title": "Administration services access should be restricted to specific IP addresses",
+  "description": "Administration services access should be restricted to specific IP addressesAnalyze your codeconsistency-conventionalsecurityVulnerabilitycweawsWhy is this an issue?How can I fix it?More InfoCloud platforms such as AWS support virtual firewalls that can be used to restrict access to services by controlling inbound and outbound traffic.Any firewall rule allowing traffic from all IP addresses to standard network ports on which administration services traditionally listen, such as 22 for SSH, can expose these services to exploits and unauthorized access.What is the potential impact?Like any other service, administration services can contain vulnerabilities. Administration services run with elevated privileges and thus a vulnerability could have a high impact on the system.Additionally, creden",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "cwe",
+    "convention"
+  ],
+  "examples": {
+    "noncompliant": [
+      "AWSTemplateFormatVersion: 2010-09-09\nResources:\n  SecurityGroup:\n    Type: AWS::EC2::SecurityGroup\n    Properties:\n      GroupDescription: Security group allowing SSH from anywhere\n      SecurityGroupIngress:\n        - IpProtocol: tcp\n          FromPort: 22\n          ToPort: 22\n          CidrIp: 0.0.0.0/0  # Non-compliant: allows SSH from any IP"
+    ],
+    "compliant": [
+      "AWSTemplateFormatVersion: 2010-09-09\nResources:\n  SecurityGroup:\n    Type: AWS::EC2::SecurityGroup\n    Properties:\n      GroupDescription: Security group allowing SSH from specific IPs\n      SecurityGroupIngress:\n        - IpProtocol: tcp\n          FromPort: 22\n          ToPort: 22\n          CidrIp: 10.0.0.0/8  # Compliant: restricted to specific IP range"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cloudformation/RSPEC-6321"
+  ],
+  "logic": {
+    "node_types": ["Resource"],
+    "resource_types": ["AWS::EC2::SecurityGroup"],
+    "checks": [
+      {
+        "type": "administration_services_restriction",
+        "administration_ports": [22, 3389, 5985, 5986, 21, 23, 135, 445, 1433, 3306, 5432],
+        "forbidden_cidrs": ["0.0.0.0/0", "::/0"],
+        "message": "Security group allows administration services access from any IP address"
+      }
+    ]
+  }
+}

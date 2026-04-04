@@ -1,0 +1,64 @@
+{
+  "filename": "shared_resources_should_be_avoided_for_locking_metadata.json",
+  "rule_id": "shared_resources_avoided_locking",
+  "title": "Shared resources should be avoided for locking",
+  "description": "If the instance representing an exclusively acquired lock is publicly accessible, another thread in another part of the program could accidentally attempt to acquire the same lock. This increases the likelihood of deadlocks. For example, a string should never be used for locking.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "lock (\"myLock\") // Noncompliant - locking on string literal\n{\n    // Critical section\n}",
+      "lock (this) // Noncompliant - locking on 'this'\n{\n    // Critical section\n}",
+      "lock (typeof(MyClass)) // Noncompliant - locking on Type\n{\n    // Critical section\n}"
+    ],
+    "compliant": [
+      "private readonly object _lockObject = new object();\n\nlock (_lockObject) // Compliant - locking on private object\n{\n    // Critical section\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2551"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration", "ClassDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "lock\\s*\\(\\s*(?:\"[^\"]*\"|this|typeof\\s*\\([^)]+\\))\\s*\\)",
+        "exclude_patterns": [
+          "Console\\.Write.*lock",
+          "Logger\\..*lock",
+          "\\[Test\\]",
+          "Assert\\."
+        ],
+        "message": "Avoid locking on shared resources like strings, 'this', or typeof(). Use a private readonly object instead."
+      }
+    ],
+    "never_trigger_on": [
+      "Logging statements (Console.*, Logger.*)",
+      "Unit tests ([Test], [Fact], Assert.*)",
+      "Comments (// , /* */)",
+      "Private readonly object locks"
+    ],
+    "reasoning": "Locking on publicly accessible resources (strings, 'this', typeof) increases deadlock risk. Private objects should be used for locking.",
+    "validation_examples": {
+      "should_trigger": [
+        "lock (\"myLock\") { }",
+        "lock (this) { }",
+        "lock (typeof(MyClass)) { }"
+      ],
+      "should_not_trigger": [
+        "private readonly object _lock = new object();\nlock (_lock) { }",
+        "// lock (this) - commented out"
+      ]
+    }
+  }
+}

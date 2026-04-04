@@ -1,0 +1,73 @@
+{
+  "filename": "method_parameters_should_be_declared_with_base_typ_metadata.json",
+  "rule_id": "method_parameters_declared_base",
+  "title": "Method parameters should be declared with base types",
+  "description": "Method parameters should be declared with base typesAnalyze your codeintentionality-clearmaintainabilityCode Smellapi-designWhy is this an issue?When a derived type is used as a parameter instead of the base type, it limits the uses of the method. If the additional functionality that is provided in the derived type is not required then that limitation isn’t required, and should be removed.This rule raises an issue when a method declaration includes a parameter that is a derived type and accesses only members of the base type.Noncompliant code exampleusing System; using System.IO; namespace MyLibrary { public class Foo { public void ReadStream(FileStream stream) // Noncompliant: Uses only System.IO.Stream methods { int a; while ((a = stream.ReadByte()) != -1) { // Do something. } } } }Compl",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "using System;\nusing System.IO;\n\nnamespace MyLibrary\n{\n  public class Foo\n  {\n    public void ReadStream(FileStream stream) // Noncompliant: Uses only System.IO.Stream methods\n    {\n      int a;\n      while ((a = stream.ReadByte()) != -1)\n      {\n            // Do something.\n      }\n    }\n  }\n}"
+    ],
+    "compliant": [
+      "using System;\nusing System.IO;\n\nnamespace MyLibrary\n{\n  public class Foo\n  {\n    public void ReadStream(Stream stream)\n    {\n      int a;\n      while ((a = stream.ReadByte()) != -1)\n      {\n            // Do something.\n      }\n    }\n  }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3242"
+  ],
+  "logic": {
+    "node_types": [
+      "MethodDeclaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "\\(\\s*FileStream\\s+\\w+|\\(\\s*StringBuilder\\s+\\w+|\\(\\s*ArrayList\\s+\\w+",
+        "exclude_patterns": [
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "\\$\"",
+          "string\\.Format",
+          "^\\s*//",
+          "^\\s*/\\*",
+          "^\\s*///",
+          "\\[Test",
+          "\\[Fact",
+          "Assert\\."
+        ]
+      }
+    ],
+    "never_trigger_on": [
+      "Logging: Console.*, Logger.*, Debug.*",
+      "String formatting: $\"\", string.Format",
+      "Unit tests: [Test], [Fact], Assert.*",
+      "Comments: //, /*, ///"
+    ],
+    "reasoning": "This rule detects method parameters declared with specific derived types when base types should be used. The pattern matches common derived types like FileStream (should be Stream), StringBuilder (should be TextWriter), and ArrayList (should be IList or IEnumerable). Using derived types unnecessarily limits method reusability. The pattern identifies parameters declared with these specific concrete types. The exclusion patterns prevent false positives in logging, testing, and display contexts.",
+    "validation_examples": {
+      "should_trigger": [
+        "public void ReadStream(FileStream stream)\n{\n    int a = stream.ReadByte();\n}",
+        "public void ProcessList(ArrayList items)\n{\n    foreach(var item in items) { }\n}",
+        "public void Write(StringBuilder builder)\n{\n    builder.Append(\"text\");\n}"
+      ],
+      "should_not_trigger": [
+        "public void ReadStream(Stream stream)\n{\n    int a = stream.ReadByte();\n}",
+        "public void ProcessList(IList items)\n{\n    foreach(var item in items) { }\n}",
+        "[Test]\npublic void TestMethod(FileStream fs)\n{\n    Assert.NotNull(fs);\n}"
+      ]
+    }
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "filename": "inherited_member_visibility_should_not_be_decrease_metadata.json",
+  "rule_id": "inherited_member_visibility_decreased",
+  "title": "Inherited member visibility should not be decreased",
+  "description": "Inherited member visibility should not be decreasedAnalyze your codeintentionality-clearmaintainabilityCode SmellpitfallWhy is this an issue?More InfoDecreasing theaccessibility levelof an inherited method that is notoverridabletoprivatewill shadow the name of the base method and can lead to confusion.public class Base { public void SomeMethod(int count) { } } public class Derived : Base { private void SomeMethod(int count) { } // Noncompliant } class Program { public void DoWork() { var derived = new Derived(); derived.SomeMethod(42); // Base.SomeMethod is accessed here } }Another potential problem is the case of a class deriving fromDerivedand accessingSomeMethod. In this scenario, the method accessed will instead be theBaseimplementation, which might not be what was expected.public clas",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class Base\n{\n    public void SomeMethod(int count) { }\n}\npublic class Derived : Base\n{\n    private void SomeMethod(int count) { } // Noncompliant: shadows base method with reduced visibility\n}"
+    ],
+    "compliant": [
+      "public class Base\n{\n    public void SomeMethod(int count) { }\n}\npublic class Derived : Base\n{\n    public new void SomeMethod(int count) { } // OK: explicitly using 'new' keyword\n}",
+      "public class Base\n{\n    protected virtual void Method() { }\n}\npublic class Derived : Base\n{\n    protected override void Method() { } // OK: maintaining same visibility\n}",
+      "public class Base\n{\n    protected virtual void Method() { }\n}\npublic class Derived : Base\n{\n    public override void Method() { } // OK: increasing visibility\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-4015"
+  ],
+  "logic": {
+    "target_ast_nodes": ["MethodDeclaration", "PropertyDeclaration"],
+    "detection_conditions": "Detects methods/properties in derived classes that shadow base members with reduced visibility (private)",
+    "triggering_conditions": "Private method/property in a class that has a base class (potential shadowing)",
+    "exclusion_conditions": [
+      "Methods with 'new' keyword (explicit shadowing)",
+      "Methods with 'override' keyword",
+      "Classes without base classes",
+      "Comments"
+    ],
+    "never_trigger_on": [
+      "Logging statements (Console.*, Logger.*, Debug.*)",
+      "String formatting ($\"\", string.Format)",
+      "Unit tests ([Test], [Fact], Assert.*)",
+      "Comments (// /* ///)",
+      "Methods with 'new' keyword",
+      "Methods with 'override' keyword",
+      "Classes without inheritance"
+    ],
+    "reasoning": "This rule detects potential visibility reduction of inherited members. Pattern matches 'private void MethodName' in classes that inherit from base classes. This is a simplified detection as full semantic analysis would require tracking base class members. Excludes explicit shadowing with 'new' keyword and proper overrides. Flags suspicious private methods in derived classes for manual review.",
+    "validation_examples": {
+      "should_trigger": [
+        "public class Derived : Base { private void SomeMethod(int count) { } }",
+        "class Child : Parent { private string Property { get; set; } }"
+      ],
+      "should_not_trigger": [
+        "public class Derived : Base { public new void SomeMethod(int count) { } }",
+        "public class Derived : Base { protected override void Method() { } }",
+        "public class Standalone { private void Method() { } }"
+      ]
+    },
+    "node_types": ["ClassDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "class\\s+\\w+\\s*:\\s*\\w+[^{]*\\{[^}]*private\\s+(void|int|string|bool|\\w+)\\s+\\w+\\s*\\(",
+        "exclude_patterns": [
+          "\\bnew\\b",
+          "\\boverride\\b",
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "^\\s*//",
+          "^\\s*/\\*",
+          "\\[Test",
+          "\\[Fact"
+        ]
+      }
+    ]
+  }
+}

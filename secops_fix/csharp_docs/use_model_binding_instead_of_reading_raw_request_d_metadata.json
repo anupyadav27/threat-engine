@@ -1,0 +1,68 @@
+{
+  "filename": "use_model_binding_instead_of_reading_raw_request_d_metadata.json",
+  "rule_id": "use_model_binding_instead",
+  "title": "Use model binding instead of reading raw request data",
+  "description": "Both ASP.Net MVC implementations - Core and Framework - support model binding in a comparable fashion. Model binding streamlines the process by automatically aligning data from HTTP requests with action method parameters, providing numerous benefits compared to manually parsing raw incoming request data: Model binding simplifies the code by automatically mapping data from HTTP requests to action method parameters. You don’t need to write any code to manually extract values from the request.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "[ApiController]\npublic class OrdersController : ControllerBase\n{\n    [HttpPost]\n    public async Task<IActionResult> CreateOrder() // Noncompliant\n    {\n        using var reader = new StreamReader(Request.Body);\n        var body = await reader.ReadToEndAsync();\n        var order = JsonSerializer.Deserialize<OrderDto>(body);\n        return Ok(order);\n    }\n\n    [HttpGet]\n    public IActionResult GetOrder() // Noncompliant - reading raw request\n    {\n        var id = Request.Query[\"id\"];\n        return Ok();\n    }\n}"
+    ],
+    "compliant": [
+      "[ApiController]\npublic class OrdersController : ControllerBase\n{\n    [HttpPost]\n    public IActionResult CreateOrder([FromBody] OrderDto order) // Compliant\n    {\n        return Ok(order);\n    }\n\n    [HttpGet]\n    public IActionResult GetOrder([FromQuery] int id) // Compliant - model binding\n    {\n        return Ok();\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-6932"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration", "ClassDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\bRequest\\s*\\.\\s*(?:Body|Query|Form|Headers)\\s*\\[",
+        "exclude_patterns": [
+          "Console\\.",
+          "Logger\\.",
+          "\\[Test",
+          "\\[Fact",
+          "//.*Request",
+          "\\[FromBody\\]",
+          "\\[FromQuery\\]",
+          "\\[FromForm\\]",
+          "\\[FromHeader\\]"
+        ],
+        "message": "Use model binding ([FromBody], [FromQuery], etc.) instead of reading raw request data"
+      }
+    ],
+    "never_trigger_on": [
+      "Logging statements (Console.*, Logger.*)",
+      "Unit tests ([Test], [Fact])",
+      "Comments",
+      "Methods already using model binding attributes",
+      "Middleware components"
+    ],
+    "reasoning": "Model binding in ASP.NET simplifies code by automatically mapping HTTP request data to action parameters. It provides validation, proper deserialization, and cleaner code compared to manually reading Request.Body, Request.Query, etc.",
+    "validation_examples": {
+      "should_trigger": [
+        "var body = await reader.ReadToEndAsync(); Request.Body",
+        "var id = Request.Query[\"id\"];",
+        "var form = Request.Form[\"data\"];"
+      ],
+      "should_not_trigger": [
+        "public IActionResult CreateOrder([FromBody] OrderDto order)",
+        "public IActionResult GetOrder([FromQuery] int id)"
+      ]
+    }
+  }
+}

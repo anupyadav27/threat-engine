@@ -1,0 +1,36 @@
+{
+  "filename": "disabling_role_based_access_control_on_azure_resou_metadata.json",
+  "rule_id": "disabling_rolebased_access_control",
+  "title": "Disabling Role-Based Access Control on Azure resources is security-sensitive",
+  "description": "Disabling Role-Based Access Control on Azure resources is security-sensitiveAnalyze your codeintentionality-completesecuritySecurity HotspotcweazureDisabling Role-Based Access Control (RBAC) on Azure resources can reduce an organization’s ability to protect itself against access controls being compromised.To be considered safe, access controls must follow the principle of least privilege and correctly segregate duties amongst users. RBAC helps enforce these practices by adapting the organization’s access control needs into explicit role-based policies: It helps keeping access controls maintainable and sustainable.Furthermore, RBAC allows operations teams to work faster during a security incident. It helps to mitigate account theft or intrusions by quickly shutting down accesses.Ask Yoursel",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "cwe"
+  ],
+  "examples": {
+    "noncompliant": [
+      "{\n  \"$schema\": \"https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#\",\n  \"contentVersion\": \"1.0.0.0\",\n  \"resources\": [\n    {\n      \"name\": \"example\",\n      \"type\": \"Microsoft.ContainerService/managedClusters\",\n      \"apiVersion\": \"2023-03-01\",\n      \"properties\": {\n        \"aadProfile\": {\n          \"enableAzureRBAC\": false\n        },\n        \"enableRBAC\": false\n      }\n    }\n  ]\n}"
+    ],
+    "compliant": [
+      "resource aks 'Microsoft.ContainerService/managedClusters@2023-03-01' = {\n  properties: {\n    aadProfile: {\n      enableAzureRBAC: false    // Sensitive\n    }\n    enableRBAC: false           // Sensitive\n  }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/azureresourcemanager/RSPEC-6383"
+  ],
+  "logic": {
+    "node_types": ["Microsoft.ContainerService/managedClusters"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_rbac_disabled",
+        "message": "Role-Based Access Control (RBAC) should be enabled for Azure Container Service managed clusters"
+      }
+    ]
+  }
+}

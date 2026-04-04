@@ -1,0 +1,44 @@
+{
+  "filename": "security_avoid_unencrypted_mobile_databases_metadata.json",
+  "rule_id": "security_avoid_unencrypted_mobile_databases",
+  "title": "Avoid unencrypted databases in mobile apps",
+  "description": "Storing sensitive data in unencrypted databases on mobile devices exposes it to unauthorized access if the device is compromised. Always use encryption for local databases to protect user information and comply with security best practices.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "security",
+  "recommendation": "Use secure database solutions like SQLCipher or EncryptedSharedPreferences to ensure all sensitive data is encrypted at rest.",
+  "impact": "Security risk",
+  "examples": {
+    "noncompliant": [
+      "SQLiteDatabase db = context.openOrCreateDatabase(\"user.db\", MODE_PRIVATE, null); // No encryption"
+    ],
+    "compliant": [
+      "// Using SQLCipher for encrypted database\nSQLiteDatabase db = SQLiteDatabase.openOrCreateDatabase(\"user.db\", \"strong_password\", null);"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/java/RSPEC-6291",
+    "https://developer.android.com/reference/kotlin/android/database/sqlite/SQLiteDatabase",
+    "https://www.zetetic.net/sqlcipher/sqlcipher-for-android/",
+    "https://developer.android.com/reference/androidx/security/crypto/EncryptedSharedPreferences",
+    "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/",
+    "https://owasp.org/www-project-mobile-top-10/2023-risks/m9-insecure-data-storage/",
+    "https://cwe.mitre.org/data/definitions/311"
+  ],
+  "logic": {
+    "node_types": ["MethodInvocation"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "openOrCreateDatabase\\s*\\(",
+          "SQLiteDatabase\\s*\\.",
+          "getSharedPreferences\\s*\\(",
+          "Realm\\s*\\."
+        ],
+        "message": "Avoid unencrypted databases. Use SQLCipher or EncryptedSharedPreferences."
+      }
+    ]
+  }
+}

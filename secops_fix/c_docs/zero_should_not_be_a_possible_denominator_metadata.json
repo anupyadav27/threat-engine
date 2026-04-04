@@ -1,0 +1,70 @@
+{
+  "filename": "zero_should_not_be_a_possible_denominator_metadata.json",
+  "rule_id": "zero_possible_denominator",
+  "title": "Zero should not be a possible denominator",
+  "description": "Zero should not be a possible denominator. Analyze your code intentionality-logical reliability. Bug cwe symbolic-execution denial-of-service cert. Ensure that integer division and remainder operations do not result in divide-by-zero errors. Why is this an issue? What is the potential impact? How can I fix it? More Info: If the denominator to a division or modulo operation is zero, the behavior of the application is undefined. Operator / is used for division and % for modulo operation. Division and modulo operations are susceptible to divide-by-zero (and signed integer overflow) errors. Available In: Catch issues on the fly, in your IDE. Detect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "cert",
+    "cwe",
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "int divide(int a, int b) {   return a / b; // Noncompliant: no check for b == 0 }  int modulo(int x, int y) {   if (y == 0) {     x = 1;   }   return x % y; // Noncompliant: y could still be 0 }  int calculate(int numerator) {   int denominator = getValue(); // unknown value   return numerator / denominator; // Noncompliant: could be 0 }"
+    ],
+    "compliant": [
+      "int divide(int a, int b) {   if (b != 0) {     return a / b; // Compliant: check prevents division by zero   }   return 0; // or handle error appropriately }  int modulo(int x, int y) {   if (y != 0) {     return x % y; // Compliant: check prevents modulo by zero   }   return 0; }  int calculate(int numerator) {   int denominator = getValue();   if (denominator != 0) {     return numerator / denominator; // Compliant: validated   }   return INT_MAX; // error value }"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-3518"
+  ],
+  "logic": {
+    "node_types": [
+      "ArithmeticExpression"
+    ],
+    "checks": [
+      {
+        "type": "regex",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "\\b\\w+\\s*/\\s*0\\b",
+        "flags": "",
+        "message": "Explicit division by zero detected."
+      },
+      {
+        "type": "regex",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "\\b\\w+\\s*%\\s*0\\b", 
+        "flags": "",
+        "message": "Explicit modulo by zero detected."
+      },
+      {
+        "type": "regex",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "(?<!sizeof\\s*\\()\\b\\w+\\s*/\\s*\\w+(?!\\s*[;\n]\\s*//.*(?:safe|ok|valid|nonzero))",
+        "flags": "i",
+        "message": "Potential division by zero: denominator \"$2\" could be zero."
+      },
+      {
+        "type": "regex", 
+        "property_path": [
+          "source"
+        ],
+        "pattern": "\\b\\w+\\s*%\\s*\\w+(?!\\s*[;\n]\\s*//.*(?:safe|ok|valid|nonzero))(?<!%[dxosucfgea])",
+        "flags": "i",
+        "message": "Potential modulo by zero: denominator \"$2\" could be zero."
+      }
+    ]
+  }
+}

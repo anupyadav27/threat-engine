@@ -1,0 +1,51 @@
+{
+  "filename": "hardcoded_ip_addresses_metadata.json",
+  "rule_id": "security_hardcoded_ip_addresses",
+  "title": "Avoid hardcoded IP addresses",
+  "description": "Hardcoded IP addresses create security vulnerabilities and deployment issues. They make applications inflexible and can expose internal network information or create dependencies on specific network configurations.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Use configuration files, environment variables, or service discovery instead of hardcoded IP addresses.",
+  "impact": "Security risk",
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "package main\n\nimport (\n    \"net/http\"\n    \"database/sql\"\n)\n\n// Noncompliant: Hardcoded IP addresses\n\n// BAD: Database connection with hardcoded IP\nfunc connectToDatabase() (*sql.DB, error) {\n    // BAD: Hardcoded database server IP\n    connectionString := \"postgres://user:pass@192.168.1.100:5432/mydb\"\n    return sql.Open(\"postgres\", connectionString)\n}\n\n// BAD: API endpoints with hardcoded IPs\nfunc callExternalService() (*http.Response, error) {\n    // BAD: Hardcoded service IP address\n    return http.Get(\"http://10.0.1.50:8080/api/users\")\n}\n\n// BAD: Microservice communication\nfunc callUserService(userID string) (*User, error) {\n    // BAD: Hardcoded internal service IP\n    url := fmt.Sprintf(\"http://172.16.0.10:3000/users/%s\", userID)\n    resp, err := http.Get(url)\n    if err != nil {\n        return nil, err\n    }\n    defer resp.Body.Close()\n    // Process response\n    return nil, nil\n}\n\n// BAD: Cache server configuration\nfunc connectToRedis() *redis.Client {\n    return redis.NewClient(&redis.Options{\n        Addr:     \"192.168.1.200:6379\", // BAD: Hardcoded Redis IP\n        Password: \"\",\n        DB:       0,\n    })\n}\n\n// BAD: Load balancer configuration\nvar serverPool = []string{\n    \"http://10.0.1.1:8080\",    // BAD: Hardcoded server IPs\n    \"http://10.0.1.2:8080\",\n    \"http://10.0.1.3:8080\",\n}\n\n// BAD: Monitoring and logging\nfunc sendMetrics(data []byte) error {\n    // BAD: Hardcoded monitoring server IP\n    url := \"http://192.168.10.100:9090/metrics\"\n    _, err := http.Post(url, \"application/json\", bytes.NewReader(data))\n    return err\n}\n\n// BAD: Network security rules\nfunc setupFirewall() {\n    allowedIPs := []string{\n        \"203.0.113.1\",    // BAD: Hardcoded external IPs\n        \"198.51.100.2\",\n        \"192.0.2.3\",\n    }\n    // Configure firewall with hardcoded IPs\n    _ = allowedIPs\n}\n\n// BAD: DNS configuration\nfunc getDNSServers() []string {\n    return []string{\n        \"8.8.8.8\",      // BAD: Hardcoded Google DNS\n        \"8.8.4.4\",\n        \"1.1.1.1\",      // BAD: Hardcoded Cloudflare DNS\n    }\n}",
+        "description": "Hardcoded IP addresses create inflexibility and expose network topology information."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "package main\n\nimport (\n    \"fmt\"\n    \"net/http\"\n    \"os\"\n    \"strings\"\n)\n\n// Compliant: Use configuration for IP addresses\n\n// GOOD: Database connection from environment\nfunc connectToDatabase() (*sql.DB, error) {\n    // GOOD: Get database host from environment\n    host := os.Getenv(\"DB_HOST\")\n    port := os.Getenv(\"DB_PORT\")\n    user := os.Getenv(\"DB_USER\")\n    password := os.Getenv(\"DB_PASSWORD\")\n    database := os.Getenv(\"DB_NAME\")\n    \n    if host == \"\" {\n        host = \"localhost\" // Default fallback\n    }\n    if port == \"\" {\n        port = \"5432\" // Default PostgreSQL port\n    }\n    \n    connectionString := fmt.Sprintf(\"postgres://%s:%s@%s:%s/%s\",\n        user, password, host, port, database)\n    return sql.Open(\"postgres\", connectionString)\n}\n\n// GOOD: Service discovery for external services\ntype ServiceConfig struct {\n    BaseURL string\n    Timeout time.Duration\n}\n\nfunc loadServiceConfig() *ServiceConfig {\n    return &ServiceConfig{\n        BaseURL: os.Getenv(\"EXTERNAL_SERVICE_URL\"), // e.g., \"https://api.example.com\"\n        Timeout: 30 * time.Second,\n    }\n}\n\nfunc callExternalService() (*http.Response, error) {\n    config := loadServiceConfig()\n    if config.BaseURL == \"\" {\n        return nil, fmt.Errorf(\"external service URL not configured\")\n    }\n    \n    client := &http.Client{Timeout: config.Timeout}\n    return client.Get(config.BaseURL + \"/api/users\")\n}\n\n// GOOD: Service discovery for microservices\nfunc callUserService(userID string) (*User, error) {\n    serviceURL := os.Getenv(\"USER_SERVICE_URL\")\n    if serviceURL == \"\" {\n        // Use service discovery or default\n        serviceURL = discoverUserService()\n    }\n    \n    url := fmt.Sprintf(\"%s/users/%s\", serviceURL, userID)\n    resp, err := http.Get(url)\n    if err != nil {\n        return nil, err\n    }\n    defer resp.Body.Close()\n    \n    // Process response\n    return parseUserResponse(resp)\n}\n\nfunc discoverUserService() string {\n    // Implement service discovery logic\n    // Could use Consul, etcd, Kubernetes service discovery, etc.\n    return \"http://user-service:3000\" // Kubernetes service name\n}\n\n// GOOD: Cache configuration from environment\nfunc connectToRedis() (*redis.Client, error) {\n    addr := os.Getenv(\"REDIS_ADDR\")\n    password := os.Getenv(\"REDIS_PASSWORD\")\n    \n    if addr == \"\" {\n        addr = \"localhost:6379\" // Default\n    }\n    \n    client := redis.NewClient(&redis.Options{\n        Addr:     addr,\n        Password: password,\n        DB:       0,\n    })\n    \n    // Test connection\n    _, err := client.Ping().Result()\n    return client, err\n}\n\n// GOOD: Load balancer configuration\ntype LoadBalancerConfig struct {\n    Servers []string\n}\n\nfunc loadServerPool() *LoadBalancerConfig {\n    serversEnv := os.Getenv(\"BACKEND_SERVERS\")\n    if serversEnv == \"\" {\n        return &LoadBalancerConfig{\n            Servers: []string{\"http://backend:8080\"}, // Default\n        }\n    }\n    \n    // Parse comma-separated server list\n    servers := strings.Split(serversEnv, \",\")\n    for i, server := range servers {\n        servers[i] = strings.TrimSpace(server)\n    }\n    \n    return &LoadBalancerConfig{Servers: servers}\n}\n\n// GOOD: Monitoring configuration\nfunc sendMetrics(data []byte) error {\n    metricsURL := os.Getenv(\"METRICS_ENDPOINT\")\n    if metricsURL == \"\" {\n        // Skip metrics if not configured\n        return nil\n    }\n    \n    client := &http.Client{Timeout: 5 * time.Second}\n    _, err := client.Post(metricsURL, \"application/json\", bytes.NewReader(data))\n    return err\n}\n\n// GOOD: Firewall configuration from file\ntype NetworkConfig struct {\n    AllowedIPs []string\n    BlockedIPs []string\n}\n\nfunc loadNetworkConfig() (*NetworkConfig, error) {\n    configFile := os.Getenv(\"NETWORK_CONFIG_FILE\")\n    if configFile == \"\" {\n        configFile = \"/etc/app/network.json\"\n    }\n    \n    data, err := ioutil.ReadFile(configFile)\n    if err != nil {\n        return nil, err\n    }\n    \n    var config NetworkConfig\n    if err := json.Unmarshal(data, &config); err != nil {\n        return nil, err\n    }\n    \n    return &config, nil\n}\n\n// GOOD: DNS configuration from system or environment\nfunc getDNSServers() []string {\n    dnsServers := os.Getenv(\"DNS_SERVERS\")\n    if dnsServers != \"\" {\n        return strings.Split(dnsServers, \",\")\n    }\n    \n    // Use system default DNS or well-known public DNS\n    return []string{\n        \"\" + // Use system resolver\n    }\n}\n\n// GOOD: Configuration structure\ntype AppConfig struct {\n    Database    DatabaseConfig\n    Services    ServicesConfig\n    Cache       CacheConfig\n    Monitoring  MonitoringConfig\n}\n\ntype DatabaseConfig struct {\n    Host     string\n    Port     string\n    Username string\n    Password string\n    Database string\n}\n\ntype ServicesConfig struct {\n    UserService    string\n    PaymentService string\n    EmailService   string\n}\n\nfunc loadAppConfig() (*AppConfig, error) {\n    return &AppConfig{\n        Database: DatabaseConfig{\n            Host:     os.Getenv(\"DB_HOST\"),\n            Port:     os.Getenv(\"DB_PORT\"),\n            Username: os.Getenv(\"DB_USER\"),\n            Password: os.Getenv(\"DB_PASSWORD\"),\n            Database: os.Getenv(\"DB_NAME\"),\n        },\n        Services: ServicesConfig{\n            UserService:    os.Getenv(\"USER_SERVICE_URL\"),\n            PaymentService: os.Getenv(\"PAYMENT_SERVICE_URL\"),\n            EmailService:   os.Getenv(\"EMAIL_SERVICE_URL\"),\n        },\n        Cache: CacheConfig{\n            RedisAddr:     os.Getenv(\"REDIS_ADDR\"),\n            RedisPassword: os.Getenv(\"REDIS_PASSWORD\"),\n        },\n    }, nil\n}",
+        "description": "Use environment variables, configuration files, or service discovery instead of hardcoded IP addresses."
+      }
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/go/RSPEC-1313"
+  ],
+  "logic": {
+    "node_types": [
+      "assignment_statement",
+      "short_var_declaration", 
+      "const_declaration",
+      "interpreted_string_literal",
+      "function_declaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source_text"
+        ],
+        "patterns": [
+          "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}",
+          "host\\s*:?=\\s*\"[^\"]*\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}[^\"]*\"",
+          "server\\s*:?=\\s*\"[^\"]*\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}[^\"]*\""
+        ],
+        "message": "Use configuration files, environment variables, or service discovery instead of hardcoded IP addresses."
+      }
+    ]
+  }
+}

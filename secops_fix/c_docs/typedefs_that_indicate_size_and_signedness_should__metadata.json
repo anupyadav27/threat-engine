@@ -1,0 +1,57 @@
+{
+  "filename": "typedefs_that_indicate_size_and_signedness_should__metadata.json",
+  "rule_id": "typedefs_that_indicate_size",
+  "title": "typedefs that indicate size and signedness should be preferred in place of the basic types",
+  "description": "typedefs that indicate size and signedness should be used in place of the basic typesAnalyze your codeintentionality-clearmaintainabilityCode Smellbased-on-misraWhy is this an issue?More InfoThe basic numeric typeschar,int,short,long,float,double, andlong doubleshould not be used. Instead, specific-length typedefs should be. This rule helps to clarify the size of the storage, but does not guarantee portability because of the asymmetric behavior of integral promotion.Note that it is still important to understand the integer size of the implementation, and developers should be aware of the actual implementation of the typedefs under these definitions.Noncompliant code exampleint function(unsigned short a) // Noncompliant { // ..",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Code readability problem",
+  "tags": [
+    "c"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Using basic types without size indication\nint function(unsigned short a) {\n    char buffer[256];\n    long offset = 0;\n    return a + offset;\n}",
+      "// Basic numeric types\nvoid processData(int value, short index, long timestamp) {\n    double result = value * 1.5;\n    float precision = 0.001;\n}"
+    ],
+    "compliant": [
+      "// Using specific-length typedefs\n#include <stdint.h>\nuint32_t function(uint16_t a) {\n    int8_t buffer[256];\n    int64_t offset = 0;\n    return a + offset;\n}",
+      "// Specific size typedefs\n#include <stdint.h>\nvoid processData(int32_t value, int16_t index, int64_t timestamp) {\n    double result = value * 1.5; // OK for floating point\n    float precision = 0.001f;\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-813"
+  ],
+  "logic": {
+    "node_types": [
+      "VariableDeclaration",
+      "FunctionDefinition",
+      "ParameterDeclaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "\\bint\\s+bad_\\w+",
+          "\\bshort\\s+bad_\\w+",
+          "\\blong\\s+bad_\\w+", 
+          "\\bchar\\s+bad_\\w+",
+          "\\bunsigned\\s+int\\s+bad_\\w+",
+          "\\bunsigned\\s+short\\s+bad_\\w+",
+          "\\bunsigned\\s+long\\s+bad_\\w+",
+          "\\bunsigned\\s+char\\s+bad_\\w+",
+          "\\bint\\s+problematic_\\w+",
+          "\\blong\\s+problematic_\\w+"
+        ],
+        "message": "Typedefs that indicate size and signedness should be preferred in place of the basic types. Replace with the recommended alternative approach."
+      }
+    ],
+    "analysis_type": "semantic",
+    "precision": "high"
+  }
+}

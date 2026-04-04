@@ -1,0 +1,46 @@
+{
+  "filename": "exception_handlers_should_preserve_the_original_exceptions_metadata.json",
+  "rule_id": "java_handling_original_exceptions",
+  "title": "Exception Handlers Should Preserve The Original Exceptions",
+  "description": "When handling a caught exception, it's vital to log or pass forward the original exception's message and stack trace. This helps ensure that no information is lost and aids in debugging efforts.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Bug",
+  "recommendation": "Ensure that in your exception handling process, the original exception's message and stack trace are logged or passed forward to prevent loss of valuable debugging information.",
+  "impact": "Improper handling of exceptions can lead to loss of valuable debugging information and make it difficult to track down and fix issues. Preserving the original exceptions improves debuggability and code quality.",
+  "examples": {
+    "noncompliant": [
+      "try { /* ... */ } catch (Exception e) { LOGGER.info(\"context\"); }",
+      "try { /* ... */ } catch (Exception e) { LOGGER.info(e.getMessage()); }",
+      "try { /* ... */ } catch (Exception e) { throw new RuntimeException(\"context\"); }"
+    ],
+    "compliant": [
+      "try { /* ... */ } catch (Exception e) { LOGGER.info(e); }",
+      "try { /* ... */ } catch (Exception e) { throw new RuntimeException(e); }",
+      "try { /* ... */ } catch (RuntimeException e) { doSomething(); throw e; } catch (Exception e) { throw new RuntimeException(e); }"
+    ]
+  },
+  "references": [
+    {
+      "title": "SonarSource Rule",
+      "url": "https://rules.sonarsource.com/java/RSPEC-1166"
+    }
+  ],
+  "logic": {
+    "node_types": [
+      "Class"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "catch\\s*\\([^)]+\\s+(\\w+)\\s*\\)[^{]*\\{[^}]*(?:LOGGER|log)[^}]*\\([^)]*\"[^\"]*\"[^)]*\\)\\s*;"
+        ],
+        "message": "Exception handlers should preserve the original exceptions."
+      }
+    ]
+  }
+}

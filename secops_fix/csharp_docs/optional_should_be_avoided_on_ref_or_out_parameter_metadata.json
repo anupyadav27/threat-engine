@@ -1,0 +1,73 @@
+{
+  "filename": "optional_should_be_avoided_on_ref_or_out_parameter_metadata.json",
+  "rule_id": "optional_avoided_ref_out",
+  "title": "[Optional] should be avoided on ref or out parameters",
+  "description": "\"[Optional]\" should not be used on \"ref\" or \"out\" parametersAnalyze your codeintentionality-logicalmaintainabilityCode SmellQuick FixIDE quick fixes available with SonarQube for IDEpitfallWhy is this an issue?More InfoThe use ofreforoutin combination withOptionalattribute is both confusing and contradictory.[Optional]indicates that the parameter doesn’t have to be provided, whileoutandrefmean that the parameter will be used to return data to the caller (refadditionally indicates that the parameter may also be used to pass data into the method).Thus, making it[Optional]to provide the parameter in which you will be passing back the method results doesn’t make sense. In fact, the compiler will raise an error on such code. Unfortunately, it raises the error on method calls where the[Optional]p",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public void Method([Optional] out int result) // Noncompliant: Optional attribute on out parameter\n{\n    result = 42;\n}",
+      "public void Method([Optional] ref string value) // Noncompliant: Optional attribute on ref parameter\n{\n    value = \"updated\";\n}"
+    ],
+    "compliant": [
+      "public void Method(out int result) // Compliant: no Optional attribute on out parameter\n{\n    result = 42;\n}",
+      "public void Method(ref string value) // Compliant: no Optional attribute on ref parameter\n{\n    value = \"updated\";\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3447"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\[Optional\\]\\s+(ref|out)\\s+",
+        "message": "[Optional] attribute should not be used with ref or out parameters",
+        "exclude_patterns": [
+          "\\[Test\\]",
+          "\\[DllImport\\]",
+          "Assert\\.",
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\."
+        ]
+      }
+    ],
+    "target_ast_nodes": ["MethodDeclaration"],
+    "detection_conditions": "Uses regex to detect [Optional] attribute combined with ref or out parameters",
+    "triggering_conditions": "Method parameters that have both [Optional] attribute and ref or out modifiers",
+    "exclusion_conditions": "Excludes test methods, P/Invoke declarations, and logging contexts",
+    "never_trigger_on": [
+      "Unit test methods ([Test], [Fact], Assert.*)",
+      "P/Invoke declarations ([DllImport])",
+      "Logging methods (Console.*, Logger.*, Debug.*)",
+      "Generated code",
+      "Interop code where Optional might be required"
+    ],
+    "reasoning": "Detects [Optional] attribute used with ref or out parameters. This combination is contradictory because Optional means the parameter doesn't need to be provided, while ref/out means data will be passed back to the caller.",
+    "validation_examples": {
+      "should_trigger": [
+        "public void Method([Optional] out int result)",
+        "public void Method([Optional] ref string value)",
+        "public void Process([Optional] out bool success, [Optional] ref int counter)"
+      ],
+      "should_not_trigger": [
+        "public void Method(out int result)",
+        "public void Method(ref string value)",
+        "public void Method([Optional] string name, out int result)",
+        "[Test] public void TestMethod([Optional] out int result)"
+      ]
+    }
+  }
+}

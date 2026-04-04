@@ -1,0 +1,33 @@
+{
+  "filename": "interruptedexception-threaddeath-ignored-metadata.json",
+  "rule_id": "java_exception_handling_ignored",
+  "title": "Avoid Ignoring InterruptedException and ThreadDeath",
+  "description": "Properly handle InterruptedException and ThreadDeath to prevent losing information and ensure timely thread shutdown.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Exception Handling",
+  "recommendation": "Handle InterruptedException and ThreadDeath appropriately.",
+  "impact": "Potential delay in thread shutdown and loss of interrupted information.",
+  "examples": {
+    "noncompliant": [
+      "public void run () {\n  try {\n    /*...*/\n  } catch (InterruptedException e) { // Noncompliant\n    LOGGER.log(Level.WARN, \"Interrupted!\", e);\n  }\n}"
+    ],
+    "compliant": [
+      "public void run () {\n  try {\n    /* ... */\n  } catch (InterruptedException e) { // Compliant\n    LOGGER.log(Level.WARN, \"Interrupted!\", e);\n    /* Clean up whatever needs to be handled before interrupting  */\n    Thread.currentThread().interrupt();\n  }\n}",
+      "public void run () {\n  try {\n    /* ... */\n  } catch (ThreadDeath e) { // Compliant\n    LOGGER.log(Level.WARN, \"Interrupted!\", e);\n    /* Clean up whatever needs to be handled before re-throwing  */\n    throw e;\n  }\n}"
+    ]
+  },
+  "references": [],
+  "logic": {
+    "node_types": [
+      "Class"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_java_exception_handling_ignored",
+        "message": "Handle InterruptedException and ThreadDeath appropriately."
+      }
+    ]
+  }
+}

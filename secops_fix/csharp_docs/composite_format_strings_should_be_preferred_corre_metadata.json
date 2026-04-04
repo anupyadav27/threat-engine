@@ -1,0 +1,55 @@
+{
+  "filename": "composite_format_strings_should_be_preferred_corre_metadata.json",
+  "rule_id": "composite_format_strings_preferred",
+  "title": "Composite format strings should be preferred correctly",
+  "description": "A composite format string is a string that contains placeholders, represented by indices inside curly braces \"{0}\", \"{1}\", etc. These placeholders are replaced by values when the string is printed or logged. Because composite format strings are interpreted at runtime, rather than validated by the compiler, they can contain errors that lead to unexpected behaviors or runtime errors.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "string result = String.Format(\"{0} {1}\", value1); // Noncompliant: missing argument for {1}",
+      "string result = String.Format(\"{0}\", value1, value2); // Noncompliant: extra argument value2"
+    ],
+    "compliant": [
+      "string result = String.Format(\"{0} {1}\", value1, value2); // Compliant: arguments match placeholders",
+      "string result = $\"{value1} {value2}\"; // Compliant: using string interpolation"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3457"
+  ],
+  "logic": {
+    "node_types": ["CallExpression"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_composite_format_string_arguments"
+      }
+    ],
+    "never_trigger_on": [
+      "String interpolation ($\\\"\\\") - already compliant",
+      "Correctly formatted String.Format calls"
+    ],
+    "reasoning": "Detects String.Format() calls where placeholder count doesn't match argument count. Counts highest placeholder index ({0}, {1}, etc.) to determine expected argument count, then counts actual arguments after format string. Mismatch causes runtime errors. Example: String.Format(\\\"{0} {1}\\\", value1) has 2 placeholders but 1 argument - will throw exception.",
+    "validation_examples": {
+      "should_trigger": [
+        "String.Format(\\\"{0} {1}\\\", value1);",
+        "String.Format(\\\"{0}\\\", value1, value2);",
+        "String.Format(\\\"{0} {1} {2}\\\", value1, value2);"
+      ],
+      "should_not_trigger": [
+        "String.Format(\\\"{0} {1}\\\", value1, value2);",
+        "$\\\"{value1} {value2}\\\";",
+        "String.Format(\\\"{0}\\\", value1);"
+      ]
+    }
+  }
+}

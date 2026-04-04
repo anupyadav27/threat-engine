@@ -1,0 +1,56 @@
+{
+  "filename": "pragma_warning_default_should_be_avoided_metadata.json",
+  "rule_id": "pragma_warning_default_avoided",
+  "title": "#pragma warning (default: ...) should be avoided",
+  "description": "\"#pragma warning (default: ...)\" should not be usedAnalyze your codeconsistency-conventionalmaintainabilityCode SmellcertWhy is this an issue?More InfoUsing \"#pragma warning (default: …​)\" resets the warning in question to its default settings, which may not be what the compiler was initially invoked with. Typically, this usage is seen after a warning is turned off, in preparation for code that is known to cause warnings. Instead, the warning’s current state should be saved, and then restored after the code in question.Noncompliant code example#pragma warning (disable: TheWarning) #include problem_code.h #pragma warning (default: TheWarning)Compliant solution#pragma warning (push) #include problem_code.h #pragma warning (pop)Available In:Catch issues on the fly,in your IDEDetect issues in",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cert",
+    "convention"
+  ],
+  "examples": {
+    "noncompliant": [
+      "#pragma warning (disable: TheWarning)\n#include problem_code.h\n#pragma warning (default: TheWarning)"
+    ],
+    "compliant": [
+      "#pragma warning (push)\n#include problem_code.h\n#pragma warning (pop)"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-1762"
+  ],
+  "logic": {
+    "node_types": [
+      "TranslationUnit"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "#pragma\\s+warning\\s*\\(\\s*default:",
+          "#pragma\\s+Warning\\s*\\(\\s*default:",
+          "#pragma\\s+warning\\s*\\(\\(\\s*default:",
+          "#pragma\\s+warning\\s*\\(\\s*default:.*[^/]*//.*VIOLATION",
+          "#pragma\\s+Warning\\s*\\(\\s*default:.*[^/]*//.*VIOLATION",
+          "#pragma\\s+warning\\s*\\(\\(\\s*default:.*[^/]*//.*VIOLATION",
+          "#pragma\\s*warning\\s*\\(\\s*default:[^)]*\\)\\s*;.*#pragma",
+          "#pragma\\s+warning\\s*\\(\\s*default:\\s*[0-9]+",
+          "#pragma\\s+warning\\s*\\(\\s*default:\\s*[A-Za-z_]",
+          "#pragma\\s+warning\\s*\\(\\s*default:\\s*C[0-9]+",
+          "#pragma\\s+warning\\s*\\(\\s*default:.*[\\\\]",
+          "#pragma\\s*Warning\\s*\\(\\s*default:",
+          "#pragma\\s*warning\\s*\\(\\s*default:[^)]*\\)(?!.*//.*COMPLIANT)"
+        ],
+        "message": "#pragma warning (default: ...) should be avoided. Use #pragma warning(pop) instead to restore previous warning state.",
+        "severity": "major"
+      }
+    ]
+  }
+}

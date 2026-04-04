@@ -1,0 +1,44 @@
+{
+  "filename": "doubled_prefix_operators_and_should_be_avoided_metadata.json",
+  "rule_id": "doubled_prefix_operators_avoided",
+  "title": "Doubled prefix operators !! and ~~ should be avoided",
+  "description": "Doubled prefix operators \"!!\" and \"~~\" should not be usedAnalyze your codeintentionality-clearreliabilityBugQuick FixIDE quick fixes available with SonarQube for IDEWhy is this an issue?The repetition of a prefix operator (!, or~) is usually a typo. The second operator invalidates the first one.int v1 = 0; bool v2 = false; var v3 = !!v1; // Noncompliant: equivalent to \"v1\" var v4 = ~~v2; // Noncompliant: equivalent to \"v2\"Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CI©2025SonarSource Sàrl. All rights reserved.Privacy Policy|Cookie Policy|Terms of Use",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "int value = 5;\nbool result = !!value; // Noncompliant: Doubled !! operator is redundant\n",
+      "bool isActive = false;\nif (!!isActive) // Noncompliant: Double negation\n{\n    Console.WriteLine(\"Active\");\n}",
+      "int flags = 0b1010;\nint inverted = ~~flags; // Noncompliant: Doubled ~~ operator cancels out\n"
+    ],
+    "compliant": [
+      "int value = 5;\nbool result = value != 0; // Compliant: Explicit comparison\n",
+      "bool isActive = false;\nif (isActive) // Compliant: No double negation\n{\n    Console.WriteLine(\"Active\");\n}",
+      "int flags = 0b1010;\nint inverted = ~flags; // Compliant: Single bitwise NOT operator\n"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2761"
+  ],
+  "logic": {
+    "target_ast_nodes": ["Expression"],
+    "detection_conditions": "Detect doubled prefix operators !! or ~~",
+    "triggering_conditions": "Presence of !! or ~~ in code",
+    "exclusion_conditions": "Exclude comments and string literals",
+    "never_trigger_on": ["String literals", "Comments"],
+    "reasoning": "Doubled prefix operators (!! and ~~) are usually typos where the second operator cancels the first, making the code equivalent to no operator at all. This is confusing and likely a mistake.",
+    "validation_examples": {
+      "should_trigger": ["bool result = !!value;", "int inverted = ~~flags;"],
+      "should_not_trigger": ["bool result = !value;", "int inverted = ~flags;"]
+    },
+    "custom_function": "check_doubled_prefix_operators"
+  }
+}

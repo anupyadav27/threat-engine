@@ -1,0 +1,38 @@
+{
+  "filename": "pointers_to_unmanaged_memory_should_not_be_visible_metadata.json",
+  "rule_id": "pointers_unmanaged_memory_visible",
+  "title": "Pointers to unmanaged memory should not be visible",
+  "description": "Pointers to unmanaged memory should not be visibleAnalyze your codeintentionality-completemaintainabilityCode SmellWhy is this an issue?Pointer and unmanaged function pointer types such asIntPtr,UIntPtr,int*etc. are used to access unmanaged memory, usually in order to use C or C++ libraries. If such a pointer is not secured by making itprivate,internalorreadonly, it can lead to a vulnerability allowing access to arbitrary locations.Noncompliant code exampleusing System; namespace MyLibrary { public class MyClass { public IntPtr myPointer; // Noncompliant protected UIntPtr myOtherPointer; // Noncompliant } }Compliant solutionusing System; namespace MyLibrary { public class MyClass { private IntPtr myPointer; protected readonly UIntPtr myOtherPointer; } }Available In:Catch issues on the fly,",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "using System;\n\nnamespace MyLibrary\n{\n    public class MyClass\n    {\n        public IntPtr myPointer; // Noncompliant\n        protected UIntPtr myOtherPointer; // Noncompliant\n    }\n}"
+    ],
+    "compliant": [
+      "using System;\n\nnamespace MyLibrary\n{\n    public class MyClass\n    {\n        private IntPtr myPointer;\n        protected readonly UIntPtr myOtherPointer;\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-4000"
+  ],
+  "logic": {
+    "node_types": ["ClassDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\b(public|protected)\\s+(IntPtr|UIntPtr)\\s+\\w+",
+        "description": "Detect public/protected pointer fields"
+      }
+    ]
+  }
+}

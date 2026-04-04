@@ -1,0 +1,42 @@
+{
+  "filename": "function_templates_should_not_be_specialized_metadata.json",
+  "rule_id": "function_templates_specialized",
+  "title": "Function templates should not be specialized",
+  "description": "Function templates should not be specializedAnalyze your codeintentionality-clearmaintainabilityCode Smellcppcoreguidelinesbased-on-misraWhy is this an issue?More InfoExplicit specializations of function templates are not considered in overload resolution, only the main template. As a consequence, the function that will be selected might very well be different from what seems natural to the developer, leading to hard to understand bugs. Moreover, function templates don’t allow partial specialization.Instead of specializing a function template, you may choose to overload it with another template or non template function, since a more specialized overload will be preferred to a generic overload.Noncompliant code exampletemplate <typename T> void f ( T ); template <> void f<char*> ( char * );",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Code readability problem",
+  "tags": [
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "template <typename T> void f ( T );\ntemplate <> void f<char*> ( char * ); // explicit specialization, noncompliant"
+    ],
+    "compliant": [
+      "template <typename T> void f ( T );\nvoid f( char * ); // overload, compliant"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-1032"
+  ],
+  "logic": {
+    "node_types": [
+      "TemplateDeclaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "template\\s*<\\s*>\\s*[^\\n]*(?:void|int|double|char|bool|float|std::|\\w+\\s*::|class\\s+\\w+|typename\\s+\\w+)"
+        ],
+        "message": "Function templates should not be specialized. Use function overloading or class template specialization instead."
+      }
+    ]
+  }
+}

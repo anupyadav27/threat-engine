@@ -1,0 +1,64 @@
+{
+  "filename": "macros_should_be_avoided_as_replacements_for_typed_metadata.json",
+  "rule_id": "macros_avoided_as_replacements",
+  "title": "Macros should be avoided as replacements for typedef and using",
+  "description": "Macros should not be used as replacements for \"typedef\" and \"using\"Analyze your codeconsistency-conventionalmaintainabilityCode Smellbad-practicecertpitfallWhy is this an issue?More InfoC provides a way of defining or aliasing a type throughtypedef. On top of it, C++ addsusingthat can do the same and more.Using a macro to define a type is inferior to the previous ways for two reasons:macros cannot be enclosed into scopes. Or at least, doing so is cumbersome and error-prone, as in that case, the macro needs to be defined and undefined manually.macros are handled by the preprocessor and are not understood by the compiler.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cert",
+    "convention"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Using macros for type definitions\n#define INT_PTR int*\n#define STRING_ARRAY char**\n#define CALLBACK_FUNC void(*)(int)\n\nINT_PTR ptr;\nSTRING_ARRAY args;\nCALLBACK_FUNC handler;"
+    ],
+    "compliant": [
+      "// Using typedef for type definitions\ntypedef int* IntPtr;\ntypedef char** StringArray;\ntypedef void (*CallbackFunc)(int);\n\nIntPtr ptr;\nStringArray args;\nCallbackFunc handler;\n\n// In C++, using declarations are preferred\nusing IntPtr = int*;\nusing StringArray = char**;\nusing CallbackFunc = void(*)(int);"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-5825"
+  ],
+  "logic": {
+    "node_types": [
+      "PreprocessorDirective"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "#define\\s+\\w+\\s+int\\s*",
+          "#define\\s+\\w+\\s+char\\s*", 
+          "#define\\s+\\w+\\s+float\\s*",
+          "#define\\s+\\w+\\s+double\\s*",
+          "#define\\s+\\w+\\s+int\\*",
+          "#define\\s+\\w+\\s+char\\*",
+          "#define\\s+\\w+\\s+float\\*",
+          "#define\\s+\\w+\\s+double\\*",
+          "#define\\s+\\w+\\s+void\\*",
+          "#define\\s+\\w+\\s+char\\*\\*",
+          "#define\\s+\\w+\\s+int\\*\\*",
+          "#define\\s+\\w+\\s+void\\*\\*",
+          "#define\\s+\\w+\\s+struct\\s+\\w+",
+          "#define\\s+\\w+\\s+union\\s+\\w+",
+          "#define\\s+\\w+\\s+enum\\s+\\w+",
+          "#define\\s+\\w+\\s+const\\s+(int|char|float|double)",
+          "#define\\s+\\w+\\s+volatile\\s+(int|char|float|double)",
+          "#define\\s+\\w+\\s+(long|short|unsigned|signed)\\s*(int|char)?",
+          "#define\\s+\\w+\\s+(size_t|ptrdiff_t|wchar_t)",
+          "#define\\s+\\w+\\s+(uint8_t|uint16_t|uint32_t|uint64_t)",
+          "#define\\s+\\w+\\s+(int8_t|int16_t|int32_t|int64_t)",
+          "#define\\s+\\w+\\s+FILE\\*"
+        ],
+        "message": "Macros should be avoided as replacements for typedef and using declarations."
+      }
+    ]
+  }
+}

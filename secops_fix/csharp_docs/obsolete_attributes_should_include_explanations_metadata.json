@@ -1,0 +1,53 @@
+{
+  "filename": "obsolete_attributes_should_include_explanations_metadata.json",
+  "rule_id": "obsolete_attributes_include_explanations",
+  "title": "Obsolete attributes should include explanations",
+  "description": "\"Obsolete\" attributes should include explanationsAnalyze your codeintentionality-clearmaintainabilityCode Smellobsoletebad-practiceWhy is this an issue?TheObsoleteattribute can be applied with or without a message argument. Marking somethingObsoletewithout including advice on why it’s obsolete or what to use instead will lead maintainers to waste time trying to figure those things out.Noncompliant code examplepublic class Car { [Obsolete] // Noncompliant public void CrankEngine(int turnsOfCrank) { ... } }Compliant solutionpublic class Car { [Obsolete(\"Replaced by the automatic starter\")] public void CrankEngine(int turnsOfCrank) { ..",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class Car\n{\n    [Obsolete] // Noncompliant: no explanation provided\n    public void CrankEngine(int turnsOfCrank)\n    {\n        // Implementation\n    }\n}"
+    ],
+    "compliant": [
+      "public class Car\n{\n    [Obsolete(\"Replaced by the automatic starter. Use StartEngine() instead.\")]\n    public void CrankEngine(int turnsOfCrank)\n    {\n        // Implementation\n    }\n\n    public void StartEngine()\n    {\n        // New implementation\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-1123"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration", "ClassDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\[Obsolete\\]",
+        "exclude_patterns": [
+          "\\[Test\\]",
+          "\\[Fact\\]"
+        ]
+      }
+    ],
+    "never_trigger_on": [
+      "Test methods ([Test], [Fact])"
+    ],
+    "reasoning": "Detects [Obsolete] attributes without explanatory messages",
+    "validation_examples": {
+      "should_trigger": [
+        "[Obsolete] public void OldMethod()"
+      ],
+      "should_not_trigger": [
+        "[Test] methods"
+      ]
+    }
+  }
+}

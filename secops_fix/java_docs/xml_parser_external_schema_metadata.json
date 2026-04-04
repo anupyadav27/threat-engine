@@ -1,0 +1,40 @@
+{
+  "filename": "xml_parser_external_schema_metadata.json",
+  "rule_id": "security_disallow_external_schema_xml",
+  "title": "Disallow loading external schemas in XML parsers",
+  "description": "XML parsers that load external schemas can expose applications to security risks such as XML External Entity (XXE) attacks. Disabling external schema loading helps prevent attackers from accessing sensitive resources or injecting malicious content. Always configure XML parsers to reject external schemas unless absolutely necessary.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Security",
+  "recommendation": "Configure XML parsers to disallow loading of external schemas. Use secure parser features and validate all XML input.",
+  "impact": "Security risk",
+  "examples": {
+    "noncompliant": [
+      "DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();\ndbf.setAttribute(\"http://java.sun.com/xml/jaxp/properties/schemaSource\", \"http://malicious.com/schema.xsd\"); // BAD\nDocumentBuilder db = dbf.newDocumentBuilder();\nDocument doc = db.parse(input);"
+    ],
+    "compliant": [
+      "DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();\ndbf.setAttribute(\"http://java.sun.com/xml/jaxp/properties/schemaSource\", \"\"); // GOOD: disables external schemas\nDocumentBuilder db = dbf.newDocumentBuilder();\nDocument doc = db.parse(input);"
+    ]
+  },
+  "references": [
+    {
+      "title": "SonarSource Rule RSPEC-6374",
+      "url": "https://rules.sonarsource.com/java/RSPEC-6374"
+    },
+    {
+      "title": "OWASP XXE Prevention Cheat Sheet",
+      "url": "https://cheatsheetseries.owasp.org/cheatsheets/XML_External_Entity_Prevention_Cheat_Sheet.html"
+    }
+  ],
+  "logic": {
+    "node_types": ["MethodInvocation"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": ["setAttribute.*http://.*schema"],
+        "message": "Configure XML parsers to disallow loading of external schemas. Use secure parser features and validate all XML input."
+      }
+    ]
+  }
+}

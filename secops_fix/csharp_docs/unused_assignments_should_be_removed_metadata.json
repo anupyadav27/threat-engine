@@ -1,0 +1,64 @@
+{
+  "filename": "unused_assignments_should_be_removed_metadata.json",
+  "rule_id": "unused_assignments_removed",
+  "title": "Unused assignments should be removed",
+  "description": "Unused assignments should be removedAnalyze your codeintentionality-logicalmaintainabilityCode SmellcweunusedWhy is this an issue?How can I fix it?More InfoDead stores refer to assignments made to local variables that are subsequently never used or immediately overwritten. Such assignments are unnecessary and don’t contribute to the functionality or clarity of the code. They may even negatively impact performance.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "void Method()\n{\n    int x = 10; // Noncompliant - value is overwritten before read\n    x = 20;\n    Console.WriteLine(x);\n}"
+    ],
+    "compliant": [
+      "void Method()\n{\n    int x = 20; // Compliant - no dead store\n    Console.WriteLine(x);\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-1854"
+  ],
+  "logic": {
+    "target_ast_nodes": ["Assignment", "MethodDeclaration"],
+    "node_types": ["Assignment"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_unused_assignments"
+      }
+    ],
+    "detection_conditions": "Find assignments to variables that are never read before being overwritten",
+    "triggering_conditions": {
+      "operator": "AND",
+      "conditions": [
+        "Variable is assigned a value",
+        "Value is overwritten before being read"
+      ]
+    },
+    "exclusion_conditions": {
+      "exclude_patterns": [
+        "\\/\\/",
+        "\\/\\*"
+      ]
+    },
+    "never_trigger_on": [
+      "Assignments that are read before overwrite",
+      "Comments"
+    ],
+    "reasoning": "Dead stores (assignments immediately overwritten) are useless and indicate likely bugs.",
+    "validation_examples": {
+      "should_trigger": [
+        "int x = 10; x = 20; Console.WriteLine(x);"
+      ],
+      "should_not_trigger": [
+        "int x = 20; Console.WriteLine(x);"
+      ]
+    }
+  }
+}

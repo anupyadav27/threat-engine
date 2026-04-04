@@ -1,0 +1,49 @@
+{
+  "filename": "sprintf_should_be_avoided_metadata.json",
+  "rule_id": "sprintf_avoided",
+  "title": "sprintf should be avoided",
+  "description": "\"sprintf\" should not be usedAnalyze your codeintentionality-completesecuritySecurity HotspotcwecertWhen usingsprintf, it’s up to the developer to make sure the size of the buffer to be written to is large enough to avoid buffer overflows. Buffer overflows can cause the program to crash at a minimum. At worst, a carefully crafted overflow can cause malicious code to be executed.Ask Yourself Whetherif the provided buffer is large enough for the result of any possible call to thesprintffunction (including all possible format strings and all possible additional arguments).There is a risk if you answered no to the above question.Recommended Secure Coding PracticesThere are fundamentally safer alternatives.snprintfis one of them.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "cert",
+    "cwe",
+    "owasp",
+    "performance"
+  ],
+  "examples": {
+    "noncompliant": [
+      "void formatMessage(char* buffer, const char* name, int value) {\n  sprintf(buffer, \"User %s has %d points\", name, value);  // Noncompliant: no bounds checking\n}",
+      "char result[50];\nsprintf(result, \"%s_%d_data.txt\", filename, id);  // Noncompliant: potential overflow"
+    ],
+    "compliant": [
+      "void formatMessage(char* buffer, size_t bufsize, const char* name, int value) {\n  snprintf(buffer, bufsize, \"User %s has %d points\", name, value);  // Compliant: bounds checking\n}",
+      "char result[50];\nsnprintf(result, sizeof(result), \"%s_%d_data.txt\", filename, id);  // Compliant",
+      "// Using standard library string formatting (C++)\nstd::string result = std::format(\"User {} has {} points\", name, value);"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-6069"
+  ],
+  "logic": {
+    "node_types": [
+      "CallExpression"
+    ],
+    "checks": [
+      {
+        "type": "forbidden_value",
+        "property_path": [
+          "name"
+        ],
+        "forbidden_values": [
+          "sprintf"
+        ],
+        "message": "Sprintf should be avoided. Refactor to eliminate the flagged pattern."
+      }
+    ]
+  }
+}

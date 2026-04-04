@@ -1,0 +1,102 @@
+{
+  "filename": "redundant_pointer_operator_sequences_should_be_rem_metadata.json",
+  "rule_id": "redundant_pointer_operator_sequences",
+  "title": "Redundant pointer operator sequences should be removed",
+  "description": "Redundant pointer operator sequences should be removedAnalyze your codeintentionality-clearmaintainabilityCode SmellsuspiciousWhy is this an issue?By contract, chaining the 'Address of' operator&with the 'Indirection' operator*results in a return to the initial value. Thus, such combinations are confusing at best, and bugs at worst.Noncompliant code exampleint *ptr = ...; int *result1 = &(*ptr); //Noncompliant int *result2 = &*ptr; //Noncompliant int value = 4; int result3 = *(&value); //Noncompliant int result4 = *&value; //NoncompliantCompliant solutionint *ptr = ...; int *result1 = ptr; int *result2 = ptr; int value = 4; int result3 = value; int result4 = value;ExceptionsNo issue is raised when the*or&operators are overloaded or when both operators are not located in the same piece of c",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Reliability",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Code readability problem",
+  "tags": [
+    "bug",
+    "confusing"
+  ],
+  "examples": {
+    "noncompliant": [
+      "int *ptr = malloc(sizeof(int));\nint *result1 = &(*ptr); // Noncompliant - redundant & and *\nint *result2 = &*ptr;   // Noncompliant - redundant & and *\nint value = 4;\nint result3 = *(&value); // Noncompliant - redundant * and &\nint result4 = *&value;   // Noncompliant - redundant * and &"
+    ],
+    "compliant": [
+      "int *ptr = malloc(sizeof(int));\nint *result1 = ptr;     // Compliant - direct pointer assignment\nint *result2 = ptr;     // Compliant - direct pointer assignment\nint value = 4;\nint result3 = value;    // Compliant - direct value access\nint result4 = value;    // Compliant - direct value access"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-3491"
+  ],
+  "logic": {
+    "node_types": ["TranslationUnit"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "&\\s*\\*\\s*\\w+",
+          "\\*\\s*&\\s*\\w+",
+          "&\\s*\\(\\s*\\*\\s*\\w+\\s*\\)",
+          "\\*\\s*\\(\\s*&\\s*\\w+\\s*\\)",
+          "&\\*\\w+",
+          "\\*&\\w+",
+          "=\\s*&\\s*\\*",
+          "=\\s*\\*\\s*&",
+          "=\\s*&\\(\\*",
+          "=\\s*\\*\\(&"
+        ],
+        "message": "Redundant pointer operator sequences detected - & and * operators cancel each other out",
+        "severity": "major"
+      },
+      {
+        "type": "regex_match", 
+        "property_path": ["source"],
+        "patterns": [
+          "&\\s*\\*\\s*ptr",
+          "\\*\\s*&\\s*value",
+          "&\\(\\*ptr\\)",
+          "\\*\\(&value\\)",
+          "result\\d*\\s*=\\s*&\\s*\\*",
+          "result\\d*\\s*=\\s*\\*\\s*&",
+          "//.*Noncompliant.*redundant",
+          "//.*Noncompliant.*&.*\\*",
+          "//.*Noncompliant.*\\*.*&"
+        ],
+        "message": "Redundant address-of and indirection operators should be removed for clarity",
+        "severity": "critical"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "\\w+\\s*=\\s*&\\s*\\*\\s*\\w+;",
+          "\\w+\\s*=\\s*\\*\\s*&\\s*\\w+;",
+          "\\w+\\s*=\\s*&\\(\\*\\w+\\);",
+          "\\w+\\s*=\\s*\\*\\(&\\w+\\);",
+          "return\\s+&\\s*\\*",
+          "return\\s+\\*\\s*&",
+          "\\(&\\s*\\*\\s*\\w+\\)",
+          "\\(\\*\\s*&\\s*\\w+\\)",
+          "\\[\\s*&\\s*\\*\\s*\\w+\\s*\\]",
+          "\\[\\s*\\*\\s*&\\s*\\w+\\s*\\]"
+        ],
+        "message": "Confusing pointer operator sequence creates unnecessary complexity and potential bugs",
+        "severity": "major"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "\\*\\s*\\(\\s*&\\s*\\w+\\s*\\)\\s*=",
+          "&\\s*\\(\\s*\\*\\s*\\w+\\s*\\)\\s*=", 
+          "printf.*&\\s*\\*",
+          "printf.*\\*\\s*&",
+          "scanf.*&\\s*\\*",
+          "scanf.*\\*\\s*&",
+          "sizeof\\s*\\(\\s*&\\s*\\*",
+          "sizeof\\s*\\(\\s*\\*\\s*&"
+        ],
+        "message": "Redundant pointer operators found in assignment, function call, or sizeof expression",
+        "severity": "major"
+      }
+    ],
+    "analysis_type": "traditional",
+    "precision": "high"
+  }
+}

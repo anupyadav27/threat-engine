@@ -1,0 +1,56 @@
+{
+  "filename": "undef_should_be_preferred_with_caution_metadata.json",
+  "rule_id": "undef_preferred_caution",
+  "title": "#undef should be preferred with caution",
+  "description": "\"#undef\" should be used with cautionAnalyze your codeintentionality-clearmaintainabilityCode Smellbased-on-misrabrain-overloadWhy is this an issue?More InfoCode that contains many macros becomes hard to understand. This is even worse when the set of defined macros is not stable, and you have to know at each point what macros are defined. Therefore,#undefcan decrease the readability of macros.However, well-disciplined use of#undefcan also improve readability, for instance when defining a macro with a limited scope: The macro is#defined, used a couple of times to reduce code duplication, then immediately#undefed.This rule raises an issue when a#undefundefines a macro that was defined in another file.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Maintainability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// In file1.h\n#define MAX_SIZE 1024\n\n// In file2.c (different file)\n#include \"file1.h\"\n#undef MAX_SIZE  // Noncompliant: undefining from another file\n#define MAX_SIZE 2048",
+      "// Undefining system or library macros\n#include <stdio.h>\n#undef NULL      // Noncompliant: affects global scope\n#define NULL ((void*)0)"
+    ],
+    "compliant": [
+      "// Limited scope macro usage in same file\n#define TEMP_MACRO(x) do { \\\n    printf(\"Processing: %d\\n\", x); \\\n    process(x); \\\n} while(0)\n\n// Use it a few times\nTEMP_MACRO(1);\nTEMP_MACRO(2);\nTEMP_MACRO(3);\n\n#undef TEMP_MACRO  // OK: limited scope, same file",
+      "// Conditional compilation with cleanup\n#ifdef DEBUG_MODE\n    #define DBG_PRINT(x) printf(x)\n#else\n    #define DBG_PRINT(x)\n#endif\n\n// Use debug macro\nDBG_PRINT(\"Debug info\");\n\n// Clean up at end of same file\n#undef DBG_PRINT"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-959"
+  ],
+  "logic": {
+    "node_types": [
+      "PreprocessorDirective"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "#undef\\s+bad_\\w+",
+          "#undef\\s+unsafe_\\w+",
+          "#undef\\s+problematic_\\w+",
+          "#undef\\s+NULL",
+          "#undef\\s+EOF",
+          "#undef\\s+TRUE",
+          "#undef\\s+FALSE",
+          "#undef\\s+MAX_\\w+",
+          "#undef\\s+MIN_\\w+",
+          "#undef\\s+API_\\w+",
+          "#undef\\s+EXTERN_\\w+"
+        ],
+        "message": "#undef should be preferred with caution. Review and fix according to the rule guidelines."
+      }
+    ],
+    "analysis_type": "semantic",
+    "precision": "high"
+  }
+}

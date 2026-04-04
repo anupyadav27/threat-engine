@@ -1,0 +1,52 @@
+{
+  "filename": "client_instances_should_not_be_recreated_on_each_a_metadata.json",
+  "rule_id": "client_instances_recreated_each",
+  "title": "Client instances should not be recreated on each Azure Function invocation",
+  "description": "Client instances should not be recreated on each Azure Function invocationAnalyze your codeintentionality-completemaintainabilityCode Smellazurebad-practicedesignWhy is this an issue?More InfoTo avoid holding more connections than necessary and to avoid potentially exhausting the number of available sockets when usingHttpClient,DocumentClient,QueueClient,ConnectionMultiplexeror Azure Storage clients, consider:Creating a single, thread-safe static client that every Azure Function invocation can use. Provide it in a shared class when different Azure Functions need it.Instantiate the client as a thread-safe Singleton or a pool of reusable instances and use it with dependency injection.These classes typically manage their own connections to the resource, and thus are intended to be instantiate",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class MyFunction\n{\n    [FunctionName(\"MyFunction\")]\n    public async Task<IActionResult> Run([HttpTrigger] HttpRequest req)\n    {\n        var client = new HttpClient(); // Noncompliant - creates new instance on each invocation\n        var response = await client.GetAsync(\"https://api.example.com\");\n        return new OkResult();\n    }\n}"
+    ],
+    "compliant": [
+      "public class MyFunction\n{\n    private static readonly HttpClient client = new HttpClient(); // Compliant - shared static instance\n    \n    [FunctionName(\"MyFunction\")]\n    public async Task<IActionResult> Run([HttpTrigger] HttpRequest req)\n    {\n        var response = await client.GetAsync(\"https://api.example.com\");\n        return new OkResult();\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-6420"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "new\\s+HttpClient\\s*\\(",
+          "new\\s+DocumentClient\\s*\\(",
+          "new\\s+QueueClient\\s*\\(",
+          "new\\s+ConnectionMultiplexer\\s*\\("
+        ],
+        "exclude_patterns": [
+          "private\\s+static\\s+readonly\\s+\\w+\\s+\\w+\\s*=\\s*new\\s+(HttpClient|DocumentClient|QueueClient|ConnectionMultiplexer)",
+          "private\\s+static\\s+(HttpClient|DocumentClient|QueueClient|ConnectionMultiplexer)\\s+\\w+\\s*=",
+          "static\\s+readonly\\s+(HttpClient|DocumentClient|QueueClient|ConnectionMultiplexer)\\s+\\w+\\s*=",
+          "Lazy<(HttpClient|DocumentClient|QueueClient|ConnectionMultiplexer)>.*new\\s+Lazy",
+          "public\\s+static\\s+(HttpClient|DocumentClient|QueueClient|ConnectionMultiplexer)\\s+Get",
+          "public\\s+void\\s+\\w+\\(\\)",
+          "private\\s+void\\s+\\w+\\(\\)"
+        ],
+        "message": "Client instances should not be recreated on each Azure Function invocation. Use a static readonly instance or dependency injection instead."
+      }
+    ]
+  }
+}

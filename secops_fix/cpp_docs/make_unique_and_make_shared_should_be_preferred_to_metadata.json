@@ -1,0 +1,46 @@
+{
+  "filename": "make_unique_and_make_shared_should_be_preferred_to_metadata.json",
+  "rule_id": "make_unique_make_shared_preferred_construct",
+  "title": "make_unique and make_shared should be preferred to construct unique_ptr and shared_ptr",
+  "description": "make_unique and make_shared are more concise than explicitly calling the constructor of unique_ptr and shared_ptr since they don’t require specifying the type multiple times and eliminate the need to use new. make_unique and make_shared should also be preferred for exception-safety and performance reasons. While make_unique and make_shared are exception-safe, complex constructions of unique_ptr and shared_ptr might not be because C++ allows arbitrary order of evaluation of subexpressions (until C++17).",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Maintainability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Maintainability issue",
+  "tags": [
+    "performance"
+  ],
+  "examples": {
+    "noncompliant": [
+      "#include <memory>\n\nvoid function() {\n  std::unique_ptr<int> ptr(new int(42)); // Noncompliant\n  std::shared_ptr<std::string> str(new std::string(\"hello\")); // Noncompliant\n}",
+      "class MyClass {\n  int value;\npublic:\n  MyClass(int v) : value(v) {}\n};\n\nvoid createObjects() {\n  auto ptr = std::unique_ptr<MyClass>(new MyClass(10)); // Noncompliant\n  auto shared = std::shared_ptr<MyClass>(new MyClass(20)); // Noncompliant\n}",
+      "void unsafeConstruction() {\n  processPtr(std::shared_ptr<int>(new int(5)), // Noncompliant: exception unsafe\n            std::shared_ptr<int>(new int(10)));\n}"
+    ],
+    "compliant": [
+      "#include <memory>\n\nvoid function() {\n  auto ptr = std::make_unique<int>(42); // Compliant\n  auto str = std::make_shared<std::string>(\"hello\"); // Compliant\n}",
+      "class MyClass {\n  int value;\npublic:\n  MyClass(int v) : value(v) {}\n};\n\nvoid createObjects() {\n  auto ptr = std::make_unique<MyClass>(10); // Compliant\n  auto shared = std::make_shared<MyClass>(20); // Compliant\n}",
+      "void safeConstruction() {\n  auto ptr1 = std::make_shared<int>(5);\n  auto ptr2 = std::make_shared<int>(10);\n  processPtr(ptr1, ptr2); // Compliant: exception safe\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-5950"
+  ],
+  "logic": {
+    "node_types": [
+      "declaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "\\b(unique_ptr|shared_ptr).*?\\(\\s*new\\b"
+        ],
+        "message": "Use make_unique/make_shared instead of direct construction with new for better exception safety."
+      }
+    ]
+  }
+}

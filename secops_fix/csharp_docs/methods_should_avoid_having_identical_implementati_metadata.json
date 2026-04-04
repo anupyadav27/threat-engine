@@ -1,0 +1,67 @@
+{
+  "filename": "methods_should_avoid_having_identical_implementati_metadata.json",
+  "rule_id": "methods_avoid_having_identical",
+  "title": "Methods should avoid having identical implementations",
+  "description": "Methods should not have identical implementationsAnalyze your codeadaptability-distinctmaintainabilityCode SmellconfusingduplicatesuspiciousWhy is this an issue?Two methods having the same implementation are suspicious. It might be that something else was intended. Or the duplication is intentional, which becomes a maintenance burden.private const string CODE = \"secret\"; private int callCount = 0; public string GetCode() { callCount++; return CODE; } public string GetName() // Noncompliant: duplicates GetCode { callCount++; return CODE; }If the identical logic is intentional, the code should be refactored to avoid duplication.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class UserService\n{\n    private const string CODE = \"secret\";\n    private int callCount = 0;\n\n    public string GetCode() // First method\n    {\n        callCount++;\n        return CODE;\n    }\n\n    public string GetName() // Noncompliant: identical to GetCode\n    {\n        callCount++;\n        return CODE;\n    }\n}",
+      "public class Calculator\n{\n    public int AddNumbers(int a, int b) // Noncompliant: duplicate logic\n    {\n        int result = a + b;\n        Console.WriteLine($\"Result: {result}\");\n        return result;\n    }\n    \n    public int SumValues(int x, int y) // Noncompliant: identical implementation\n    {\n        int result = x + y;\n        Console.WriteLine($\"Result: {result}\");\n        return result;\n    }\n}"
+    ],
+    "compliant": [
+      "public class UserService\n{\n    private const string CODE = \"secret\";\n    private int callCount = 0;\n\n    public string GetCode()\n    {\n        callCount++;\n        return CODE;\n    }\n\n    public string GetName() // Compliant: clear intent, delegates to GetCode\n    {\n        return GetCode();\n    }\n}",
+      "public class Calculator\n{\n    public int AddNumbers(int a, int b) // Compliant: unique implementation\n    {\n        return PerformCalculation(a, b, \"Addition\");\n    }\n    \n    public int SumValues(int x, int y) // Compliant: delegates to common method\n    {\n        return PerformCalculation(x, y, \"Sum\");\n    }\n    \n    private int PerformCalculation(int a, int b, string operation)\n    {\n        int result = a + b;\n        Console.WriteLine($\"{operation} Result: {result}\");\n        return result;\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-4144"
+  ],
+  "logic": {
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_methods_avoid_identical_implementations"
+      }
+    ],
+    "never_trigger_on": [
+      "Override methods (required to implement same pattern)",
+      "Interface implementations (required to match interface)",
+      "Virtual/abstract methods",
+      "External methods (extern keyword)",
+      "Test methods ([Test], [Fact], etc.)",
+      "Simple getters/setters (single line returns)",
+      "Constructor overloads with similar initialization",
+      "Generated code",
+      "Event handlers with standard patterns",
+      "Methods with bodies under 10 characters"
+    ],
+    "reasoning": "This rule detects methods with identical implementations that indicate code duplication. It compares normalized method bodies to find exact duplicates that should be refactored into common methods or helper functions. The rule excludes legitimate cases like interface implementations, override methods, and simple accessors where identical implementations are expected or required.",
+    "validation_examples": {
+      "should_trigger": [
+        "Methods with identical multi-line implementations",
+        "Methods with same logic but different parameter names", 
+        "Methods returning same complex calculations",
+        "Methods with duplicate business logic",
+        "Methods with identical multi-statement bodies"
+      ],
+      "should_not_trigger": [
+        "Methods delegating to common helper functions",
+        "Override methods implementing interface requirements",
+        "Simple getters returning different fields",
+        "[Test] methods with similar assertion patterns",
+        "Methods with substantially different implementations",
+        "Single-line return statements"
+      ]
+    }
+  }
+}

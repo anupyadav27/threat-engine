@@ -1,0 +1,118 @@
+{
+  "filename": "imports_should_not_use_absolute_paths_metadata.json",
+  "rule_id": "imports_use_absolute_paths",
+  "title": "Imports should not use absolute paths",
+  "description": "Imports should not use absolute pathsAnalyze your codeadaptability-modularmaintainabilityreliabilityCode SmellQuick FixIDE quick fixes available with SonarQube for IDEpitfallpathsWhy is this an issue?How can I fix it?More InfoIn Node.js, it\u2019s possible to import modules by specifying an absolute path, such as/lib/foo/bar.js. However, this approach can limit the portability of your code, as it becomes tied to your computer\u2019s file system. This could potentially lead to problems when the code is distributed, for instance, via NPM packages.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    "deprecated",
+    "async"
+  ],
+  "examples": {
+    "noncompliant": [
+      "import { utils } from '/lib/foo/bar.js';",
+      "const helper = require('/utils/helper.js');",
+      "import('/src/components/Button.vue');",
+      "export { default } from '/config/settings.json';",
+      "import styles from '/assets/styles.css';"
+    ],
+    "compliant": [
+      "import { utils } from './lib/foo/bar.js';",
+      "const helper = require('../utils/helper.js');",
+      "import('./components/Button.vue');",
+      "export { default } from './config/settings.json';",
+      "import styles from '../assets/styles.css';"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-6859"
+  ],
+  "logic": {
+    "node_types": [
+      "ImportDeclaration",
+      "ExportNamedDeclaration", 
+      "ExportAllDeclaration",
+      "CallExpression",
+      "ImportExpression"
+    ],
+    "checks": [
+      {
+        "type": "ast_pattern",
+        "description": "ES6 import statements with absolute paths",
+        "conditions": [
+          {
+            "node_type": "ImportDeclaration",
+            "source_type": "Literal",
+            "source_value_starts_with": "/"
+          }
+        ],
+        "message": "Import should not use absolute path. Use relative path instead (e.g., './path' or '../path')."
+      },
+      {
+        "type": "ast_pattern",
+        "description": "ES6 export statements with absolute paths",
+        "conditions": [
+          {
+            "node_type_in": ["ExportNamedDeclaration", "ExportAllDeclaration"],
+            "source_type": "Literal",
+            "source_value_starts_with": "/"
+          }
+        ],
+        "message": "Export should not use absolute path. Use relative path instead (e.g., './path' or '../path')."
+      },
+      {
+        "type": "ast_pattern",
+        "description": "require() calls with absolute paths",
+        "conditions": [
+          {
+            "node_type": "CallExpression",
+            "callee_type": "Identifier",
+            "callee_name": "require",
+            "arguments_length": 1,
+            "first_argument_type": "Literal",
+            "first_argument_value_starts_with": "/"
+          }
+        ],
+        "message": "require() should not use absolute path. Use relative path instead (e.g., './path' or '../path')."
+      },
+      {
+        "type": "ast_pattern",
+        "description": "Dynamic import() with absolute paths",
+        "conditions": [
+          {
+            "node_type": "ImportExpression",
+            "source_type": "Literal",
+            "source_value_starts_with": "/"
+          }
+        ],
+        "message": "Dynamic import() should not use absolute path. Use relative path instead (e.g., './path' or '../path')."
+      },
+      {
+        "type": "regex_match",
+        "description": "Fallback regex for string literals in import contexts",
+        "property_path": ["source", "raw"],
+        "pattern": "^['\"`]/[^'\"``]+['\"`]$",
+        "context_check": "import_context",
+        "message": "Import path should not be absolute. Use relative path instead."
+      }
+    ],
+    "exclusions": [
+      {
+        "type": "npm_package",
+        "description": "Allow npm package imports (don't start with /)",
+        "pattern": "^[a-zA-Z@][^/]*"
+      },
+      {
+        "type": "builtin_module",
+        "description": "Allow Node.js built-in modules",
+        "modules": ["fs", "path", "http", "https", "crypto", "util", "os", "url", "querystring", "stream", "events", "buffer", "child_process", "cluster", "net", "tls", "dns", "zlib"]
+      }
+    ]
+  }
+}

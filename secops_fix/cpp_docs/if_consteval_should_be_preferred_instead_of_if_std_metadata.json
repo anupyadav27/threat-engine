@@ -1,0 +1,39 @@
+{
+  "filename": "if_consteval_should_be_preferred_instead_of_if_std_metadata.json",
+  "rule_id": "if_consteval_preferred_instead",
+  "title": "if consteval should be preferred instead of if (std::is_constant_evaluated())",
+  "description": "Since C++20, a call to std::is_constant_evaluated() can be used to determine whether the call occurs within a constant-evaluated context. Typically, this function is called in the condition of an if statement to optimize code: It allows different actions to be performed depending on whether an expression is evaluated at compile-time or runtime. However, writing if (std::is_constant_evaluated()) comes with a few caveats.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cpp"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant: Using std::is_constant_evaluated()\n#include <type_traits>\n\nconstexpr int compute(int x) {\n    if (std::is_constant_evaluated()) {\n        // Compile-time computation\n        return x * x;\n    } else {\n        // Runtime computation\n        return x + x;\n    }\n}",
+      "// Noncompliant: Complex condition with is_constant_evaluated\nconstexpr bool check() {\n    if (std::is_constant_evaluated() && some_condition()) {\n        return true;\n    }\n    return false;\n}"
+    ],
+    "compliant": [
+      "// Compliant: Using if consteval (C++23)\nconstexpr int compute(int x) {\n    if consteval {\n        // Compile-time computation\n        return x * x;\n    } else {\n        // Runtime computation\n        return x + x;\n    }\n}",
+      "// Compliant: Simple consteval usage\nconstexpr bool check() {\n    if consteval {\n        return true;\n    }\n    return false;\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-7033"
+  ],
+  "logic": {
+    "node_types": [
+      "*"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_if_consteval_detection",
+        "message": "'if consteval' should be preferred instead of 'if (std::is_constant_evaluated())'"
+      }
+    ]
+  }
+}

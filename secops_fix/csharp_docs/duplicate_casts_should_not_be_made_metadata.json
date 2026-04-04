@@ -1,0 +1,44 @@
+{
+  "filename": "duplicate_casts_should_not_be_made_metadata.json",
+  "rule_id": "duplicate_casts_made",
+  "title": "Duplicate casts should not be made",
+  "description": "Duplicate casts should not be madeAnalyze your codeintentionality-clearmaintainabilityCode SmellperformanceWhy is this an issue?How can I fix it?More InfoIn C#, theistype testing operatorcan be used to check if the run-time type of an object is compatible with a given type. If the object is not null, then theisoperator performs a cast, and so performing another cast following the check result is redundant.This can impact:Performance: Performing the type check and cast separately can lead to minor performance issues. While this might not be noticeable in small applications, it can add up in larger, more complex systems.Readability: The code is less readable and less clean because it requires two lines (and two operations) to achieve something that could be done in one.Available In:Catch iss",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "object obj = GetObject();\nif (obj is string)\n{\n    string str = (string)obj; // Noncompliant: Duplicate cast\n    Console.WriteLine(str);\n}",
+      "void ProcessData(object data)\n{\n    if (data is int)\n    {\n        int number = (int)data; // Noncompliant: Cast already performed by 'is'\n        Console.WriteLine(number * 2);\n    }\n}",
+      "public void HandleValue(object value)\n{\n    if (value is List<string>)\n    {\n        var list = (List<string>)value; // Noncompliant\n        foreach (var item in list)\n            Console.WriteLine(item);\n    }\n}"
+    ],
+    "compliant": [
+      "object obj = GetObject();\nif (obj is string str)\n{\n    Console.WriteLine(str); // Compliant: Pattern matching\n}",
+      "void ProcessData(object data)\n{\n    if (data is int number)\n    {\n        Console.WriteLine(number * 2); // Compliant\n    }\n}",
+      "public void HandleValue(object value)\n{\n    if (value is List<string> list)\n    {\n        foreach (var item in list)\n            Console.WriteLine(item);\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3247"
+  ],
+  "logic": {
+    "target_ast_nodes": ["CastExpression"],
+    "detection_conditions": "Detect duplicate type casts like (Type)(Type)value",
+    "triggering_conditions": "Two consecutive casts to the same type",
+    "exclusion_conditions": "None",
+    "never_trigger_on": ["Casts to different types", "Single casts"],
+    "reasoning": "Duplicate casts to the same type are redundant. The second cast serves no purpose since the value is already of that type after the first cast.",
+    "validation_examples": {
+      "should_trigger": ["var result = (string)(string)obj;", "int value = (int)(int)obj;"],
+      "should_not_trigger": ["var result = (string)obj;", "var result = (int)(long)obj;"]
+    },
+    "custom_function": "check_duplicate_casts"
+  }
+}

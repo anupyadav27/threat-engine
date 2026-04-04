@@ -1,0 +1,68 @@
+{
+  "filename": "non_constant_static_fields_should_not_be_visible_metadata.json",
+  "rule_id": "nonconstant_static_fields_visible",
+  "title": "Non-constant static fields should not be visible",
+  "description": "Non-constant static fields should not be visibleAnalyze your codeconsistency-conventionalmaintainabilityCode SmellpitfallWhy is this an issue?More InfoUnlike instance fields, which can only be accessed by code having a hold on the instance,staticfields can be accessed by any code having visibility of the field and its type.public class Math { public static double Pi = 3.14; // Noncompliant } // Somewhere else, where Math and Math.Pi are visible var pi = Math.Pi; // Reading the value Math.Pi = 3.1416; // Mutating the valueAnother typical scenario of the use of a non-private mutablestaticfield is the following:public class Shape { public static Shape Empty = new EmptyShape(); // Noncompliant private class EmptyShape : Shape { } }Non-privatestaticfields that are neitherconstnorreadonly, like",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class Math\n{\n    public static double Pi = 3.14;  // Noncompliant - can be modified externally\n}\n\npublic class Shape\n{\n    public static Shape Empty = new EmptyShape();  // Noncompliant - mutable static field\n}"
+    ],
+    "compliant": [
+      "public class Math\n{\n    public const double Pi = 3.14159;  // Compliant - constant\n    public static readonly double E = 2.71828;  // Compliant - readonly\n    private static double _factor = 1.0;  // Compliant - private\n}\n\npublic class Shape\n{\n    public static readonly Shape Empty = new EmptyShape();  // Compliant - readonly\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2223"
+  ],
+  "logic": {
+    "node_types": ["CompilationUnit"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "^\\s*(?:public|protected|internal)\\s+static\\s+(?!const)(?!readonly)\\w+\\s+\\w+\\s*=",
+        "exclude_patterns": []
+      }
+    ],
+    "triggering_conditions": "CompilationUnit nodes containing non-private static field declarations that are not const or readonly",
+    "exclusion_conditions": [
+      "const fields (excluded by pattern)",
+      "readonly fields (excluded by pattern)", 
+      "private static fields (excluded by pattern)",
+      "static properties (different syntax)"
+    ],
+    "never_trigger_on": [
+      "const fields (public const double Pi = 3.14)",
+      "readonly fields (public static readonly string Name)",
+      "private static fields (private static int _count)",
+      "static properties with getters/setters",
+      "Field declarations without assignment (field;)",
+      "Generated code"
+    ],
+    "reasoning": "Detects non-private static fields that lack const or readonly modifiers, making them mutable from external code. Uses CompilationUnit with a precise pattern that includes negative lookaheads for const/readonly and requires assignment (=) to distinguish from properties. No exclude patterns needed since the pattern is specific enough.",
+    "validation_examples": {
+      "should_trigger": [
+        "public static double Pi = 3.14;",
+        "protected static Shape Empty = new Shape();", 
+        "internal static int Counter = 0;"
+      ],
+      "should_not_trigger": [
+        "public const double Pi = 3.14159;",
+        "public static readonly Shape Empty = new Shape();",
+        "private static int _counter = 0;",
+        "public static int Counter { get; set; }",
+        "public static int Count;"
+      ]
+    }
+  }
+}

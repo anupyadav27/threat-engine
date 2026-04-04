@@ -1,0 +1,110 @@
+{
+  "filename": "finalizers_should_not_throw_exceptions_metadata.json",
+  "rule_id": "finalizers_throw_exceptions",
+  "title": "Finalizers should not throw exceptions",
+  "description": "Finalizers should not throw exceptionsAnalyze your codeintentionality-logicalreliabilityBugWhy is this an issue?How can I fix it?More InfoThefinalizersare used to performany necessary final clean-upwhen the garbage collector is collecting a class instance. The programmer has no control over when the finalizer is called; the garbage collector decides when to call it.When creating a finalizer, it should never throw an exception, as there is a high risk of having the application terminated leaving unmanaged resources without a graceful cleanup.The rule raises an issue onthrowstatements used in a finalizer.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIAvailable Since9.1An",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class Foo\n{\n    ~Foo()\n    {\n        if (someCondition)\n        {\n            throw new InvalidOperationException(); // Noncompliant\n        }\n    }\n}"
+    ],
+    "compliant": [
+      "public class Foo\n{\n    ~Foo()\n    {\n        try\n        {\n            // Cleanup code\n        }\n        catch\n        {\n            // Compliant: exceptions are caught and handled\n        }\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-1048"
+  ],
+  "logic": {
+    "target_ast_nodes": ["ClassDeclaration"],
+    "detection_conditions": "Detects throw statements inside finalizers (destructors) by checking ClassDeclaration source for destructor patterns containing throw statements.",
+    "triggering_conditions": {
+      "type": "compound_check",
+      "conditions": [
+        {
+          "type": "regex_match",
+          "property_path": ["source"],
+          "pattern": "~\\w+\\s*\\(\\s*\\)\\s*\\{[^}]*throw[^}]*\\}",
+          "exclude_patterns": [
+            "Console\\.",
+            "Logger\\.",
+            "Debug\\.",
+            "\\$\"",
+            "string.Format",
+            "ToString\\(\\)",
+            "//",
+            "/\\*",
+            "///",
+            "\\[Test",
+            "Assert\\."
+          ]
+        }
+      ],
+      "logic": "AND"
+    },
+    "exclusion_conditions": {
+      "exclude_patterns": [
+        "Console\\.",
+        "Logger\\.",
+        "Debug\\.",
+        "\\$\"",
+        "string.Format",
+        "ToString\\(\\)",
+        "//",
+        "/\\*",
+        "///",
+        "\\[Test",
+        "Assert\\."
+      ]
+    },
+    "node_types": ["ClassDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "~\\w+\\s*\\(\\s*\\)\\s*\\{[^}]*throw[^}]*\\}",
+        "exclude_patterns": [
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "\\$\"",
+          "string.Format",
+          "ToString\\(\\)",
+          "//",
+          "/\\*",
+          "///",
+          "\\[Test",
+          "Assert\\."
+        ]
+      }
+    ],
+    "never_trigger_on": [
+      "Finalizers without throw statements",
+      "Logging statements",
+      "String formatting",
+      "Unit tests",
+      "Comments",
+      "ToString methods"
+    ],
+    "reasoning": "Detects C# destructors (finalizers) that contain throw statements. Finalizers should never throw exceptions as the garbage collector calls them and exceptions can terminate the application. We check ClassDeclaration source for destructor patterns containing throw statements.",
+    "validation_examples": {
+      "should_trigger": [
+        "public class Foo { ~Foo() { throw new InvalidOperationException(); } }",
+        "public class Bar { ~Bar() { if (condition) throw new Exception(); } }"
+      ],
+      "should_not_trigger": [
+        "public class Foo { ~Foo() { try { } catch { } } }",
+        "public class Foo { public void Method() { throw new Exception(); } }"
+      ]
+    }
+  }
+}

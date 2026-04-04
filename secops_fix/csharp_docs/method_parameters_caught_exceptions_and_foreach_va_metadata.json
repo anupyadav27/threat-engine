@@ -1,0 +1,48 @@
+{
+  "filename": "method_parameters_caught_exceptions_and_foreach_va_metadata.json",
+  "rule_id": "method_parameters_caught_exceptions",
+  "title": "Method parameters, caught exceptions and foreach variables' initial values should not be ignored",
+  "description": "Method parameters, caught exceptions and foreach variables' initial values should not be ignoredAnalyze your codeintentionality-clearreliabilityBugWhy is this an issue?While it is technically correct to assign to parameters from within method bodies, doing so before the parameter value is read is likely a bug. Instead, initial values of parameters, caught exceptions, and foreach parameters should be, if not treated asfinal, then at least read before reassignment.Noncompliant code examplepublic void DoTheThing(string str, int i, List<string> strings) { str = i.ToString(i); // Noncompliant foreach (var s in strings) { s = \"hello world\"; // Noncompliant } }Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesA",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public void DoTheThing(string str, int i, List<string> strings)\n{\n    str = i.ToString(); // Noncompliant: parameter value ignored before use\n\n    foreach (var s in strings)\n    {\n        s = \"hello world\"; // Noncompliant: loop variable immediately reassigned\n    }\n}"
+    ],
+    "compliant": [
+      "public void DoTheThing(string str, int i, List<string> strings)\n{\n    Console.WriteLine(str); // Use parameter first\n    str = i.ToString(); // Compliant: parameter used before reassignment\n\n    foreach (var s in strings)\n    {\n        Console.WriteLine(s); // Compliant: use value from collection\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-1226"
+  ],
+  "logic": {
+    "custom_function": "check_method_parameters_caught_exceptions",
+    "node_types": [
+      "MethodDeclaration"
+    ],
+    "reasoning": "This rule uses a custom function that performs proper data flow analysis to detect method parameters, caught exceptions, or foreach variables that are reassigned BEFORE their initial values are used. The custom function checks: 1) Method parameters that are assigned without first being read, used in expressions, or passed to other methods. 2) Foreach loop variables that are reassigned at the start of the loop body. 3) Caught exception variables that are reassigned without using their original value (Message, StackTrace, etc.). The function properly excludes: var declarations, property assignments, object initializers, test methods, and cases where parameters are used before reassignment.",
+    "validation_examples": {
+      "should_trigger": [
+        "public void DoTheThing(string str, int i)\n{\n    str = i.ToString();\n}",
+        "public void Process(int value)\n{\n    value = 42;\n    Console.WriteLine(value);\n}",
+        "foreach (var s in strings)\n{\n    s = \"hello\";\n}",
+        "catch (Exception ex)\n{\n    ex = new Exception(\"different\");\n}"
+      ],
+      "should_not_trigger": [
+        "public void DoTheThing(string str, int i)\n{\n    Console.WriteLine(str);\n    str = i.ToString();\n}",
+        "public void Process(int value)\n{\n    var result = value * 2;\n    return result;\n}",
+        "public void SetProperty(MyClass obj)\n{\n    obj.Name = \"test\";\n}",
+        "[Test]\npublic void TestMethod(int param)\n{\n    param = 10;\n}"
+      ]
+    }
+  }
+}

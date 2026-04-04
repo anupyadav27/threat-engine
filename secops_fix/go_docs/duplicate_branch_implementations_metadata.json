@@ -1,0 +1,54 @@
+{
+  "filename": "duplicate_branch_implementations_metadata.json",
+  "rule_id": "logic_duplicate_branch_implementations",
+  "title": "Avoid identical branch implementations",
+  "description": "When multiple branches in conditional structures have identical implementations, it indicates duplicate code that should be consolidated. This duplication makes maintenance harder and increases the risk of inconsistent updates.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Maintainability",
+  "recommendation": "Combine branches with identical implementations or extract common logic into shared functions.",
+  "impact": "Maintainability issue",
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "package main\n\n// Noncompliant: Identical branch implementations\nfunc calculateDiscount(userType string, amount float64) float64 {\n    switch userType {\n    case \"premium\":\n        // BAD: Same logic in multiple branches\n        if amount > 100 {\n            return amount * 0.1\n        }\n        return 0\n    case \"gold\":\n        // BAD: Identical implementation\n        if amount > 100 {\n            return amount * 0.1\n        }\n        return 0\n    case \"silver\":\n        // BAD: Same logic repeated\n        if amount > 100 {\n            return amount * 0.1\n        }\n        return 0\n    default:\n        return 0\n    }\n}\n\nfunc processPayment(method string, amount float64) error {\n    if method == \"credit\" {\n        // BAD: Identical processing logic\n        log.Printf(\"Processing payment: %.2f\", amount)\n        return chargeCard(amount)\n    } else if method == \"debit\" {\n        // BAD: Same implementation\n        log.Printf(\"Processing payment: %.2f\", amount)\n        return chargeCard(amount)\n    } else {\n        return errors.New(\"unsupported payment method\")\n    }\n}",
+        "description": "Multiple branches with identical implementations indicate duplicate code that should be consolidated."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "package main\n\nimport (\n    \"errors\"\n    \"log\"\n)\n\n// Compliant: Consolidated logic for identical behaviors\nfunc calculateDiscount(userType string, amount float64) float64 {\n    // GOOD: Group similar user types together\n    switch userType {\n    case \"premium\", \"gold\", \"silver\":\n        return calculateStandardDiscount(amount)\n    default:\n        return 0\n    }\n}\n\nfunc calculateStandardDiscount(amount float64) float64 {\n    // GOOD: Common logic extracted to separate function\n    if amount > 100 {\n        return amount * 0.1\n    }\n    return 0\n}\n\n// Alternative approach with map-based logic\nvar discountRules = map[string]func(float64) float64{\n    \"premium\": calculateStandardDiscount,\n    \"gold\":    calculateStandardDiscount,\n    \"silver\":  calculateStandardDiscount,\n}\n\nfunc calculateDiscountMap(userType string, amount float64) float64 {\n    // GOOD: Use map to avoid duplicate implementations\n    if discountFunc, exists := discountRules[userType]; exists {\n        return discountFunc(amount)\n    }\n    return 0\n}\n\nfunc processPayment(method string, amount float64) error {\n    // GOOD: Check for supported methods first\n    supportedMethods := []string{\"credit\", \"debit\"}\n    \n    if !contains(supportedMethods, method) {\n        return errors.New(\"unsupported payment method\")\n    }\n    \n    // GOOD: Common processing logic\n    return processCardPayment(amount)\n}\n\nfunc processCardPayment(amount float64) error {\n    // GOOD: Consolidated card processing logic\n    log.Printf(\"Processing payment: %.2f\", amount)\n    return chargeCard(amount)\n}\n\nfunc contains(slice []string, item string) bool {\n    for _, s := range slice {\n        if s == item {\n            return true\n        }\n    }\n    return false\n}",
+        "description": "Combine branches with identical implementations and extract common logic into shared functions."
+      }
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/go/RSPEC-1871"
+  ],
+  "logic": {
+    "node_types": [
+      "expression_case",
+      "case_clause",
+      "if_statement",
+      "switch_statement"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source_text"
+        ],
+        "patterns": [
+          "case\\s+[\"'][^\"']+[\"']:[^}]*?return\\s+[^;\\n]+[;\\n][^}]*?case\\s+[\"'][^\"']+[\"']:[^}]*?return\\s+[^;\\n]+[;\\n]",
+          "case\\s+[^:]+:[^}]*?if\\s+[^{]+\\{[^}]*return[^}]*\\}[^}]*return[^}]*case\\s+[^:]+:[^}]*?if\\s+[^{]+\\{[^}]*return[^}]*\\}[^}]*return",
+          "case\\s+[^:]+:[^}]*?log\\.Printf\\([^)]+\\)[^}]*return[^}]*case\\s+[^:]+:[^}]*?log\\.Printf\\([^)]+\\)[^}]*return",
+          "if\\s+[^{]+==\\s+[\"'][^\"']+[\"'][^{]*\\{[^}]*log\\.Printf[^}]*return[^}]*\\}[^}]*else\\s+if[^{]+==\\s+[\"'][^\"']+[\"'][^{]*\\{[^}]*log\\.Printf[^}]*return",
+          "case\\s+[^:]+:[^{]*\\{[^}]*log\\.Printf\\([^)]*orderType[^}]*return[^}]*\\}[^}]*case\\s+[^:]+:[^{]*\\{[^}]*log\\.Printf\\([^)]*orderType[^}]*return",
+          "return\\s+\"Operation\\s+successful\"[^}]*case[^:]*:[^}]*return\\s+\"Operation\\s+successful\"",
+          "amount\\s*\\*\\s*0\\.1[^}]*return\\s+0[^}]*case[^:]*:[^}]*amount\\s*\\*\\s*0\\.1[^}]*return\\s+0"
+        ],
+        "message": "Identical branch implementations detected: Consider consolidating duplicate logic into shared functions or using combined case statements"
+      }
+    ]
+  }
+}

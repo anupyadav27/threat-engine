@@ -1,0 +1,67 @@
+{
+  "filename": "server_certificates_should_be_verified_during_sslt_metadata.json",
+  "rule_id": "server_certificates_verified_during",
+  "title": "Server certificates should be verified during SSL/TLS connections",
+  "description": "Transport Layer Security (TLS) provides secure communication between systems over the internet by encrypting the data sent between them. Certificate validation adds an extra layer of trust and security to this process to ensure that a system is indeed the one it claims to be. When certificate validation is disabled, the client skips a critical security check.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "cert",
+    "cwe",
+    "design"
+  ],
+  "examples": {
+    "noncompliant": [],
+    "compliant": []
+  },
+  "references": [
+    "https://rules.sonarsource.com/ansible/RSPEC-4830"
+  ],
+  "logic": {
+    "node_types": ["task", "uri", "get_url", "git", "docker_image", "kubernetes"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "validate_certs:\\s*no\\b",
+          "validate_certs:\\s*false\\b",
+          "validate_certs:\\s*False\\b",
+          "validate_certs:\\s*'no'",
+          "validate_certs:\\s*\"no\"",
+          "validate_certs:\\s*'false'",
+          "validate_certs:\\s*\"false\""
+        ],
+        "message": "SSL/TLS certificate validation disabled - exposes connection to MITM attacks"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "verify_commit:\\s*no\\b",
+          "verify_commit:\\s*false\\b",
+          "verify_commit:\\s*False\\b"
+        ],
+        "message": "Git commit signature verification disabled - potential security risk"
+      },
+      {
+        "type": "property_comparison",
+        "property_path": ["validate_certs"],
+        "operator": "equals",
+        "value": false,
+        "message": "SSL/TLS certificate validation explicitly disabled - security vulnerability"
+      },
+      {
+        "type": "property_comparison",
+        "property_path": ["verify_commit"],
+        "operator": "equals",
+        "value": false,
+        "message": "Git commit verification disabled - authenticity cannot be guaranteed"
+      }
+    ]
+  }
+}

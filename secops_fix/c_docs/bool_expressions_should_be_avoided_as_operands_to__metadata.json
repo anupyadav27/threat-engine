@@ -1,0 +1,78 @@
+{
+  "filename": "bool_expressions_should_be_avoided_as_operands_to__metadata.json",
+  "rule_id": "bool_expressions_avoided_as",
+  "title": "bool expressions should be avoided as operands to built-in operators other than =, &&, ||, !, ==, !=, unary &, and the conditional operator",
+  "description": "\"bool\" expressions should not be used as operands to built-in operators other than =, &&, ||, !, ==, !=, unary &, and the conditional operatorAnalyze your codeintentionality-completemaintainabilityCode Smellbased-on-misrasuspiciousWhy is this an issue?More InfoThe use ofbooloperands with other operators is unlikely to be meaningful (or intended). Best case it will be confusing to maintainers, worst case it will not have the intended effect. Either way, it is highly recommended to stick to boolean operators when dealing withbooloperands.This rule allows the detection of such uses, which often occur because the logical operators (&&,||and!) can be easily confused with the bitwise operators (&,|and~).Noncompliant code examplebool b1 = true; bool b2 = false; int8_t s8a; if ( b1 & b2 ) // Nonco",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "confusing"
+  ],
+  "examples": {
+    "noncompliant": [
+      "bool b1 = true, b2 = false;\nint result = b1 & b2;     // Noncompliant: bitwise AND on bool operands",
+      "bool flag = true;\nint shifted = flag << 2;    // Noncompliant: left shift on bool operand", 
+      "bool a = true, b = false;\nint sum = a + b;          // Noncompliant: arithmetic addition on bool operands",
+      "bool condition = false;\nint negated = ~condition;   // Noncompliant: bitwise NOT on bool operand",
+      "bool x = true, y = false;\nint xor_result = x ^ y;   // Noncompliant: bitwise XOR on bool operands",
+      "bool enabled = true;\nint doubled = enabled * 2;   // Noncompliant: multiplication on bool operand"
+    ],
+    "compliant": [
+      "bool b1 = true, b2 = false;\nbool result = b1 && b2;    // Compliant: logical AND",
+      "bool flag = true;\nbool assigned = flag;        // Compliant: assignment operator",
+      "bool a = true, b = false;\nbool or_result = a || b;     // Compliant: logical OR",
+      "bool condition = false;\nbool negated = !condition;    // Compliant: logical NOT",
+      "bool x = true, y = false;\nbool equal = (x == y);      // Compliant: equality comparison",
+      "bool enabled = true;\nbool not_equal = (enabled != false); // Compliant: inequality comparison",
+      "bool flag = true;\nbool* ptr = &flag;           // Compliant: address-of operator",
+      "bool condition = true;\nint result = condition ? 10 : 5; // Compliant: conditional operator"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-872"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "\\bbool\\s+\\w+\\s*=[^;]*;[^}]*\\b\\w+\\s*&\\s*\\w+\\s*;",
+          "\\bbool\\s+\\w+\\s*=[^;]*;[^}]*\\b\\w+\\s*\\|\\s*\\w+\\s*;",
+          "\\bbool\\s+\\w+\\s*=[^;]*;[^}]*\\b\\w+\\s*\\^\\s*\\w+\\s*;",
+          "\\bbool\\s+\\w+\\s*=[^;]*;[^}]*\\b\\w+\\s*=\\s*~\\w+\\s*;",
+          "\\bbool\\s+\\w+\\s*=[^;]*;[^}]*\\b\\w+\\s*=\\s*\\w+\\s*\\+\\s*\\w+\\s*;",
+          "\\bbool\\s+\\w+\\s*=[^;]*;[^}]*\\b\\w+\\s*=\\s*\\w+\\s*-\\s*\\w+\\s*;",
+          "\\bbool\\s+\\w+\\s*=[^;]*;[^}]*\\b\\w+\\s*=\\s*\\w+\\s*\\*\\s*\\w+\\s*;",
+          "\\bbool\\s+\\w+\\s*=[^;]*;[^}]*\\b\\w+\\s*=\\s*\\w+\\s*/\\s*\\w+\\s*;",
+          "\\bbool\\s+\\w+\\s*=[^;]*;[^}]*\\b\\w+\\s*=\\s*\\w+\\s*%\\s*\\w+\\s*;",
+          "\\bbool\\s+\\w+\\s*=[^;]*;[^}]*\\b\\w+\\s*=\\s*\\w+\\s*<<\\s*\\w+\\s*;",
+          "\\bbool\\s+\\w+\\s*=[^;]*;[^}]*\\b\\w+\\s*=\\s*\\w+\\s*>>\\s*\\w+\\s*;",
+          "\\bbool\\s+\\w+\\s*=[^;]*;[^}]*\\w+\\s*\\+=\\s*\\w+\\s*;",
+          "\\bbool\\s+\\w+\\s*=[^;]*;[^}]*\\w+\\s*\\|=\\s*\\w+\\s*;",
+          "\\bbool\\s+\\w+\\s*=[^;]*;[^}]*\\w+\\s*&=\\s*\\w+\\s*;",
+          "\\bint\\s+\\w+\\s*=\\s*\\w+\\s*&\\s*\\w+\\s*;(?=.*bool.*=.*true|bool.*=.*false)",
+          "\\bint\\s+\\w+\\s*=\\s*\\w+\\s*\\|\\s*\\w+\\s*;(?=.*bool.*=.*true|bool.*=.*false)",
+          "\\bint\\s+\\w+\\s*=\\s*\\w+\\s*\\^\\s*\\w+\\s*;(?=.*bool.*=.*true|bool.*=.*false)",
+          "\\bint\\s+\\w+\\s*=\\s*~\\w+\\s*;(?=.*bool.*=.*true|bool.*=.*false)",
+          "\\bint\\s+\\w+\\s*=\\s*\\w+\\s*\\+\\s*\\w+\\s*;(?=.*bool.*=.*true|bool.*=.*false)",
+          "\\bint\\s+\\w+\\s*=\\s*\\w+\\s*-\\s*\\w+\\s*;(?=.*bool.*=.*true|bool.*=.*false)",
+          "\\bint\\s+\\w+\\s*=\\s*\\w+\\s*\\*\\s*\\w+\\s*;(?=.*bool.*=.*true|bool.*=.*false)",
+          "\\bint\\s+\\w+\\s*=\\s*\\w+\\s*/\\s*\\w+\\s*;(?=.*bool.*=.*true|bool.*=.*false)",
+          "\\bint\\s+\\w+\\s*=\\s*\\w+\\s*%\\s*\\w+\\s*;(?=.*bool.*=.*true|bool.*=.*false)",
+          "\\bint\\s+\\w+\\s*=\\s*\\w+\\s*<<\\s*\\w+\\s*;(?=.*bool.*=.*true|bool.*=.*false)",
+          "\\bint\\s+\\w+\\s*=\\s*\\w+\\s*>>\\s*\\w+\\s*;(?=.*bool.*=.*true|bool.*=.*false)"
+        ],
+        "message": "Bool expressions should be avoided as operands to built-in operators other than =, &&, ||, !, ==, !=, unary &, and the conditional operator."
+      }
+    ]
+  }
+}

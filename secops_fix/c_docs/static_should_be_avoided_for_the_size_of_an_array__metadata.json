@@ -1,0 +1,55 @@
+{
+  "filename": "static_should_be_avoided_for_the_size_of_an_array__metadata.json",
+  "rule_id": "static_avoided_size_array",
+  "title": "static should be avoided for the size of an array parameter",
+  "description": "\"static\" should not be used for the size of an array parameterAnalyze your codeconsistency-conventionalmaintainabilityCode Smellbased-on-misrapitfallWhy is this an issue?More InfoTheoretically, the use of thestatickeyword on the size of an array parameter means you can assume that only arrays of at least that size will be passed as arguments to the function. I.e. a function parameter ofint my_array[static 10]means thatmy_arraywill always beat least10 elements long.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "convention"
+  ],
+  "examples": {
+    "noncompliant": [
+      "void process_array(int arr[static 10]) {\n  // Noncompliant: static keyword used in array parameter\n  for (int i = 0; i < 10; i++) {\n    arr[i] *= 2;\n  }\n}",
+      "void foo(char buffer[static 256]);  // Noncompliant"
+    ],
+    "compliant": [
+      "void process_array(int arr[], int size) {\n  // Compliant: traditional array parameter\n  for (int i = 0; i < size; i++) {\n    arr[i] *= 2;\n  }\n}",
+      "void process_array(int *arr, int size);  // Compliant\nvoid foo(char *buffer, size_t buffer_size);  // Compliant"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-1831"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDefinition",
+      "FunctionDeclaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "\\([^)]*\\w+\\s*\\[\\s*static\\s+\\d+\\s*\\]",
+          "\\([^)]*\\w+\\s*\\[\\s*static\\s+[A-Za-z_]\\w*\\s*\\]"
+        ],
+        "exclude_patterns": [
+          "static\\s+[^\\(]*\\w+\\s*\\[",
+          "//.*\\[\\s*static",
+          "/\\*.*\\[\\s*static.*\\*/",
+          "\".*\\[\\s*static.*\"",
+          "\\bprintf\\s*\\(",
+          "\\bmsg\\s*="
+        ],
+        "message": "static should be avoided for the size of an array parameter"
+      }
+    ]
+  }
+}

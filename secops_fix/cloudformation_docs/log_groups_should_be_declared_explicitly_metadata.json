@@ -1,0 +1,45 @@
+{
+  "filename": "log_groups_should_be_declared_explicitly_metadata.json",
+  "rule_id": "log_groups_declared_explicitly",
+  "title": "Log Groups should be declared explicitly",
+  "description": "In certain AWS services, implicit creation of Log Groups can lead to unintended consequences when using CloudFormation. Failure to declare a Log Group within CloudFormation can result in unmanaged resources, impacting both cost and security. To ensure effective resource management and adherence to best practices, it is crucial to declare the target Log Group within CloudFormation, aligning its name with AWS conventions.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Security",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "cert",
+    "convention",
+    "unused"
+  ],
+  "examples": {
+    "noncompliant": [
+      "AWSTemplateFormatVersion: 2010-09-09\nResources:\n  MyLambdaFunction:\n    Type: AWS::Lambda::Function\n    Properties:\n      FunctionName: myfunction\n      Handler: index.handler\n      Role: !GetAtt LambdaRole.Arn\n      Runtime: python3.9\n      Code:\n        ZipFile: |\n          def handler(event, context):\n            return \"success\"  # Non-compliant: LogGroup implicitly created"
+    ],
+    "compliant": [
+      "AWSTemplateFormatVersion: 2010-09-09\nResources:\n  MyLogGroup:\n    Type: AWS::Logs::LogGroup\n    Properties:\n      LogGroupName: /aws/lambda/myfunction  # Compliant: explicitly declared\n      RetentionInDays: 30\n  MyLambdaFunction:\n    Type: AWS::Lambda::Function\n    Properties:\n      FunctionName: myfunction\n      Handler: index.handler\n      Role: !GetAtt LambdaRole.Arn\n      Runtime: python3.9\n      Code:\n        ZipFile: |\n          def handler(event, context):\n            return \"success\""
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cloudformation/RSPEC-6294"
+  ],
+  "logic": {
+    "node_types": ["Resource"],
+    "checks": [
+      {
+        "check_type": "log_group_declaration_check",
+        "resource_types": ["AWS::Lambda::Function"],
+        "service_mappings": [
+          {
+            "resource_type": "AWS::Lambda::Function",
+            "log_group_naming_pattern": "/aws/lambda/{FunctionName}",
+            "function_name_property": ["properties", "FunctionName"],
+            "message": "Lambda function should have an explicitly declared Log Group to avoid unmanaged resources"
+          }
+        ]
+      }
+    ]
+  }
+}

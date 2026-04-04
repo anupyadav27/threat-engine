@@ -1,0 +1,44 @@
+{
+  "filename": "stream_pipeline_should_not_be_reused_metadata.json",
+  "rule_id": "bug_stream_pipeline_should_not_be_reused_java",
+  "title": "Consumed Stream pipelines should not be reused",
+  "description": "Once a Java Stream pipeline has been consumed, it cannot be reused. Attempting to reuse a consumed Stream pipeline will result in an IllegalStateException. This rule detects attempts to reuse consumed Stream pipelines, which can lead to runtime errors and unpredictable behavior.",
+  "status": "active",
+  "defaultSeverity": "MAJOR",
+  "category": "bug",
+  "recommendation": "Do not attempt to reuse a Stream pipeline after it has been consumed. Always create a new Stream pipeline for each operation.",
+  "impact": "Reusing a consumed Stream pipeline will throw an IllegalStateException at runtime, potentially causing application failures.",
+  "examples": [
+    {
+      "bad": "Stream<String> stream = list.stream();\nstream.forEach(System.out::println);\nstream.filter(s -> s.length() > 3).count(); // IllegalStateException",
+      "good": "Stream<String> stream1 = list.stream();\nstream1.forEach(System.out::println);\nStream<String> stream2 = list.stream();\nstream2.filter(s -> s.length() > 3).count();"
+    }
+  ],
+  "references": [
+    {
+      "title": "SonarSource Rule RSPEC-6976",
+      "url": "https://rules.sonarsource.com/java/RSPEC-6976"
+    },
+    {
+      "title": "Java Stream Documentation",
+      "url": "https://docs.oracle.com/javase/8/docs/api/java/util/stream/Stream.html"
+    }
+  ],
+  "logic": {
+    "node_types": [
+      "MethodInvocation"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "parent_source"
+        ],
+        "patterns": [
+          "stream\\s*=.*\\.stream\\(\\)[\\s\\S]*stream\\.[^\\n]*[\\s\\S]*stream\\."
+        ],
+        "message": "Do not attempt to reuse a Stream pipeline after it has been consumed. Always create a new Stream pipeline for each operation."
+      }
+    ]
+  }
+}

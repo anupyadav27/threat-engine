@@ -1,0 +1,63 @@
+{
+  "filename": "methods_named_dispose_should_implement_idisposable_metadata.json",
+  "rule_id": "methods_named_dispose_implement",
+  "title": "Methods named Dispose should implement IDisposable.Dispose",
+  "description": "Methods named \"Dispose\" should implement \"IDisposable.Dispose\"Analyze your codeconsistency-identifiablemaintainabilityCode SmellpitfallWhy is this an issue?How can I fix it?More InfoIDisposableis an interface implemented by all types which need to provide a mechanism forreleasing unmanaged resources.Unlike managed memory, which is taken care of by thegarbage collection,The interface declares aDisposemethod, which the implementer has to define.The method nameDisposeshould be used exclusively to implementIDisposable.Disposeto prevent any confusion.It may be tempting to create aDisposemethod for other purposes, but doing so will result in confusion and likely lead to problems in production.ExceptionsMethods namedDisposeand invoked from theIDisposable.Disposeimplementation are not reported.pub",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public class MyClass\n{\n    public void Dispose() // Noncompliant: method named Dispose but class doesn't implement IDisposable\n    {\n        // cleanup logic\n    }\n}",
+      "public class ResourceManager\n{\n    private FileStream stream;\n    \n    public void Dispose() // Noncompliant: misleading method name\n    {\n        stream?.Close();\n    }\n}"
+    ],
+    "compliant": [
+      "public class MyClass : IDisposable\n{\n    public void Dispose() // Compliant: properly implements IDisposable\n    {\n        // cleanup logic\n    }\n}",
+      "public class ResourceManager : IDisposable\n{\n    private FileStream stream;\n    \n    public void Dispose() // Compliant: implements IDisposable.Dispose\n    {\n        stream?.Dispose();\n    }\n}",
+      "public class MyClass\n{\n    public void Cleanup() // Compliant: different method name for cleanup\n    {\n        // cleanup logic\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2953"
+  ],
+  "logic": {
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_dispose_method_implements_idisposable"
+      }
+    ],
+    "never_trigger_on": [
+      "Classes that implement IDisposable (directly or through inheritance)",
+      "Static Dispose utility methods", 
+      "Private Dispose helper methods",
+      "Override methods inheriting dispose pattern",
+      "Methods called from IDisposable.Dispose implementation",
+      "Abstract Dispose methods in base classes",
+      "Interface method implementations",
+      "Generated code with dispose patterns"
+    ],
+    "reasoning": "This rule ensures that methods named 'Dispose' are only used for proper IDisposable implementation to prevent confusion and maintain the dispose pattern convention. The custom function examines the class context to determine if IDisposable is implemented and excludes legitimate cases like static utilities, private helpers, and override methods. This prevents misleading method names that could confuse developers about resource management patterns.",
+    "validation_examples": {
+      "should_trigger": [
+        "public class MyClass { public void Dispose() { } }",
+        "public class ResourceManager { public void Dispose() { stream?.Close(); } }",
+        "public class UtilityClass { public void Dispose() { /* cleanup */ } }"
+      ],
+      "should_not_trigger": [
+        "public class MyClass : IDisposable { public void Dispose() { } }",
+        "public class Helper { public void Cleanup() { } }",
+        "public class Base { public static void DisposeAll(params IDisposable[] items) { } }",
+        "public class Derived : BaseDisposable { public override void Dispose() { } }",
+        "public class Impl { private void Dispose() { } }"
+      ]
+    }
+  }
+}

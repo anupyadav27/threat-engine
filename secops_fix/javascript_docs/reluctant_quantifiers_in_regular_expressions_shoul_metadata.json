@@ -1,0 +1,51 @@
+{
+  "filename": "reluctant_quantifiers_in_regular_expressions_shoul_metadata.json",
+  "rule_id": "reluctant_quantifiers_regular_expressions",
+  "title": "Reluctant quantifiers in regular expressions should be followed by an expression that can't match the empty string",
+  "description": "Reluctant quantifiers in regular expressions should be followed by an expression that can't match the empty stringAnalyze your codeintentionality-logicalmaintainabilityCode Smellregextype-dependentWhy is this an issue?When a reluctant (or lazy) quantifier is followed by a pattern that can match the empty string or directly by the end of the regex, it will always match zero times for*?or one time for+?. If a reluctant quantifier is followed directly by the end anchor ($), it behaves indistinguishably from a greedy quantifier while being less efficient.This is likely a sign that the regex does not work as intended.Noncompliant code examplestr.split(/.*?x?/); // Noncompliant, this will behave just like \"x?\" /^.*?$/.test(str); // Noncompliant, replace with \".*\"Compliant solutionstr.split(/.*?x",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    "deprecated",
+    "async"
+  ],
+  "examples": {
+    "noncompliant": [
+      "*?"
+    ],
+    "compliant": [
+      "+?"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-6019"
+  ],
+  "logic": {
+    "node_types": [
+      "Literal",
+      "NewExpression", 
+      "VariableDeclaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "[*+?]\\?(?:\\$|/[gimsuxy]*|$)",
+          "[*+?]\\?[^*+?]*\\?",
+          "[*+?]\\?[^*+?]*\\*",
+          "[*+?]\\?[^*+?]*\\([^)]*\\)\\?",
+          "[*+?]\\?[^*+?]*\\[[^\\]]*\\]\\?",
+          "[*+?]\\?[^*+?]*\\\\[a-zA-Z]\\?",
+          "[*+?]\\?[^*+?]*\\\\[a-zA-Z]\\*"
+        ],
+        "message": "Reluctant quantifiers (*?, +?, ??) should be followed by expressions that can't match empty strings"
+      }
+    ]
+  }
+}

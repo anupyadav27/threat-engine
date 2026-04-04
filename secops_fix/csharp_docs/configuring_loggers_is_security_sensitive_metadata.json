@@ -1,0 +1,81 @@
+{
+  "filename": "configuring_loggers_is_security_sensitive_metadata.json",
+  "rule_id": "configuring_loggers_is_securitysensitive",
+  "title": "Configuring loggers is security-sensitive",
+  "description": "Configuring loggers is security-sensitive. It has led in the past to the following vulnerabilities: Logs are useful before, during and after a security incident. Attackers will most of the time start their nefarious work by probing the system for vulnerabilities.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "using System;\nusing System.Collections;\nusing System.Collections.Generic;\nusing Microsoft.AspNetCore.Builder;\nusing Microsoft.AspNetCore.Hosting;\nusing Microsoft.Extensions.Configuration;\nusing Microsoft.Extensions.DependencyInjection;\nusing Microsoft.Extensions.Logging;\nusing Microsoft.Extensions.Options;\nusing Microsoft.AspNetCore;\n\nnamespace MvcApp\n{\n    public class ProgramLogging\n    {\n        public static IWebHostBuilder CreateWebHostBuilder(string[] args) =>\n            WebHost.CreateDefaultBuilder(args)\n                .ConfigureLogging((hostingContext, logging) => // Sensitive\n                {\n                    // ...\n                })\n                .UseStartup<StartupLogging>();\n    }\n\n    public class StartupLogging\n    {\n        public void ConfigureServices(IServiceCollection services)\n        {\n            services.AddLogging(logging => // Sensitive\n            {\n                // ...\n            });\n        }\n\n        public void Configure(IApplicationBuilder app, IHostingEnvironment env, ILoggerFactory loggerFactory)\n        {\n            IConfiguration config = null;\n            LogLevel level = LogLevel.Critical;\n            Boolean includeScopes = false;\n            Func<string,Microsoft.Extensions.Logging.LogLevel,bool> filter = null;\n            Microsoft.Extensions.Logging.Console.IConsoleLoggerSettings consoleSettings = null;\n            Microsoft.Extensions.Logging.AzureAppServices.AzureAppServicesDiagnosticsSettings azureSettings = null;\n            Microsoft.Extensions.Logging.EventLog.EventLogSettings eventLogSettings = null;\n\n            // An issue will be raised for each call to an ILoggerFactory extension methods adding loggers.\n            loggerFactory.AddAzureWebAppDiagnostics(); // Sensitive\n            loggerFactory.AddAzureWebAppDiagnostics(azureSettings); // Sensitive\n            loggerFactory.AddConsole(); // Sensitive\n            loggerFactory.AddConsole(level); // Sensitive\n            loggerFactory.AddConsole(level, includeScopes); // Sensitive\n            loggerFactory.AddConsole(filter); // Sensitive\n            loggerFactory.AddConsole(filter, includeScopes); // Sensitive\n            loggerFactory.AddConsole(config); // Sensitive\n            loggerFactory.AddConsole(consoleSettings); // Sensitive\n            loggerFactory.AddDebug(); // Sensitive\n            loggerFactory.AddDebug(level); // Sensitive\n            loggerFactory.AddDebug(filter); // Sensitive\n            loggerFactory.AddEventLog(); // Sensitive\n            loggerFactory.AddEventLog(eventLogSettings); // Sensitive\n            loggerFactory.AddEventLog(level); // Sensitive\n            loggerFactory.AddEventSourceLogger(); // Sensitive\n\n            IEnumerable<ILoggerProvider> providers = null;\n            LoggerFilterOptions filterOptions1 = null;\n            IOptionsMonitor<LoggerFilterOptions> filterOptions2 = null;\n\n            LoggerFactory factory = new LoggerFactory(); // Sensitive\n            new LoggerFactory(providers); // Sensitive\n            new LoggerFactory(providers, filterOptions1); // Sensitive\n            new LoggerFactory(providers, filterOptions2); // Sensitive\n        }\n    }\n}"
+    ],
+    "compliant": [
+      "using System;\nusing System.IO;\nusing System.Xml;\nusing log4net.Appender;\nusing log4net.Config;\nusing log4net.Repository;\n\nnamespace Logging\n{\n    class Log4netLogging\n    {\n        void Foo(ILoggerRepository repository, XmlElement element, FileInfo configFile, Uri configUri, Stream configStream,\n        IAppender appender, params IAppender[] appenders) {\n            log4net.Config.XmlConfigurator.Configure(repository); // Sensitive\n            log4net.Config.XmlConfigurator.Configure(repository, element); // Sensitive\n            log4net.Config.XmlConfigurator.Configure(repository, configFile); // Sensitive\n            log4net.Config.XmlConfigurator.Configure(repository, configUri); // Sensitive\n            log4net.Config.XmlConfigurator.Configure(repository, configStream); // Sensitive\n            log4net.Config.XmlConfigurator.ConfigureAndWatch(repository, configFile); // Sensitive\n\n            log4net.Config.DOMConfigurator.Configure(); // Sensitive\n            log4net.Config.DOMConfigurator.Configure(repository); // Sensitive\n            log4net.Config.DOMConfigurator.Configure(element); // Sensitive\n            log4net.Config.DOMConfigurator.Configure(repository, element); // Sensitive\n            log4net.Config.DOMConfigurator.Configure(configFile); // Sensitive\n            log4net.Config.DOMConfigurator.Configure(repository, configFile); // Sensitive\n            log4net.Config.DOMConfigurator.Configure(configStream); // Sensitive\n            log4net.Config.DOMConfigurator.Configure(repository, configStream); // Sensitive\n            log4net.Config.DOMConfigurator.ConfigureAndWatch(configFile); // Sensitive\n            log4net.Config.DOMConfigurator.ConfigureAndWatch(repository, configFile); // Sensitive\n\n            log4net.Config.BasicConfigurator.Configure(); // Sensitive\n            log4net.Config.BasicConfigurator.Configure(appender); // Sensitive\n            log4net.Config.BasicConfigurator.Configure(appenders); // Sensitive\n            log4net.Config.BasicConfigurator.Configure(repository); // Sensitive\n            log4net.Config.BasicConfigurator.Configure(repository, appender); // Sensitive\n            log4net.Config.BasicConfigurator.Configure(repository, appenders); // Sensitive\n        }\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-4792"
+  ],
+  "logic": {
+    "target_ast_nodes": ["CallExpression", "Assignment"],
+    "detection_conditions": "Detects logger configuration calls including AddLogging, ConfigureLogging, LoggerFactory constructors, and ILoggerFactory extension methods (AddConsole, AddDebug, etc.)",
+    "triggering_conditions": "Triggers when logger configuration methods are called OR LoggerFactory objects are instantiated, excluding test code and development-only contexts",
+    "exclusion_conditions": "Excludes test classes, test methods, conditional DEBUG compilation blocks, and normal logger usage (LogInformation, LogError, etc.)",
+    "never_trigger_on": [
+      "Unit test classes ([TestClass], [TestFixture], [Fact])",
+      "Test setup methods ([TestInitialize], [SetUp])",
+      "Conditional DEBUG/DEVELOPMENT compilation blocks",
+      "Normal logging calls (LogInformation, LogError, LogWarning, LogDebug)",
+      "Logger constructor injection (ILogger<T> logger)",
+      "Comments and documentation"
+    ],
+    "reasoning": "Logger configuration is security-sensitive as improper configuration can leak sensitive data or miss critical security events. The rule targets configuration methods specifically, not normal logging usage. Test code is excluded since logging configuration in tests is expected. We check for specific configuration method names (AddLogging, ConfigureLogging) and LoggerFactory creation, while excluding common logger usage patterns. Uses both CallExpression and Assignment nodes since some configurations are detected as assignments.",
+    "validation_examples": {
+      "should_trigger": [
+        "services.AddLogging(logging => { logging.AddConsole(); });",
+        "builder.ConfigureLogging((context, logging) => { logging.AddDebug(); });",
+        "var factory = new LoggerFactory();",
+        "loggerFactory.AddConsole();",
+        "loggerFactory.AddDebug();",
+        "loggerFactory.AddAzureWebAppDiagnostics();"
+      ],
+      "should_not_trigger": [
+        "_logger.LogInformation(\"Working\");",
+        "_logger.LogError(\"Error occurred\");",
+        "[TestClass] public class LoggingTests { services.AddLogging(...); }",
+        "#if DEBUG var factory = new LoggerFactory(); #endif",
+        "public NormalLogging(ILogger<NormalLogging> logger) { _logger = logger; }"
+      ]
+    },
+    "node_types": ["CallExpression", "Assignment"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "\\.AddLogging\\s*\\(",
+          "\\.ConfigureLogging\\s*\\(",
+          "new\\s+LoggerFactory\\s*\\(",
+          "\\.(AddConsole|AddDebug|AddEventLog|AddAzureWebAppDiagnostics|AddEventSourceLogger)\\s*\\("
+        ],
+        "exclude_patterns": [
+          "\\[Test",
+          "\\[Fact",
+          "\\[TestClass",
+          "TestInitialize",
+          "SetUp\\]",
+          "#if\\s+DEBUG",
+          "Log(Information|Error|Warning|Debug|Trace|Critical)"
+        ]
+      }
+    ]
+  }
+}

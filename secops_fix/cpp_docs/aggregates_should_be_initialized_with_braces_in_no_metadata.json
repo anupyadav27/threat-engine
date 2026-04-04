@@ -1,0 +1,39 @@
+{
+  "filename": "aggregates_should_be_initialized_with_braces_in_no_metadata.json",
+  "rule_id": "aggregates_initialized_braces_nongeneric",
+  "title": "Aggregates should be initialized with braces in non-generic code",
+  "description": "With C++20, it is now possible to initialize aggregate types using parentheses. This language feature was introduced to simplify writing generic code and consistently initialize objects, whether they are aggregates or not. For the sake of simplicity, aggregate types include arrays, unions, and structures without user-declared constructors and with only public non-static data members and public bases.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Maintainability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Maintainability issue",
+  "tags": [
+    "cpp"
+  ],
+  "examples": {
+    "noncompliant": [
+      "struct Point {\n    int x, y;\n};\n\nstruct Person {\n    std::string name;\n    int age;\n};\n\nvoid function() {\n    // Noncompliant - using parentheses for aggregate initialization in non-generic code\n    Point p(10, 20);\n    Person person(std::string(\"John\"), 25);\n    \n    // Noncompliant - array initialization with parentheses\n    int arr[3](1, 2, 3);  // This won't compile, but conceptually wrong approach\n}"
+    ],
+    "compliant": [
+      "struct Point {\n    int x, y;\n};\n\nstruct Person {\n    std::string name;\n    int age;\n};\n\nvoid function() {\n    // Compliant - using braces for aggregate initialization\n    Point p{10, 20};\n    Person person{std::string(\"John\"), 25};\n    Person person2{\"Jane\", 30};  // Direct string literal\n    \n    // Compliant - array initialization with braces\n    int arr[3]{1, 2, 3};\n    \n    // Generic code context where parentheses might be acceptable\n    template<typename T>\n    void genericFunction() {\n        T obj(args...);  // May use parentheses in generic context\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-6872"
+  ],
+  "logic": {
+    "node_types": [
+      "declaration",
+      "init_declarator"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_aggregate_initialization",
+        "message": "Use braces {} instead of parentheses () for aggregate initialization in non-generic code",
+        "details": "Aggregates should be initialized with braces for consistency and to avoid potential issues."
+      }
+    ]
+  }
+}

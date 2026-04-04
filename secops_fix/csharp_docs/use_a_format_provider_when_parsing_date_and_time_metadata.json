@@ -1,0 +1,69 @@
+{
+  "filename": "use_a_format_provider_when_parsing_date_and_time_metadata.json",
+  "rule_id": "use_format_provider_when",
+  "title": "Use a format provider when parsing date and time",
+  "description": "Use a format provider when parsing date and timeAnalyze your codeconsistency-conventionalmaintainabilityCode SmellpitfallbugWhen converting a string representation of a date and time to aDateTimeobject or any other temporal type with one of the available system parsing methods, you should always provide anIFormatProviderparameter.Why is this an issue?How can I fix it?More InfoIf you try to parse a string representation of a date or time without a format provider, the method will use the machine’sCultureInfo; if the given string does not follow it, you’ll have an object that does not match the string representation or an unexpected runtime error.This rule raises an issue for the following date and time string representation parsing methods:ParseParseExactTryParseTryParseExactOf the followin",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant - no format provider specified\nvar date1 = DateTime.Parse(dateString);\n\n// Noncompliant - null format provider\nvar date2 = DateTime.ParseExact(dateString, \"yyyy-MM-dd\", null);\n\n// Noncompliant - TryParse without format provider\nDateTime.TryParse(dateString, out var date3);"
+    ],
+    "compliant": [
+      "// Compliant - using CultureInfo.InvariantCulture\nvar date1 = DateTime.Parse(dateString, CultureInfo.InvariantCulture);\n\n// Compliant - format provider specified\nvar date2 = DateTime.ParseExact(dateString, \"yyyy-MM-dd\", CultureInfo.InvariantCulture);\n\n// Compliant - TryParse with format provider\nDateTime.TryParse(dateString, CultureInfo.InvariantCulture, DateTimeStyles.None, out var date3);"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-6580"
+  ],
+  "logic": {
+    "node_types": ["CallExpression", "Assignment"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\bDateTime(?:Offset)?\\s*\\.\\s*(?:Parse|ParseExact|TryParse|TryParseExact)\\s*\\([^)]*\\)",
+        "exclude_patterns": [
+          "CultureInfo\\.",
+          "IFormatProvider",
+          "InvariantCulture",
+          "CurrentCulture",
+          "Console\\.",
+          "Logger\\.",
+          "\\[Test",
+          "\\[Fact",
+          "//.*Parse"
+        ],
+        "message": "Use a format provider (IFormatProvider/CultureInfo) when parsing date and time"
+      }
+    ],
+    "never_trigger_on": [
+      "Calls with CultureInfo parameter",
+      "Calls with IFormatProvider parameter",
+      "Calls using InvariantCulture",
+      "Logging statements (Console.*, Logger.*)",
+      "Unit tests ([Test], [Fact])",
+      "Comments"
+    ],
+    "reasoning": "Parsing date/time strings without a format provider uses the machine's CultureInfo, which may cause unexpected results or runtime errors when the input doesn't match the expected format. Always specify CultureInfo.InvariantCulture or an appropriate culture for consistent behavior.",
+    "validation_examples": {
+      "should_trigger": [
+        "var date1 = DateTime.Parse(dateString);",
+        "var date2 = DateTime.ParseExact(dateString, \"yyyy-MM-dd\", null);",
+        "DateTime.TryParse(dateString, out var date3);"
+      ],
+      "should_not_trigger": [
+        "var date1 = DateTime.Parse(dateString, CultureInfo.InvariantCulture);",
+        "DateTime.TryParse(dateString, CultureInfo.InvariantCulture, DateTimeStyles.None, out var date);"
+      ]
+    }
+  }
+}

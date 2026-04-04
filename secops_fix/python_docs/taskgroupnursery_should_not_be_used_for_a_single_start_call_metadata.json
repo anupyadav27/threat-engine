@@ -1,0 +1,53 @@
+{
+  "rule_id": "taskgroupnursery_should_not_be_used_for_a_single_start_call",
+  "title": "Task group nursery should not be used for a single start call",
+  "type": "CODE_SMELL",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "description": "Task group nursery should not be used with a single start call. It should be used in a loop to start multiple asynchronous tasks.",
+  "message": "Uses task group nursery with a single start call",
+  "remediation": {
+    "func": "Constant/Issue",
+    "constantCost": "5min"
+  },
+  "tags": [
+    "asynchronous",
+    "task",
+    "nursery"
+  ],
+  "impact": "Performance",
+  "recommendation": "Use task group nursery in a loop to start multiple asynchronous tasks",
+  "references": [],
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "async def my_function():\n    async with TaskGroup() as tg:\n        tg.start_soon(my_task)  # Noncompliant",
+        "description": "Task group nursery used with a single start call"
+      }
+    ],
+    "compliant": [
+      {
+        "code": "async def my_function():\n    async with TaskGroup() as tg:\n        for _ in range(10):\n            tg.start_soon(my_task)",
+        "description": "Task group nursery used in a loop, starting multiple tasks"
+      }
+    ]
+  },
+  "devsecops": {
+    "category": "",
+    "security": "",
+    "automation": "",
+    "compliance": ""
+  },
+  "why_is_this_an_issue": "Using task group nursery with a single start call can lead to inefficient use of resources, as the task will not be executed until all other tasks in the same event loop have completed.",
+  "how_to_fix": "Use task group nursery in a loop to start multiple asynchronous tasks",
+  "security_mappings": {
+    "CWE": "",
+    "CERT": "",
+    "OWASP": ""
+  },
+  "logic": {
+    "check_type": "custom_function",
+    "node_types": ["With", "AsyncWith"],
+    "function": "with_taskgroup_single_start_soon_check"
+  }
+}

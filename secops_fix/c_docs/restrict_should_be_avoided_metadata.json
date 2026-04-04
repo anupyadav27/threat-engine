@@ -1,0 +1,82 @@
+{
+  "filename": "restrict_should_be_avoided_metadata.json",
+  "rule_id": "restrict_avoided",
+  "title": "restrict should be avoided",
+  "description": "\"restrict\" should not be usedAnalyze your codeconsistency-conventionalmaintainabilityCode Smellbased-on-misracertWhy is this an issue?More InfoTherestricttype qualifier is a guarantee by the programmer that there are no other pointers with access to the referenced object and that the object does not overlap with any other object in memory. Its use may allow the compiler to generate more efficient byte code.However, this is a tricky language feature to use correctly, and there is a significant risk of unexpected program behavior ifrestrictis misused. Therefore,restrictshould not be used.Noncompliant code examplevoid user_copy ( void * restrict p, // Noncompliant parameter void * restrict q, // Noncompliant parameter size_t n ) { // ..",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cert",
+    "convention"
+  ],
+  "examples": {
+    "noncompliant": [
+      "void user_copy(void * restrict p,     // Noncompliant - using restrict\n               void * restrict q,     // Noncompliant - using restrict\n               size_t n) {\n    memcpy(p, q, n);\n}\n\nvoid process_array(int * restrict arr, // Noncompliant - using restrict\n                  size_t size) {\n    // process array\n}"
+    ],
+    "compliant": [
+      "void user_copy(void *p,               // Compliant - no restrict\n               void *q,               // Compliant - no restrict\n               size_t n) {\n    memcpy(p, q, n);\n}\n\nvoid process_array(int *arr,           // Compliant - no restrict\n                  size_t size) {\n    // process array\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-1836"
+  ],
+  "logic": {
+    "node_types": ["TranslationUnit"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "\\*\\s*restrict\\s+\\w+",
+          "void\\s*\\*\\s*restrict\\s+\\w+",
+          "int\\s*\\*\\s*restrict\\s+\\w+",
+          "char\\s*\\*\\s*restrict\\s+\\w+",
+          "float\\s*\\*\\s*restrict\\s+\\w+",
+          "double\\s*\\*\\s*restrict\\s+\\w+",
+          "\\w+\\s*\\*\\s*restrict\\s+\\w+",
+          "restrict\\s+\\w+\\s*\\)",
+          "restrict\\s+\\w+\\s*,",
+          "\\(\\s*\\w+\\s*\\*\\s*restrict\\s+\\w+"
+        ],
+        "message": "restrict keyword should be avoided in parameter and variable declarations",
+        "severity": "major"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "void\\s+\\w+\\s*\\([^)]*restrict[^)]*\\)",
+          "\\w+\\s+\\w+\\s*\\([^)]*restrict[^)]*\\)",
+          "typedef\\s+[^;]*restrict[^;]*;",
+          "struct\\s+\\w+\\s*\\{[^}]*restrict[^}]*\\}",
+          "restrict\\s+\\w+\\s*\\[",
+          "restrict\\s+\\w+\\s*=",
+          "const\\s+\\w+\\s*\\*\\s*restrict",
+          "volatile\\s+\\w+\\s*\\*\\s*restrict"
+        ],
+        "message": "restrict type qualifier should not be used due to complexity and potential for misuse",
+        "severity": "critical"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "\\brestric\\w*\\b",
+          "// Noncompliant.*restrict",
+          "\\s+restrict\\s+",
+          "restrict\\s*\\*",
+          "\\*\\s*const\\s*restrict",
+          "restrict\\s+const\\s+\\w+",
+          "static\\s+\\w+\\s*\\*\\s*restrict"
+        ],
+        "message": "Use of restrict keyword creates maintenance and correctness risks - should be avoided",
+        "severity": "major"
+      }
+    ],
+    "analysis_type": "traditional",
+    "precision": "high"
+  }
+}

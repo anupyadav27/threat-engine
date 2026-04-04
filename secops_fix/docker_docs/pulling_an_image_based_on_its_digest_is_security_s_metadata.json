@@ -1,0 +1,43 @@
+{
+  "filename": "pulling_an_image_based_on_its_digest_is_security_s_metadata.json",
+  "rule_id": "pulling_image_based_its",
+  "title": "Pulling an image based on its digest is security-sensitive",
+  "description": "This rule is deprecated; use S6596 instead. A container image digest uniquely and immutably identifies a container image. A tag, on the other hand, is a mutable reference to a container image.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "cwe",
+    "bug",
+    "deprecated"
+  ],
+  "examples": {
+    "noncompliant": [
+      "latest"
+    ],
+    "compliant": [
+      "FROM mongo@sha256:8eb8f46e22f5ccf1feb7f0831d02032b187781b178cb971cd1222556a6cee9d1\n\nRUN echo ls"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/docker/RSPEC-6497"
+  ],
+  "logic": {
+    "instruction_types": [
+      "FROM"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["value"],
+        "patterns": [
+          "^(?!.*@sha256:).*$"
+        ],
+        "message": "Pulling an image based on its digest is security-sensitive. Using tags instead of digests can lead to non-reproducible builds and security vulnerabilities. Tags are mutable and can point to different image versions over time. Use immutable digests (@sha256:...) to ensure you're always using the exact intended image version. Example: FROM ubuntu@sha256:abc123... instead of FROM ubuntu:22.04"
+      }
+    ]
+  }
+}

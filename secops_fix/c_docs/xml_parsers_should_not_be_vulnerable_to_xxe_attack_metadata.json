@@ -1,0 +1,49 @@
+{
+  "filename": "xml_parsers_should_not_be_vulnerable_to_xxe_attack_metadata.json",
+  "rule_id": "xml_parsers_vulnerable_xxe",
+  "title": "XML parsers should not be vulnerable to XXE attacks",
+  "description": "External Entity Processing allows for XML parsing with the involvement of external entities. However, when this functionality is enabled without proper precautions, it can lead to a vulnerability known as XML External Entity (XXE) attack. What is the potential impact? Exposing sensitive data One significant danger of XXE vulnerabilities is the potential for sensitive data exposure.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "cwe"
+  ],
+  "examples": {
+    "noncompliant": [
+      "#include <libxml/parser.h>\n\nvoid parseXML() {\n  xmlParserCtxtPtr ctxt = xmlNewParserCtxt();\n  \n  // Noncompliant: external entities enabled by default\n  xmlDocPtr doc = xmlCtxtReadFile(ctxt, \"file.xml\", NULL, 0);\n  \n  xmlFreeParserCtxt(ctxt);\n}\n\n// Using xmlReadFile directly\nvoid directParse() {\n  // Noncompliant: no XXE protection\n  xmlDocPtr doc = xmlReadFile(\"input.xml\", NULL, 0);\n}"
+    ],
+    "compliant": [
+      "#include <libxml/parser.h>\n\nvoid parseXMLSafely() {\n  xmlParserCtxtPtr ctxt = xmlNewParserCtxt();\n  \n  // Compliant: disable external entities\n  ctxt->options |= XML_PARSE_NOENT;\n  ctxt->options &= ~XML_PARSE_DTDLOAD;\n  ctxt->options &= ~XML_PARSE_DTDATTR;\n  ctxt->options &= ~XML_PARSE_DTDVALID;\n  \n  xmlDocPtr doc = xmlCtxtReadFile(ctxt, \"file.xml\", NULL, ctxt->options);\n  \n  xmlFreeParserCtxt(ctxt);\n}\n\n// Disable external entity loader\nvoid disableExternalEntities() {\n  // Compliant: set custom entity loader that rejects external entities\n  xmlSetExternalEntityLoader(NULL);\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-2755"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDefinition",
+      "CallExpression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "xmlCtxtReadFile\\s*\\(",
+          "xmlReadFile\\s*\\(",
+          "xmlParseFile\\s*\\(",
+          "xmlReadMemory\\s*\\(",
+          "xmlParseMemory\\s*\\(",
+          "xmlCtxtReadMemory\\s*\\("
+        ],
+        "message": "XML parsers should not be vulnerable to XXE attacks. Review and fix according to the rule guidelines."
+      }
+    ]
+  }
+}

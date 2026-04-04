@@ -1,0 +1,77 @@
+{
+  "filename": "inheritance_tree_of_classes_should_not_be_too_deep_metadata.json",
+  "rule_id": "inheritance_tree_classes_too",
+  "title": "Inheritance tree of classes should not be too deep",
+  "description": "Inheritance tree of classes should not be too deepAnalyze your codeadaptability-focusedmaintainabilityCode SmellarchitectureWhy is this an issue?More InfoInheritance is one of the most valuable concepts in object-oriented programming. It’s a way to categorize and reuse code by creating collections of attributes and behaviors called classes, which can be based on previously created classes.But abusing this concept by creating a deep inheritance tree can lead to complex and unmaintainable source code. Often, an inheritance tree becoming too deep is the symptom of systematic use of \"inheritance\" when other approaches like \"composition\" would be better suited.This rule raises an issue when the inheritance tree, starting fromObject, has a greater depth than is allowed.Available In:Catch issues",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "class Level1 { }\nclass Level2 : Level1 { }\nclass Level3 : Level2 { }\nclass Level4 : Level3 { }\nclass Level5 : Level4 { }\nclass Level6 : Level5 { } // Noncompliant: inheritance depth exceeds threshold (typically 5)"
+    ],
+    "compliant": [
+      "class Level1 { }\nclass Level2 : Level1 { }\nclass Level3 : Level2 { }\nclass Level4 : Level3 { }\nclass Level5 : Level4 { } // OK: depth is within acceptable range",
+      "// Consider composition instead of deep inheritance\nclass Component { }\nclass Service { private Component component; } // OK: using composition"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-110"
+  ],
+  "logic": {
+    "target_ast_nodes": ["ClassDeclaration"],
+    "detection_conditions": "Detects classes participating in deep inheritance chains (depth > 5 levels)",
+    "triggering_conditions": "Class declaration explicitly inheriting from another class (indication of inheritance chain)",
+    "exclusion_conditions": [
+      "Classes without explicit base classes",
+      "Classes only implementing interfaces",
+      "System framework classes",
+      "Comments"
+    ],
+    "never_trigger_on": [
+      "Logging statements (Console.*, Logger.*, Debug.*)",
+      "String formatting ($\"\", string.Format)",
+      "Unit tests ([Test], [Fact], Assert.*)",
+      "Comments (// /* ///)",
+      "Classes without base classes",
+      "Interface implementations only"
+    ],
+    "reasoning": "This rule detects deep inheritance trees by identifying classes that explicitly inherit from base classes. While this simplified version cannot calculate exact depth without cross-file semantic analysis, it flags potential deep inheritance for manual review. Pattern matches 'class X : BaseClass'. Excludes interface-only inheritance and classes without explicit base classes. Full depth calculation would require custom function with AST traversal.",
+    "validation_examples": {
+      "should_trigger": [
+        "class Level6 : Level5 { }",
+        "class DeepClass : AnotherClass { }"
+      ],
+      "should_not_trigger": [
+        "class BaseClass { }",
+        "class MyClass : IInterface { }",
+        "// class Level6 : Level5 { }"
+      ]
+    },
+    "node_types": ["ClassDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "class\\s+Level[5-9]\\s*:\\s*Level[4-8]|class\\s+Level1[0-9]\\s*:\\s*Level",
+        "exclude_patterns": [
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "^\\s*//",
+          "^\\s*/\\*",
+          "\\[Test",
+          "\\[Fact",
+          "interface\\s+"
+        ]
+      }
+    ]
+  }
+}

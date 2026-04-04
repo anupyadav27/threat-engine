@@ -1,0 +1,49 @@
+{
+  "filename": "jwt_signing_verification_metadata.json",
+  "rule_id": "crypto_jwt_signing_verification",
+  "title": "Use strong cipher algorithms for JWT",
+  "description": "JSON Web Tokens (JWTs) signed with weak algorithms or no signature verification are vulnerable to tampering and forgery attacks. Proper JWT security requires strong signing algorithms and signature verification.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Use strong signing algorithms like RS256 or ES256 for JWTs and always verify signatures.",
+  "impact": "Security risk",
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "package main\n\nimport (\n    \"github.com/golang-jwt/jwt/v5\"\n)\n\n// Noncompliant: Using weak \"none\" algorithm\ntoken := jwt.NewWithClaims(jwt.SigningMethodNone, claims)\ntokenString, _ := token.SignedString(jwt.UnsafeAllowNoneSignatureType)\n\n// Noncompliant: Using weak HMAC with short key\nweakKey := []byte(\"key\")\ntoken := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)\ntokenString, _ := token.SignedString(weakKey)\n\n// Noncompliant: No signature verification\ntoken, _ := jwt.Parse(tokenString, nil) // No key function\n\n// Noncompliant: Accepting any algorithm\ntoken, _ := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {\n    return []byte(\"secret\"), nil // No algorithm validation\n})",
+        "description": "Using weak signing algorithms, short keys, or skipping signature verification makes JWTs vulnerable to tampering."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "package main\n\nimport (\n    \"crypto/rsa\"\n    \"github.com/golang-jwt/jwt/v5\"\n)\n\n// Compliant: Using strong RSA algorithm\nprivateKey, _ := rsa.GenerateKey(rand.Reader, 2048)\ntoken := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)\ntokenString, _ := token.SignedString(privateKey)\n\n// Compliant: Strong HMAC key (32+ bytes)\nstrongKey := []byte(\"your-256-bit-secret-key-here-32-chars\")\ntoken := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)\ntokenString, _ := token.SignedString(strongKey)\n\n// Compliant: Proper signature verification with algorithm validation\ntoken, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {\n    // Validate the algorithm\n    if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {\n        return nil, fmt.Errorf(\"unexpected signing method: %v\", token.Header[\"alg\"])\n    }\n    return publicKey, nil\n})\n\nif err != nil || !token.Valid {\n    return errors.New(\"invalid token\")\n}",
+        "description": "Using strong algorithms like RS256 or ES256, proper key sizes, and always validating signatures and algorithms."
+      }
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/go/RSPEC-5659"
+  ],
+  "logic": {
+    "node_types": [
+      "call_expression",
+      "short_var_declaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source_text"
+        ],
+        "patterns": [
+          "jwt\\.NewWithClaims\\(.+SigningMethodNone",
+          "UnsafeAllowNoneSignatureType",
+          "\\[\\]byte\\(\"[^\"]{1,8}\"\\)",
+          "jwt\\.Parse\\(.+,\\s*nil\\)"
+        ],
+        "message": "Use strong signing algorithms like RS256 or ES256 for JWTs and always verify signatures."
+      }
+    ]
+  }
+}

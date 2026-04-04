@@ -1,0 +1,76 @@
+{
+  "filename": "proto___property_should_be_avoided_metadata.json",
+  "rule_id": "__proto___property_avoided",
+  "title": "__proto__ property should be avoided",
+  "description": "JavaScript has a prototypal inheritance model. Each object has an internal property that points to another object, called a prototype. That prototype object has a prototype of its own, and the whole sequence is called a prototype chain.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    "deprecated",
+    "async"
+  ],
+  "examples": {
+    "noncompliant": [
+      "obj.__proto__",
+      "obj['__proto__']",
+      "obj.__proto__ = prototype",
+      "{ __proto__: prototype }",
+      "Object.defineProperty(obj, '__proto__', { value: proto })"
+    ],
+    "compliant": [
+      "Object.getPrototypeOf(obj)",
+      "Object.setPrototypeOf(obj, prototype)",
+      "Object.create(prototype)",
+      "obj instanceof Constructor",
+      "Object.getOwnPropertyDescriptor(obj, 'property')"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-6654"
+  ],
+  "logic": {
+    "node_types": [
+      "MemberExpression",
+      "ExpressionStatement",
+      "Identifier",
+      "Property",
+      "AssignmentExpression",
+      "VariableDeclaration",
+      "CallExpression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "\\.__proto__(?=\\.|\\s|\\[|$|;|,|\\)|\\}|=|!|<|>|&|\\|)",
+          "\\['__proto__'\\]",
+          "\\[\"__proto__\"\\]", 
+          "__proto__\\s*:",
+          "__proto__\\s*=",
+          "(?:^|\\s|\\(|\\{|;|,)__proto__(?=\\s*\\.|\\[)",
+          "defineProperty\\s*\\([^,]*,\\s*['\"]__proto__['\"]",
+          "getOwnPropertyDescriptor\\s*\\([^,]*,\\s*['\"]__proto__['\"]",
+          "hasOwnProperty\\s*\\(['\"]__proto__['\"]\\)",
+          "propertyIsEnumerable\\s*\\(['\"]__proto__['\"]\\)",
+          "\\{\\s*__proto__\\s*:",
+          "=\\s*\\{[^}]*__proto__\\s*:",
+          "if\\s*\\([^)]*__proto__[^)]*\\)",
+          "while\\s*\\([^)]*__proto__[^)]*\\)",
+          "for\\s*\\([^)]*__proto__[^)]*\\)",
+          "__proto__(?=\\s*[.\\[].*(?:constructor|toString|valueOf|hasOwnProperty))",
+          "someObj\\.__proto__\\.constructor",
+          "\\.__proto__\\.constructor"
+        ],
+        "message": "__proto__ property should be avoided for security reasons"
+      }
+    ]
+  }
+}

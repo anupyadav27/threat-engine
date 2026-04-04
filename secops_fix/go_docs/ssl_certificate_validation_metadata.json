@@ -1,0 +1,49 @@
+{
+  "filename": "ssl_certificate_validation_metadata.json",
+  "rule_id": "crypto_ssl_certificate_validation",
+  "title": "Verify SSL/TLS certificates",
+  "description": "Failing to verify SSL/TLS certificates during connections allows man-in-the-middle attacks where attackers can intercept, modify, or eavesdrop on communications. Certificate validation ensures connection authenticity and integrity.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Always enable and properly configure SSL/TLS certificate validation for all secure connections.",
+  "impact": "Security risk",
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "package main\n\nimport (\n    \"crypto/tls\"\n    \"net/http\"\n    \"time\"\n)\n\n// Noncompliant: Completely disabling certificate verification\nfunc makeUnsafeRequest(url string) (*http.Response, error) {\n    // Extremely dangerous: accepts any certificate\n    tr := &http.Transport{\n        TLSClientConfig: &tls.Config{\n            InsecureSkipVerify: true,\n        },\n    }\n    \n    client := &http.Client{Transport: tr}\n    return client.Get(url)\n}\n\n// Noncompliant: Creating insecure global client\nvar unsafeHTTPClient = &http.Client{\n    Transport: &http.Transport{\n        TLSClientConfig: &tls.Config{\n            InsecureSkipVerify: true, // Affects all requests globally\n        },\n    },\n}\n\nfunc useUnsafeClient(url string) (*http.Response, error) {\n    return unsafeHTTPClient.Get(url)\n}\n\n// Noncompliant: Disabling specific certificate checks\nfunc makePartiallyUnsafeRequest(url string) (*http.Response, error) {\n    tr := &http.Transport{\n        TLSClientConfig: &tls.Config{\n            // These disable important security checks\n            VerifyPeerCertificate: func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {\n                return nil // Always accepts any certificate\n            },\n        },\n    }\n    \n    client := &http.Client{Transport: tr}\n    return client.Get(url)\n}\n\n// Noncompliant: Ignoring certificate errors\nfunc makeRequestIgnoringErrors(url string) (*http.Response, error) {\n    resp, err := http.Get(url)\n    if err != nil {\n        // Dangerous: might ignore certificate validation errors\n        if strings.Contains(err.Error(), \"certificate\") {\n            // Try again without verification\n            tr := &http.Transport{\n                TLSClientConfig: &tls.Config{\n                    InsecureSkipVerify: true,\n                },\n            }\n            client := &http.Client{Transport: tr}\n            return client.Get(url)\n        }\n    }\n    return resp, err\n}\n\n// Noncompliant: Raw TLS connection without verification\nfunc connectWithoutVerification(address string) (*tls.Conn, error) {\n    config := &tls.Config{\n        InsecureSkipVerify: true,\n    }\n    return tls.Dial(\"tcp\", address, config)\n}\n\n// Noncompliant: Allowing weak TLS versions\nfunc makeWeakTLSRequest(url string) (*http.Response, error) {\n    tr := &http.Transport{\n        TLSClientConfig: &tls.Config{\n            MinVersion: tls.VersionSSL30, // SSL 3.0 is broken\n            MaxVersion: tls.VersionTLS10, // TLS 1.0 is deprecated\n        },\n    }\n    \n    client := &http.Client{Transport: tr}\n    return client.Get(url)\n}",
+        "description": "Disabling SSL/TLS certificate validation allows attackers to perform man-in-the-middle attacks using invalid or malicious certificates."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "package main\n\nimport (\n    \"crypto/tls\"\n    \"crypto/x509\"\n    \"errors\"\n    \"io/ioutil\"\n    \"net/http\"\n    \"time\"\n)\n\n// Compliant: Using default secure HTTP client\nfunc makeSecureRequest(url string) (*http.Response, error) {\n    // Default client has certificate verification enabled\n    client := &http.Client{\n        Timeout: 30 * time.Second,\n    }\n    \n    return client.Get(url)\n}\n\n// Compliant: Secure TLS configuration\nfunc makeRequestWithSecureTLS(url string) (*http.Response, error) {\n    tr := &http.Transport{\n        TLSClientConfig: &tls.Config{\n            MinVersion: tls.VersionTLS12, // Minimum secure version\n            CipherSuites: []uint16{\n                tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,\n                tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,\n                tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,\n                tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,\n            },\n            PreferServerCipherSuites: true,\n            // Certificate verification is enabled by default\n        },\n        TLSHandshakeTimeout: 10 * time.Second,\n    }\n    \n    client := &http.Client{\n        Transport: tr,\n        Timeout:   30 * time.Second,\n    }\n    \n    return client.Get(url)\n}\n\n// Compliant: Custom certificate verification with proper checks\nfunc makeRequestWithCustomCA(url string, caCertPath string) (*http.Response, error) {\n    // Load custom CA certificate\n    caCert, err := ioutil.ReadFile(caCertPath)\n    if err != nil {\n        return nil, err\n    }\n    \n    caCertPool := x509.NewCertPool()\n    if !caCertPool.AppendCertsFromPEM(caCert) {\n        return nil, errors.New(\"failed to parse CA certificate\")\n    }\n    \n    tr := &http.Transport{\n        TLSClientConfig: &tls.Config{\n            RootCAs:    caCertPool,\n            MinVersion: tls.VersionTLS12,\n            // Certificate verification includes CA validation\n        },\n    }\n    \n    client := &http.Client{Transport: tr}\n    return client.Get(url)\n}\n\n// Compliant: Certificate pinning for high-security scenarios\nfunc makeRequestWithCertPinning(url string, expectedCertHash []byte) (*http.Response, error) {\n    tr := &http.Transport{\n        TLSClientConfig: &tls.Config{\n            MinVersion: tls.VersionTLS12,\n            VerifyPeerCertificate: func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {\n                // First, perform standard verification\n                if len(verifiedChains) == 0 {\n                    return errors.New(\"no verified certificate chains\")\n                }\n                \n                // Then check certificate pinning\n                cert := verifiedChains[0][0]\n                certHash := sha256.Sum256(cert.Raw)\n                \n                if !bytes.Equal(certHash[:], expectedCertHash) {\n                    return errors.New(\"certificate does not match pinned hash\")\n                }\n                \n                return nil\n            },\n        },\n    }\n    \n    client := &http.Client{Transport: tr}\n    return client.Get(url)\n}\n\n// Compliant: Secure TLS connection with full validation\nfunc connectSecurely(hostname string, port string) (*tls.Conn, error) {\n    config := &tls.Config{\n        ServerName: hostname,\n        MinVersion: tls.VersionTLS12,\n        // Full certificate validation is performed\n    }\n    \n    address := hostname + \":\" + port\n    return tls.Dial(\"tcp\", address, config)\n}\n\n// Compliant: Secure client factory with validation\nfunc createSecureClient(timeout time.Duration) *http.Client {\n    return &http.Client{\n        Timeout: timeout,\n        Transport: &http.Transport{\n            TLSClientConfig: &tls.Config{\n                MinVersion:               tls.VersionTLS12,\n                PreferServerCipherSuites: true,\n                CurvePreferences: []tls.CurveID{\n                    tls.X25519,\n                    tls.CurveP256,\n                    tls.CurveP384,\n                },\n                // Default secure settings for certificate validation\n            },\n            TLSHandshakeTimeout: 10 * time.Second,\n            IdleConnTimeout:     90 * time.Second,\n        },\n    }\n}\n\n// Compliant: Certificate validation utility\nfunc validateCertificate(cert *x509.Certificate, hostname string) error {\n    // Verify certificate is valid for hostname\n    if err := cert.VerifyHostname(hostname); err != nil {\n        return err\n    }\n    \n    // Check certificate validity period\n    now := time.Now()\n    if now.Before(cert.NotBefore) || now.After(cert.NotAfter) {\n        return errors.New(\"certificate is not valid for current time\")\n    }\n    \n    return nil\n}\n\n// Compliant: Error handling that doesn't bypass security\nfunc makeRequestWithProperErrorHandling(url string) (*http.Response, error) {\n    resp, err := http.Get(url)\n    if err != nil {\n        // Log the error but don't retry without verification\n        return nil, fmt.Errorf(\"secure request failed: %w\", err)\n    }\n    return resp, nil\n}",
+        "description": "Enabling SSL/TLS certificate validation with proper configuration ensures secure communication and prevents man-in-the-middle attacks."
+      }
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/go/RSPEC-4830"
+  ],
+  "logic": {
+    "node_types": [
+      "call_expression",
+      "short_var_declaration",
+      "assignment_statement"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source_text"
+        ],
+        "patterns": [
+          "InsecureSkipVerify\\s*:\\s*true",
+          "TLSClientConfig.*InsecureSkipVerify\\s*:\\s*true",
+          "\\.VerifyPeerCertificate\\s*=\\s*nil"
+        ],
+        "message": "SSL/TLS certificates must be properly verified to ensure secure connections."
+      }
+    ]
+  }
+}

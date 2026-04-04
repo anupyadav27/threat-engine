@@ -1,0 +1,61 @@
+{
+  "filename": "import_should_be_preferred_to_include_external_cod_metadata.json",
+  "rule_id": "import_preferred_include_external",
+  "title": "import should be preferred to include external code",
+  "description": "\"import\" should be used to include external codeAnalyze your codeconsistency-conventionalmaintainabilityCode Smellconventiones2015obsoletetype-dependentWhy is this an issue?Before ECMAScript 2015, module management had to be ad-hoc or provided by 3rd-party libraries such as Node.js, Webpack, or RequireJS. Fortunately, ES2015, provides language-standard mechanisms for module management,importandexport, and older usages should be converted.Noncompliant code example// circle.js exports.area = function (r) { return PI * r * r; }; // foo.js define([\"./cart\", \"./horse\"], function(cart, horse) { // Noncompliant // ... }); // bar.js const circle = require('./circle.js'); // NoncompliantCompliant solution// circle.js let area = function (r) { return PI * r * r; } export default area; // foo.js impo",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    "deprecated",
+    "async"
+  ],
+  "examples": {
+    "noncompliant": [
+      "const fs = require('fs');",
+      "const { readFile } = require('fs');",
+      "define(['./module'], function(module) { ... });",
+      "exports.myFunction = function() { ... };",
+      "module.exports = { key: 'value' };",
+      "module.exports.helper = function() { ... };"
+    ],
+    "compliant": [
+      "import fs from 'fs';",
+      "import { readFile } from 'fs';",
+      "export function myFunction() { ... }",
+      "export default { key: 'value' };",
+      "export { helper };"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-3533"
+  ],
+  "logic": {
+    "node_types": [
+      "CallExpression",
+      "AssignmentExpression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "require\\s*\\(\\s*['\"][^'\"]+['\"]\\s*\\)",
+        "message": "Use ES6 import statements instead of CommonJS require() for better module management"
+      },
+      {
+        "type": "regex_match", 
+        "property_path": ["source"],
+        "pattern": "define\\s*\\(\\s*\\[[^\\]]*\\]\\s*,\\s*function",
+        "message": "Use ES6 import/export instead of AMD define() for modern module management"
+      },
+      {
+        "type": "custom_function",
+        "function": "check_commonjs_exports"
+      }
+    ]
+  }
+}

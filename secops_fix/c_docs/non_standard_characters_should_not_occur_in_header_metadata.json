@@ -1,0 +1,52 @@
+{
+  "filename": "non_standard_characters_should_not_occur_in_header_metadata.json",
+  "rule_id": "nonstandard_characters_occur_header",
+  "title": "Non-standard characters should not occur in header file names in #include directives",
+  "description": "Non-standard characters should not occur in header file names in \"#include\" directivesAnalyze your codeintentionality-logicalreliabilityBugQuick FixIDE quick fixes available with SonarQube for IDEbased-on-misraWhy is this an issue?More InfoThe#includedirective allows you to include header files in your code by enclosing the file names in either double quotes (\") or angle brackets (<and>). However, using:',\\,//or/*characters between the double quotes (for example:#include \"dir\\foo.h\")',\\,\",//or/*characters between the angle brackets (for example:#include <\"foo\">)in the header names may or may not be supported, and the behavior will depend on the specific implementation.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLa",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "#include \"dir\\foo.h\" // Noncompliant: backslash in header name",
+      "#include <\"foo\"> // Noncompliant: quote in angle brackets",
+      "#include \"file//header.h\" // Noncompliant: double slash in header name",
+      "#include <header\\file.h> // Noncompliant: backslash in angle brackets"
+    ],
+    "compliant": [
+      "#include \"dir/foo.h\" // Compliant: forward slash for directory separator",
+      "#include <stdio.h> // Compliant: standard header with no special characters",
+      "#include \"myheader.h\" // Compliant: simple filename with no special characters",
+      "#include <sys/types.h> // Compliant: standard path with forward slash"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-955"
+  ],
+  "logic": {
+    "node_types": [
+      "PreprocessorDirective"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "#include\\s*[<\"][^<>\"]*\\\\[^<>\"]*[>\"]",
+          "#include\\s*[<\"][^<>\"]*//[^<>\"]*[>\"]",
+          "#include\\s*<[^<>]*\\\"[^<>]*>",
+          "#include\\s*[<\"][^<>\"]*[,*?;|!@#$%^&()\\[\\]{}][^<>\"]*[>\"]",
+          "#include\\s*[<\"][^<>\"]*[~`][^<>\"]*[>\"]"
+        ],
+        "message": "Non-standard characters (backslashes, double slashes, quotes in angle brackets, special characters) should not occur in header file names. Use forward slashes for paths and avoid special characters in #include directives."
+      }
+    ]
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "filename": "avoid_reusing_counter_mode_iv_metadata.json",
+  "rule_id": "security_avoid_reusing_counter_mode_iv",
+  "title": "Avoid reusing Counter Mode IVs",
+  "description": "Reusing initialization vectors (IVs) in Counter (CTR) mode encryption can compromise the security of encrypted data. Each IV must be unique for every encryption operation to prevent attackers from deducing information about the plaintext or key.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Security",
+  "recommendation": "Always generate a new, unique IV for each encryption operation in Counter mode. Never reuse IVs with the same key.",
+  "impact": "Security risk",
+  "examples": {
+    "noncompliant": [
+      "Cipher cipher = Cipher.getInstance(\"AES/CTR/NoPadding\");\nIvParameterSpec iv = new IvParameterSpec(existingIV);\ncipher.init(Cipher.ENCRYPT_MODE, key, iv); // Noncompliant: IV reused"
+    ],
+    "compliant": [
+      "Cipher cipher = Cipher.getInstance(\"AES/CTR/NoPadding\");\nbyte[] newIV = generateUniqueIV();\nIvParameterSpec iv = new IvParameterSpec(newIV);\ncipher.init(Cipher.ENCRYPT_MODE, key, iv); // Compliant: unique IV"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/java/RSPEC-6432",
+    "https://cwe.mitre.org/data/definitions/329.html"
+  ],
+  "logic": {
+    "node_types": [
+      "Class"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "Cipher\\.getInstance\\s*\\([^)]*CTR[^)]*\\)",
+        "message": "Always generate a new, unique IV for each encryption operation in Counter mode. Never reuse IVs with the same key."
+      }
+    ]
+  }
+}

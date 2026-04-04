@@ -1,0 +1,40 @@
+{
+  "filename": "macros_used_in_preprocessor_directives_should_be_d_metadata.json",
+  "rule_id": "macros_preprocessor_directives_defined",
+  "title": "Macros used in preprocessor directives should be defined before use",
+  "description": "Macros used in preprocessor directives should be defined before useAnalyze your codeintentionality-logicalreliabilityBugbased-on-misrapreprocessorWhy is this an issue?More InfoAn attempt to use an undefined identifier may elicit a warning from the preprocessor. Or it may not; the preprocessor may simply assume that the undefined token has a value of 0.Therefore macro identifiers should not be used in preprocessor directives until after they have been defined, and this limited usage should be enforced with the use of definition tests.Noncompliant code example#if x > 0 /* x assumed to be zero if not defined */ #include SOMETHING_IMPORTANT #endif #ifdef y /* Okay; y is not evaluated */ #if y > 0 /* Okay; y must be defined to reach this point */ ... #endif #endifCompliant solution#define x 10",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "#if x > 0  /* x assumed to be zero if not defined */\n#include SOMETHING_IMPORTANT\n#endif\n\n#ifdef y  /* Okay; y is not evaluated */\n#if y > 0 /* Okay; y must be defined to reach this point */\n...\n#endif\n#endif"
+    ],
+    "compliant": [
+      "#define x 10\n...\n#if x > 0\n#include SOMETHING_IMPORTANT\n#endif\n\n#if defined ( y ) && ( y > 0 )  /* more compact form, same result as before */\n...\n#endif"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-966"
+  ],
+  "logic": {
+    "node_types": [
+      "*"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "#if\\s+\\w+\\s*[><=!]+|#elif\\s+\\w+\\s*[><=!]+",
+        "message": "Macros used in conditional preprocessor directives should be defined before use to avoid undefined behavior."
+      }
+    ]
+  }
+}

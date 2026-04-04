@@ -1,0 +1,79 @@
+{
+  "filename": "is_should_be_avoided_with_this_metadata.json",
+  "rule_id": "is_avoided_this",
+  "title": "is should be avoided with this",
+  "description": "\"is\" should not be used with \"this\"Analyze your codeintentionality-logicalmaintainabilityCode Smellapi-designbad-practiceWhy is this an issue?How can I fix it?More InfoOne of the possible ways of performingtype-testingis via theis operator:food is Pizza.Theisoperator is often used before a directcastto the target type, as a more flexible and powerful alternative to theas operator, especially when used to performpattern matching.if (food is Pizza pizza)There’s no valid reason to testthiswithis. The only plausible explanation for such a test is that you’re executing code in a parent class conditionally based on the kind of child classthisis.public class Food { public void DoSomething() { if (this is Pizza) // Noncompliant { // Code specific to Pizza... } } }However, code that’s specific to a",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant: using 'is' with 'this' is redundant\npublic class Food\n{\n    public void DoSomething()\n    {\n        if (this is Pizza) // Noncompliant - this is always a Food or derived type\n        {\n            // ...\n        }\n    }\n}"
+    ],
+    "compliant": [
+      "// Compliant: check type without 'this'\npublic class Food\n{\n    public void DoSomething()\n    {\n        if (GetType() == typeof(Pizza))\n        {\n            // ...\n        }\n    }\n}",
+      "// Compliant: use pattern matching on parameters, not 'this'\npublic void Process(Food food)\n{\n    if (food is Pizza pizza) // OK - checking parameter\n    {\n        // Use pizza\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3060"
+  ],
+  "logic": {
+    "target_ast_nodes": ["BinaryExpression", "MethodDeclaration"],
+    "detection_conditions": "Detects usage of 'is' operator with 'this' keyword, which is redundant and indicates code smell",
+    "triggering_conditions": "(Expression containing 'this is Type' pattern)",
+    "exclusion_conditions": [
+      "Parameter checks (not 'this')",
+      "Logging and debugging statements",
+      "Comments",
+      "String formatting"
+    ],
+    "never_trigger_on": [
+      "Logging statements (Console.*, Logger.*, Debug.*)",
+      "String formatting ($\"\", string.Format)",
+      "Unit tests ([Test], [Fact], Assert.*)",
+      "Comments (// /* ///)",
+      "Pattern matching on parameters (not 'this')"
+    ],
+    "reasoning": "Using 'this is Type' is redundant because 'this' refers to the current instance. If you need to check the runtime type, use GetType() == typeof(Type) instead. The 'is' operator should be used on parameters or variables, not 'this'. This pattern often indicates poor OOP design where parent class has conditional logic based on derived types.",
+    "validation_examples": {
+      "should_trigger": [
+        "if (this is Pizza)",
+        "var result = this is Food;",
+        "return this is IInterface;"
+      ],
+      "should_not_trigger": [
+        "if (food is Pizza pizza)",
+        "if (GetType() == typeof(Pizza))",
+        "Console.WriteLine(this is Pizza);"
+      ]
+    },
+    "node_types": ["BinaryExpression", "MethodDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\bthis\\s+is\\s+\\w+",
+        "exclude_patterns": [
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "\\$\\\"",
+          "string\\.Format",
+          "^\\s*//",
+          "^\\s*/\\*",
+          "\\[Test",
+          "\\[Fact",
+          "Assert\\."
+        ]
+      }
+    ]
+  }
+}

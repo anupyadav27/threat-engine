@@ -1,0 +1,111 @@
+{
+  "filename": "values_should_not_be_uselessly_incremented_metadata.json",
+  "rule_id": "values_uselessly_incremented",
+  "title": "Values should not be uselessly incremented",
+  "description": "Values should not be uselessly incrementedAnalyze your codeintentionality-logicalreliabilityBugunusedWhy is this an issue?How can I fix it?More InfoWhen using thepostfix incrementoperator, it is important to know that the result of the expressionx++is the valuebeforethe operationx.This means that in some cases, the result might not be what you expect:When assigningx++tox, it’s the same as assigningxto itself, since the value is assigned before the increment takes placeWhen returningx++, the returning value isx, notx+1The same applies to the postfix and prefixdecrementoperators.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIAvailable Since9.1Analyze code in youron-premi",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public int GetNextValue()\n{\n    int i = 0;\n    return i++; // Noncompliant - returns 0, not 1\n}",
+      "private int counter;\n\npublic void IncrementCounter()\n{\n    counter = counter++; // Noncompliant - counter remains unchanged\n}",
+      "public int ProcessValue(int x)\n{\n    x = x--; // Noncompliant - x remains unchanged\n    return x;\n}"
+    ],
+    "compliant": [
+      "public int GetNextValue()\n{\n    int i = 0;\n    return ++i; // Compliant - returns 1\n}",
+      "private int counter;\n\npublic void IncrementCounter()\n{\n    counter++; // Compliant - counter is incremented\n}",
+      "public int ProcessValue(int x)\n{\n    x--; // Compliant - x is decremented\n    return x;\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2123"
+  ],
+  "logic": {
+    "target_ast_nodes": ["Assignment", "MethodDeclaration"],
+    "node_types": ["Assignment", "MethodDeclaration"],
+    "detection_conditions": "Detects postfix increment/decrement in return statements or self-assignments like 'x = x++'",
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "return\\s+\\w+\\+\\+\\s*;",
+        "exclude_patterns": [
+          "^\\s*//",
+          "/\\*.*\\*/",
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\."
+        ],
+        "message": "Useless postfix increment in return statement - returns value before increment"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "return\\s+\\w+--\\s*;",
+        "exclude_patterns": [
+          "^\\s*//",
+          "/\\*.*\\*/",
+          "Console\\.",
+          "Logger\\."
+        ],
+        "message": "Useless postfix decrement in return statement - returns value before decrement"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "(\\w+)\\s*=\\s*\\1\\+\\+\\s*;",
+        "exclude_patterns": [
+          "^\\s*//",
+          "/\\*.*\\*/",
+          "Console\\.",
+          "Logger\\."
+        ],
+        "message": "Useless self-assignment with postfix increment - variable value unchanged"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "(\\w+)\\s*=\\s*\\1--\\s*;",
+        "exclude_patterns": [
+          "^\\s*//",
+          "/\\*.*\\*/",
+          "Console\\.",
+          "Logger\\."
+        ],
+        "message": "Useless self-assignment with postfix decrement - variable value unchanged"
+      }
+    ],
+    "triggering_conditions": "return x++; OR x = x++; OR return x--; OR x = x--;",
+    "exclusion_conditions": "Comments, logging statements",
+    "never_trigger_on": [
+      "Comments (// and /* */)",
+      "Logging statements (Console.*, Logger.*, Debug.*)",
+      "String literals or formatting",
+      "Prefix increment/decrement (++x, --x)",
+      "Standalone increment (x++;)"
+    ],
+    "reasoning": "Postfix increment/decrement returns the value BEFORE the operation. When used in 'return x++;' the original value is returned and increment is lost. When used in 'x = x++;' the assignment overwrites the increment. These are almost always bugs.",
+    "validation_examples": {
+      "should_trigger": [
+        "return i++;",
+        "return count--;",
+        "counter = counter++;",
+        "x = x--;"
+      ],
+      "should_not_trigger": [
+        "return ++i;",
+        "counter++;",
+        "x = y++;",
+        "// return i++;"
+      ]
+    }
+  }
+}

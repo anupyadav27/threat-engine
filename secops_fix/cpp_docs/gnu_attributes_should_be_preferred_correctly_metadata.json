@@ -1,0 +1,45 @@
+{
+  "filename": "gnu_attributes_should_be_preferred_correctly_metadata.json",
+  "rule_id": "gnu_attributes_preferred_correctly",
+  "title": "GNU attributes should be preferred correctly",
+  "description": "GNU attributes should be used correctlyAnalyze your codeintentionality-logicalmaintainabilityCode SmellconfusingWhy is this an issue?__attribute__is a GNU extension that allows to decorate functions, parameters, variables…​ with some attributes. It may help for compiler optimizations or for the writer of some code to better state his intent (and have the compiler check it).If this extension is used incorrectly, it will usually not break the build, but it still means that the code may not behave as the developer expects. This rule reports such occurrences of bad use of__attribute__.Noncompliant code exampleint f1() __attribute__((returns_nonnull)); // Noncompliant; \"returns_nonnull\" only applies to return values which are pointers void g(int *a) __attribute__((nonnull(1))){} // Noncompliant",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "confusing",
+    "unused"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant: returns_nonnull on function returning non-pointer\nint f1() __attribute__((returns_nonnull));  // Error: returns int, not pointer\n\nvoid g(int *a) __attribute__((nonnull(1))) {}  // Correct usage\nvoid h() __attribute__((nonnull(1))) {}  // Noncompliant: no parameters\n\n// Noncompliant: malloc attribute on function not returning pointer\nint badMalloc() __attribute__((malloc));  // Error: returns int",
+      "// Noncompliant: noreturn on function that can return\nvoid mayReturn(bool condition) __attribute__((noreturn)) {\n    if (condition) {\n        exit(1);\n    }\n    // This function can return, but marked noreturn\n}"
+    ],
+    "compliant": [
+      "// Compliant: returns_nonnull on function returning pointer\nint* f1() __attribute__((returns_nonnull));\n\n// Compliant: nonnull with correct parameter numbers\nvoid g(int *a, char *b) __attribute__((nonnull(1, 2))) {}\n\n// Compliant: malloc attribute on function returning pointer\nvoid* myMalloc(size_t size) __attribute__((malloc));",
+      "// Compliant: noreturn on function that never returns\nvoid terminate() __attribute__((noreturn)) {\n    exit(1);  // Always exits\n}\n\n// Compliant: pure attribute on function without side effects\nint add(int a, int b) __attribute__((pure)) {\n    return a + b;  // No side effects\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-5297"
+  ],
+  "logic": {
+    "node_types": [
+      "declaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "int\\s+\\w+\\s*\\(.*\\)\\s*__attribute__\\(\\([^)]*\\b(returns_nonnull|malloc)\\b[^)]*\\)\\)"
+        ],
+        "message": "GNU attributes should be preferred correctly"
+      }
+    ]
+  }
+}

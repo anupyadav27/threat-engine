@@ -1,0 +1,74 @@
+{
+  "filename": "types_should_be_defined_in_named_namespaces_metadata.json",
+  "rule_id": "types_defined_named_namespaces",
+  "title": "Types should be defined in named namespaces",
+  "description": "Types should be defined in named namespacesAnalyze your codeadaptability-modularreliabilityBugWhy is this an issue?Types are declared in namespaces in order to prevent name collisions and as a way to organize them into the object hierarchy. Types that are defined outside any named namespace are in a global namespace that cannot be referenced in code.Noncompliant code examplepublic class Foo // Noncompliant { } public struct Bar // Noncompliant { }Compliant solutionnamespace SomeSpace { public class Foo { } public struct Bar { } }Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CI©2025SonarSource Sàrl. All rights reserved.Privacy Policy|Cookie Policy|Terms of Use",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant: Types defined outside of named namespace\npublic class Foo  // Noncompliant\n{\n    public void DoSomething() { }\n}\n\npublic struct Bar  // Noncompliant\n{\n    public int Value;\n}\n\npublic enum Status  // Noncompliant\n{\n    Active,\n    Inactive\n}"
+    ],
+    "compliant": [
+      "// Compliant: Types defined within a named namespace\nnamespace MyCompany.MyProject\n{\n    public class Foo\n    {\n        public void DoSomething() { }\n    }\n\n    public struct Bar\n    {\n        public int Value;\n    }\n\n    public enum Status\n    {\n        Active,\n        Inactive\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3903"
+  ],
+  "logic": {
+    "node_types": ["ClassDeclaration", "NamespaceDeclaration"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_types_outside_namespace"
+      }
+    ],
+    "target_ast_nodes": ["ClassDeclaration", "NamespaceDeclaration"],
+    "detection_conditions": "Detect type declarations (class, struct, interface, enum, record, delegate) that are not inside any namespace declaration",
+    "triggering_conditions": {
+      "operator": "AND",
+      "conditions": [
+        "Type declaration found (class, struct, interface, enum, record, delegate)",
+        "Type is not nested within a namespace { } block",
+        "Not a nested type within another type"
+      ]
+    },
+    "exclusion_conditions": {
+      "exclude_patterns": [
+        "^\\s*//",
+        "\\[Test\\]",
+        "\\[Fact\\]",
+        "^\\s*namespace\\s+"
+      ]
+    },
+    "never_trigger_on": [
+      "Comments describing the pattern",
+      "Test classes with [Test] or [Fact] attributes",
+      "Types inside namespace blocks",
+      "Nested types inside classes/structs",
+      "Using directives"
+    ],
+    "reasoning": "Types declared outside of any namespace are in the global namespace which cannot be referenced in code and leads to potential name collisions with types from the .NET framework or other libraries.",
+    "validation_examples": {
+      "should_trigger": [
+        "public class Foo { }",
+        "public struct Bar { }",
+        "public interface IService { }"
+      ],
+      "should_not_trigger": [
+        "namespace MyApp { public class Foo { } }",
+        "// Classes outside namespace",
+        "public class Container { public class Nested { } }"
+      ]
+    }
+  }
+}

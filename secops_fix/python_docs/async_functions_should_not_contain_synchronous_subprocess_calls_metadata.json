@@ -1,0 +1,61 @@
+{
+  "rule_id": "async_functions_should_not_contain_synchronous_subprocess_calls",
+  "title": "Async functions should not contain synchronous subprocess calls",
+  "type": "CODE_SMELL",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "description": "This rule checks if an async function invokes synchronous subprocess calls which can lead to blocking and unpredictable behavior.",
+  "message": "Async function contains a synchronous subprocess call.",
+  "remediation": {
+    "func": "Constant/Issue",
+    "constantCost": "5min"
+  },
+  "tags": [
+    "async",
+    "concurrency",
+    "subprocess"
+  ],
+  "impact": "Behavioral",
+  "recommendation": "Consider using async subprocess calls or moving the synchronous subprocess call to a separate synchronous function.",
+  "references": [],
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "async def a():\n    subprocess.run(['command'])",
+        "description": "Async function calls a synchronous subprocess command."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "import asyncio\nasync def a():\n    async with asyncio.subprocess.run(['command']) as proc:\n        await proc",
+        "description": "Async function uses async subprocess call."
+      },
+      {
+        "code": "def b():\n    subprocess.run(['command'])",
+        "description": "Synchronous function handles subprocess calls."
+      }
+    ]
+  },
+  "devsecops": {
+    "category": "",
+    "security": "",
+    "automation": "",
+    "compliance": ""
+  },
+  "why_is_this_an_issue": "Synchronous subprocess calls in async functions can lead to blocking and unpredictable behavior.",
+  "how_to_fix": "Consider using async subprocess calls or moving the synchronous subprocess call to a separate synchronous function.",
+  "security_mappings": {
+    "CWE": "",
+    "CERT": "",
+    "OWASP": ""
+  },
+  "logic": {
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "async_forbidden_subprocess_call"
+      }
+    ],
+    "node_types": ["AsyncFunctionDef"]
+  }
+}

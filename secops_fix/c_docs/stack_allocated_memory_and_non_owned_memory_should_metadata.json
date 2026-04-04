@@ -1,0 +1,59 @@
+{
+  "filename": "stack_allocated_memory_and_non_owned_memory_should_metadata.json",
+  "rule_id": "stack_allocated_memory_nonowned",
+  "title": "Stack allocated memory and non-owned memory should not be freed",
+  "description": "The free function and delete operator are used exclusively to release dynamically allocated memory. Attempting to release any other type of memory is undefined behavior. The following non-heap memory types may not be released: Stack allocated memory - local variables or memory allocated with the alloca, _alloca, _malloca and __builtin_alloca functions.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "void badFunction() {\n  char buffer[100];  // Stack allocated\n  free(buffer);  // Noncompliant: cannot free stack memory\n}",
+      "void anotherBadExample(char* external_buffer) {\n  // external_buffer might not be heap allocated\n  free(external_buffer);  // Noncompliant: uncertain ownership\n}",
+      "void usingAlloca() {\n  char* temp = alloca(100);\n  free(temp);  // Noncompliant: alloca memory cannot be freed\n}"
+    ],
+    "compliant": [
+      "void goodFunction() {\n  char* buffer = malloc(100);  // Heap allocated\n  if (buffer) {\n    // use buffer...\n    free(buffer);  // Compliant: freeing heap memory\n  }\n}",
+      "void managedFunction(char* buffer, bool should_free) {\n  // use buffer...\n  if (should_free) {\n    free(buffer);  // Compliant: controlled freeing\n  }\n}",
+      "void stackBuffer() {\n  char buffer[100];  // Stack allocated\n  // use buffer...\n  // No need to free - automatically cleaned up\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-3590"
+  ],
+  "logic": {
+    "node_types": [
+      "CallExpression",
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "free\\s*\\(\\s*[a-zA-Z_]\\w*\\s*\\)\\s*;\\s*//.*noncompliant",
+          "(?:(?:char|int|float|double|void|struct(?:\\s+\\w+)?)\\s+[a-zA-Z_]\\w*\\s*\\[[^\\]]*\\][\\s\\S]{0,300}?)free\\s*\\(\\s*[a-zA-Z_]\\w*\\s*\\)\\s*;(?![\\s\\S]*(?:malloc|calloc|strdup)\\s*\\()",
+          "(?:[a-zA-Z_]\\w*\\s*=\\s*(?:alloca|_alloca|__builtin_alloca)\\s*\\([^)]*\\)[\\s\\S]{0,200}?)free\\s*\\(\\s*[a-zA-Z_]\\w*\\s*\\)",
+          "free\\s*\\(\\s*[a-zA-Z_]\\w*\\s*\\)\\s*;\\s*//.*(?:stack|array|local|alloca).*noncompliant",
+          "(?:void\\s+noncompliant_[\\w]+\\s*\\([^)]*[a-zA-Z_]\\w*[^)]*\\)[\\s\\S]{0,300}?)free\\s*\\(\\s*[a-zA-Z_]\\w*\\s*\\)\\s*;\\s*//.*noncompliant",
+          "(?:typedef[^;]+;[\\s]*[a-zA-Z_]\\w+\\s+[a-zA-Z_]\\w*;[\\s\\S]{0,200}?)free\\s*\\(\\s*[a-zA-Z_]\\w*\\s*\\)\\s*;\\s*//.*noncompliant"
+        ],
+        "exclude_patterns": [
+          "(?:malloc|calloc|realloc|strdup)\\s*\\([^)]*\\)[\\s\\S]{0,500}?free\\s*\\(",
+          "free\\s*\\([^)]*\\)[^\\n]*//\\s*compliant(?!.*noncompliant)",
+          "//\\s*compliant(?!.*noncompliant)[\\s\\S]*?free\\s*\\(",
+          "void\\s+compliant_[\\w]+\\s*\\([\\s\\S]*?free\\s*\\(",
+          "_malloca\\s*\\([^)]*\\)[\\s\\S]*?free\\s*\\("
+        ],
+        "message": "Stack allocated memory and non-owned memory should not be freed. Review and fix according to the rule guidelines."
+      }
+    ]
+  }
+}

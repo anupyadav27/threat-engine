@@ -1,0 +1,44 @@
+{
+  "filename": "assignments_should_not_be_made_from_within_conditi_metadata.json",
+  "rule_id": "assignments_made_from_within",
+  "title": "Assignments should not be made from within conditions",
+  "description": "Assignments should not be made from within conditionsAnalyze your codeintentionality-clearmaintainabilityCode Smellcwebased-on-misracertsuspiciousWhy is this an issue?More InfoAssigning a value inside a condition (of anifstatement, aforstatement, awhile, or aswitch) can be confusing. It assigns the value and checks it at the same time, but it is easily confused with a simple equality check with==and the original intention can be unclear.if (x = getValue()) { // Noncompliant: assigning and checking. Is it on purpose? doSomething(); }It is better to assign before the statement and use the condition for the check only:x = getValue(); if (x) { doSomething(); }ExceptionsThis rule ignores assignments explicitly enclosed in parentheses.while ((run = keepRunning())) { //..",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cert",
+    "cwe",
+    "confusing"
+  ],
+  "examples": {
+    "noncompliant": [
+      "if (x = getValue()) {\n    doSomething();\n}",
+      "while (count = getCount()) {\n    process(count);\n}",
+      "for (i = 0; ptr = getNext(); i++) {\n    handle(ptr);\n}",
+      "if (result = calculate() > 0) {\n    return result;\n}",
+      "switch (value = readInput()) {\n    case 1: break;\n    default: break;\n}"
+    ],
+    "compliant": [
+      "x = getValue();\nif (x) {\n    doSomething();\n}",
+      "count = getCount();\nwhile (count) {\n    process(count);\n    count = getCount();\n}",
+      "while ((run = keepRunning())) {\n    // Allowed: explicitly enclosed in parentheses\n    doWork();\n}",
+      "if (x == getValue()) {\n    // Equality comparison, not assignment\n    doSomething();\n}",
+      "value = readInput();\nswitch (value) {\n    case 1: break;\n    default: break;\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-1121"
+  ],
+  "logic": {
+    "node_types": ["IfStatement", "WhileStatement", "ForStatement", "SwitchStatement"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_assignments_in_conditions"
+      }
+    ]
+  }
+}

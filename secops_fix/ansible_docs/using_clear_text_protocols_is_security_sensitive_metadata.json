@@ -1,0 +1,85 @@
+{
+  "filename": "using_clear_text_protocols_is_security_sensitive_metadata.json",
+  "rule_id": "using_cleartext_protocols_is",
+  "title": "Using clear-text protocols is security-sensitive",
+  "description": "url: http://example.com # Sensitive - name: HTTPS request url: https://example.com AWS Documentation - Listeners for your Application Load Balancers AWS Documentation - Stream Encryption Articles & blog posts Google - Moving towards more secure web Mozilla - Deprecating non secure http CWE - CWE-200 - Exposure of Sensitive Information to an Unauthorized Actor CWE - CWE-319 - Cleartext Transmission of Sensitive Information STIG Viewer - Application Security and Development: V-222397 - The application must implement cryptographic mechanisms to protect the integrity of remote access sessions. STIG Viewer - Application Security and Development: V-222534 - Service-Oriented Applications handling non-releasable data must authenticate endpoint devices via mutual SSL/TLS. STIG Viewer - Application Security and Development: V-222562 - Applications used for non-local maintenance must implement cryptographic mechanisms to protect the integrity of maintenance and diagnostic communications.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "cwe",
+    "deprecated"
+  ],
+  "examples": {
+    "noncompliant": [
+      "ftp"
+    ],
+    "compliant": [
+      "telnet"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/ansible/RSPEC-5332"
+  ],
+  "logic": {
+    "node_types": ["task", "shell", "command", "raw"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "url:\\s*['\"]?http://",
+          "url:\\s*['\"]?ftp://",
+          "baseurl:\\s*['\"]?http://",
+          "repo:\\s*['\"]?.*http://"
+        ],
+        "message": "Clear-text protocol detected (HTTP/FTP) - use HTTPS/FTPS instead"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "telnet:",
+          "telnet\\s+",
+          "ftp:",
+          "module:\\s*telnet",
+          "module:\\s*ftp"
+        ],
+        "message": "Insecure protocol module detected (telnet/ftp) - use SSH/SFTP instead"
+      },
+      {
+        "type": "property_comparison",
+        "property_path": ["module"],
+        "operator": "in_list",
+        "value": ["telnet", "ftp"],
+        "message": "Using insecure protocol module - consider SSH/SFTP alternatives"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "HTTP_PROXY:\\s*['\"]?http://",
+          "http_proxy:\\s*['\"]?http://",
+          "curl\\s+http://",
+          "wget\\s+http://",
+          "curl.*http://",
+          "wget.*http://"
+        ],
+        "message": "Clear-text HTTP usage detected in commands or environment"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "api_endpoint:.*http://",
+          "endpoint:.*http://",
+          "server:.*http://"
+        ],
+        "message": "Clear-text HTTP URL in variable assignment"
+      }
+    ]
+  }
+}

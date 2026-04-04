@@ -1,0 +1,93 @@
+{
+  "filename": "include_directives_should_be_followed_by_either_fi_metadata.json",
+  "rule_id": "include_directives_followed_either",
+  "title": "#include directives should be followed by either <filename> or filename sequences",
+  "description": "\"#include\" directives should be followed by either <filename> or \"filename\" sequencesAnalyze your codeintentionality-logicalreliabilityBugbased-on-misraWhy is this an issue?More InfoThe#includedirective is a preprocessor directive that tells the compiler to insert the contents of a file in the source code.However, the standard only allows the#includedirective to be followed by angle brackets (<filename.h>) or double quotes (\"filename.h\").If the#includedirective contains macro names, the result of their expansion must also follow this rule:#define HEADER \"filename.h\" #include HEADER // CompliantThe behavior is undefined if neither angle brackets nor double quotes follow the#includedirective.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services,",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant: Invalid #include syntax\n#include stdio.h      // Missing angle brackets or quotes\n#include <stdio.h extra> // Extra text after filename\n#include              // Missing filename entirely"
+    ],
+    "compliant": [
+      "// Compliant: Proper #include syntax\n#include <stdio.h>    // System header with angle brackets\n#include \"myheader.h\" // User header with quotes\n#include <stdlib.h>   // Another system header"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-956"
+  ],
+  "logic": {
+    "node_types": [
+      "PreprocessorDirective"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "#include\\s+[a-zA-Z_][a-zA-Z0-9_]*\\.[a-zA-Z]+(?!>)(?!\")\\s*$",
+          "#include\\s+[a-zA-Z_][a-zA-Z0-9_/\\\\]*\\.[a-zA-Z]+(?!>)(?!\")\\s*$",
+          "#include\\s+[^<\"][a-zA-Z0-9_./\\\\-]+(?!>)(?!\")\\s*$",
+          "#include\\s*$",
+          "#include\\s+<[^>]*>\\s+\\w+",
+          "#include\\s+\"[^\"]*\"\\s+\\w+",
+          "#include\\s+<[^>]*>\\s+[^\\s\\n/]+",
+          "#include\\s+\"[^\"]*\"\\s+[^\\s\\n/]+",
+          "#include\\s+<[^>]*$",
+          "#include\\s+\"[^\"]*$",
+          "#include\\s+>[^<]*<",
+          "#include\\s+\\\"[^>]*>",
+          "#include\\s+<[^\"]*\"",
+          "#include\\s+\"[^>]*>",
+          "#include\\s+[<\"][^<>\"]*[<>][^<>\"]*[>\"]",
+          "#include\\s+[^<\"][^\\n]*\\s+[^/\\n]",
+          "#include\\s+\\w+\\s+\\w+",
+          "#include\\s+\\d+",
+          "#include\\s+[^<\"\\w][^\\n]*",
+          "#include\\s+<>",
+          "#include\\s+\"\"",
+          "#include\\s+<<[^>]*>>",
+          "#include\\s+\"\"[^\"]*\"\"",
+          "#include\\s+<[^>]*>[^\\s/\\n]+",
+          "#include\\s+\"[^\"]*\"[^\\s/\\n]+",
+          "#include\\s+[a-zA-Z_][a-zA-Z0-9_]*\\s+[a-zA-Z_]",
+          "#include\\s+\\.[a-zA-Z]+",
+          "#include\\s+/[^<\"]*",
+          "#include\\s+\\\\[^<\"]*",
+          "#include\\s+\\$[^<\"]*",
+          "#include\\s+%[^<\"]*",
+          "#include\\s+#[^<\"]*"
+        ],
+        "message": "#include directive has malformed syntax. Must be followed by either <filename> or \"filename\" with no extra text."
+      },
+      {
+        "type": "include_syntax_check",
+        "property_path": ["source"],
+        "conditions": [
+          "missing_brackets_or_quotes",
+          "extra_text_after_include",
+          "missing_filename",
+          "malformed_bracket_quote_combination",
+          "invalid_include_format"
+        ],
+        "message": "#include directive does not follow standard C syntax. Use #include <filename> for system headers or #include \"filename\" for user headers."
+      },
+      {
+        "type": "preprocessor_compliance_check",
+        "property_path": ["source"],
+        "conditions": [
+          "undefined_include_behavior",
+          "non_standard_include_syntax",
+          "invalid_preprocessor_directive"
+        ],
+        "message": "#include directive syntax may lead to undefined behavior. Ensure proper bracket or quote usage according to C standard."
+      }
+    ]
+  }
+}

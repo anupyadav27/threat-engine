@@ -1,0 +1,37 @@
+{
+  "filename": "read_resolve_methods_should_be_inheritable_metadata.json",
+  "rule_id": "java_bug_rspec_2062",
+  "title": "Ensure readResolve methods are inheritable",
+  "description": "Developers may want to add some logic to handle deserialized objects before they are returned to the caller. This can be achieved by implementing the readResolve method. Non-final classes implementing readResolve should not set its visibility to private as this would make it unavailable to child classes. Instead, mark readResolve as protected, allowing it to be inherited.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Object Serialization",
+  "recommendation": "Mark readResolve as protected",
+  "impact": "Improves object deserialization logic handling",
+  "examples": {
+    "noncompliant": [
+      "public class Fruit implements Serializable {\n  private static final long serialVersionUID = 1;\n\n  private Object readResolve() throws ObjectStreamException // Noncompliant, `readResolve` should not be private\n  {...}\n\n  //...\n}"
+    ],
+    "compliant": [
+      "public class Fruit implements Serializable {\n  private static final long serialVersionUID = 1;\n\n  protected Object readResolve() throws ObjectStreamException // Compliant, `readResolve` is protected\n  {...}\n\n  //...\n}"
+    ]
+  },
+  "references": [],
+  "logic": {
+    "node_types": [
+      "MethodInvocation"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "private\\s+Object\\s+readResolve\\s*\\(\\).*throws\\s+ObjectStreamException"
+        ],
+        "message": "Mark readResolve as protected"
+      }
+    ]
+  }
+}

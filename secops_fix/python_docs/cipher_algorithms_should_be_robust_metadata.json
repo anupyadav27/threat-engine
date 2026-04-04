@@ -1,0 +1,60 @@
+{
+  "rule_id": "cipher_algorithms_should_be_robust",
+  "title": "Use robust cipher algorithms",
+  "type": "CODE_SMELL",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "description": "Checks for the use of weak cipher algorithms in cryptographic operations.",
+  "message": "Use a more secure cipher algorithm",
+  "remediation": {
+    "func": "Constant/Issue",
+    "constantCost": "5min"
+  },
+  "tags": [
+    "cryptography",
+    "security"
+  ],
+  "impact": "Confidentiality",
+  "recommendation": "Use a stronger cipher algorithm",
+  "references": [
+    "https://rules.sonarsource.com/python/RSPEC-5839"
+  ],
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "import hashlib\nhasher = hashlib.md5()\nhasher.update(secret_data.encode())\npassword_hash = hasher.hexdigest()",
+        "description": "Using MD5 for hashing sensitive data"
+      }
+    ],
+    "compliant": [
+      {
+        "code": "import hashlib\nhasher = hashlib.sha256()\nhasher.update(secret_data.encode())\npassword_hash = hasher.hexdigest()",
+        "description": "Using SHA256 for hashing sensitive data"
+      }
+    ]
+  },
+  "devsecops": {
+    "category": "encryption",
+    "security": "confidentiality",
+    "automation": "continuous",
+    "compliance": "PCI-DSS, HIPAA, GDPR"
+  },
+  "why_is_this_an_issue": "Weak cipher algorithms can be easily broken, making sensitive data vulnerable to attacks.",
+  "how_to_fix": "Replace weak ciphers with stronger and more secure alternatives.",
+  "security_mappings": {
+    "CWE": "CWE-327",
+    "CERT": "CERT-18-01-01",
+    "OWASP": "A2: Cryptographic Storage"
+  },
+  "logic": {
+      "node_types": ["Call"],
+      "checks": [
+        {
+          "type": "property_comparison",
+          "property_path": ["func", "value", "id"],
+          "forbidden_values": ["DES", "RC4", "Blowfish"],
+          "message": "Avoid using weak cipher algorithms. Use robust algorithms like AES."
+        }
+      ]
+  }
+}

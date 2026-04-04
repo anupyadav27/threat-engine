@@ -1,0 +1,86 @@
+{
+  "filename": "threadresume_and_threadsuspend_should_be_avoided_metadata.json",
+  "rule_id": "threadresume_threadsuspend_avoided",
+  "title": "Thread.Resume and Thread.Suspend should be avoided",
+  "description": "\"Thread.Resume\" and \"Thread.Suspend\" should not be usedAnalyze your codeintentionality-logicalreliabilityBugmulti-threadingunpredictableWhy is this an issue?More InfoThread.SuspendandThread.Resumecan give unpredictable results, and both methods have been deprecated. Indeed, ifThread.Suspendis not used very carefully, athreadcan be suspended while holding alock, thus leading to adeadlock.There are other synchronization mechanisms that are safer and should be used instead, such as:Monitorprovides a mechanism that synchronizes access to objects.Mutexprovides a mechanism that synchronizes interprocess access to a protected resource.Semaphoreprovides a mechanism that allows limiting the number of threads that have access to a protected resources concurrently.Eventsenable a class to notify other",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "Thread thread = new Thread(DoWork);\nthread.Start();\n// ...\nthread.Suspend(); // Noncompliant - deprecated and can cause deadlocks\n// ...\nthread.Resume(); // Noncompliant - deprecated"
+    ],
+    "compliant": [
+      "// Using Monitor\nprivate readonly object lockObj = new object();\nprivate bool isPaused = false;\n\nvoid DoWork()\n{\n    while (true)\n    {\n        lock (lockObj)\n        {\n            while (isPaused)\n            {\n                Monitor.Wait(lockObj); // Compliant\n            }\n        }\n        // Do actual work\n    }\n}\n\nvoid Pause() { lock (lockObj) { isPaused = true; } }\nvoid Resume() { lock (lockObj) { isPaused = false; Monitor.PulseAll(lockObj); } }",
+      "// Using ManualResetEvent\nprivate ManualResetEvent pauseEvent = new ManualResetEvent(true);\n\nvoid DoWork()\n{\n    while (true)\n    {\n        pauseEvent.WaitOne(); // Compliant - blocks when reset\n        // Do actual work\n    }\n}\n\nvoid Pause() { pauseEvent.Reset(); }\nvoid Resume() { pauseEvent.Set(); }"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3889"
+  ],
+  "logic": {
+    "target_ast_nodes": ["MethodDeclaration", "ClassDeclaration", "CallExpression"],
+    "node_types": ["MethodDeclaration", "ClassDeclaration", "CallExpression"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "\\.(Suspend|Resume)\\s*\\(\\s*\\)",
+        "exclude_patterns": [
+          "//.*\\.(Suspend|Resume)",
+          "/\\*.*\\.(Suspend|Resume)",
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "\\$\"",
+          "string\\.Format",
+          "\\[Test\\]",
+          "\\[Fact\\]",
+          "\\[TestMethod\\]",
+          "Assert\\.",
+          "ManualResetEvent",
+          "AutoResetEvent",
+          "pauseEvent\\."
+        ],
+        "message": "Thread.Suspend and Thread.Resume should not be used - they can cause deadlocks. Use Monitor, Mutex, Semaphore, or Events instead."
+      }
+    ],
+    "detection_conditions": "Method call to Thread.Suspend() or Thread.Resume()",
+    "triggering_conditions": "source contains '.Suspend()' or '.Resume()' method call on Thread objects",
+    "exclusion_conditions": [
+      "Comments (// and /*)",
+      "Logging statements (Console, Logger, Debug)",
+      "String formatting ($\"\", string.Format)",
+      "Unit tests ([Test], [Fact], [TestMethod], Assert.*)",
+      "ManualResetEvent/AutoResetEvent usage (proper alternatives)"
+    ],
+    "never_trigger_on": [
+      "Logging statements: Console.*, Logger.*, Debug.*",
+      "String formatting: $\"...\", string.Format",
+      "Unit tests: [Test], [Fact], [TestMethod], Assert.*",
+      "Comments: //, /*",
+      "Proper synchronization primitives: Monitor, Mutex, Semaphore, Events"
+    ],
+    "reasoning": "Thread.Suspend and Thread.Resume are deprecated and can lead to deadlocks if a thread is suspended while holding a lock. Safer alternatives include Monitor, Mutex, Semaphore, and Events for thread synchronization.",
+    "validation_examples": {
+      "should_trigger": [
+        "thread.Suspend();",
+        "thread.Resume();",
+        "myThread.Suspend();"
+      ],
+      "should_not_trigger": [
+        "Monitor.Wait(lockObj);",
+        "Monitor.PulseAll(lockObj);",
+        "pauseEvent.WaitOne();",
+        "pauseEvent.Set();"
+      ]
+    }
+  }
+}

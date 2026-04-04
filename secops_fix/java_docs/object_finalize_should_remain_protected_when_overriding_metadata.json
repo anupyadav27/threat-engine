@@ -1,0 +1,38 @@
+{
+  "filename": "object_finalize_should_remain_protected_when_overriding_metadata.json",
+  "rule_id": "java_protection_level_object_finalize",
+  "title": "Object.finalize() Method Should Remain Protected When Overriding",
+  "description": "The contract of the Object.finalize() method dictates that only the Garbage Collector should call this method. If this method is made public, it can mislead others into believing that it can be used by any caller, which is not the case.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Java Programming",
+  "recommendation": "Ensure that the Object.finalize() method remains protected when overriding. This method should not be made public as it is meant only for the Garbage Collector.",
+  "impact": "Making the Object.finalize() method public can lead to misuse as it suggests that any caller can use it. This can potentially affect the Garbage Collector's functionality and the overall performance of the application.",
+  "examples": {
+    "noncompliant": [
+      "public class MyClass {\n\n  @Override\n  public void finalize() {    // Noncompliant\n    /* ... */\n  }\n}"
+    ],
+    "compliant": [
+      "public class MyClass {\n\n  @Override\n  protected void finalize() {    // Compliant\n    /* ... */\n  }\n}"
+    ]
+  },
+  "references": [
+    {
+      "url": "https://rules.sonarsource.com/java/RSPEC-1174",
+      "title": "SonarSource Rule Specification RSPEC-1174"
+    }
+  ],
+  "logic": {
+    "node_types": [
+      "MethodInvocation"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": ["public\\s+void\\s+finalize"],
+        "message": "Object.finalize() method should remain protected when overriding"
+      }
+    ]
+  }
+}

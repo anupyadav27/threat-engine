@@ -1,0 +1,87 @@
+{
+  "filename": "the_length_returned_from_a_stream_read_should_be_c_metadata.json",
+  "rule_id": "length_returned_from_stream",
+  "title": "The length returned from a stream read should be checked",
+  "description": "The length returned from a stream read should be checkedAnalyze your codeintentionality-completereliabilityBugWhy is this an issue?How can I fix it?More InfoInvoking a stream reading method without verifying the number of bytes read can lead to erroneous assumptions. A Stream can represent any I/O operation, such as reading a file, network communication, or inter-process communication. As such, it is not guaranteed that thebyte[]passed into the method will be filled with the requested number of bytes.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public void ReadFromStream(Stream stream)\n{\n    byte[] buffer = new byte[1024];\n    stream.Read(buffer, 0, buffer.Length); // Noncompliant - not checking return value\n    Process(buffer); // Might process uninitialized data\n}",
+      "public async Task ReadFromStreamAsync(Stream stream)\n{\n    byte[] buffer = new byte[1024];\n    await stream.ReadAsync(buffer, 0, buffer.Length); // Noncompliant\n}"
+    ],
+    "compliant": [
+      "public void ReadFromStream(Stream stream)\n{\n    byte[] buffer = new byte[1024];\n    int bytesRead = stream.Read(buffer, 0, buffer.Length); // Compliant\n    if (bytesRead > 0)\n    {\n        Process(buffer, bytesRead);\n    }\n}",
+      "public async Task ReadFromStreamAsync(Stream stream)\n{\n    byte[] buffer = new byte[1024];\n    int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length); // Compliant\n    if (bytesRead > 0)\n    {\n        Process(buffer, bytesRead);\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-2674"
+  ],
+  "logic": {
+    "target_ast_nodes": ["MethodDeclaration", "ClassDeclaration"],
+    "node_types": ["MethodDeclaration", "ClassDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "(stream|Stream|\\w+Stream)\\s*\\.\\s*(Read|ReadAsync)\\s*\\([^;]+\\)\\s*;(?![\\s\\S]*?\\b(bytesRead|readBytes|count|length|read|result)\\b)",
+        "exclude_patterns": [
+          "//.*\\.Read",
+          "/\\*.*\\.Read",
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "\\$\"",
+          "string\\.Format",
+          "\\[Test\\]",
+          "\\[Fact\\]",
+          "\\[TestMethod\\]",
+          "Assert\\.",
+          "int\\s+\\w+\\s*=.*\\.Read",
+          "var\\s+\\w+\\s*=.*\\.Read",
+          "await.*\\.ReadAsync.*=",
+          "=\\s*(await)?\\s*\\w+\\.Read"
+        ],
+        "message": "The length returned from a stream Read/ReadAsync should be checked - the buffer may not be fully filled"
+      }
+    ],
+    "detection_conditions": "Stream.Read or Stream.ReadAsync call without checking the return value",
+    "triggering_conditions": "source contains stream.Read() or stream.ReadAsync() call as statement without assignment to check return value",
+    "exclusion_conditions": [
+      "Comments (// and /*)",
+      "Logging statements (Console, Logger, Debug)",
+      "String formatting ($\"\", string.Format)",
+      "Unit tests ([Test], [Fact], [TestMethod], Assert.*)",
+      "Read call with return value captured (int bytesRead = ...)"
+    ],
+    "never_trigger_on": [
+      "Logging statements: Console.*, Logger.*, Debug.*",
+      "String formatting: $\"...\", string.Format",
+      "Unit tests: [Test], [Fact], [TestMethod], Assert.*",
+      "Comments: //, /*",
+      "Read calls where return value is assigned to a variable",
+      "Read calls followed by bytesRead check"
+    ],
+    "reasoning": "Stream.Read() and ReadAsync() may not fill the entire buffer - they return the actual number of bytes read. Not checking this return value can lead to processing uninitialized or stale data in the buffer.",
+    "validation_examples": {
+      "should_trigger": [
+        "stream.Read(buffer, 0, buffer.Length);",
+        "await stream.ReadAsync(buffer, 0, buffer.Length);"
+      ],
+      "should_not_trigger": [
+        "int bytesRead = stream.Read(buffer, 0, buffer.Length);",
+        "int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);",
+        "if (stream.Read(buffer, 0, buffer.Length) > 0) { }"
+      ]
+    }
+  }
+}

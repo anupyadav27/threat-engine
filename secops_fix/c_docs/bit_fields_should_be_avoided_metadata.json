@@ -1,0 +1,43 @@
+{
+  "filename": "bit_fields_should_be_avoided_metadata.json",
+  "rule_id": "bit_fields_avoided",
+  "title": "Bit fields should be avoided",
+  "description": "Bit fields should not be usedAnalyze your codeintentionality-clearmaintainabilityCode SmellperformancepitfallWhy is this an issue?The real need for bit fields is narrow and highly specialized. Previously, they were used to save memory, but that’s less a concern in modern systems than are the extra instructions required to interact with them. Today, they may be needed in direct hardware interaction, but since their behavior is platform-dependent, getting them right can be tricky, and since their use is increasingly rare these days, they’re likely to confuse maintainers.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "General",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Code readability problem",
+  "tags": [
+    "performance"
+  ],
+  "examples": {
+    "noncompliant": [
+      "struct BitFieldStruct {\n    unsigned int flag : 1;     // Noncompliant: bit field\n    unsigned int count : 4;    // Noncompliant: bit field\n    signed int value : 8;      // Noncompliant: bit field\n};",
+      "typedef struct {\n    unsigned char status : 2;  // Noncompliant: bit field in typedef\n    unsigned char mode : 3;    // Noncompliant: bit field\n} ConfigFlags;",
+      "union BitFieldUnion {\n    unsigned int full;\n    struct {\n        unsigned int low : 16;  // Noncompliant: bit field in union\n        unsigned int high : 16; // Noncompliant: bit field\n    } parts;\n};",
+      "unsigned int global_flag : 1;  // Noncompliant: global bit field",
+      "struct Device {\n    int : 8;                   // Noncompliant: unnamed bit field\n    unsigned int enabled : 1;  // Noncompliant: named bit field\n};"
+    ],
+    "compliant": [
+      "struct RegularStruct {\n    unsigned int flag;         // Compliant: regular field\n    unsigned int count;        // Compliant: regular field\n    signed int value;          // Compliant: regular field\n};",
+      "typedef struct {\n    unsigned char status;      // Compliant: regular field\n    unsigned char mode;        // Compliant: regular field\n} ConfigFlags;",
+      "union RegularUnion {\n    unsigned int full;\n    struct {\n        unsigned int low;      // Compliant: regular field\n        unsigned int high;     // Compliant: regular field\n    } parts;\n};",
+      "#define FLAG_ENABLED 0x01     // Compliant: use macros for bit manipulation\n#define FLAG_DISABLED 0x00",
+      "enum StatusBits {             // Compliant: use enums for bit positions\n    STATUS_READY = 1,\n    STATUS_ERROR = 2,\n    STATUS_BUSY = 4\n};"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-2806"
+  ],
+  "logic": {
+    "node_types": ["StructDeclaration", "UnionDeclaration", "FunctionDefinition", "TranslationUnit"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_bit_fields_usage",
+        "message": "Bit field detected. Bit fields should be avoided due to platform-dependent behavior and maintenance complexity. Use regular fields, enums, or macros instead."
+      }
+    ]
+  }
+}

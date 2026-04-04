@@ -1,0 +1,41 @@
+{
+  "filename": "security_avoid_disclosing_mobile_db_encryption_keys_metadata.json",
+  "rule_id": "security_avoid_disclosing_mobile_db_encryption_keys",
+  "title": "Mobile database encryption keys should not be disclosed",
+  "description": "Disclosing encryption keys used for mobile databases can lead to unauthorized access to sensitive data. Applications must ensure that such keys are never hard-coded, logged, or otherwise exposed in the codebase or at runtime.",
+  "status": "active",
+  "defaultSeverity": "CRITICAL",
+  "category": "security",
+  "recommendation": "Store encryption keys securely using platform-provided secure storage mechanisms (e.g., Android Keystore, iOS Keychain) and never expose them in code or logs.",
+  "impact": "If encryption keys are disclosed, attackers can decrypt sensitive data stored in mobile databases, leading to data breaches and loss of user trust.",
+  "examples": [
+    {
+      "bad": "String dbKey = \"mySuperSecretKey\"; // Hard-coded key\nopenDatabase(dbKey);",
+      "good": "String dbKey = getKeyFromSecureStorage();\nopenDatabase(dbKey);"
+    }
+  ],
+  "references": [
+    "https://rules.sonarsource.com/java/RSPEC-6301/",
+    "https://www.zetetic.net/sqlcipher/",
+    "https://realm.io/"
+  ],
+  "logic": {
+    "node_types": [
+      "Class"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "dbKey\\s*=\\s*\"[^\"]+\"",
+          "String.*[Kk]ey.*=.*\"",
+          "openDatabase\\s*\\([^\\)]*[Kk]ey"
+        ],
+        "message": "Store encryption keys securely using platform-provided secure storage mechanisms (e.g., Android Keystore, iOS Keychain) and never expose them in code or logs."
+      }
+    ]
+  }
+}

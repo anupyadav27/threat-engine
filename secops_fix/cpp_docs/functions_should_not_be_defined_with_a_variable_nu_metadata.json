@@ -1,0 +1,45 @@
+{
+  "filename": "functions_should_not_be_defined_with_a_variable_nu_metadata.json",
+  "rule_id": "functions_defined_variable_number",
+  "title": "Functions should not be defined with a variable number of arguments",
+  "description": "Functions should not be defined with a variable number of argumentsAnalyze your codeintentionality-clearmaintainabilityCode Smellcertmisra-c++2008misra-c2004pitfallWhy is this an issue?More InfoPassing arguments via an ellipsis bypasses the type checking performed by the compiler. Additionally, passing an argument with non-POD class type leads to undefined behavior. Note that the rule specifies \"defined\" (and not \"declared\") so as to permit the use of existing library functions.Noncompliant code examplevoid MyPrintf ( char_t * pFormat, ..",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cert"
+  ],
+  "examples": {
+    "noncompliant": [
+      "#include <cstdarg>\n\n// Variadic function definition - Noncompliant\nvoid MyPrintf(const char* format, ...) {\n    va_list args;\n    va_start(args, format);\n    // Process arguments\n    va_end(args);\n}",
+      "// Another variadic function example\nint sum(int count, ...) { // Noncompliant\n    va_list args;\n    va_start(args, count);\n    \n    int total = 0;\n    for (int i = 0; i < count; ++i) {\n        total += va_arg(args, int);\n    }\n    \n    va_end(args);\n    return total;\n}"
+    ],
+    "compliant": [
+      "#include <iostream>\n#include <string>\n\n// Use function overloading instead\nvoid MyPrint(const std::string& message) {\n    std::cout << message << std::endl;\n}\n\nvoid MyPrint(const std::string& format, const std::string& arg) {\n    // Format and print\n}\n\nvoid MyPrint(const std::string& format, int value) {\n    // Format and print\n}",
+      "#include <vector>\n#include <initializer_list>\n\n// Use container for multiple arguments\nint sum(const std::vector<int>& values) {\n    int total = 0;\n    for (int value : values) {\n        total += value;\n    }\n    return total;\n}\n\n// Or use initializer list\nint sum(std::initializer_list<int> values) {\n    int total = 0;\n    for (int value : values) {\n        total += value;\n    }\n    return total;\n}\n\n// Usage: sum({1, 2, 3, 4, 5})"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-923"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDeclaration",
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "\\.\\.\\."
+        ],
+        "message": "Functions should not be defined with a variable number of arguments. Use function overloading or templates for type safety."
+      }
+    ]
+  }
+}

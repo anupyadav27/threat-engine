@@ -1,0 +1,54 @@
+{
+  "filename": "macro_arguments_should_avoid_containing_preprocess_metadata.json",
+  "rule_id": "macro_arguments_avoid_containing",
+  "title": "Macro arguments should avoid containing preprocessing directives",
+  "description": "Macro arguments should not contain preprocessing directivesAnalyze your codeintentionality-logicalmaintainabilityreliabilityBugpitfallbased-on-misraWhy is this an issue?How can I fix it?More InfoThe preprocessor performs two main tasks: Handling preprocessor directives and expanding macros. Trying to do both simultaneously can be problematic: when a macro argument contains something that could be interpreted as a preprocessor directive, the behavior is undefined.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIDeveloper EditionAvailable Since10.7©2025SonarSource Sàrl. All rights reserved.Privacy Policy|Cookie Policy|Terms of Use",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Preprocessor directives in macro arguments\n#define PRINT(x) printf(#x \"\\n\")\n\n// Non-compliant usage\nPRINT(\n  #ifdef DEBUG\n    \"Debug mode\"\n  #else\n    \"Release mode\"\n  #endif\n);\n\n#define PROCESS(code) do { code } while(0)\nPROCESS(\n  #if FEATURE_X\n    enableFeatureX();\n  #endif\n);"
+    ],
+    "compliant": [
+      "// Resolve preprocessor directives outside macro calls\n#define PRINT(x) printf(#x \"\\n\")\n\n#ifdef DEBUG\n  #define MODE_STRING \"Debug mode\"\n#else\n  #define MODE_STRING \"Release mode\"\n#endif\n\nPRINT(MODE_STRING);\n\n// Or structure the code differently\n#define PROCESS(code) do { code } while(0)\n\n#if FEATURE_X\n  PROCESS(enableFeatureX(););\n#else\n  PROCESS(/* no-op */;);\n#endif"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-6991"
+  ],
+  "logic": {
+    "node_types": [
+      "PreprocessorDirective"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "\\w+\\s*\\(.*#ifdef.*\\)",
+          "\\w+\\s*\\(.*#ifndef.*\\)",
+          "\\w+\\s*\\(.*#if\\s+.*\\)",
+          "\\w+\\s*\\(.*#else.*\\)",
+          "\\w+\\s*\\(.*#elif.*\\)",
+          "\\w+\\s*\\(.*#endif.*\\)",
+          "\\w+\\s*\\(.*#define.*\\)",
+          "\\w+\\s*\\(.*#undef.*\\)",
+          "\\w+\\s*\\(.*#include.*\\)",
+          "\\w+\\s*\\(.*#pragma.*\\)",
+          "\\w+\\s*\\(.*#warning.*\\)",
+          "\\w+\\s*\\(.*#error.*\\)",
+          "\\w+\\s*\\(.*#line.*\\)"
+        ],
+        "message": "Macro arguments should avoid containing preprocessing directives. Review and fix according to the rule guidelines."
+      }
+    ]
+  }
+}

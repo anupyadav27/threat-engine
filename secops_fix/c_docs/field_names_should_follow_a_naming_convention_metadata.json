@@ -1,0 +1,65 @@
+{
+  "filename": "field_names_should_follow_a_naming_convention_metadata.json",
+  "rule_id": "field_names_follow_naming",
+  "title": "Field names should follow a naming convention",
+  "description": "Field names should comply with a naming conventionAnalyze your codeconsistency-identifiablemaintainabilityCode SmellconventionWhy is this an issue?More InfoA naming convention in software development is a set of guidelines for naming code elements like variables, functions, and classes.The goal of a naming convention is to make the code more readable and understandable, which makes it easier to maintain and debug. It also ensures consistency in the code, especially when multiple developers are working on the same project.This rule checks that field names match a provided regular expression.Using the regular expression^[a-z][a-zA-Z0-9]*$, the noncompliant code below:class MyClass { int my_field; // Noncompliant };Should be replaced with:class MyClass { int myField; // Compliant };Available",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug",
+    "convention"
+  ],
+  "examples": {
+    "noncompliant": [
+      "struct Person {\n    char *first_name; // Noncompliant - uses underscore instead of camelCase\n    int Age; // Noncompliant - starts with uppercase\n    float salary$; // Noncompliant - contains special character\n};",
+      "typedef struct {\n    int FIELD_NAME; // Noncompliant - all uppercase\n    char* user_id; // Noncompliant - underscore notation\n} MyStruct;",
+      "struct Config {\n    int MaxValue; // Noncompliant - starts with uppercase\n    bool is_enabled; // Noncompliant - underscore notation\n};"
+    ],
+    "compliant": [
+      "struct Person {\n    char *firstName; // Compliant - camelCase starting with lowercase\n    int age; // Compliant - lowercase\n    float salary; // Compliant - simple lowercase name\n};",
+      "typedef struct {\n    int fieldName; // Compliant - camelCase\n    char* userId; // Compliant - camelCase\n} MyStruct;",
+      "struct Config {\n    int maxValue; // Compliant - camelCase starting with lowercase\n    bool isEnabled; // Compliant - camelCase\n};"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-116"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDefinition",
+      "VariableDeclaration", 
+      "FieldDeclaration",
+      "ParameterDeclaration",
+      "StructDeclaration",
+      "UnionDeclaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "name"
+        ],
+        "patterns": [
+          "^[a-z][a-zA-Z0-9]*$"
+        ],
+        "negate": true,
+        "message": "Field names should follow a naming convention (camelCase starting with lowercase). Review and fix according to the rule guidelines."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "\\b[a-zA-Z_]*_[a-zA-Z0-9_]*\\b",
+          "\\b[A-Z][a-zA-Z0-9]*\\b",
+          "\\b[A-Z_]+\\b"
+        ],
+        "message": "Field names should follow camelCase convention starting with lowercase - avoid underscores and uppercase starting letters"
+      }
+    ]
+  }
+}

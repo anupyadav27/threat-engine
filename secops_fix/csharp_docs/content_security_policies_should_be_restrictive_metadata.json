@@ -1,0 +1,68 @@
+{
+  "filename": "content_security_policies_should_be_restrictive_metadata.json",
+  "rule_id": "content_security_policies_restrictive",
+  "title": "Content Security Policies should be restrictive",
+  "description": "The Content Security Policy (CSP) is a computer security standard that serves as an additional layer of protection against various types of attacks, including Cross-Site Scripting (XSS) and clickjacking. It provides a set of standard procedures for loading resources by user agents, which can help to mitigate the risk of content injection vulnerabilities. However, it is important to note that CSP is not a primary line of defense, but rather a safety net that catches attempts to exploit vulnerabilities that exist in the system despite other protective measures.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant: Using 'unsafe-inline' allows inline scripts\napp.Use(async (context, next) =>\n{\n    context.Response.Headers.Add(\"Content-Security-Policy\", \"default-src 'self'; script-src 'self' 'unsafe-inline'\");\n    await next();\n});",
+      "// Noncompliant: Too permissive with wildcard\napp.Use(async (context, next) =>\n{\n    context.Response.Headers.Add(\"Content-Security-Policy\", \"default-src *\");\n    await next();\n});"
+    ],
+    "compliant": [
+      "// Compliant: Restrictive CSP without unsafe directives\napp.Use(async (context, next) =>\n{\n    context.Response.Headers.Add(\"Content-Security-Policy\", \"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:\");\n    await next();\n});",
+      "// Compliant: Using nonce for inline scripts\napp.Use(async (context, next) =>\n{\n    var nonce = Convert.ToBase64String(RandomNumberGenerator.GetBytes(16));\n    context.Response.Headers.Add(\"Content-Security-Policy\", $\"default-src 'self'; script-src 'self' 'nonce-{nonce}'\");\n    await next();\n});"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-7039"
+  ],
+  "logic": {
+    "target_ast_nodes": ["Assignment", "CallExpression"],
+    "detection_conditions": "Content-Security-Policy headers with unsafe directives ('unsafe-inline', 'unsafe-eval', wildcard '*')",
+    "triggering_conditions": "(Content-Security-Policy header) AND ('unsafe-inline' OR 'unsafe-eval' OR 'default-src *') AND NOT using nonce/hash",
+    "exclusion_conditions": "Exclude CSP using nonce, hash, or restrictive 'self' directives, test code",
+    "never_trigger_on": [
+      "CSP with nonce/hash",
+      "Restrictive CSP using only 'self'",
+      "Test code",
+      "Comments"
+    ],
+    "reasoning": "Unsafe CSP directives like 'unsafe-inline' and 'unsafe-eval' defeat the purpose of CSP by allowing inline scripts and eval(), which are common XSS attack vectors. Wildcard '*' allows resources from any origin, providing no protection. The rule detects CSP header assignments containing these unsafe patterns.",
+    "validation_examples": {
+      "should_trigger": [
+        "Headers.Add(\"Content-Security-Policy\", \"script-src 'unsafe-inline'\")",
+        "Headers.Add(\"Content-Security-Policy\", \"default-src *\")",
+        "Headers.Add(\"Content-Security-Policy\", \"script-src 'unsafe-eval'\")"
+      ],
+      "should_not_trigger": [
+        "Headers.Add(\"Content-Security-Policy\", \"default-src 'self'\")",
+        "Headers.Add(\"Content-Security-Policy\", \"script-src 'nonce-abc123'\")",
+        "Headers.Add(\"Content-Security-Policy\", \"script-src 'self'\")"
+      ]
+    },
+    "node_types": ["Assignment", "CallExpression"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "Content-Security-Policy.*('unsafe-inline'|'unsafe-eval'|default-src\\s+\\*)",
+        "exclude_patterns": [
+          "nonce-",
+          "sha256-",
+          "\\[Test",
+          "//.*CSP"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "filename": "nested_switch_statements_metadata.json",
+  "rule_id": "structure_nested_switch_avoid",
+  "title": "Avoid nested switch statements",
+  "description": "Nested switch statements are difficult to understand because cases of inner switches can be confused with cases of outer switches. This creates cognitive overhead and makes code maintenance more challenging.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Maintainability",
+  "recommendation": "Extract inner switch logic into separate functions to improve readability.",
+  "impact": "Code readability problem",
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "// Noncompliant: Nested switch statements create confusion\nfunc processMessage(msgType string, subType string, data interface{}) error {\n    switch msgType {\n    case \"email\":\n        switch subType {\n        case \"welcome\":\n            return sendWelcomeEmail(data)\n        case \"notification\":\n            return sendNotificationEmail(data)\n        case \"alert\":\n            switch data.(type) {\n            case string:\n                return sendTextAlert(data.(string))\n            case map[string]interface{}:\n                return sendStructuredAlert(data.(map[string]interface{}))\n            default:\n                return errors.New(\"unsupported alert data type\")\n            }\n        default:\n            return errors.New(\"unknown email subtype\")\n        }\n    case \"sms\":\n        switch subType {\n        case \"urgent\":\n            return sendUrgentSMS(data)\n        case \"normal\":\n            return sendNormalSMS(data)\n        default:\n            return errors.New(\"unknown SMS subtype\")\n        }\n    default:\n        return errors.New(\"unknown message type\")\n    }\n}",
+        "description": "Deeply nested switch statements are hard to read and maintain, with confusing case relationships."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "// Compliant: Extract nested logic into separate functions\nfunc processMessage(msgType string, subType string, data interface{}) error {\n    switch msgType {\n    case \"email\":\n        return processEmailMessage(subType, data)\n    case \"sms\":\n        return processSMSMessage(subType, data)\n    default:\n        return errors.New(\"unknown message type\")\n    }\n}\n\nfunc processEmailMessage(subType string, data interface{}) error {\n    switch subType {\n    case \"welcome\":\n        return sendWelcomeEmail(data)\n    case \"notification\":\n        return sendNotificationEmail(data)\n    case \"alert\":\n        return processEmailAlert(data)\n    default:\n        return errors.New(\"unknown email subtype\")\n    }\n}\n\nfunc processEmailAlert(data interface{}) error {\n    switch data.(type) {\n    case string:\n        return sendTextAlert(data.(string))\n    case map[string]interface{}:\n        return sendStructuredAlert(data.(map[string]interface{}))\n    default:\n        return errors.New(\"unsupported alert data type\")\n    }\n}\n\nfunc processSMSMessage(subType string, data interface{}) error {\n    switch subType {\n    case \"urgent\":\n        return sendUrgentSMS(data)\n    case \"normal\":\n        return sendNormalSMS(data)\n    default:\n        return errors.New(\"unknown SMS subtype\")\n    }\n}",
+        "description": "Extracting nested switch logic into separate functions improves readability and maintainability."
+      }
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/go/RSPEC-1821"
+  ],
+  "logic": {
+    "node_types": [
+      "function_declaration"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_nested_switch_statements",
+        "message": "Avoid nested switch statements - use polymorphism or separate functions"
+      }
+    ]
+  }
+}

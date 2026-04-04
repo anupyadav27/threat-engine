@@ -1,0 +1,58 @@
+{
+  "filename": "regular_expressions_should_not_be_too_complicated_metadata.json",
+  "rule_id": "regular_expressions_too_complicated",
+  "title": "Regular expressions should not be too complicated",
+  "description": "A complex regular expression is one that exhibits several or all of the following characteristics. It can be quite lengthy, containing multiple nested or repeated groups, numerous alternations, extensive use of backreferences and escape characters, lookaheads, lookbehinds, and other advanced features. Additionally, complex regular expressions may lack proper comments and documentation, making them challenging to comprehend and maintain.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    "deprecated",
+    "async"
+  ],
+  "examples": {
+    "noncompliant": [
+      "/^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/",
+      "/^(this_is_a_very_long_group_with_many_characters_that_exceeds_fifty_chars)$/",
+      "/^[abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+=-]$/",
+      "new RegExp(\"very_long_pattern_with_over_one_hundred_characters_that_makes_it_hard_to_read_and_maintain\")"
+    ],
+    "compliant": [
+      "/^[a-z]+$/",
+      "/\\d{3}-\\d{3}-\\d{4}/",
+      "/^(test)$/",
+      "new RegExp(\"^test$\")"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-5843"
+  ],
+  "logic": {
+    "node_types": [
+      "Literal",
+      "NewExpression", 
+      "VariableDeclaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "/[^\"']*\\.[^\"']{100,}/",
+          "/[^\"']*\\([^)]{50,}\\)[^\"']*/",
+          "/[^\"']*\\[[^\\]]{40,}\\][^\"']*/",
+          "new\\s+RegExp\\s*\\([\"'][^\"']{100,}[\"']\\)",
+          "(?:\\(\\?[:=!<]){3,}",
+          "(?:\\|[^|)]{15,}){4,}",
+          "/[^\"']*(?:\\\\[a-zA-Z]){8,}[^\"']*/",
+          "/[^\"']*(?:[+*?]){3,}[^\"']*/"
+        ],
+        "message": "Regular expression is too complex - consider breaking it down or using multiple simpler patterns"
+      }
+    ]
+  }
+}

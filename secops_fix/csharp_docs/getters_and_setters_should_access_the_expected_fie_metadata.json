@@ -1,0 +1,72 @@
+{
+  "filename": "getters_and_setters_should_access_the_expected_fie_metadata.json",
+  "rule_id": "getters_setters_access_expected",
+  "title": "Getters and setters should access the expected fields",
+  "description": "Getters and setters should access the expected fieldsAnalyze your codeintentionality-clearreliabilityBugpitfallWhy is this an issue?How can I fix it?More InfoProperties provide a way to enforceencapsulationby providing accessors that give controlled access toprivatefields. However, in classes with multiple fields, it is not unusual thatcopy-and-pasteis used to quickly create the needed properties, which can result in the wrong field being accessed by a getter or setter.class C { private int x; private int y; public int Y => x; // Noncompliant: The returned field should be 'y' }This rule raises an issue in any of these cases:A getter does not access the field with the corresponding name.A setter does not update the field with the corresponding name.For simple properties, it is better to use",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "private int x;",
+      "private int y;",
+      "",
+      "public int X",
+      "{",
+      "    get { return x; }",
+      "    set { y = value; } // Noncompliant: setting wrong field",
+      "}"
+    ],
+    "compliant": [
+      "private int x;",
+      "private int y;",
+      "",
+      "public int X",
+      "{",
+      "    get { return x; }",
+      "    set { x = value; } // Compliant",
+      "}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-4275"
+  ],
+  "logic": {
+    "target_ast_nodes": ["PropertyDeclaration", "ClassDeclaration"],
+    "detection_conditions": "Detects properties with explicit getter/setter bodies (candidates for field access verification)",
+    "triggering_conditions": "Identifies properties with explicit get/set blocks as candidates for manual review",
+    "exclusion_conditions": "Excludes: auto-properties, computed properties, comments",
+    "never_trigger_on": [
+      "Auto-properties ({ get; set; })",
+      "Properties without explicit field access",
+      "Computed properties",
+      "Comments and documentation",
+      "Generated code"
+    ],
+    "reasoning": "This rule requires semantic analysis to properly match property names to accessed field names. Challenges: 1) Extract property name, 2) Extract field names from getter/setter bodies, 3) Account for naming conventions (_field, m_field, field for Property Field), 4) Verify correspondence. Regex alone cannot reliably achieve this. This implementation provides a heuristic by detecting properties with explicit get/set blocks that access fields (return/assign pattern), flagging them for manual verification. A complete solution requires a custom function with AST traversal and symbol table lookup.",
+    "validation_examples": {
+      "should_trigger": [
+        "public int Y { get { return x; } }",
+        "public int X { set { y = value; } }"
+      ],
+      "should_not_trigger": [
+        "public int X { get; set; }",
+        "public int X { get { return _x; } set { _x = value; } }"
+      ]
+    },
+    "node_types": ["PropertyDeclaration", "ClassDeclaration"],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_getters_setters_access_expected"
+      }
+    ]
+  }
+}

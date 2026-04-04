@@ -1,0 +1,80 @@
+{
+  "filename": "constructor_and_destructor_declarations_should_not_metadata.json",
+  "rule_id": "constructor_destructor_declarations_redundant",
+  "title": "Constructor and destructor declarations should not be redundant",
+  "description": "Constructor and destructor declarations should not be redundantAnalyze your codeintentionality-clearmaintainabilityCode SmellQuick FixIDE quick fixes available with SonarQube for IDEfindingclumsyWhy is this an issue?Since the compiler will automatically invoke the base type’s no-argument constructor, there’s no need to specify its invocation explicitly. Also, when only a singlepublicparameterless constructor is defined in a class, then that constructor can be removed because the compiler would generate it automatically. Similarly, emptystaticconstructors and empty destructors are also wasted keystrokes.Noncompliant code exampleclass X { public X() { } // Noncompliant static X() { } // Noncompliant ~X() { } // Noncompliant ..",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "class X\n{\n    public X() { } // Noncompliant: redundant parameterless constructor\n    static X() { } // Noncompliant: empty static constructor\n    ~X() { } // Noncompliant: empty destructor\n}\n\nclass Y : Base\n{\n    public Y() : base() { } // Noncompliant: explicitly calling base constructor with no arguments\n}"
+    ],
+    "compliant": [
+      "class X\n{\n    // No constructor needed - compiler generates default\n}\n\nclass Y : Base\n{\n    public Y(string name) : base(name) // Compliant: passing arguments to base\n    {\n        // initialization code\n    }\n}\n\nclass Z\n{\n    private Z() { } // Compliant: private constructor prevents instantiation\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3253"
+  ],
+  "logic": {
+    "target_ast_nodes": ["MethodDeclaration"],
+    "detection_conditions": "Detects empty public parameterless constructors, empty static constructors, empty destructors, and explicit base() calls",
+    "triggering_conditions": "Triggers when constructor or destructor declarations are empty (only braces, no code) OR when base() is explicitly called without arguments",
+    "exclusion_conditions": "Excludes private constructors, constructors with parameters, constructors with any code inside, and base calls with arguments",
+    "never_trigger_on": [
+      "Private constructors (singleton pattern)",
+      "Constructors with parameters",
+      "Constructors with initialization code",
+      "Static constructors with code",
+      "Destructors with cleanup code",
+      "Base constructor calls with arguments",
+      "Comments and documentation",
+      "Test code"
+    ],
+    "reasoning": "Redundant constructors and destructors add unnecessary code clutter. The compiler automatically generates default parameterless constructors, so explicit empty ones are redundant. Empty static constructors and destructors serve no purpose. Explicitly calling base() without arguments is redundant as it's done automatically. Private constructors are excluded as they're used to prevent instantiation (singleton pattern). Constructors with code are valid initialization.",
+    "validation_examples": {
+      "should_trigger": [
+        "public MyClass() { }",
+        "static MyClass() { }",
+        "~MyClass() { }",
+        "public Child() : base() { }"
+      ],
+      "should_not_trigger": [
+        "private MyClass() { }",
+        "public MyClass(string name) { }",
+        "public MyClass() { Console.WriteLine(\"Init\"); }",
+        "static MyClass() { InitStatic(); }",
+        "~MyClass() { Cleanup(); }",
+        "public Child(string name) : base(name) { }"
+      ]
+    },
+    "node_types": ["ClassDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "public\\s+\\w+\\s*\\(\\s*\\)\\s*\\{\\s*\\}",
+          "static\\s+\\w+\\s*\\(\\s*\\)\\s*\\{\\s*\\}",
+          "~\\w+\\s*\\(\\s*\\)\\s*\\{\\s*\\}",
+          "public\\s+\\w+\\s*\\(\\s*\\)\\s*:\\s*base\\s*\\(\\s*\\)\\s*\\{"
+        ],
+        "exclude_patterns": [
+          "private\\s+\\w+\\s*\\(",
+          "\\w+\\s*\\([^)]+\\)",
+          "base\\s*\\([^)]+\\)",
+          "\\[Test",
+          "\\[Fact"
+        ]
+      }
+    ]
+  }
+}

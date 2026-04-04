@@ -1,0 +1,63 @@
+{
+  "filename": "expanding_archive_files_without_controlling_resour_metadata.json",
+  "rule_id": "expanding_archive_files_without",
+  "title": "Expanding archive files without controlling resource consumption is security-sensitive",
+  "description": "Expanding archive files without controlling resource consumption is security-sensitiveAnalyze your codeintentionality-completesecuritySecurity HotspotcweSuccessful Zip Bomb attacks occur when an application expands untrusted archive files without controlling the size of the expanded data, which can lead to denial of service. A Zip bomb is usually a malicious archive file of a few kilobytes of compressed data but turned into gigabytes of uncompressed data. To achieve this extremecompression ratio, attackers will compress irrelevant data (eg: a long string of repeated bytes).Ask Yourself WhetherArchives to expand are untrusted and:There is no validation of the number of entries in the archive.There is no validation of the total size of the uncompressed data.There is no validation of the rati",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "using var zipToOpen = new FileStream(@\"ZipBomb.zip\", FileMode.Open);\nusing var archive = new ZipArchive(zipToOpen, ZipArchiveMode.Read);\nforeach (ZipArchiveEntry entry in archive.Entries)\n{\n  entry.ExtractToFile(\"./output_onlyfortesting.txt\", true); // Sensitive\n}"
+    ],
+    "compliant": [
+      "int THRESHOLD_ENTRIES = 10000;\nint THRESHOLD_SIZE = 1000000000; // 1 GB\ndouble THRESHOLD_RATIO = 10;\nint totalSizeArchive = 0;\nint totalEntryArchive = 0;\n\nusing var zipToOpen = new FileStream(@\"ZipBomb.zip\", FileMode.Open);\nusing var archive = new ZipArchive(zipToOpen, ZipArchiveMode.Read);\nforeach (ZipArchiveEntry entry in archive.Entries)\n{\n  totalEntryArchive ++;\n\n  using (Stream st = entry.Open())\n  {\n    byte[] buffer = new byte[1024];\n    int totalSizeEntry = 0;\n    int numBytesRead = 0;\n\n    do\n    {\n      numBytesRead = st.Read(buffer, 0, 1024);\n      totalSizeEntry += numBytesRead;\n      totalSizeArchive += numBytesRead;\n      double compressionRatio = totalSizeEntry / entry.CompressedLength;\n\n      if(compressionRatio > THRESHOLD_RATIO) {\n        // ratio between compressed and uncompressed data is highly suspicious, looks like a Zip Bomb Attack\n        break;\n      }\n    }\n    while (numBytesRead > 0);\n  }\n\n  if(totalSizeArchive > THRESHOLD_SIZE) {\n      // the uncompressed data size is too much for the application resource capacity\n      break;\n  }\n\n  if(totalEntryArchive > THRESHOLD_ENTRIES) {\n      // too much entries in this archive, can lead to inodes exhaustion of the system\n      break;\n  }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-5042"
+  ],
+  "logic": {
+    "node_types": ["MethodDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "(?:ZipArchiveEntry.*|\\bentry\\s*\\.)\\s*ExtractToFile\\s*\\(",
+        "exclude_patterns": [
+          "THRESHOLD_SIZE|THRESHOLD_ENTRIES|THRESHOLD_RATIO",
+          "compressionRatio\\s*>",
+          "totalSize.*>|totalEntry.*>",
+          "\\[Test",
+          "[Ff]act\\]"
+        ],
+        "message": "Archive extraction should validate size, entry count, and compression ratio to prevent Zip Bomb attacks"
+      }
+    ],
+    "never_trigger_on": [
+      "Code with size/entry/ratio validation thresholds",
+      "Unit tests"
+    ],
+    "reasoning": "Detects unsafe archive extraction using ExtractToFile() without size validation, covering both explicit ZipArchiveEntry usage and implicit entry variables from archive operations. Zip bombs can cause denial of service by expanding small archives into huge files. Pattern matches extraction calls and excludes code with validation thresholds.",
+    "validation_examples": {
+      "should_trigger": [
+        "foreach (ZipArchiveEntry entry in archive.Entries) { entry.ExtractToFile(path); }",
+        "foreach (var entry in archive.Entries) { entry.ExtractToFile(path); }",
+        "entry.ExtractToFile(destinationPath);"
+      ],
+      "should_not_trigger": [
+        "int THRESHOLD_SIZE = 1000000; if (totalSize > THRESHOLD_SIZE) break; entry.ExtractToFile(path);",
+        "double THRESHOLD_RATIO = 10; if (compressionRatio > THRESHOLD_RATIO) break; entry.ExtractToFile(path);"
+      ]
+    },
+    "precision_target": "80%",
+    "self_critique_notes": "Pattern detects ExtractToFile calls and excludes code with validation patterns. This is a security-sensitive check. False negatives possible if validation uses different variable names."
+  }
+}

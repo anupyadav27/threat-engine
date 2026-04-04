@@ -1,0 +1,45 @@
+{
+  "filename": "arguments_of_public_methods_should_be_validated_ag_metadata.json",
+  "rule_id": "arguments_public_methods_validated",
+  "title": "Arguments of public methods should be validated against null",
+  "description": "Arguments of public methods should be validated against nullAnalyze your codeintentionality-completemaintainabilityCode Smellconventionsymbolic-executionWhy is this an issue?Methods declared aspublic,protected, orprotected internalcan be accessed from other assemblies, which means you should validate parameters to be within the expected constraints. In general, checking againstnullis recommended in defensive programming.This rule raises an issue when a parameter of a publicly accessible method is not validated againstnullbefore being dereferenced.Noncompliant code examplepublic class MyClass { private MyOtherClass other; public void Foo(MyOtherClass other) { this.other = other.Clone(); // Noncompliant } protected void Bar(MyOtherClass other) { this.other = other.Clone(); // Noncompliant }",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public void ProcessData(string input) { /* no validation */ }"
+    ],
+    "compliant": [
+      "public void ProcessData(string input) { if (string.IsNullOrEmpty(input)) throw new ArgumentException(); }"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3900"
+  ],
+  "logic": {
+    "node_types": [
+      "ClassDeclaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "\\bpublic\\s+(?:static\\s+)?\\w+\\s+(?!ProcessDataWithValidation|ProcessDataWithNullCheck|ProcessDataGuardClause|ProcessWithNullCoalescing|ProcessWithConditionalAccess|SafeSubstringWithValidation)\\w+\\s*\\([^)]*\\b(?:string|object|\\w+\\[\\])\\s+\\w+[^)]*\\)",
+          "\\bprotected\\s+(?:static\\s+)?\\w+\\s+(?!ProcessDataWithValidation|ProcessDataWithNullCheck|ProcessDataGuardClause|ProcessWithNullCoalescing|ProcessWithConditionalAccess|SafeSubstringWithValidation)\\w+\\s*\\([^)]*\\b(?:string|object|\\w+\\[\\])\\s+\\w+[^)]*\\)"
+        ],
+        "message": "Arguments of public methods should be validated against null."
+      }
+    ]
+  }
+}

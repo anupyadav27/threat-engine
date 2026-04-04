@@ -1,0 +1,48 @@
+{
+  "filename": "header_files_should_avoid_containing_unnamed_names_metadata.json",
+  "rule_id": "header_files_avoid_containing",
+  "title": "Header files should avoid containing unnamed namespaces",
+  "description": "Header files should not contain unnamed namespacesAnalyze your codeintentionality-clearmaintainabilityCode Smellcertmisra-c++2008pitfallWhy is this an issue?More InfoAn unnamed namespace will be unique within each translation unit. Any declarations appearing in an unnamed namespace in a header will refer to a different entity in each translation unit, which is probably not the expected behavior.Noncompliant code example// Header.hpp namespace // Noncompliant { extern int32_t x; }// File1.cpp #include \"Header.hpp\" namespace { int32_t x; } void fn_a(void) { x = 42; }// File2.cpp #include \"Header.hpp\" namespace { int32_t x; // this is a different x than in File1.cpp } void fn_b(void) { fn_a(); // Is expected to initialize \"x\" to 42 if (x == 42) // But does not, as there are 2 distinct \"x\" var",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cert"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Header.hpp\nnamespace                  // Noncompliant\n{\n  extern int32_t x;\n}"
+    ],
+    "compliant": [
+      "// File1.cpp\n#include \"Header.hpp\"\n\nnamespace\n{\n  int32_t x;\n}\n\nvoid fn_a(void)\n{\n  x = 42;\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-1000"
+  ],
+  "logic": {
+    "node_types": [
+      "*"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "namespace\\s*\\{",
+          "namespace\\s*\\/\\/.*\\n\\s*\\{"
+        ],
+        "exclude_patterns": [
+          "namespace\\s+\\w+\\s*\\{",
+          "//.*namespace\\s*\\{",
+          "/\\*.*namespace\\s*\\{.*\\*/"
+        ],
+        "message": "Header file contains unnamed namespace which should be avoided"
+      }
+    ]
+  }
+}

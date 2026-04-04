@@ -1,0 +1,75 @@
+{
+  "filename": "explicit_conversions_of_foreach_loops_should_be_av_metadata.json",
+  "rule_id": "explicit_conversions_foreach_loops",
+  "title": "Explicit conversions of foreach loops should be avoided",
+  "description": "The foreach statement was introduced in the C# language prior to generics to make it easier to work with the non-generic collections available at that time such as ArrayList. The foreach statements allow you to downcast elements of a collection of Objects to any other type. The problem is that to achieve the cast, the foreach statements silently perform explicit type conversion, which at runtime can result in an InvalidCastException.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public void ProcessItems(ArrayList list)\n{\n    foreach (string item in list) // Noncompliant - explicit cast to string\n    {\n        Console.WriteLine(item);\n    }\n}"
+    ],
+    "compliant": [
+      "public void ProcessItems(List<string> list)\n{\n    foreach (string item in list) // Compliant - using generic collection\n    {\n        Console.WriteLine(item);\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3217"
+  ],
+  "logic": {
+    "node_types": ["ForStatement"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "foreach\\s*\\(\\s*(?!var\\s|object\\s)(\\w+)\\s+\\w+\\s+in\\s+",
+        "exclude_patterns": [
+          "List<",
+          "IEnumerable<",
+          "ICollection<",
+          "Dictionary<",
+          "HashSet<",
+          "Queue<",
+          "Stack<",
+          "\\.Cast<",
+          "\\.OfType<",
+          "in stringList\\)",
+          "in numbers\\)",
+          "GetGeneric",
+          "^//",
+          "^/\\*",
+          "^///"
+        ]
+      }
+    ],
+    "never_trigger_on": [
+      "Generic collections (List<T>, IEnumerable<T>, Dictionary<T,U>, etc.)",
+      "var keyword usage (implicit typing)",
+      "object type (no downcast)",
+      "Explicit LINQ Cast<T> or OfType<T> methods",
+      "Comments"
+    ],
+    "reasoning": "Detects foreach loops with explicit type conversions from non-generic collections (ArrayList, Hashtable, non-generic IEnumerable). The pattern matches foreach with a specific type (not var, not object) iterating over a collection. Exclusions prevent false positives from generic collections, var usage, and explicit LINQ casting methods which make the intent clear.",
+    "validation_examples": {
+      "should_trigger": [
+        "foreach (string item in list) { }  // where list is ArrayList",
+        "foreach (int number in collection) { }  // where collection is IEnumerable",
+        "foreach (MyClass obj in items) { }  // where items is non-generic"
+      ],
+      "should_not_trigger": [
+        "foreach (string item in List<string>) { }",
+        "foreach (var item in list) { }",
+        "foreach (object item in list) { }",
+        "foreach (string item in list.Cast<string>()) { }"
+      ]
+    }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "filename": "array_type_function_arguments_should_not_decay_to__metadata.json",
+  "rule_id": "array_type_function_arguments",
+  "title": "Array type function arguments should not decay to pointers",
+  "description": "Array type function arguments should not decay to pointersAnalyze your codeconsistency-conventionalmaintainabilityCode Smellcppcoreguidelinesbased-on-misrapitfallWhy is this an issue?More InfoWhen a variable with array type decays to a pointer, its bounds are lost.If a design requires arrays of different lengths, then a class should be used to encapsulate the array objects and so ensure that the size is maintained. Note that in C++20, the classstd::spanis designed for this purpose, and you can find implementation ofspanthat works with earlier versions of the standard.Noncompliant code examplevoid f1( int p[ 10 ] ); // Non-compliant, function called with arguments of array type void f2( int *p ); // Non-compliant, function is called with arguments of array type void functionWorkingOnSingleI",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "convention",
+    "design"
+  ],
+  "examples": {
+    "noncompliant": [
+      "void f1(int p[10]); // Non-compliant: array decays to pointer, bounds lost",
+      "void f2(int *p); // Non-compliant: pointer parameter loses array information",
+      "void processArray(int arr[]); // Non-compliant: array size information lost"
+    ],
+    "compliant": [
+      "void f1(std::span<int> p); // Compliant: using std::span preserves bounds",
+      "void f2(std::array<int, 10>& arr); // Compliant: using std::array preserves size",
+      "template<size_t N>\nvoid processArray(std::array<int, N>& arr); // Compliant: template preserves size",
+      "void f3(int (&arr)[10]); // Compliant: reference to array preserves bounds"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-945"
+  ],
+  "logic": {
+    "node_types": [
+      "declaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "\\w+\\s+\\w+\\s*\\([^)]*\\w+\\s+(\\w+\\[\\d*\\]|\\*\\w+)[^)]*\\)"
+        ],
+        "message": "Array type function arguments should not decay to pointers"
+      }
+    ]
+  }
+}

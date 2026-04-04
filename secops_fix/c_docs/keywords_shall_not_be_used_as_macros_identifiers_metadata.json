@@ -1,0 +1,65 @@
+{
+  "filename": "keywords_shall_not_be_used_as_macros_identifiers_metadata.json",
+  "rule_id": "keywords_shall_as_macros",
+  "title": "Keywords shall not be used as macros identifiers",
+  "description": "Keywords shall not be used as macros identifiersAnalyze your codeintentionality-completemaintainabilityCode Smellbased-on-misraunpredictablepitfallWhy is this an issue?More InfoIn programming languages, keywords have a special meaning and are reserved for the language. Hence, it is a bad idea to define macros with keywords as macro identifiers as it can easily lead to undefined behavior:The same object might be defined differently in different places, which violates the One Definition RuleIf you include any header from the standard library, it is undefined behavior to define such macrosAdditionally, it is awkward for anyone reading the code to have a keyword that means something different.Noncompliant code example#define int some_other_type // Noncompliant #include <stdlib.h>Available In:C",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "General",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "c"
+  ],
+  "examples": {
+    "noncompliant": [
+      "#define int some_other_type  // Noncompliant",
+      "#define void MY_VOID  // Noncompliant",
+      "#define return my_return  // Noncompliant"
+    ],
+    "compliant": [
+      "#define INT_TYPE some_other_type  // Compliant",
+      "#define MY_VOID_TYPE void  // Compliant",
+      "#define MY_RETURN return  // Compliant"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-5266"
+  ],
+  "logic": {
+    "node_types": [
+      "PreprocessorDirective",
+      "MacroDefinition"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "#define\\s+(auto|break|case|char|const|continue|default|do|double|else|enum|extern|float|for|goto|if|int|long|register|return|short|signed|sizeof|static|struct|switch|typedef|union|unsigned|void|volatile|while)\\s",
+          "#define\\s+(auto|break|case|char|const|continue|default|do|double|else|enum|extern|float|for|goto|if|int|long|register|return|short|signed|sizeof|static|struct|switch|typedef|union|unsigned|void|volatile|while)\\(",
+          "#define\\s+(inline|restrict|_Bool|_Complex|_Imaginary)\\s",
+          "#define\\s+(inline|restrict|_Bool|_Complex|_Imaginary)\\("
+        ],
+        "message": "C keyword used as macro identifier. Keywords are reserved and should not be redefined as macros."
+      },
+      {
+        "type": "c99_keyword_check",
+        "property_path": ["source"],
+        "conditions": [
+          "is_macro_definition",
+          "uses_reserved_keyword",
+          "not_function_like_macro_with_keyword_body"
+        ],
+        "keywords": [
+          "auto", "break", "case", "char", "const", "continue", "default", "do",
+          "double", "else", "enum", "extern", "float", "for", "goto", "if",
+          "int", "long", "register", "return", "short", "signed", "sizeof",
+          "static", "struct", "switch", "typedef", "union", "unsigned", "void",
+          "volatile", "while", "inline", "restrict", "_Bool", "_Complex", "_Imaginary"
+        ],
+        "message": "Macro identifier matches C keyword. Use a descriptive non-keyword name to avoid undefined behavior."
+      }
+    ]
+  }
+}

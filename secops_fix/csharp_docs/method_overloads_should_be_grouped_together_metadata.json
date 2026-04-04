@@ -1,0 +1,53 @@
+{
+  "filename": "method_overloads_should_be_grouped_together_metadata.json",
+  "rule_id": "method_overloads_grouped_together",
+  "title": "Method overloads should be grouped together",
+  "description": "Method overloads should be grouped togetherAnalyze your codeconsistency-formattedmaintainabilityCode SmellconventionWhy is this an issue?For clarity, all overloads of the same method should be grouped together. That lets both users and maintainers quickly understand all the current available options.Noncompliant code exampleinterface IMyInterface { int DoTheThing(); // Noncompliant - overloaded method declarations are not grouped together string DoTheOtherThing(); int DoTheThing(string s); }Compliant solutioninterface IMyInterface { int DoTheThing(); int DoTheThing(string s); string DoTheOtherThing(); }ExceptionsAs it is common practice to group method declarations by implemented interface, no issue will be raised for implicit and explicit interface implementations if grouped together with",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "interface IMyInterface\n{\n  int DoTheThing(); // Noncompliant - overloaded method declarations are not grouped together\n  string DoTheOtherThing();\n  int DoTheThing(string s);\n}"
+    ],
+    "compliant": [
+      "interface IMyInterface\n{\n  int DoTheThing();\n  int DoTheThing(string s);\n  string DoTheOtherThing();\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-4136"
+  ],
+  "logic": {
+    "custom_function": "check_method_overloads_grouped_together",
+    "node_types": [
+      "ClassDeclaration"
+    ],
+    "never_trigger_on": [
+      "Logging: Console.*, Logger.*, Debug.*",
+      "String formatting: $\"\", string.Format",
+      "Unit tests: [Test], [Fact], [TestFixture], [TestClass], Assert.*",
+      "Comments: //, /*, ///",
+      "Interface implementations: explicit and implicit groupings",
+      "Properly grouped overloads (all consecutive)"
+    ],
+    "reasoning": "This rule uses a custom function that tracks method declaration order to detect when overloads are not grouped together. The function: 1) Parses all classes/interfaces and their boundaries. 2) Collects methods in declaration order within each type. 3) Groups methods by name to identify overloads. 4) Checks if all overloads of a method are consecutive (no other methods between them). 5) Flags violations when overloads are separated by other method declarations. 6) Excludes test classes marked with [TestFixture], [TestClass], etc.",
+    "validation_examples": {
+      "should_trigger": [
+        "interface IMyInterface\n{\n    int DoTheThing();\n    string DoTheOtherThing();\n    int DoTheThing(string s);\n}",
+        "class MyClass\n{\n    void Process() { }\n    void Execute() { }\n    void Process(int x) { }\n}"
+      ],
+      "should_not_trigger": [
+        "interface IMyInterface\n{\n    int DoTheThing();\n    int DoTheThing(string s);\n    string DoTheOtherThing();\n}",
+        "class MyClass\n{\n    void Process() { }\n    void Process(int x) { }\n    void Execute() { }\n}",
+        "[TestFixture]\npublic class TestClass\n{\n    void Method() { }\n    void Other() { }\n    void Method(int x) { }\n}"
+      ]
+    }
+  }
+}

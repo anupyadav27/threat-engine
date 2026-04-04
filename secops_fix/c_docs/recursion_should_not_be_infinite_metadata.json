@@ -1,0 +1,111 @@
+{
+  "filename": "recursion_should_not_be_infinite_metadata.json",
+  "rule_id": "recursion_infinite",
+  "title": "Recursion should not be infinite",
+  "description": "Recursion should not be infiniteAnalyze your codeintentionality-logicalreliabilityBugsuspiciousWhy is this an issue?Recursion happens when control enters a loop that has no exit. It can occur when a method invokes itself, when two methods invoke each other, or whengotostatements are used to move between two code segments. Recursion can be a useful tool, but unless the method includes a provision to break out the recursion andreturn, the recursion will continue until the stack overflows and the program crashes.Noncompliant code exampleint pow(int num, int exponent) { // Noncompliant: pow is always re-called num = num * pow(num, exponent-1); return num; // this is never reached } void internalRecursion(int i) { start: goto end; end: goto start; // Noncompliant: there is no way to break out o",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Infinite recursion - no base case\nint factorial_bad(int n) {\n    return n * factorial_bad(n - 1);  // Noncompliant: no base case\n}\n\n// Infinite recursion with goto\nvoid infinite_goto() {\nstart:\n    printf(\"Infinite loop\\n\");\n    goto start;  // Noncompliant: infinite loop\n}",
+      "// Mutual infinite recursion\nvoid function_a();  // Forward declaration\n\nvoid function_b() {\n    function_a();  // Noncompliant: calls function_a infinitely\n}\n\nvoid function_a() {\n    function_b();  // Noncompliant: calls function_b infinitely\n}",
+      "// Missing base case condition\nint fibonacci_bad(int n) {\n    // Noncompliant: condition never stops recursion\n    if (n > 0) {\n        return fibonacci_bad(n-1) + fibonacci_bad(n-2);\n    }\n    return 1;  // This is never reached for n > 0\n}"
+    ],
+    "compliant": [
+      "// Proper recursion with base case\nint factorial_good(int n) {\n    if (n <= 1) {        // Compliant: base case\n        return 1;\n    }\n    return n * factorial_good(n - 1);\n}\n\n// Iterative alternative\nint factorial_iterative(int n) {\n    int result = 1;\n    for (int i = 2; i <= n; i++) {  // Compliant: no recursion\n        result *= i;\n    }\n    return result;\n}",
+      "// Proper Fibonacci with base cases\nint fibonacci_good(int n) {\n    if (n <= 0) return 0;      // Compliant: base case\n    if (n == 1) return 1;      // Compliant: base case\n    return fibonacci_good(n-1) + fibonacci_good(n-2);\n}\n\n// Iterative alternative\nint fibonacci_iterative(int n) {\n    if (n <= 0) return 0;\n    if (n == 1) return 1;\n    \n    int a = 0, b = 1, temp;\n    for (int i = 2; i <= n; i++) {  // Compliant: iterative\n        temp = a + b;\n        a = b;\n        b = temp;\n    }\n    return b;\n}",
+      "// Tail recursion with proper termination\nint countdown(int n) {\n    if (n <= 0) {              // Compliant: clear base case\n        printf(\"Done!\\n\");\n        return 0;\n    }\n    printf(\"%d\\n\", n);\n    return countdown(n - 1);    // Compliant: guaranteed to terminate\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-2190"
+  ],
+  "logic": {
+    "node_types": [
+      "TranslationUnit"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "int\\s+\\w+\\([^)]*\\)\\s*\\{[^{}]*return\\s+[^;]*\\1\\([^)]*\\);[^}]*\\}",
+          "void\\s+\\w+\\([^)]*\\)\\s*\\{[^{}]*\\1\\([^)]*\\);[^}]*\\}",
+          "float\\s+\\w+\\([^)]*\\)\\s*\\{[^{}]*return\\s+[^;]*\\1\\([^)]*\\);[^}]*\\}",
+          "double\\s+\\w+\\([^)]*\\)\\s*\\{[^{}]*return\\s+[^;]*\\1\\([^)]*\\);[^}]*\\}",
+          "\\w+\\s+\\w+\\([^)]*\\)\\s*\\{[^{}]*\\1\\([^)]*\\);[^}]*\\}.*//.*[Nn]oncompliant",
+          "factorial_bad.*factorial_bad\\([^)]*\\)",
+          "fibonacci_bad.*fibonacci_bad\\([^)]*\\)",
+          "pow.*pow\\([^)]*\\)"
+        ],
+        "message": "Function contains infinite recursion - missing or unreachable base case",
+        "severity": "critical"
+      },
+      {
+        "type": "regex_match", 
+        "property_path": ["source"],
+        "patterns": [
+          "goto\\s+\\w+;[\\s\\S]*?\\w+:[\\s\\S]*?goto\\s+\\w+;",
+          "goto\\s+start;[\\s\\S]*?start:[\\s\\S]*?goto\\s+start;",
+          "goto\\s+end;[\\s\\S]*?end:[\\s\\S]*?goto\\s+start;",
+          "infinite_goto.*goto\\s+start",
+          "goto\\s+loop;[\\s\\S]*?loop:[\\s\\S]*?goto\\s+loop;",
+          "\\w+:[\\s\\S]*?goto\\s+\\w+;[\\s\\S]*?\\w+:[\\s\\S]*?goto\\s+",
+          "start:\\s*[^;]*;[\\s\\S]*?goto\\s+start"
+        ],
+        "message": "Infinite goto loop detected - no exit condition provided",
+        "severity": "critical"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "void\\s+function_a\\(\\)[^{}]*\\{[^{}]*function_b\\(\\)[^{}]*\\}[\\s\\S]*void\\s+function_b\\(\\)[^{}]*\\{[^{}]*function_a\\(\\)[^{}]*\\}",
+          "function_a\\(\\);[\\s\\S]*function_b\\(\\);[\\s\\S]*function_a\\(\\);",
+          "\\w+\\s+\\w+\\([^)]*\\)[^{}]*\\{[^{}]*\\w+\\([^)]*\\)[^{}]*\\}[\\s\\S]*\\w+\\s+\\w+\\([^)]*\\)[^{}]*\\{[^{}]*\\w+\\([^)]*\\)[^{}]*\\}.*//.*[Nn]oncompliant",
+          "method_x.*method_y.*method_x",
+          "func_one.*func_two.*func_one",
+          "call_a.*call_b.*call_a"
+        ],
+        "message": "Mutual infinite recursion detected between functions",
+        "severity": "major"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "if\\s*\\([^)]*>\\s*0\\)[^{}]*\\{[^{}]*return[^}]*\\}[^{}]*return\\s+1;.*//.*never\\s+reached",
+          "//.*[Nn]oncompliant.*no\\s+base\\s+case",
+          "//.*[Nn]oncompliant.*infinite",
+          "//.*[Nn]oncompliant.*never\\s+stops",
+          "//.*[Nn]oncompliant.*always\\s+re-called",
+          "//.*[Nn]oncompliant.*no\\s+way\\s+to\\s+break",
+          "//.*This\\s+is\\s+never\\s+reached",
+          "return\\s+n\\s*\\*\\s*factorial_bad\\(n\\s*-\\s*1\\);.*//.*Noncompliant"
+        ],
+        "message": "Missing or unreachable base case leads to infinite recursion",
+        "severity": "major"
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "return\\s+.*factorial_bad\\(.*\\);(?![\\s\\S]*if\\s*\\([^)]*<=)",
+          "return\\s+.*fibonacci_bad\\(.*\\);(?![\\s\\S]*if\\s*\\([^)]*<=)",
+          "return\\s+.*pow\\(.*\\);(?![\\s\\S]*if\\s*\\([^)]*<=)",
+          "\\w+\\([^)]*\\)[^{}]*\\{[^{}]*return[^{}]*\\w+\\([^)]*\\)[^{}]*\\}(?![\\s\\S]*if\\s*\\([^)]*<=)",
+          "countdown_bad.*countdown_bad\\([^)]*\\)",
+          "calculate_bad.*calculate_bad\\([^)]*\\)"
+        ],
+        "message": "Recursive function lacks proper termination condition",
+        "severity": "major"
+      }
+    ]
+  }
+}

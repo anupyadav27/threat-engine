@@ -1,0 +1,41 @@
+{
+  "filename": "sensitive_information_should_not_be_logged_in_production_builds_metadata.json",
+  "rule_id": "vulnerability_sensitive_info_logging",
+  "title": "Do not log sensitive info in production",
+  "description": "Logging sensitive information in production environments can lead to security breaches if logs are accessed by unauthorized individuals. This rule detects logging of sensitive data in production builds and recommends removing or masking such information.",
+  "status": "ready",
+  "defaultSeverity": "Critical",
+  "category": "Vulnerability",
+  "recommendation": "Ensure that sensitive information such as passwords, secrets, tokens, or personal data is never logged in production. Use secure logging practices and mask or omit sensitive fields.",
+  "impact": "Security risk due to potential exposure of sensitive information in logs.",
+  "examples": {
+    "noncompliant": [
+      "logger.info(\"User password: \" + password);",
+      "System.out.println(\"Credit card number: \" + creditCardNumber);"
+    ],
+    "compliant": [
+      "logger.info(\"User logged in\");",
+      "logger.info(\"Credit card processed\");"
+    ]
+  },
+  "references": [
+    {
+      "url": "https://rules.sonarsource.com/java/RSPEC-7610"
+    }
+  ],
+  "logic": {
+    "node_types": ["MethodInvocation"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "logger\\.[^\\(]*\\([^\\)]*(?:password|secret|token|key|credential|ssn|credit.*card).*\\)",
+          "System\\.out\\.print[^\\(]*\\([^\\)]*(?:password|secret|token|key|credential|ssn|credit.*card).*\\)",
+          "Log\\.[^\\(]*\\([^\\)]*(?:password|secret|token|key|credential|ssn|credit.*card).*\\)"
+        ],
+        "message": "Sensitive information should not be logged in production builds."
+      }
+    ]
+  }
+}

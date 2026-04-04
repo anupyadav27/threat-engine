@@ -1,0 +1,45 @@
+{
+  "filename": "function_like_macros_should_not_be_invoked_without_metadata.json",
+  "rule_id": "functionlike_macros_invoked_without",
+  "title": "Function-like macros should not be invoked without all of their arguments",
+  "description": "Function-like macros should not be invoked without all of their argumentsAnalyze your codeintentionality-logicalreliabilityBugcwebased-on-misrapreprocessorWhy is this an issue?More InfoBefore compilation, the preprocessor replaces macros with the code they expand to. The resulting code may be invalid when a function-like macro is invoked without all its arguments, which can cause the program to fail to compile or to behave unexpectedly at runtime.Available In:Catch issues on the fly,in your IDEDetect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CIDeveloper EditionAvailable Since9.1©2025SonarSource Sàrl. All rights reserved.Privacy Policy|Cookie Policy|Terms of Use",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "cwe",
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "#define LOG_ERROR(msg, code) printf(\"Error: %s (code: %d)\\n\", msg, code)\n\nint main() {\n  LOG_ERROR(\"File not found\"); // Noncompliant: missing 'code' argument\n  return 0;\n}",
+      "#define DECLARE_VAR(type, name, value) type name = value\n\nvoid func() {\n  DECLARE_VAR(int, x); // Noncompliant: missing 'value' argument\n}"
+    ],
+    "compliant": [
+      "#define LOG_ERROR(msg, code) printf(\"Error: %s (code: %d)\\n\", msg, code)\n\nint main() {\n  LOG_ERROR(\"File not found\", 404); // Compliant: all arguments provided\n  return 0;\n}",
+      "#define DECLARE_VAR(type, name, value) type name = value\n\nvoid func() {\n  DECLARE_VAR(int, x, 42); // Compliant: all arguments provided\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-961"
+  ],
+  "logic": {
+    "node_types": [
+      "TranslationUnit"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "LOG_ERROR\\s*\\(\\s*\"[^\"]*\"\\s*\\)\\s*;"
+        ],
+        "message": "Function-like macros should not be invoked without all of their arguments"
+      }
+    ]
+  }
+}

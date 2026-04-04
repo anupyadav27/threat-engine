@@ -1,0 +1,147 @@
+{
+  "filename": "event_handlers_should_include_the_correct_signatur_metadata.json",
+  "rule_id": "event_handlers_include_correct",
+  "title": "Event Handlers should include the correct signature",
+  "description": "Event Handlers should have the correct signatureAnalyze your codeconsistency-conventionalmaintainabilityCode SmellconventionWhy is this an issue?More InfoDelegate event handlers (i.e. delegates used as type of an event) should have a very specific signature:Return typevoid.First argument of typeSystem.Objectand named 'sender'.Second argument of typeSystem.EventArgs(or any derived type) and is named 'e'.This rule raises an issue whenever adelegatedeclaration doesn’t match that signature.Noncompliant code examplepublic delegate void AlarmEventHandler(object s); public class Foo { public event AlarmEventHandler AlarmEvent; // Noncompliant }Compliant solutionpublic delegate void AlarmEventHandler(object sender, AlarmEventArgs e); public class Foo { public event AlarmEventHandler AlarmEvent; //",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public delegate void AlarmEventHandler(object s); public class Foo { public event AlarmEventHandler AlarmEvent; // Noncompliant }"
+    ],
+    "compliant": [
+      "public delegate void AlarmEventHandler(object sender, AlarmEventArgs e); public class Foo { public event AlarmEventHandler AlarmEvent; //"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3906"
+  ],
+  "logic": {
+    "target_ast_nodes": ["CompilationUnit"],
+    "detection_conditions": "Delegate with EventHandler/Event name suffix but incorrect signature",
+    "triggering_conditions": "EventHandler delegate with: no params, single param, wrong param types, or wrong param names",
+    "exclusion_conditions": "Exclude test code, built-in EventHandler, Action/Func, non-event delegates",
+    "never_trigger_on": [
+      "Test code ([Test], [Fact], Assert.*)",
+      "Built-in EventHandler and EventHandler<T>",
+      "Action<> and Func<> delegates",
+      "Delegates without EventHandler/Event in name",
+      "Compliant delegates (object sender, EventArgs e)",
+      "Logging statements"
+    ],
+    "reasoning": "Enforces Microsoft's event handler delegate convention: void return, object sender, EventArgs e. Detects violations: (1) No parameters. (2) Single parameter. (3) Wrong first param type (not object). (4) Wrong parameter names (not 'sender' and 'e'). Uses multiple specific patterns to catch each violation type without relying on exclude patterns that would skip the entire node. Each check targets a specific anti-pattern.",
+    "validation_examples": {
+      "should_trigger": [
+        "public delegate void AlarmEventHandler(object s);",
+        "public delegate void StatusEventHandler(string sender, int code);",
+        "public delegate void DataEventHandler(object obj, EventArgs args);",
+        "public delegate void EmptyEventHandler();"
+      ],
+      "should_not_trigger": [
+        "public delegate void AlarmEventHandler(object sender, AlarmEventArgs e);",
+        "public event EventHandler StatusChanged;",
+        "public event EventHandler<CustomEventArgs> CustomEvent;",
+        "public delegate int CalculationDelegate(int x, int y);"
+      ]
+    },
+    "node_types": ["CompilationUnit"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "delegate\\s+void\\s+\\w*EventHandler\\w*\\s*\\(\\s*\\)\\s*;",
+        "exclude_patterns": [
+          "\\[Test",
+          "\\[Fact",
+          "\\[Theory",
+          "Assert\\."
+        ]
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "delegate\\s+void\\s+\\w*EventHandler\\w*\\s*\\(\\s*\\w+\\s+\\w+\\s*\\)\\s*;",
+        "exclude_patterns": [
+          "\\[Test",
+          "\\[Fact",
+          "\\[Theory",
+          "Assert\\."
+        ]
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "delegate\\s+void\\s+\\w*EventHandler\\w*\\s*\\(\\s*(?!object\\s)\\w+\\s+\\w+\\s*,",
+        "exclude_patterns": [
+          "\\[Test",
+          "\\[Fact",
+          "\\[Theory",
+          "Assert\\."
+        ]
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "delegate\\s+void\\s+\\w*EventHandler\\w*\\s*\\(\\s*object\\s+(?!sender\\s*,)\\w+\\s*,\\s*\\w*EventArgs\\s+\\w+\\s*\\)",
+        "exclude_patterns": [
+          "\\[Test",
+          "\\[Fact",
+          "\\[Theory",
+          "Assert\\."
+        ]
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "delegate\\s+void\\s+\\w*EventHandler\\w*\\s*\\(\\s*object\\s+sender\\s*,\\s*\\w*EventArgs\\s+(?!e\\s*\\))\\w+\\s*\\)",
+        "exclude_patterns": [
+          "\\[Test",
+          "\\[Fact",
+          "\\[Theory",
+          "Assert\\."
+        ]
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "delegate\\s+(?!void\\s)\\w+\\s+\\w*EventHandler\\w*\\s*\\(",
+        "exclude_patterns": [
+          "\\[Test",
+          "\\[Fact",
+          "\\[Theory",
+          "Assert\\."
+        ]
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "delegate\\s+void\\s+\\w*Event\\b(?!Handler)\\w*\\s*\\(",
+        "exclude_patterns": [
+          "\\[Test",
+          "\\[Fact",
+          "\\[Theory",
+          "Assert\\."
+        ]
+      },
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "delegate\\s+void\\s+\\w*EventHandler\\w*\\s*\\([^)]*,[^)]*,[^)]*\\)",
+        "exclude_patterns": [
+          "\\[Test",
+          "\\[Fact",
+          "\\[Theory",
+          "Assert\\."
+        ]
+      }
+    ]
+  }
+}

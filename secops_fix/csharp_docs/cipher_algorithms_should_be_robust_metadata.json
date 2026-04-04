@@ -1,0 +1,55 @@
+{
+  "filename": "cipher_algorithms_should_be_robust_metadata.json",
+  "rule_id": "cipher_algorithms_robust",
+  "title": "Cipher algorithms should be robust",
+  "description": "Encryption algorithms are essential for protecting sensitive information and ensuring secure communication in various domains. They are used for several important reasons: Confidentiality, privacy, and intellectual property protection Security during transmission or on storage devices Data integrity, general trust, and authentication When selecting encryption algorithms, tools, or combinations, you should also consider two things: No encryption is unbreakable. The strength of an encryption algorithm is usually measured by the effort required to crack it within a reasonable time frame.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant - DES is a weak algorithm\nvar des = new DESCryptoServiceProvider();",
+      "// Noncompliant - DES is obsolete\nSymmetricAlgorithm sa = DES.Create();",
+      "// Noncompliant - TripleDES is also weak\nvar des3 = new TripleDESCryptoServiceProvider();"
+    ],
+    "compliant": [
+      "// Compliant - AES is a robust algorithm\nvar aes = new AesCryptoServiceProvider();",
+      "// Compliant - using AES\nSymmetricAlgorithm sa = Aes.Create();"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-5547"
+  ],
+  "logic": {
+    "node_types": [
+      "Assignment",
+      "MethodDeclaration",
+      "ClassDeclaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "new\\s+DESCryptoServiceProvider\\s*\\(",
+          "new\\s+TripleDESCryptoServiceProvider\\s*\\(",
+          "\\bDES\\.Create\\s*\\(",
+          "\\bTripleDES\\.Create\\s*\\("
+        ],
+        "exclude_patterns": [
+          "^\\s*//.*$"
+        ],
+        "message": "Weak cipher algorithm detected. Use AES instead of DES or TripleDES for encryption."
+      }
+    ]
+  }
+}

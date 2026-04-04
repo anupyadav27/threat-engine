@@ -1,0 +1,45 @@
+{
+  "filename": "variables_should_not_be_shadowed_metadata.json",
+  "rule_id": "variables_shadowed",
+  "title": "Variables should not be shadowed",
+  "description": "Variable shadowing happens when a variable declared in a specific scope has the same name as a variable in an outer scope. This can lead to three main problems: Confusion: The same name can refer to different variables in different parts of the scope, making the code hard to read and understand. Unintended Behavior: You might accidentally use the wrong variable, leading to hard-to-detect bugs.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Potential bug",
+  "tags": [
+    "cert",
+    "bug",
+    "confusing"
+  ],
+  "examples": {
+    "noncompliant": [
+      "void f(int x, bool b) {\n  int y = 4;\n  if (b) {\n    int x = 7; // Noncompliant: the parameter \"x\" is shadowed\n    int y = 9; // Noncompliant: the local variable \"y\" is shadowed\n    // ...\n  }\n}\n\nclass Foo {\nprivate:\n  int myField;\n\npublic:\n  void doSomething() {\n    int myField = 0; // Noncompliant: Foo::myField is shadowed\n    // ...\n  }\n};"
+    ],
+    "compliant": [
+      "void f(int x, bool b) {\n  int y = 4;\n  if (b) {\n    int z = 7; // Compliant: different name, no shadowing\n    int w = 9; // Compliant: different name, no shadowing\n    // ...\n  }\n}\n\nclass Foo {\nprivate:\n  int myField;\n\npublic:\n  void doSomething() {\n    int localValue = 0; // Compliant: different name\n    this->myField = localValue; // Compliant: explicit reference\n  }\n};"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-1117"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "\\((.*\\b)(\\w+)(\\s*[,)]).*\\{[^{}]*\\{[^{}]*\\b(?:int|char|float|double|long|short|unsigned|signed|const|volatile|static)\\s+\\2\\s*[=;]",
+          "\\b(?:int|char|float|double|long|short)\\s+(\\w+)\\s*[=;][^{}]*\\{[^{}]*\\b(?:int|char|float|double|long|short)\\s+\\1\\s*[=;]"
+        ],
+        "message": "Variables should not be shadowed. Remove the problematic code and refactor as needed."
+      }
+    ]
+  }
+}

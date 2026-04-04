@@ -1,0 +1,109 @@
+{
+  "filename": "using_unencrypted_sqs_queues_is_security_sensitive_metadata.json",
+  "rule_id": "using_unencrypted_sqs_queues",
+  "title": "Using unencrypted SQS queues is security-sensitive",
+  "description": "Using unencrypted SQS queues is security-sensitiveAnalyze your coderesponsibility-trustworthysecuritySecurity HotspotawscweAmazon Simple Queue Service (SQS) is a managed message queuing service for application-to-application (A2A) communication. Amazon SQS can store messages encrypted as soon as they are received. In the case that adversaries gain physical access to the storage medium or otherwise leak a message from the file system, for example through a vulnerability in the service, they are not able to access the data.Ask Yourself WhetherThe queue contains sensitive data that could cause harm when leaked.There are compliance requirements for the service to store data encrypted.There is a risk if you answered yes to any of those questions.Recommended Secure Coding PracticesIt\u2019s recommend",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    "deprecated",
+    "async"
+  ],
+  "examples": {
+    "noncompliant": [
+      "aws-cdk-lib.aws-sqs.Queue"
+    ],
+    "compliant": [
+      "import { Queue } from 'aws-cdk-lib/aws-sqs';\n\nnew Queue(this, 'example', {\n    encryption: QueueEncryption.UNENCRYPTED // Sensitive\n});"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-6330"
+  ],
+  "logic": {
+    "node_types": [
+      "NewExpression",
+      "CallExpression",
+      "ObjectExpression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "encryption\\s*:\\s*QueueEncryption\\.UNENCRYPTED",
+        "message": "SQS Queue explicitly set to UNENCRYPTED. Use QueueEncryption.KMS_MANAGED or QueueEncryption.KMS instead."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "new\\s+(Queue|SQSQueue)\\s*\\([^,]+,\\s*['\"][^'\"]+['\"]\\s*\\)(?!\\s*;)",
+        "message": "SQS Queue created without encryption configuration. Add encryption property with QueueEncryption.KMS_MANAGED."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "new\\s+(Queue|SQSQueue)\\s*\\([^,]+,\\s*['\"][^'\"]+['\"],\\s*\\{(?![^}]*encryption\\s*:)[^}]*queueName",
+        "message": "SQS Queue created with properties but no encryption. Add encryption: QueueEncryption.KMS_MANAGED."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "new\\s+(Queue|SQSQueue)\\s*\\([^,]+,\\s*['\"][^'\"]+['\"],\\s*\\{(?![^}]*encryption\\s*:)[^}]*visibilityTimeout",
+        "message": "SQS Queue created with properties but no encryption. Add encryption: QueueEncryption.KMS_MANAGED."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "new\\s+(Queue|SQSQueue)\\s*\\([^,]+,\\s*['\"][^'\"]+['\"],\\s*\\{(?![^}]*encryption\\s*:)[^}]*fifo\\s*:",
+        "message": "FIFO SQS Queue created without encryption. Add encryption: QueueEncryption.KMS_MANAGED."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "new\\s+(Queue|SQSQueue)\\s*\\([^,]+,\\s*['\"][^'\"]+['\"],\\s*\\{(?![^}]*encryption\\s*:)[^}]*retentionPeriod",
+        "message": "SQS Queue created with retention but no encryption. Add encryption: QueueEncryption.KMS_MANAGED."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "new\\s+(Queue|SQSQueue)\\s*\\([^,]+,\\s*['\"][^'\"]+['\"],\\s*\\{(?![^}]*encryption\\s*:)[^}]*deadLetterQueue",
+        "message": "SQS Queue created with dead letter queue but no encryption. Add encryption: QueueEncryption.KMS_MANAGED."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "new\\s+.*CfnQueue\\s*\\([^,]+,\\s*['\"][^'\"]+['\"],\\s*\\{(?![^}]*kmsMasterKeyId)[^}]*queueName",
+        "message": "CfnQueue created without kmsMasterKeyId. Specify a KMS key ARN for encryption."
+      },
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "pattern": "new\\s+.*CfnQueue\\s*\\([^,]+,\\s*['\"][^'\"]+['\"],\\s*\\{(?![^}]*kmsMasterKeyId)[^}]*visibilityTimeout",
+        "message": "CfnQueue created without kmsMasterKeyId. Specify a KMS key ARN for encryption."
+      }
+    ]
+  }
+}

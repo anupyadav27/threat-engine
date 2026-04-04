@@ -1,0 +1,54 @@
+{
+  "filename": "non_existent_operators_like_should_be_avoided_metadata.json",
+  "rule_id": "nonexistent_operators_like_avoided",
+  "title": "Non-existent operators like =+ should be avoided",
+  "description": "Non-existent operators like \"=+\" should not be usedAnalyze your codeintentionality-clearreliabilityBugWhy is this an issue?Using operator pairs (e.g.,=+) that look like reversed single operators (e.g.,+=) is confusing. They compile and run but do not produce the same result as their mirrored counterpart.int target = -5; int num = 3; target =- num; // Noncompliant: target = -3. Is that the intended behavior? target =+ num; // Noncompliant: target = 3This rule raises an issue when=+,=-,=!,=&,=*,+=+, and-=-are used without any space between the operators and when there is at least one whitespace after.Replace the operators with a single one if that is the intentionint target = -5; int num = 3; target -= num; // target = -8Or fix the spacing to avoid confusionint target = -5; int num = 3; targ",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Reliability",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug",
+    "confusing"
+  ],
+  "examples": {
+    "noncompliant": [
+      "int target = -5;\nint num = 3;\ntarget =+ num; // Noncompliant: looks like += but is = +",
+      "int x = 10;\nx =- 5; // Noncompliant: looks like -= but is = -",
+      "int flag = 1;\nflag =! 0; // Noncompliant: looks like != but is = !"
+    ],
+    "compliant": [
+      "int target = -5;\nint num = 3;\ntarget += num; // Compliant: proper += operator",
+      "int x = 10;\nx -= 5; // Compliant: proper -= operator",
+      "int target = -5;\nint num = 3;\ntarget = +num; // Compliant: proper spacing for unary +"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-2757"
+  ],
+  "logic": {
+    "node_types": [
+      "AssignmentExpression",
+      "Assignment"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "^[a-zA-Z_][a-zA-Z0-9_]*\\s*=\\+\\s+[a-zA-Z0-9_]+",
+          "^[a-zA-Z_][a-zA-Z0-9_]*\\s*=-\\s+[a-zA-Z0-9_]+", 
+          "^[a-zA-Z_][a-zA-Z0-9_]*\\s*=!\\s+[a-zA-Z0-9_]+",
+          "^[a-zA-Z_][a-zA-Z0-9_]*\\s*=&\\s+[a-zA-Z0-9_]+",
+          "^[a-zA-Z_][a-zA-Z0-9_]*\\s*=\\*\\s+[a-zA-Z0-9_]+",
+          "^[a-zA-Z_][a-zA-Z0-9_]*\\s*\\+=\\+\\s+[a-zA-Z0-9_]+",
+          "^[a-zA-Z_][a-zA-Z0-9_]*\\s*-=-\\s+[a-zA-Z0-9_]+"
+        ],
+        "message": "Non-existent operators like =+, =-, =! should be avoided. Use correct operators like +=, -= or proper spacing like = +"
+      }
+    ]
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "filename": "stack_traces_should_not_be_disclosed_metadata.json",
+  "rule_id": "stack_traces_disclosed",
+  "title": "Stack traces should not be disclosed",
+  "description": "Stack traces should not be disclosedAnalyze your codeintentionality-completesecurityVulnerabilityinjectionException stack traces contain sensitive data that the application’s code should not disclose as error messages.Why is this an issue?How can I fix it?More InfoStack traces contain sensitive data like filenames or folder hierarchies. They can expose implementation details, including the application’s architecture, logic, and potential vulnerabilities. Attackers can leverage these valuable insights to identify weaknesses, devise attack strategies, and exploit vulnerabilities.Available In:Detect issues in your GitHub, Azure DevOps Services, Bitbucket Cloud, GitLab repositoriesAnalyze code in youron-premise CI©2025SonarSource Sàrl.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "try\n{\n    // Some operation\n}\ncatch (Exception ex)\n{\n    return Content(ex.StackTrace); // Noncompliant - exposing stack trace\n}",
+      "catch (Exception ex)\n{\n    Response.Write(ex.ToString()); // Noncompliant - includes stack trace\n}"
+    ],
+    "compliant": [
+      "try\n{\n    // Some operation\n}\ncatch (Exception ex)\n{\n    _logger.LogError(ex, \"An error occurred\");\n    return Content(\"An error occurred. Please try again.\"); // Compliant - generic message\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-6776"
+  ],
+  "logic": {
+    "node_types": ["CallExpression", "Assignment", "MethodDeclaration"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "(?:return|Response\\.Write|Content).*\\.StackTrace|(?:return|Response\\.Write|Content).*ex\\.ToString\\(\\)",
+        "exclude_patterns": [
+          "^\\s*//",
+          "Logger\\.",
+          "_logger\\.",
+          "Log\\.",
+          "\\[Test\\]",
+          "Assert\\.",
+          "Debug\\."
+        ],
+        "message": "Stack traces should not be disclosed to users. Log the exception instead."
+      }
+    ],
+    "never_trigger_on": [
+      "Logging statements (Logger.*, _logger.*, Log.*)",
+      "Debug statements (Debug.*)",
+      "Unit tests ([Test], [Fact], Assert.*)",
+      "Comments (// , /* */)"
+    ],
+    "reasoning": "Stack traces expose internal implementation details, file paths, and potential vulnerabilities to attackers.",
+    "validation_examples": {
+      "should_trigger": [
+        "return Content(ex.StackTrace);",
+        "Response.Write(ex.ToString());"
+      ],
+      "should_not_trigger": [
+        "_logger.LogError(ex, \"Error\");",
+        "return Content(\"An error occurred\");"
+      ]
+    }
+  }
+}

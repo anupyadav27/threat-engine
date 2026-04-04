@@ -1,0 +1,46 @@
+{
+  "filename": "generic_exceptions_should_not_be_caught_metadata.json",
+  "rule_id": "generic_exceptions_caught",
+  "title": "Generic exceptions should not be caught",
+  "description": "Generic exceptions should not be caughtAnalyze your codeconsistency-conventionalmaintainabilityCode Smellcppcoreguidelinescweerror-handlingbad-practicecertWhy is this an issue?More InfoSome exception classes are designed to be used only as base classes to more specific exceptions, for instance,std::exception(the base class of all standard C++ exceptions),std::logic_errororstd::runtime_error.Catching such generic exception types is usually a bad idea because it implies that the \"catch\" block is clever enough to handle any type of exception.Noncompliant code exampletry { /* code that may throw std::system_error */ } catch (const std::exception &ex) { // Noncompliant /*...*/ }Compliant solutiontry { /* code that may throw std::system_error */ } catch (const std::system_error &ex) { /*...*/ }E",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cert",
+    "cwe",
+    "convention",
+    "error-handling",
+    "design"
+  ],
+  "examples": {
+    "noncompliant": [
+      "#include <stdexcept>\n#include <system_error>\n\n// Noncompliant: Catching generic std::exception\nvoid processOperation() {\n    try {\n        // Code that may throw std::system_error\n        performSystemCall();\n    } catch (const std::exception& ex) {  // Too generic\n        handleError(ex.what());\n    }\n}",
+      "// Another noncompliant example\nvoid fileOperation() {\n    try {\n        readFile();\n        writeFile();\n    } catch (const std::runtime_error& ex) {  // Too generic\n        logError(ex.what());\n    }\n}",
+      "// Noncompliant: Catching base logic_error\nvoid validateInput() {\n    try {\n        checkInputRange();\n    } catch (const std::logic_error& ex) {  // Too generic\n        reportValidationError();\n    }\n}"
+    ],
+    "compliant": [
+      "#include <stdexcept>\n#include <system_error>\n\n// Compliant: Catching specific exception\nvoid processOperation() {\n    try {\n        performSystemCall();\n    } catch (const std::system_error& ex) {  // Specific exception\n        handleSystemError(ex);\n    }\n}",
+      "// Another compliant example with multiple specific catches\nvoid fileOperation() {\n    try {\n        readFile();\n        writeFile();\n    } catch (const std::ios_base::failure& ex) {\n        handleFileError(ex);\n    } catch (const std::bad_alloc& ex) {\n        handleMemoryError(ex);\n    }\n}",
+      "// Compliant: Catching specific logic error types\nvoid validateInput() {\n    try {\n        checkInputRange();\n    } catch (const std::invalid_argument& ex) {\n        handleInvalidArgument(ex);\n    } catch (const std::out_of_range& ex) {\n        handleRangeError(ex);\n    }\n}",
+      "// Compliant: Using specific custom exceptions\nclass FileNotFoundException : public std::runtime_error {\npublic:\n    FileNotFoundException(const std::string& filename) \n        : std::runtime_error(\"File not found: \" + filename) {}\n};\n\nvoid loadConfiguration() {\n    try {\n        openConfigFile();\n    } catch (const FileNotFoundException& ex) {\n        useDefaultConfiguration();\n    }\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-1181"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "custom_function",
+        "function": "check_generic_exceptions_caught",
+        "message": "Generic exceptions should not be caught unless necessary."
+      }
+    ]
+  }
+}

@@ -74,11 +74,16 @@ def match(finding: SecOpsFinding) -> Tuple[Optional[dict], str]:
         logger.debug(f"[L3-regex] finding {finding.id} → {rule['rule_id']}")
         return rule, "regex"
 
-    # ── Layer 3b: Keyword similarity ──────────────────────────────────────────
+    # ── Layer 3b: Keyword similarity (with confidence threshold) ─────────────
     candidates = rule_loader.by_keywords(search_text, top_n=1)
     if candidates:
-        logger.debug(f"[L3-keyword] finding {finding.id} → {candidates[0]['rule_id']}")
-        return candidates[0], "keyword"
+        top_rule, score = candidates[0]
+        from core.rule_loader import KEYWORD_CONFIDENCE_THRESHOLD
+        if score >= KEYWORD_CONFIDENCE_THRESHOLD:
+            logger.debug(f"[L3-keyword] finding {finding.id} score={score} → {top_rule['rule_id']}")
+            return top_rule, "keyword"
+        else:
+            logger.debug(f"[L3-keyword-low-conf] finding {finding.id} score={score} < threshold={KEYWORD_CONFIDENCE_THRESHOLD} → unmatched")
 
     logger.debug(f"[unmatched] finding {finding.id} rule_id={finding.rule_id}")
     return None, "unmatched"

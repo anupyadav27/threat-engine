@@ -1,0 +1,78 @@
+{
+  "filename": "os_commands_should_not_be_vulnerable_to_argument_i_metadata.json",
+  "rule_id": "os_commands_vulnerable_argument",
+  "title": "OS commands should not be vulnerable to argument injection attacks",
+  "description": "OS command argument injections occur when applications allow the execution of operating system commands from untrusted data but the untrusted data is limited to the arguments. It is not possible to directly inject arbitrary commands that compromise the underlying operating system, but the behavior of the executed command still might be influenced in a way that allows to expand access, for example, execution of arbitrary commands. The security of the application depends on the behavior of the application that is executed.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "string userInput = GetUserInput();\nstring command = \"ping\";\nstring arguments = userInput; // Noncompliant: user input directly used as argument\nProcess.Start(command, arguments);",
+      "string fileName = Request.Form[\"file\"];\nProcess.Start(\"notepad\", fileName); // Noncompliant: untrusted input as argument"
+    ],
+    "compliant": [
+      "string userInput = GetUserInput();\nstring command = \"ping\";\nstring safeArgument = Regex.Replace(userInput, @\"[^\\w\\.-]\", \"\"); // Compliant: sanitized input\nProcess.Start(command, safeArgument);",
+      "string fileName = Path.GetFileName(Request.Form[\"file\"]); // Compliant: sanitized file name\nProcess.Start(\"notepad\", fileName);"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-5883"
+  ],
+  "logic": {
+    "node_types": ["CallExpression"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "pattern": "Process\\.Start\\s*\\(",
+        "message": "Process.Start call detected - ensure arguments are properly sanitized to prevent injection",
+        "exclude_patterns": [
+          "\\[Test\\]",
+          "Assert\\.",
+          "Console\\.",
+          "Logger\\.",
+          "Debug\\.",
+          "\"[^\"]*\"\\s*\\)",
+          "Path\\.GetFileName",
+          "Regex\\.Replace",
+          "RegularExpressions\\.Regex"
+        ]
+      }
+    ],
+    "target_ast_nodes": ["CallExpression"],
+    "detection_conditions": "Uses regex to detect Process.Start method calls that could be vulnerable to argument injection",
+    "triggering_conditions": "CallExpression nodes containing Process.Start calls, excluding those with obvious sanitization",
+    "exclusion_conditions": "Excludes test methods, logging, hardcoded strings, and calls with sanitization methods",
+    "never_trigger_on": [
+      "Unit test methods ([Test], [Fact], Assert.*)",
+      "Logging methods (Console.*, Logger.*, Debug.*)",
+      "Calls with hardcoded string literals only",
+      "Calls using Path.GetFileName for sanitization",
+      "Calls using Regex.Replace for sanitization",
+      "Generated code",
+      "Development/debug code"
+    ],
+    "reasoning": "Detects Process.Start calls which can be vulnerable to argument injection if user input is passed directly as arguments. Excludes cases with obvious sanitization or hardcoded safe values.",
+    "validation_examples": {
+      "should_trigger": [
+        "Process.Start(\"ping\", userInput)",
+        "Process.Start(\"notepad\", Request.Form[\"file\"])",
+        "Process.Start(\"cmd\", \"/c \" + arg)"
+      ],
+      "should_not_trigger": [
+        "Process.Start(\"notepad\", \"config.txt\")",
+        "Process.Start(\"ping\", Regex.Replace(input, @\"[^\\w\\.-]\", \"\"))",
+        "Process.Start(\"notepad\", Path.GetFileName(fileName))",
+        "[Test] public void TestCommand() { Process.Start(\"ping\", userInput); }"
+      ]
+    }
+  }
+}

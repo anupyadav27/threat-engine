@@ -1,0 +1,49 @@
+{
+  "filename": "forward_declarations_should_not_be_redundant_metadata.json",
+  "rule_id": "forward_declarations_redundant",
+  "title": "Forward declarations should not be redundant",
+  "description": "Forward declarations should not be redundantAnalyze your codeintentionality-clearmaintainabilityCode SmellunusedredundantWhy is this an issue?Redundant forward declarations simply clutter the code, and like any duplications, should be removed.Noncompliant code examplestruct S { // ... }; // ... struct S; // NoncompliantCompliant solutionstruct S { // ..",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "General",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Code readability problem",
+  "tags": [
+    "unused"
+  ],
+  "examples": {
+    "noncompliant": [
+      "class MyClass; // Forward declaration\n\nclass MyClass { // Noncompliant - redundant forward declaration\npublic:\n  void method();\n};\n\n// Later in file\nclass MyClass; // Noncompliant - already defined above\n\nstruct Point;\nstruct Point { int x, y; }; // Noncompliant - redundant forward declaration"
+    ],
+    "compliant": [
+      "class MyClass { // Compliant - no redundant forward declaration\npublic:\n  void method();\n};\n\n// Forward declaration only when needed\nclass ForwardClass; // Used before definition\nvoid useForward(ForwardClass* ptr);\n\nclass ForwardClass { // Definition comes later\npublic:\n  int value;\n};"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-3231"
+  ],
+  "logic": {
+    "node_types": [
+      "*"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "(class|struct)\\s+(\\w+)\\s*;\\s*(?:/[*/].*?\\n)?\\s*(class|struct)\\s+\\2\\s*\\{",
+          "(class|struct)\\s+(\\w+)\\s*\\{[^}]*\\};.*?\\n.*?(class|struct)\\s+\\2\\s*;",
+          "(class|struct)\\s+(\\w+)\\s*;\\s*(?:/[*/].*?\\n)?\\s*(class|struct)\\s+\\2\\s*;"
+        ],
+        "exclude_patterns": [
+          "(class|struct)\\s+\\w+\\s*;.*?\\w+\\s*\\([^)]*\\w+\\s*\\*[^)]*\\).*?(class|struct)\\s+\\w+\\s*\\{",
+          "(class|struct)\\s+\\w+\\s*;.*?std::\\w+<\\w+\\*?>.*?(class|struct)\\s+\\w+\\s*\\{",
+          "(class|struct)\\s+\\w+\\s*;.*?(class|struct)\\s+\\w+\\s*\\{[^}]*\\w+\\s*\\*[^}]*\\}"
+        ],
+        "message": "Forward declarations should not be redundant. Remove unnecessary forward declarations."
+      }
+    ]
+  }
+}

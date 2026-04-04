@@ -1,0 +1,43 @@
+{
+  "filename": "calculations_should_not_overflow_metadata.json",
+  "rule_id": "calculations_overflow",
+  "title": "Calculations should not overflow",
+  "description": "Calculations should not overflowAnalyze your codeintentionality-logicalreliabilityBugoverflowsymbolic-executionWhy is this an issue?More InfoNumbers are infinite, but the types that hold them are not. Each numeric type has hard upper and lower bounds. Try to calculate or assign numbers beyond those bounds, and the result will be a value that has silently wrapped around from the expected positive value to a negative one, or vice versa.Noncompliant code examplepublic int Transform(int value) { if (value <= 0) { return value; } int number = int.MaxValue; return number + value; // Noncompliant }Compliant solutionpublic long Transform(int value) { if (value <= 0) { return value; } long number = int.MaxValue; return number + value; }Available In:Catch issues on the fly,in your IDEDetect issues i",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    ".net"
+  ],
+  "examples": {
+    "noncompliant": [
+      "public int Transform(int value)\n{\n    if (value <= 0)\n    {\n        return value;\n    }\n    int number = int.MaxValue;\n    return number + value;  // Noncompliant\n}"
+    ],
+    "compliant": [
+      "public long Transform(int value)\n{\n    if (value <= 0)\n    {\n        return value;\n    }\n    long number = int.MaxValue;\n    return number + value;\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/csharp/RSPEC-3949"
+  ],
+  "logic": {
+    "node_types": ["Assignment", "MethodDeclaration", "ClassDeclaration"],
+    "checks": [{
+      "type": "regex_match",
+      "property_path": ["source"],
+      "patterns": [
+        "int\\.MaxValue\\s*\\+",
+        "int\\.MaxValue\\s*\\*",
+        "long\\.MaxValue\\s*\\+",
+        "long\\.MaxValue\\s*\\*",
+        "short\\.MaxValue\\s*\\+",
+        "short\\.MaxValue\\s*\\*"
+      ],
+      "message": "Calculations may overflow - use larger data type or checked arithmetic"
+    }]
+  }
+}

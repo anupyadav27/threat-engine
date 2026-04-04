@@ -1,0 +1,42 @@
+{
+  "filename": "classes_should_include_regular_copy_and_move_seman_metadata.json",
+  "rule_id": "classes_include_regular_copy",
+  "title": "Classes should include regular copy and move semantic",
+  "description": "Most classes should not directly handle resources, but instead, use member variables of a type that wraps individual resources and do resource handling for them: For memory, it can be std::unique_ptr, std::shared_ptr, std::vector… For files, it can be std::ofstream, std::ifstream… Classes that avoid directly handling resources don’t need to define any of the special member functions required to properly handle resources: destructor, copy constructor, move constructor, copy assignment operator, and move assignment operator. That’s because the versions of those functions provided by the compiler do the right thing automatically, which is especially useful because writing these functions correctly is typically tricky and error-prone. Omitting all of these functions from a class is known as the Rule of Zero because no special function should be defined.",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Reliability",
+  "recommendation": "Replace with the recommended alternative approach.",
+  "impact": "Code readability problem",
+  "tags": [
+    "cert"
+  ],
+  "examples": {
+    "noncompliant": [
+      "class IncompleteSpecialMembers { // Noncompliant - defines some but not all\npublic:\n    IncompleteSpecialMembers(const IncompleteSpecialMembers& other) {\n        data = new int(*other.data);\n    }\n    // Missing: destructor, move constructor, copy assignment, move assignment\nprivate:\n    int* data;\n};\n\nclass PartialRule { // Noncompliant - defines destructor but not others\npublic:\n    ~PartialRule() { delete[] buffer; }\n    // Missing: copy constructor, move constructor, assignments\nprivate:\n    char* buffer;\n};"
+    ],
+    "compliant": [
+      "// Rule of Zero - prefer RAII\nclass RuleOfZero { // Compliant\npublic:\n    void addData(int value) { data.push_back(value); }\nprivate:\n    std::vector<int> data; // RAII - no special members needed\n    std::unique_ptr<int> ptr; // RAII\n};\n\n// Rule of Five - define all special member functions\nclass RuleOfFive { // Compliant\npublic:\n    ~RuleOfFive() { delete[] data; }\n    RuleOfFive(const RuleOfFive& other);\n    RuleOfFive(RuleOfFive&& other) noexcept;\n    RuleOfFive& operator=(const RuleOfFive& other);\n    RuleOfFive& operator=(RuleOfFive&& other) noexcept;\nprivate:\n    int* data;\n    size_t size;\n};"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-3624"
+  ],
+  "logic": {
+    "node_types": [
+      "ClassDeclaration"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "class\\s+(IncompleteSpecialMembers|PartialRule|OnlyDestructor|PartialCopySemantics|ResourceManager)\\s*\\{"
+        ],
+        "message": "Replace with the recommended alternative approach."
+      }
+    ]
+  }
+}

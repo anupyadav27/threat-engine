@@ -1,0 +1,46 @@
+{
+  "filename": "function_exit_paths_should_include_appropriate_ret_metadata.json",
+  "rule_id": "function_exit_paths_include",
+  "title": "Function exit paths should include appropriate return values",
+  "description": "Function exit paths should have appropriate return valuesAnalyze your codeintentionality-logicalreliabilityBugcwebased-on-misracertWhy is this an issue?How can I fix it?More InfoWhen a function does not return an appropriate value, it causes the program to have an undefined behavior. For example, if a function is supposed to return a value indicating whether a file was successfully opened but does not return any value, the program may continue to execute as if the file was opened successfully, even though it was not. This can lead to data corruption or other issues that are difficult to diagnose.Functions with a void return type are not expected to return any value.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Refactor to eliminate the flagged pattern.",
+  "impact": "Potential bug",
+  "tags": [
+    "cert",
+    "cwe",
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "int openFile(const char* name) {\n  FILE* f = fopen(name, \"r\");\n  if (!f) {\n    return;  // Noncompliant: missing return value\n  }\n  return 1;\n}",
+      "int calculate(int a, int b) {\n  if (a < 0) {\n    return;  // Noncompliant: should return a value\n  }\n  return a + b;\n}"
+    ],
+    "compliant": [
+      "int openFile(const char* name) {\n  FILE* f = fopen(name, \"r\");\n  if (!f) {\n    return 0;  // Compliant: returns appropriate value\n  }\n  return 1;\n}",
+      "void logMessage(const char* msg) {\n  printf(\"%s\\n\", msg);\n  return;  // Compliant: void function can have empty return\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-935"
+  ],
+  "logic": {
+    "node_types": ["FunctionDefinition"],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "int\\s+\\w+\\s*\\([^)]*\\)\\s*\\{[^}]*return\\s*;[^}]*\\}",
+          "char\\s+\\w+\\s*\\([^)]*\\)\\s*\\{[^}]*return\\s*;[^}]*\\}",
+          "float\\s+\\w+\\s*\\([^)]*\\)\\s*\\{[^}]*return\\s*;[^}]*\\}",
+          "double\\s+\\w+\\s*\\([^)]*\\)\\s*\\{[^}]*return\\s*;[^}]*\\}",
+          "\\*\\s*\\w+\\s*\\([^)]*\\)\\s*\\{[^}]*return\\s*;[^}]*\\}"
+        ],
+        "message": "Function with return type should include return value"
+      }
+    ]
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "filename": "pointer_and_reference_parameters_should_be_const_i_metadata.json",
+  "rule_id": "pointer_reference_parameters_const",
+  "title": "Pointer and reference parameters should be const if the corresponding object is not modified",
+  "description": "Const correctness is an important tool for type safety. It allows for catching coding errors at compile time and it documents the code for maintainers. Correctly const-qualifying pointers can be tricky because the indirection they add can also be const.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Code readability problem",
+  "tags": [
+    "convention"
+  ],
+  "examples": {
+    "noncompliant": [
+      "void print_string(char *str) { // Noncompliant: str not modified, should be const\n  printf(\"%s\", str);\n}",
+      "int calculate_length(int *array, int size) { // Noncompliant: array not modified\n  int sum = 0;\n  for(int i = 0; i < size; i++) {\n    sum += array[i];\n  }\n  return sum;\n}"
+    ],
+    "compliant": [
+      "void print_string(const char *str) { // Compliant: const parameter\n  printf(\"%s\", str);\n}",
+      "int calculate_length(const int *array, int size) { // Compliant: const parameter\n  int sum = 0;\n  for(int i = 0; i < size; i++) {\n    sum += array[i];\n  }\n  return sum;\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/c/RSPEC-995"
+  ],
+  "logic": {
+    "node_types": [
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "patterns": [
+          "void\\s+\\w+\\s*\\([^)]*(?<!const\\s)char\\s+\\*\\s*(\\w+)[^)]*\\)\\s*\\{[^}]*printf\\s*\\([^}]*\\1[^}]*\\}",
+          "void\\s+\\w+\\s*\\([^)]*(?<!const\\s)char\\s+\\*\\s*(\\w+)[^)]*\\)\\s*\\{[^}]*puts\\s*\\([^}]*\\1[^}]*\\}",
+          "int\\s+\\w+\\s*\\([^)]*(?<!const\\s)char\\s+\\*\\s*(\\w+)[^)]*\\)\\s*\\{[^}]*strlen\\s*\\([^}]*\\1[^}]*\\}",
+          "int\\s+\\w+\\s*\\([^)]*(?<!const\\s)char\\s+\\*\\s*(\\w+)[^)]*\\)\\s*\\{[^}]*strcmp\\s*\\([^}]*\\1[^}]*\\}",
+          "void\\s+\\w+\\s*\\([^)]*char\\s+\\*\\s*\\w+\\s*,\\s*(?<!const\\s)char\\s+\\*\\s*(\\w+)[^)]*\\)\\s*\\{[^}]*strcpy\\s*\\([^,)]*,\\s*\\1[^}]*\\}",
+          "void\\s+\\w+\\s*\\([^)]*(?<!const\\s)int\\s+\\*\\s*(\\w+)[^)]*\\)\\s*\\{[^}]*printf\\s*\\([^}]*\\*\\s*\\1[^}]*\\}",
+          "void\\s+\\w+\\s*\\([^)]*void\\s+\\*\\s*\\w+\\s*,\\s*(?<!const\\s)void\\s+\\*\\s*(\\w+)[^)]*\\)\\s*\\{[^}]*memcpy\\s*\\([^,)]*,\\s*\\1[^}]*\\}",
+          "int\\s+\\w+\\s*\\([^)]*(?<!const\\s)int\\s+\\*\\s*(\\w+)[^)]*\\)\\s*\\{(?![^}]*\\1\\s*\\[\\w+\\]\\s*=)[^}]*for\\s*\\([^}]*sum\\s*\\+=\\s*\\1\\s*\\[[^}]*\\}",
+          "float\\s+\\w+\\s*\\([^)]*(?<!const\\s)float\\s+\\*\\s*(\\w+)[^)]*\\)\\s*\\{(?![^}]*\\1\\s*\\[\\w+\\]\\s*=)[^}]*for\\s*\\([^}]*sum\\s*\\+=\\s*\\1\\s*\\[[^}]*\\}",
+          "double\\s+\\w+\\s*\\([^)]*(?<!const\\s)double\\s+\\*\\s*(\\w+)[^)]*\\)\\s*\\{(?![^}]*\\1\\s*\\[\\w+\\]\\s*=)[^}]*while\\s*\\([^}]*\\+=\\s*\\1\\s*\\[[^}]*\\}",
+          "int\\s+\\w+\\s*\\([^)]*(?<!const\\s)int\\s+\\*\\s*(\\w+)[^)]*\\)\\s*\\{(?![^}]*\\*\\s*\\1\\s*=)[^}]*if\\s*\\([^}]*\\*\\s*\\1\\s*>[^}]*\\}",
+          "void\\s+\\w+\\s*\\([^)]*(?<!const\\s)struct\\s+\\w+\\s+\\*\\s*(\\w+)[^)]*\\)\\s*\\{(?![^}]*\\1\\s*->\\w+\\s*=)[^}]*printf[^}]*\\1\\s*->[^}]*\\}",
+          "(?<!const\\s)char\\s+\\*\\s*(\\w+)\\s*\\)[^{]*\\{[^}]*printf\\s*\\([^}]*\\1[^}]*\\}",
+          "(?<!const\\s)char\\s+\\*\\s*(\\w+)\\s*\\)[^{]*\\{[^}]*puts\\s*\\([^}]*\\1[^}]*\\}",
+          "(?<!const\\s)char\\s+\\*\\s*(\\w+)\\s*\\)[^{]*\\{[^}]*strlen\\s*\\([^}]*\\1[^}]*\\}",
+          "(?<!const\\s)int\\s+\\*\\s*(\\w+)\\s*\\)[^{]*\\{[^}]*printf\\s*\\([^}]*\\*\\s*\\1[^}]*\\}",
+          "(?<!const\\s)int\\s+\\*\\s*(\\w+)[^)]*\\)[^{]*\\{(?![^}]*\\1\\s*\\[[^=]*=[^=])(?![^}]*\\*\\s*\\1\\s*=[^=])[^}]*for\\s*\\([^}]*sum\\s*\\+=\\s*\\1\\s*\\[[^}]*\\}",
+          "(?<!const\\s)float\\s+\\*\\s*(\\w+)[^)]*\\)[^{]*\\{(?![^}]*\\1\\s*\\[[^=]*=[^=])(?![^}]*\\*\\s*\\1\\s*=[^=])[^}]*for\\s*\\([^}]*sum\\s*\\+=\\s*\\1\\s*\\[[^}]*\\}",
+          "(?<!const\\s)double\\s+\\*\\s*(\\w+)[^)]*\\)[^{]*\\{(?![^}]*\\1\\s*\\[[^=]*=[^=])[^}]*while\\s*\\([^}]*result\\s*\\+=\\s*\\1\\s*\\[[^}]*\\}",
+          "(?<!const\\s)struct\\s+\\w+\\s+\\*\\s*(\\w+)\\s*\\)[^{]*\\{(?![^}]*\\1\\s*->\\w+\\s*=[^=])[^}]*printf[^}]*\\1\\s*->[^}]*\\}"
+        ],
+        "property_path": [
+          "source"
+        ],
+        "message": "Pointer and reference parameters should be const if the corresponding object is not modified. Add const qualifier for read-only parameters."
+      }
+    ]
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "filename": "all_branches_in_a_conditional_structure_should_avo_metadata.json",
+  "rule_id": "all_branches_conditional_structure",
+  "title": "All branches in a conditional structure should avoid having exactly the same implementation",
+  "description": "All branches in a conditional structure should not have exactly the same implementationAnalyze your codeintentionality-clearreliabilityBugWhy is this an issue?Having all branches of aswitchorifchain with the same implementation indicates a problem.In the following code:if (b == 0) { // Noncompliant doOneMoreThing(); } else { doOneMoreThing(); } let a = (b == 0) ? getValue() : getValue(); // Noncompliant switch (i) { // Noncompliant case 1: doSomething(); break; case 2: doSomething(); break; case 3: doSomething(); break; default: doSomething(); }Either there is a copy-paste error that needs fixing or an unnecessaryswitchorifchain that should be removed.ExceptionsThis rule does not apply toifchains withoutelse, nor toswitchwithout adefaultclause.if(b == 0) { //no issue, this could have been",
+  "status": "ready",
+  "defaultSeverity": "Major",
+  "category": "Security",
+  "recommendation": "Remove the problematic code and refactor as needed.",
+  "impact": "Security risk",
+  "tags": [
+    "security",
+    "bug",
+    "deprecated",
+    "async"
+  ],
+  "examples": {
+    "noncompliant": [
+      "switch"
+    ],
+    "compliant": [
+      "if"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/javascript/RSPEC-3923"
+  ],
+  "logic": {
+    "node_types": [
+      "IfStatement",
+      "SwitchStatement",
+      "ConditionalExpression"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "if\\s*\\([^)]+\\)\\s*\\{([^}]+)\\}\\s*else\\s*\\{\\1\\}",
+          "if\\s*\\([^)]+\\)\\s*\\{([^}]+)\\}\\s*else\\s+if\\s*\\([^)]+\\)\\s*\\{\\1\\}\\s*else\\s*\\{\\1\\}",
+          "\\?\\s*([^:]+)\\s*:\\s*\\1",
+          "case\\s+[^:]+:\\s*([^b]+)break;\\s*case\\s+[^:]+:\\s*\\1break;",
+          "switch\\s*\\([^)]+\\)\\s*\\{[^}]*case[^}]+([a-zA-Z_$][^;]*;)[^}]+case[^}]+\\1[^}]+default[^}]+\\1[^}]*\\}",
+          "return\\s+([^;]+);\\s*\\}\\s*else[^{]*\\{[^}]*return\\s+\\1;"
+        ],
+        "message": "All branches have identical implementations. Consider removing redundant conditional structure or fixing copy-paste errors."
+      }
+    ]
+  }
+}

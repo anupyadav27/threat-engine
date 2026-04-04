@@ -1,0 +1,47 @@
+{
+  "filename": "function_pointers_should_not_be_converted_to_any_o_metadata.json",
+  "rule_id": "function_pointers_converted_any",
+  "title": "Function pointers should not be converted to any other type",
+  "description": "Function pointers should not be converted to any other type. Conversion of a function pointer to a different type of pointer results in undefined behaviour. This means, for example, that a pointer to a function cannot be converted to a pointer to a different type of function.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug"
+  ],
+  "examples": {
+    "noncompliant": [
+      "int f(int a) {\n    return a * 2;\n}\n\nvoid example() {\n    float (*p)(float) = (float (*)(float)) &f; // Noncompliant - illegal conversion\n    void (*vp)() = (void (*)()) &f;           // Noncompliant - illegal conversion\n}",
+      "// Another example of illegal conversion\ndouble calculate(double x, double y) {\n    return x + y;\n}\n\nvoid badExample() {\n    int (*intFunc)(int, int) = (int (*)(int, int)) &calculate; // Noncompliant\n}"
+    ],
+    "compliant": [
+      "// Use proper function pointer types\nint f(int a) {\n    return a * 2;\n}\n\nvoid example() {\n    int (*p)(int) = &f; // Compliant - correct type\n    // Use std::function for type-erased storage if needed\n    std::function<int(int)> func = f;\n}",
+      "// Proper usage with matching signatures\ndouble calculate(double x, double y) {\n    return x + y;\n}\n\nvoid goodExample() {\n    double (*doubleFunc)(double, double) = &calculate; // Compliant\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/"
+  ],
+  "logic": {
+    "node_types": [
+      "VariableDeclaration",
+      "FunctionDefinition"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "\\(\\s*(?:const\\s+)?(?:unsigned\\s+)?\\w+(?:\\s*\\*)*\\s*\\(\\s*\\*\\s*\\)\\s*\\([^)]*\\)\\s*\\)",
+          "\\(\\s*(?:long\\s+long|long\\s+int|short\\s+int|unsigned\\s+int|signed\\s+int)\\s*\\(\\s*\\*\\s*\\)\\s*\\([^)]*\\)\\s*\\)",
+          "\\(\\s*std::\\w+(?:<[^>]+>)?\\s*\\(\\s*\\*\\s*\\)\\s*\\([^)]*\\)\\s*\\)"
+        ],
+        "message": "Function pointers should not be converted to incompatible types."
+      }
+    ]
+  }
+}

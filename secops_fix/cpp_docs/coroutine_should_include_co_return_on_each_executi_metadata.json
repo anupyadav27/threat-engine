@@ -1,0 +1,42 @@
+{
+  "filename": "coroutine_should_include_co_return_on_each_executi_metadata.json",
+  "rule_id": "coroutine_include_co_return_each",
+  "title": "Coroutine should include co_return on each execution path or provide return_void",
+  "description": "Coroutine should have co_return on each execution path or provide return_voidAnalyze your codeintentionality-logicalreliabilityBugconfusingsince-c++20suspiciousunpredictableWhy is this an issue?More InfoWhen a regular, non-voidfunction flows off the end of its body without returning a value, the behavior is undefined. With a coroutine, when flowing off the end of its body,return_void()is invoked on the promise for the said coroutine. If such invocation is not possible (e.g., because the function is not defined), the behavior is undefined.In other words, a coroutine should either:have all its execution paths reach aco_returnstatement or throw an exception;or its promise type should providereturn_void().This rule raises an issue on coroutines that do not meet the above criteria.Noncompliant",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug",
+    "confusing"
+  ],
+  "examples": {
+    "noncompliant": [
+      "// Noncompliant: Missing co_return on some paths\ncppcoro::task<int> getValue(bool condition) {\n    if (condition) {\n        co_return 42;\n    }\n    // Missing co_return - undefined behavior\n}\n\ncppcoro::task<std::string> processData(int type) {\n    switch (type) {\n        case 1:\n            co_return \"type1\";\n        case 2:\n            co_return \"type2\";\n        default:\n            break; // Missing co_return\n    }\n    // Falls off end without co_return\n}"
+    ],
+    "compliant": [
+      "// Compliant: co_return on all execution paths\ncppcoro::task<int> getValue(bool condition) {\n    if (condition) {\n        co_return 42;\n    }\n    co_return 0; // Explicit return for all paths\n}\n\n// Compliant: Promise type provides return_void()\nstruct VoidPromise {\n    auto return_void() { /* implementation */ }\n    // ... other promise methods\n};\n\ncppcoro::task<void> processWithVoidReturn() {\n    co_await doWork();\n    // return_void() called automatically\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-6369"
+  ],
+  "logic": {
+    "node_types": [
+      "*"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": ["source"],
+        "patterns": [
+          "\\b(task|generator)<[^>]*>\\s+\\w+\\s*\\([^)]*\\)\\s*\\{[^}]*(?:break;|\\s)\\s*\\}",
+          "\\b(task|generator)<[^>]*>\\s+\\w+\\s*\\([^)]*\\)\\s*\\{[^}]*\\}[^c]*$"
+        ],
+        "message": "Coroutine should include co_return on each execution path or provide return_void"
+      }
+    ]
+  }
+}

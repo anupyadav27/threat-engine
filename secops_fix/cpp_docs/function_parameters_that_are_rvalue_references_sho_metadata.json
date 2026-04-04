@@ -1,0 +1,46 @@
+{
+  "filename": "function_parameters_that_are_rvalue_references_sho_metadata.json",
+  "rule_id": "function_parameters_that_are",
+  "title": "Function parameters that are rvalue references should be moved",
+  "description": "Function parameters that are rvalue references should be movedAnalyze your codeintentionality-completemaintainabilityCode Smellcppcoreguidelinesbad-practicesince-c++11pitfallWhy is this an issue?How can I fix it?More InfoRvalue reference arguments allow the efficient transfer of the ownership of objects. Therefore, it is expected that rvalue arguments or their subobjects are, conditionally or not, moved into their destination variables.The ownership is unclear when an rvalue argument, including its subobject or elements, is never moved. This might lead to bugs and performance issues.This rule does not apply when the argument is a forwarding reference.ExceptionsFor the C++23 or later standard, this rule does not raise issues if the function returns the rvalue reference parameter.",
+  "status": "ready",
+  "defaultSeverity": "Info",
+  "category": "Reliability",
+  "recommendation": "Review and fix according to the rule guidelines.",
+  "impact": "Potential bug",
+  "tags": [
+    "bug",
+    "performance"
+  ],
+  "examples": {
+    "noncompliant": [
+      "void processData(std::vector<int>&& data) {\n  // Noncompliant: data is never moved\n  for (const auto& item : data) {\n    std::cout << item << std::endl;\n  }\n}",
+      "class Container {\n  std::vector<int> items;\npublic:\n  void addItems(std::vector<int>&& newItems) {\n    // Noncompliant: newItems is copied, not moved\n    items = newItems;\n  }\n};"
+    ],
+    "compliant": [
+      "void processData(std::vector<int>&& data) {\n  // Compliant: data is moved\n  storedData = std::move(data);\n}",
+      "class Container {\n  std::vector<int> items;\npublic:\n  void addItems(std::vector<int>&& newItems) {\n    // Compliant: newItems is moved\n    items = std::move(newItems);\n  }\n};",
+      "Shape updateShape(Shape&& shape) {\n  /* ... */\n  return shape; // Compliant: implicitly moves shape in C++23\n}"
+    ]
+  },
+  "references": [
+    "https://rules.sonarsource.com/cpp/RSPEC-5500"
+  ],
+  "logic": {
+    "node_types": [
+      "TranslationUnit"
+    ],
+    "checks": [
+      {
+        "type": "regex_match",
+        "property_path": [
+          "source"
+        ],
+        "patterns": [
+          "(?:(?:std::)?\\w+(?:<[^>]*>)?)\\s*&&\\s*(\\w+)\\s*\\)\\s*\\{(?!.*std::move\\s*\\(\\s*\\1\\s*\\))[^}]*\\}"
+        ],
+        "message": "Function parameters that are rvalue references should be moved"
+      }
+    ]
+  }
+}
