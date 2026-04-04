@@ -13,7 +13,7 @@ import logging
 from typing import Optional, Tuple
 
 from .rule_loader import rule_loader
-from ..models.finding import SecOpsFinding
+from models.finding import SecOpsFinding
 
 logger = logging.getLogger(__name__)
 
@@ -124,16 +124,24 @@ def _best_by_severity(candidates: list, severity: str) -> dict:
 def _regex_match(text: str) -> Optional[dict]:
     """
     Try each rule's regex patterns against the finding text.
-    Returns the first rule whose pattern matches.
+    A match is accepted only when BOTH:
+      1. The regex pattern matches somewhere in the text, AND
+      2. At least one context_keyword from that check also appears in the text.
+    This prevents broad regex patterns causing false positive matches.
     """
     if not text.strip():
         return None
+    text_lower = text.lower()
     for rule in rule_loader._by_rule_id.values():
         logic = rule.get("logic") or {}
         checks = logic.get("checks") or []
         for check in checks:
             pattern = check.get("pattern")
             if not pattern:
+                continue
+            # Require at least one context keyword to be present in the text
+            keywords = [k.lower() for k in (check.get("context_keywords") or [])]
+            if keywords and not any(kw in text_lower for kw in keywords):
                 continue
             try:
                 if re.search(pattern, text, re.IGNORECASE):

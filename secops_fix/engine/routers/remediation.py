@@ -17,15 +17,15 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 
-from ..models.remediation import RemediationRequest, RemediationSummary, RemediationStatus
-from ..db.fetcher import get_findings, get_scan_report
-from ..db.writer import (
+from models.remediation import RemediationRequest, RemediationSummary, RemediationStatus
+from db.fetcher import get_findings, get_scan_report
+from db.writer import (
     init_remediation_rows, write_fix_result,
     mark_applied, mark_failed, get_remediation_summary,
 )
-from ..core.rule_matcher import match
-from ..core.fix_generator import generate, generate_unmatched
-from ..core import git_patcher
+from core.rule_matcher import match
+from core.fix_generator import generate, generate_unmatched
+from core import git_patcher
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

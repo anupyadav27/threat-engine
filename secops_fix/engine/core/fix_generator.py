@@ -15,8 +15,8 @@ import re
 import logging
 from typing import Optional
 
-from ..models.finding import SecOpsFinding
-from ..models.fix_result import FixResult
+from models.finding import SecOpsFinding
+from models.fix_result import FixResult
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +134,8 @@ def _read_line(
 def _pick_compliant_example(rule: dict, language: Optional[str]) -> Optional[str]:
     """Return the most relevant compliant example for the language."""
     examples = (rule.get("examples") or {}).get("compliant") or []
+    # Normalise: keep only string items
+    examples = [str(ex) for ex in examples if ex and isinstance(ex, (str, int, float))]
     if not examples:
         return None
     if not language:

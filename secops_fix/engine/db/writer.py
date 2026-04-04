@@ -7,8 +7,8 @@ import uuid
 from typing import List
 
 from .db_config import get_connection
-from ..models.fix_result import FixResult
-from ..models.remediation import RemediationRequest
+from models.fix_result import FixResult
+from models.remediation import RemediationRequest
 
 logger = logging.getLogger(__name__)
 

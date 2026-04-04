@@ -6,7 +6,7 @@ import logging
 from typing import List, Optional
 
 from .db_config import get_dict_connection
-from ..models.finding import SecOpsFinding, ScanReport
+from models.finding import SecOpsFinding, ScanReport
 
 logger = logging.getLogger(__name__)
 

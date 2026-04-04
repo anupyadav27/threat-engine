@@ -8,8 +8,8 @@ from typing import Optional, List
 
 from fastapi import APIRouter, HTTPException, Query
 
-from ..db.fetcher import get_findings, get_scan_report
-from ..db.writer import get_remediation_summary
+from db.fetcher import get_findings, get_scan_report
+from db.writer import get_remediation_summary
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

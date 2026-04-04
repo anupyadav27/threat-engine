@@ -8,8 +8,8 @@ from datetime import datetime, timezone
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-from ..db.db_config import get_db_config
-from ..core.rule_loader import rule_loader
+from db.db_config import get_db_config
+from core.rule_loader import rule_loader
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
