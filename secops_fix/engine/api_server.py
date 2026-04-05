@@ -17,12 +17,11 @@ from datetime import datetime, timezone
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 
 from routers.remediation import router as remediation_router
 from routers.findings import router as findings_router
 from routers.health import router as health_router
-from core.rule_loader import rule_loader
+from db.db_config import close_pool
 
 logger = logging.getLogger("secops_fix")
 logging.basicConfig(
@@ -34,18 +33,21 @@ app = FastAPI(
     title="SecOps Fix Engine API",
     description=(
         "Automated remediation engine — fetches SecOps scanner findings from DB, "
-        "matches each finding to a fix rule (3-layer: exact/CWE/regex), "
-        "generates fix suggestions, and patches the source repo in a new branch."
+        "pulls rule metadata from secops_rule_metadata (single source of truth), "
+        "calls Mistral AI with full code context to generate precise fixes, "
+        "and commits the patched code to a new branch in the source repo."
     ),
-    version="1.0.0",
+    version="2.0.0",
 )
 
+# CORS — restrict in production via ALLOWED_ORIGINS env var
+_allowed_origins = os.getenv("ALLOWED_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_allowed_origins,
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 # ── Routers ───────────────────────────────────────────────────────────────────
@@ -54,11 +56,21 @@ app.include_router(findings_router,    prefix="/api/v1/secops-fix/findings",   t
 app.include_router(health_router,      prefix="/api/v1/health",                tags=["Health"])
 
 
-# ── Startup ───────────────────────────────────────────────────────────────────
+# ── Startup / Shutdown ────────────────────────────────────────────────────────
 @app.on_event("startup")
 async def _startup():
-    count = rule_loader.load()
-    logger.info(f"SecOps Fix Engine started — {count} rules loaded")
+    ai_enabled = bool(os.getenv("MISTRAL_API_KEY", "").strip())
+    logger.info(
+        f"SecOps Fix Engine started — "
+        f"rules source: secops_rule_metadata (DB) — "
+        f"AI fix: {'enabled (Mistral)' if ai_enabled else 'disabled (set MISTRAL_API_KEY)'}"
+    )
+
+
+@app.on_event("shutdown")
+async def _shutdown():
+    close_pool()
+    logger.info("SecOps Fix Engine shutdown complete")
 
 
 # ── Root ──────────────────────────────────────────────────────────────────────
@@ -66,14 +78,15 @@ async def _startup():
 async def root():
     return {
         "service": "SecOps Fix Engine",
-        "version": "1.0.0",
-        "rules_loaded": rule_loader.total,
+        "version": "2.0.0",
+        "rules_source": "secops_rule_metadata table (same DB as SAST scanner)",
+        "ai_fix": bool(os.getenv("MISTRAL_API_KEY", "").strip()),
         "status": "operational",
         "endpoints": {
-            "remediate":  "/api/v1/secops-fix/remediate",
-            "findings":   "/api/v1/secops-fix/findings/{secops_scan_id}",
-            "health":     "/api/v1/health",
-            "docs":       "/docs",
+            "remediate": "/api/v1/secops-fix/remediate",
+            "findings":  "/api/v1/secops-fix/findings/{secops_scan_id}",
+            "health":    "/api/v1/health",
+            "docs":      "/docs",
         },
     }
 
@@ -83,7 +96,8 @@ async def legacy_health():
     return {
         "status": "healthy",
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "rules_loaded": rule_loader.total,
+        "rules_source": "secops_rule_metadata (DB)",
+        "ai_fix_enabled": bool(os.getenv("MISTRAL_API_KEY", "").strip()),
     }
 
 

@@ -6,7 +6,7 @@ import logging
 import uuid
 from typing import List
 
-from .db_config import get_connection
+from .db_config import get_connection, get_dict_connection
 from models.fix_result import FixResult
 from models.remediation import RemediationRequest
 
@@ -142,7 +142,7 @@ def mark_failed(finding_id: int, error: str) -> None:
 
 def get_remediation_summary(secops_scan_id: str) -> dict:
     """Return count breakdown by status for a scan."""
-    conn = get_connection()
+    conn = get_dict_connection()
     try:
         with conn.cursor() as cur:
             cur.execute("""
@@ -162,9 +162,10 @@ def get_remediation_summary(secops_scan_id: str) -> dict:
             if not row:
                 return {}
             return {
-                "total": row[0], "matched": row[1], "fix_generated": row[2],
-                "applied": row[3], "failed": row[4], "skipped": row[5],
-                "fix_branch": row[6], "pr_url": row[7],
+                "total": row["total"], "matched": row["matched"],
+                "fix_generated": row["fix_generated"], "applied": row["applied"],
+                "failed": row["failed"], "skipped": row["skipped"],
+                "fix_branch": row["fix_branch"], "pr_url": row["pr_url"],
             }
     finally:
         conn.close()

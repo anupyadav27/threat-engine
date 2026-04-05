@@ -2,20 +2,57 @@
 Remediation request / response models.
 """
 
+import re
 from typing import Optional, List
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
+
+_UUID_RE = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE)
+_HTTPS_RE = re.compile(r'^https://', re.IGNORECASE)
+_BRANCH_RE = re.compile(r'^[a-zA-Z0-9._/\-]{1,100}$')
+_VALID_SEVERITIES = {"critical", "high", "medium", "low", "info"}
 
 
 class RemediationRequest(BaseModel):
-    secops_scan_id: str
-    tenant_id: str
-    repo_url: str                        # GitHub repo to apply fixes to
-    repo_token: str                      # GitHub PAT (write access)
-    source_branch: str = "main"          # branch the scan was run on
-    orchestration_id: Optional[str] = None
-    customer_id: Optional[str] = None
-    severity_filter: Optional[List[str]] = None   # e.g. ["critical","high"] — None = all
+    secops_scan_id: str = Field(..., min_length=36, max_length=36)
+    tenant_id: str = Field(..., min_length=1, max_length=128)
+    repo_url: str = Field(..., min_length=10, max_length=500)
+    repo_token: str = Field(..., min_length=1, max_length=256)
+    source_branch: str = Field("main", min_length=1, max_length=100)
+    orchestration_id: Optional[str] = Field(None, max_length=36)
+    customer_id: Optional[str] = Field(None, max_length=128)
+    severity_filter: Optional[List[str]] = None
+
+    @field_validator("secops_scan_id")
+    @classmethod
+    def validate_uuid(cls, v: str) -> str:
+        if not _UUID_RE.match(v):
+            raise ValueError("secops_scan_id must be a valid UUID")
+        return v.lower()
+
+    @field_validator("repo_url")
+    @classmethod
+    def validate_repo_url(cls, v: str) -> str:
+        if not _HTTPS_RE.match(v):
+            raise ValueError("repo_url must start with https://")
+        return v
+
+    @field_validator("source_branch")
+    @classmethod
+    def validate_branch(cls, v: str) -> str:
+        if not _BRANCH_RE.match(v):
+            raise ValueError("source_branch contains invalid characters")
+        return v
+
+    @field_validator("severity_filter")
+    @classmethod
+    def validate_severities(cls, v):
+        if v is not None:
+            invalid = [s for s in v if s.lower() not in _VALID_SEVERITIES]
+            if invalid:
+                raise ValueError(f"Invalid severities: {invalid}. Must be one of {_VALID_SEVERITIES}")
+            return [s.lower() for s in v]
+        return v
 
 
 class RemediationStatus(BaseModel):

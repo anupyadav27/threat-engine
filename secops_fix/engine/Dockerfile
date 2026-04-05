@@ -15,9 +15,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy engine source
 COPY engine/ .
 
-# Copy rule metadata (secrets_docs) so the container has rules available
-COPY secrets_docs/ /app/secrets_docs/
-
 # Non-root user for production security
 RUN useradd -m -u 1001 secopsfix && chown -R secopsfix /app
 USER secopsfix

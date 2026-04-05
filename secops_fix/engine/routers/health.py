@@ -3,13 +3,13 @@ Health endpoints — liveness and readiness probes.
 """
 
 import logging
+import os
 from datetime import datetime, timezone
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
 from db.db_config import get_db_config
-from core.rule_loader import rule_loader
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -23,10 +23,11 @@ async def liveness():
 
 @router.get("/ready")
 async def readiness():
-    """Kubernetes readiness probe — checks DB and rule loader."""
+    """Kubernetes readiness probe — checks DB connectivity only.
+    Rules are fetched from secops_rule_metadata on demand — no startup load needed.
+    """
     errors = []
 
-    # DB check
     try:
         import psycopg2
         cfg = get_db_config()
@@ -40,11 +41,6 @@ async def readiness():
         db_status = f"error: {e}"
         errors.append(f"db: {e}")
 
-    # Rule loader check
-    rules_loaded = rule_loader.total
-    if rules_loaded == 0:
-        errors.append("rule_loader: no rules loaded")
-
     if errors:
         return JSONResponse(
             status_code=503,
@@ -53,7 +49,8 @@ async def readiness():
     return {
         "status": "ready",
         "database": db_status,
-        "rules_loaded": rules_loaded,
+        "rules_source": "secops_rule_metadata (DB)",
+        "ai_fix": bool(os.getenv("MISTRAL_API_KEY", "").strip()),
     }
 
 
@@ -74,10 +71,11 @@ async def full_health():
         db_ok = False
 
     return {
-        "service": "secops-fix-engine",
-        "version": "1.0.0",
-        "status": "healthy" if db_ok else "degraded",
-        "database": "connected" if db_ok else "disconnected",
-        "rules_loaded": rule_loader.total,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "service":      "secops-fix-engine",
+        "version":      "2.0.0",
+        "status":       "healthy" if db_ok else "degraded",
+        "database":     "connected" if db_ok else "disconnected",
+        "rules_source": "secops_rule_metadata (DB)",
+        "ai_fix":       bool(os.getenv("MISTRAL_API_KEY", "").strip()),
+        "timestamp":    datetime.now(timezone.utc).isoformat(),
     }

@@ -14,18 +14,23 @@ from db.writer import get_remediation_summary
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+_MAX_PAGE_SIZE = 200
+_DEFAULT_PAGE_SIZE = 50
+
 
 @router.get("/{secops_scan_id}")
 async def list_findings(
     secops_scan_id: str,
     severity: Optional[str] = Query(None, description="Comma-separated severities: critical,high,medium,low"),
     include_remediation: bool = Query(False, description="Include remediation status for each finding"),
+    limit: int = Query(_DEFAULT_PAGE_SIZE, ge=1, le=_MAX_PAGE_SIZE, description=f"Page size (max {_MAX_PAGE_SIZE})"),
+    offset: int = Query(0, ge=0, description="Number of findings to skip"),
 ):
     """
-    Fetch all findings for a scan, optionally filtered by severity.
+    Fetch findings for a scan with pagination, optionally filtered by severity.
 
     Example:
-        GET /api/v1/secops-fix/findings/abc123?severity=critical,high
+        GET /api/v1/secops-fix/findings/abc123?severity=critical,high&limit=50&offset=0
     """
     report = get_scan_report(secops_scan_id)
     if not report:
@@ -35,15 +40,20 @@ async def list_findings(
     if severity:
         severity_filter = [s.strip().lower() for s in severity.split(",") if s.strip()]
 
-    findings = get_findings(secops_scan_id, severity_filter=severity_filter)
+    all_findings = get_findings(secops_scan_id, severity_filter=severity_filter)
+    total = len(all_findings)
+    page = all_findings[offset: offset + limit]
 
     response = {
         "secops_scan_id": secops_scan_id,
         "project_name": report.project_name,
         "repo_url": report.repo_url,
         "branch": report.branch,
-        "total": len(findings),
-        "findings": [f.model_dump() for f in findings],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "has_more": (offset + limit) < total,
+        "findings": [f.model_dump() for f in page],
     }
 
     if include_remediation:
@@ -60,7 +70,7 @@ async def findings_summary(secops_scan_id: str):
         raise HTTPException(status_code=404, detail=f"Scan not found: {secops_scan_id}")
 
     all_findings = get_findings(secops_scan_id)
-    severity_counts = {}
+    severity_counts: dict = {}
     for f in all_findings:
         severity_counts[f.severity] = severity_counts.get(f.severity, 0) + 1
 

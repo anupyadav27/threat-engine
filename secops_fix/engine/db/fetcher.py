@@ -92,6 +92,75 @@ def get_findings(
         conn.close()
 
 
+def get_rule_metadata(rule_id: str) -> Optional[dict]:
+    """
+    Fetch rule metadata from secops_rule_metadata table.
+
+    This is the single source of truth for all rule data — seeded from the
+    same JSON docs the SAST scanner uses, kept in sync automatically.
+    Returns a dict matching the structure of the JSON doc files, or None.
+    """
+    if not rule_id:
+        return None
+    conn = get_dict_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT rule_id, title, description, recommendation, impact,
+                       examples, "references", security_mappings, tags,
+                       default_severity, category, raw_metadata
+                FROM secops_rule_metadata
+                WHERE rule_id = %s
+                  AND status != 'disabled'
+            """, (rule_id,))
+            row = cur.fetchone()
+            if not row:
+                # Try trimming _metadata suffix (scanner stores without it sometimes)
+                clean_id = rule_id.lower().removesuffix("_metadata")
+                if clean_id != rule_id.lower():
+                    cur.execute("""
+                        SELECT rule_id, title, description, recommendation, impact,
+                               examples, "references", security_mappings, tags,
+                               default_severity, category, raw_metadata
+                        FROM secops_rule_metadata
+                        WHERE rule_id = %s
+                          AND status != 'disabled'
+                    """, (clean_id,))
+                    row = cur.fetchone()
+            if not row:
+                return None
+            return dict(row)
+    finally:
+        conn.close()
+
+
+def get_rule_metadata_batch(rule_ids: list) -> dict:
+    """
+    Fetch multiple rules in a single query.
+    Returns {rule_id: rule_dict} for all found rules.
+    Used to pre-fetch all rules for a scan in one DB round-trip.
+    """
+    if not rule_ids:
+        return {}
+    # Deduplicate and filter None/empty
+    ids = list({r.lower() for r in rule_ids if r})
+    conn = get_dict_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT rule_id, title, description, recommendation, impact,
+                       examples, "references", security_mappings, tags,
+                       default_severity, category, raw_metadata
+                FROM secops_rule_metadata
+                WHERE LOWER(rule_id) = ANY(%s)
+                  AND status != 'disabled'
+            """, (ids,))
+            rows = cur.fetchall()
+            return {dict(r)["rule_id"]: dict(r) for r in rows}
+    finally:
+        conn.close()
+
+
 def get_finding_by_id(finding_id: int) -> Optional[SecOpsFinding]:
     """Fetch a single finding by its primary key."""
     conn = get_dict_connection()

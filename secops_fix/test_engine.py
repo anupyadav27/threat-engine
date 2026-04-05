@@ -164,8 +164,66 @@ def run_test(scan_id: str, severity_filter=None, patch: bool = False,
     if local_repo:
         git_patcher.cleanup(local_repo)
 
-    print(f"\n  Remediation results written to: secops_remediation table")
-    print(f"  Query: SELECT * FROM secops_remediation WHERE secops_scan_id = '{scan_id}';")
+    # ── 7. Final quick-view summary card ─────────────────────────────────────
+    db_summary = {}
+    try:
+        db_summary = get_remediation_summary(scan_id)
+    except Exception:
+        pass
+
+    applied_fixes   = [f for f in fix_results if f.can_auto_patch]
+    generated_fixes = [f for f in fix_results if not f.can_auto_patch and f.match_layer != "unmatched"]
+    unmatched_fixes = [f for f in fix_results if f.match_layer == "unmatched"]
+
+    print(f"\n{'='*65}")
+    print(f"  REMEDIATION QUICK-VIEW SUMMARY")
+    print(f"{'='*65}")
+    print(f"  Scan ID          : {scan_id}")
+    print(f"  Project          : {report.project_name}")
+    print(f"  Repo             : {report.repo_url}")
+    print(f"  Findings tested  : {len(sample)}  (severity={severity_filter or 'all'})")
+    print(f"  Match rate       : {matched}/{len(sample)} ({matched/len(sample)*100:.0f}%)")
+    print(f"  By layer         : exact={layer_counts['exact']}  cwe={layer_counts['cwe']}  "
+          f"category={layer_counts['category']}  regex={layer_counts['regex']}  "
+          f"keyword={layer_counts['keyword']}  unmatched={layer_counts['unmatched']}")
+    print(f"")
+    print(f"  AUTO-PATCHED  ({len(applied_fixes)} findings — committed to fix branch)")
+    if applied_fixes:
+        for f in applied_fixes:
+            orig = (f.original_code or "").strip()[:50]
+            fix  = (f.suggested_fix or "").strip()[:50]
+            print(f"    {f.file_path}:{f.line_number:<5}  {orig!r:52}  ->  {fix!r}")
+    else:
+        print(f"    (none)")
+    print(f"")
+    print(f"  FIX GENERATED ({len(generated_fixes)} findings — in DB, needs manual review)")
+    for f in generated_fixes[:10]:
+        rule_short = (f.matched_rule_id or "")[:40]
+        expl = (f.fix_explanation or "")[:60].replace("\n", " ")
+        print(f"    {f.file_path}:{str(f.line_number or ''):<5}  [{rule_short}]  {expl}")
+    if len(generated_fixes) > 10:
+        print(f"    ... and {len(generated_fixes)-10} more — query DB for full list")
+    print(f"")
+    print(f"  UNMATCHED     ({len(unmatched_fixes)} findings — no rule found)")
+    print(f"")
+    if pushed_branch:
+        print(f"  GIT FIX BRANCH   : {pushed_branch}")
+        print(f"  REVIEW & MERGE   : {report.repo_url}/compare/{pushed_branch}")
+    elif patch:
+        print(f"  GIT              : No auto-patchable findings — branch not created")
+    else:
+        print(f"  GIT              : Dry-run — use --patch --token <PAT> to push fixes")
+    print(f"")
+    if db_summary:
+        print(f"  DB STATUS  (secops_remediation table)")
+        print(f"    total={db_summary.get('total',0)}  "
+              f"applied={db_summary.get('applied',0)}  "
+              f"fix_generated={db_summary.get('fix_generated',0)}  "
+              f"matched={db_summary.get('matched',0)}  "
+              f"skipped={db_summary.get('skipped',0)}  "
+              f"failed={db_summary.get('failed',0)}")
+    print(f"  DB QUERY   : SELECT * FROM secops_remediation")
+    print(f"               WHERE secops_scan_id = '{scan_id}';")
     print(f"{'='*65}\n")
 
 

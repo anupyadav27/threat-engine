@@ -10,7 +10,7 @@ class FixResult(BaseModel):
     finding_id: int
     secops_scan_id: str
     rule_id: Optional[str]               # original rule_id from finding
-    matched_rule_id: Optional[str]       # rule_id from secrets_docs that matched
+    matched_rule_id: Optional[str]       # rule_id from secops_rule_metadata that matched
     match_layer: Optional[str]           # exact / cwe / regex / unmatched
     file_path: Optional[str]
     line_number: Optional[int]
