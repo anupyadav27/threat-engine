@@ -1476,24 +1476,28 @@ def check_cleartext_protocols(manifest, filename):
                         if isinstance(val, str):
                             check_string_for_protocols(val, f"container.{child.get('name', 'unknown')}.{field}[{idx}]")
     
-    # Check Service ports
+    # Check Service ports — only flag FTP (21) and Telnet (23).
+    # Port 80 (HTTP) is legitimate for internal cluster Services and API
+    # backends that terminate TLS at the ingress/load-balancer layer.
+    # Port 80 on internet-facing resources is caught by the Ingress check below.
+    internal_cleartext_ports = {21: 'FTP', 23: 'Telnet'}  # exclude port 80
     if kind == 'Service':
         # Try both 'spec' and direct access (AST builder may flatten structure)
         spec_data = manifest.get('spec', {})
         ports = spec_data.get('ports', []) if spec_data else manifest.get('ports', [])
-        
+
         if isinstance(ports, list):
             for port_def in ports:
                 if isinstance(port_def, dict):
                     port = port_def.get('port')
                     target_port = port_def.get('targetPort')
-                    
+
                     for port_num in [port, target_port]:
-                        if port_num in cleartext_ports:
-                            protocol_name = cleartext_ports[port_num]
+                        if port_num in internal_cleartext_ports:
+                            protocol_name = internal_cleartext_ports[port_num]
                             findings.append({
                                 "rule_id": "using_cleartext_protocols_is",
-                                "message": f"Service exposes {protocol_name} port {port_num} which uses clear-text protocol. This allows traffic interception and man-in-the-middle attacks. Use secure alternatives (HTTPS/443, SFTP/22, SSH/22).",
+                                "message": f"Service exposes {protocol_name} port {port_num} which uses clear-text protocol. This allows traffic interception and man-in-the-middle attacks. Use secure alternatives (SFTP/22, SSH/22).",
                                 "resource": f"{kind}/{resource_name}",
                                 "file": filename,
                                 "line": line,

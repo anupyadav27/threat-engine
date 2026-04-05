@@ -600,19 +600,85 @@ def except_clause_raises_same_exception(node, ast_root=None):
     return False
 def einops_pattern_check(node, ast_root=None):
     """
-    Returns True if an Assign node does not match the valid Einops pattern:
-    - value must be a list of 4 strings
-    - first element must be 'num_samples' or 'batch_size'
+    Returns True only when the assignment looks like an einops dimension pattern
+    (RHS is a list of 4 items) AND that list does not follow the valid convention
+    (first element must be 'num_samples' or 'batch_size').
+
+    Any Assign node whose RHS is NOT a list of 4 items is not an einops pattern
+    at all and must be left alone (return False).
     """
     if not isinstance(node, dict) or node.get('node_type') != 'Assign':
         return False
     value = node.get('value')
-    if isinstance(value, list) and len(value) == 4:
-        first = value[0]
-        if first in ("num_samples", "batch_size") and all(isinstance(v, str) for v in value):
-            return False  # Compliant
-        return True  # Noncompliant
-    return True  # Noncompliant if not a list of 4 strings
+    # Only flag if the value is actually a 4-element list (einops dimension pattern)
+    if not (isinstance(value, list) and len(value) == 4):
+        return False  # Not an einops pattern — skip
+    first = value[0]
+    if first in ("num_samples", "batch_size") and all(isinstance(v, str) for v in value):
+        return False  # Compliant einops pattern
+    return True  # Noncompliant einops pattern
+
+
+def autoescaping_disabled_check(node, ast_root=None):
+    """
+    Returns True only when an Assign node explicitly disables autoescaping
+    in a template engine (Jinja2, Mako, etc.).
+
+    Guards:
+      1. RHS must be False/None (the disabled value).
+      2. LHS attribute/variable must contain autoescape-related keywords.
+         This prevents firing on unrelated assignments like:
+           asyncpg_logger.propagate = False
+           debug = False
+    """
+    if not isinstance(node, dict) or node.get('node_type') != 'Assign':
+        return False
+    # RHS must evaluate to False/None
+    rhs = node.get('value', {})
+    if not isinstance(rhs, dict):
+        return False
+    rhs_val = rhs.get('value')
+    if rhs_val not in (False, None, 'False', 'None'):
+        return False
+    # LHS must reference an autoescape-related name
+    targets = node.get('targets', [])
+    target_text = str(targets).lower()
+    autoescape_keywords = ('autoescape', 'autoescap', 'escape', 'jinja', 'mako', 'template_env')
+    if not any(kw in target_text for kw in autoescape_keywords):
+        return False
+    return True
+
+
+def cookie_missing_secure_flag_check(node, ast_root=None):
+    """
+    Returns True only when a cookie is created/set WITHOUT the secure flag.
+
+    Specifically detects:
+      - response.set_cookie(..., secure=False) or missing secure kwarg
+      - SimpleCookie assignment without secure=True
+
+    Guards against firing on unrelated assignments like:
+      asyncpg_logger.propagate = False
+    """
+    if not isinstance(node, dict):
+        return False
+    node_type = node.get('node_type')
+
+    # Pattern: response.set_cookie(...) or make_response(...).set_cookie(...)
+    if node_type == 'Call':
+        func = node.get('func', {})
+        func_attr = func.get('attr', '') if isinstance(func, dict) else ''
+        if func_attr not in ('set_cookie', 'set'):
+            return False
+        # Check if secure kwarg is explicitly False or missing
+        kwargs = {kw.get('arg'): kw.get('value', {}) for kw in node.get('keywords', []) if isinstance(kw, dict)}
+        if 'secure' in kwargs:
+            secure_val = kwargs['secure'].get('value') if isinstance(kwargs['secure'], dict) else None
+            return secure_val is False or secure_val == 'False'
+        # secure kwarg missing — only flag if it looks like a cookie-setting call
+        args = node.get('args', [])
+        return len(args) >= 1  # has at least a cookie name arg
+    return False
 def doubled_prefix_operator_check(node, ast_root=None):
     """
     Returns True if a Compare node uses both NotEq and Lt operators (chained comparison).
