@@ -44,6 +44,13 @@ CREATE TABLE IF NOT EXISTS secops_remediation (
     updated_at          TIMESTAMPTZ  DEFAULT now()
 );
 
+-- ── UNIQUE constraint ─────────────────────────────────────────────────────────
+-- Required for ON CONFLICT (finding_id) DO UPDATE in writer.py.
+-- One remediation row per finding — re-running remediation on the same scan
+-- updates the existing row rather than creating duplicates.
+ALTER TABLE secops_remediation
+    ADD CONSTRAINT IF NOT EXISTS uq_remediation_finding UNIQUE (finding_id);
+
 -- Indexes for common access patterns
 CREATE INDEX IF NOT EXISTS idx_rem_scan_id    ON secops_remediation(secops_scan_id);
 CREATE INDEX IF NOT EXISTS idx_rem_finding    ON secops_remediation(finding_id);

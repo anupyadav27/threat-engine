@@ -14,6 +14,7 @@ Environment variables:
 
 import logging
 import os
+import time
 from typing import Optional
 
 import requests
@@ -21,6 +22,11 @@ import requests
 logger = logging.getLogger(__name__)
 
 MISTRAL_API_URL = "https://api.mistral.ai/v1/chat/completions"
+
+# Transient status codes safe to retry with exponential backoff
+_RETRYABLE_STATUS    = {429, 500, 502, 503, 504}
+_MISTRAL_MAX_RETRIES = 3
+_MISTRAL_BACKOFF_BASE = 2   # seconds — doubles each attempt (2 → 4 → 8)
 
 
 def fix_file(
@@ -71,58 +77,98 @@ def fix_file(
         "- No explanations. No markdown code fences. No comments about changes made."
     )
 
-    try:
-        logger.info(
-            f"[AI] Calling Mistral ({model}) for {len(findings)} finding(s) — "
-            f"file size: {len(file_content)} chars"
-        )
-        resp = requests.post(
-            MISTRAL_API_URL,
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": model,
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are a precise security code-fixing assistant. "
-                            "You return only the corrected file content, nothing else."
-                        ),
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                "temperature": 0.2,
-                "max_tokens": 8192,
-            },
-            timeout=timeout,
-        )
-        resp.raise_for_status()
-        corrected = resp.json()["choices"][0]["message"]["content"].strip()
+    logger.info(
+        f"[AI] Calling Mistral ({model}) for {len(findings)} finding(s) — "
+        f"file size: {len(file_content)} chars"
+    )
 
-        # Strip markdown fences if model accidentally added them
-        if corrected.startswith("```"):
-            lines = corrected.splitlines()
-            # Drop first line (``` or ```python) and last ``` line
-            corrected = "\n".join(
-                line for line in lines[1:]
-                if not line.strip().startswith("```")
-            ).strip()
+    payload = {
+        "model": model,
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You are a precise security code-fixing assistant. "
+                    "You return only the corrected file content, nothing else."
+                ),
+            },
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": 0.2,
+        "max_tokens": 8192,
+    }
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
 
-        if not corrected:
-            logger.warning("[AI] Mistral returned empty content")
+    for attempt in range(1, _MISTRAL_MAX_RETRIES + 1):
+        try:
+            resp = requests.post(
+                MISTRAL_API_URL,
+                headers=headers,
+                json=payload,
+                timeout=timeout,
+            )
+
+            # Transient server-side errors — back off and retry
+            if resp.status_code in _RETRYABLE_STATUS and attempt < _MISTRAL_MAX_RETRIES:
+                wait = _MISTRAL_BACKOFF_BASE * (2 ** (attempt - 1))
+                logger.warning(
+                    f"[AI] Mistral {resp.status_code} (attempt {attempt}/{_MISTRAL_MAX_RETRIES})"
+                    f" — retrying in {wait}s"
+                )
+                time.sleep(wait)
+                continue
+
+            resp.raise_for_status()
+            corrected = resp.json()["choices"][0]["message"]["content"].strip()
+
+            # Strip markdown fences if model accidentally added them
+            if corrected.startswith("```"):
+                lines = corrected.splitlines()
+                corrected = "\n".join(
+                    line for line in lines[1:]
+                    if not line.strip().startswith("```")
+                ).strip()
+
+            if not corrected:
+                logger.warning("[AI] Mistral returned empty content")
+                return None
+
+            logger.info(
+                "[AI] Fix received successfully"
+                + (f" (attempt {attempt})" if attempt > 1 else "")
+            )
+            return corrected
+
+        except requests.exceptions.Timeout:
+            if attempt == _MISTRAL_MAX_RETRIES:
+                logger.warning(f"[AI] Mistral timed out after {timeout}s (all retries exhausted)")
+                return None
+            wait = _MISTRAL_BACKOFF_BASE * (2 ** (attempt - 1))
+            logger.warning(
+                f"[AI] Mistral timeout (attempt {attempt}/{_MISTRAL_MAX_RETRIES})"
+                f" — retrying in {wait}s"
+            )
+            time.sleep(wait)
+
+        except requests.exceptions.HTTPError as e:
+            http_status = e.response.status_code if e.response is not None else "?"
+            if http_status not in _RETRYABLE_STATUS or attempt == _MISTRAL_MAX_RETRIES:
+                logger.warning(
+                    f"[AI] Mistral HTTP {http_status} — {e.response.text[:200] if e.response else ''}"
+                )
+                return None
+            wait = _MISTRAL_BACKOFF_BASE * (2 ** (attempt - 1))
+            logger.warning(
+                f"[AI] Mistral HTTP {http_status} (attempt {attempt}/{_MISTRAL_MAX_RETRIES})"
+                f" — retrying in {wait}s"
+            )
+            time.sleep(wait)
+
+        except Exception as e:
+            logger.warning(f"[AI] Mistral call failed: {e}")
             return None
-
-        logger.info("[AI] Fix received successfully")
-        return corrected
-
-    except requests.exceptions.Timeout:
-        logger.warning(f"[AI] Mistral request timed out after {timeout}s")
-    except requests.exceptions.HTTPError as e:
-        logger.warning(f"[AI] Mistral HTTP error: {e.response.status_code} — {e.response.text[:200]}")
-    except Exception as e:
-        logger.warning(f"[AI] Mistral call failed: {e}")
 
     return None

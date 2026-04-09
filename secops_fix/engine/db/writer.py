@@ -140,6 +140,68 @@ def mark_failed(finding_id: int, error: str) -> None:
         conn.close()
 
 
+def mark_false_positive(finding_id: int, suppressed_by: str = "user") -> None:
+    """
+    Mark a finding as a false positive in secops_remediation.
+
+    Effect:
+      - Sets status = 'false_positive' in secops_remediation.
+      - Future calls to _run_remediation skip this finding_id automatically.
+      - The UI can display which findings were suppressed and by whom.
+
+    Args:
+        finding_id:    PK of the finding in secops_findings.
+        suppressed_by: Identifier of who suppressed it (tenant_id, user email, etc.)
+    """
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            # Upsert — works whether a remediation row already exists or not
+            cur.execute("""
+                INSERT INTO secops_remediation (finding_id, secops_scan_id, tenant_id, status, error_message)
+                SELECT id, secops_scan_id, tenant_id, 'false_positive', %s
+                FROM secops_findings
+                WHERE id = %s
+                ON CONFLICT (finding_id) DO UPDATE
+                    SET status        = 'false_positive',
+                        error_message = EXCLUDED.error_message
+            """, (f"suppressed_by:{suppressed_by}", finding_id))
+        conn.commit()
+        logger.info(f"Finding {finding_id} marked false_positive by {suppressed_by!r}")
+    finally:
+        conn.close()
+
+
+def mark_open(finding_id: int) -> None:
+    """Reset a false-positive finding back to 'pending' so it is included in the next run."""
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE secops_remediation
+                SET status = 'pending', error_message = NULL
+                WHERE finding_id = %s AND status = 'false_positive'
+            """, (finding_id,))
+        conn.commit()
+        logger.info(f"Finding {finding_id} reopened (false_positive → pending)")
+    finally:
+        conn.close()
+
+
+def get_false_positive_ids(secops_scan_id: str) -> set:
+    """Return set of finding_id values marked as false_positive for a scan."""
+    conn = get_dict_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT finding_id FROM secops_remediation
+                WHERE secops_scan_id = %s AND status = 'false_positive'
+            """, (secops_scan_id,))
+            return {row["finding_id"] for row in cur.fetchall()}
+    finally:
+        conn.close()
+
+
 def get_remediation_summary(secops_scan_id: str) -> dict:
     """Return count breakdown by status for a scan."""
     conn = get_dict_connection()

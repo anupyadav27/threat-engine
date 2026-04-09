@@ -2,21 +2,27 @@
 Remediation router — the core engine endpoint.
 
 POST /api/v1/secops-fix/remediate
-  - Fetches findings from DB (SAST already matched rules — no re-matching needed)
-  - For each finding: direct lookup of rule metadata for AI hints (O(1))
-  - Groups findings per file, calls Mistral AI once per file with full code context
-  - Commits AI-fixed files to a new fix branch and pushes to origin
-  - Writes all results to DB
+  - Requires X-API-Key header (enforced by APIKeyMiddleware).
+  - Requires X-Repo-Token header — Git PAT for cloning + pushing the fix branch.
+    Token is never stored, never logged, reset on the remote after push.
+  - Fetches findings from DB (SAST already matched rules — no re-matching needed).
+  - Batch-fetches rule metadata in a single DB round-trip.
+  - Clones source repo once; groups findings per file.
+  - Calls Mistral AI once per file with full file content + all findings.
+  - Commits AI-corrected files to fix branch, pushes, writes results to DB.
+  - Max concurrent runs: SECOPS_FIX_MAX_CONCURRENT (default 3).
+  - Per-run timeout: SECOPS_FIX_PIPELINE_TIMEOUT seconds (default 600).
 
 GET  /api/v1/secops-fix/remediate/{secops_scan_id}
-  - Returns remediation status and summary for a completed run
+  - Returns remediation status and summary for a completed run.
 """
 
+import asyncio
 import logging
 import os
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Request, status
 
 from models.remediation import RemediationRequest, RemediationSummary, RemediationStatus
 from models.fix_result import FixResult
@@ -24,30 +30,94 @@ from db.fetcher import get_findings, get_scan_report, get_rule_metadata_batch
 from db.writer import (
     init_remediation_rows, write_fix_result,
     mark_applied, mark_failed, get_remediation_summary,
+    get_false_positive_ids,
 )
 from core import git_patcher
 from core import ai_fixer
 
 logger = logging.getLogger(__name__)
+_audit = logging.getLogger("audit.secops_fix")
 router = APIRouter()
+
+# ── Concurrency + timeout ─────────────────────────────────────────────────────
+_MAX_CONCURRENT   = int(os.getenv("SECOPS_FIX_MAX_CONCURRENT",   "3"))
+_PIPELINE_TIMEOUT = int(os.getenv("SECOPS_FIX_PIPELINE_TIMEOUT", "600"))  # seconds
+_semaphore        = asyncio.Semaphore(_MAX_CONCURRENT)
 
 
 @router.post("", response_model=RemediationSummary)
-async def remediate(request: RemediationRequest, background_tasks: BackgroundTasks):
+async def remediate(request: RemediationRequest, raw_req: Request):
     """
     Trigger AI-powered remediation for a completed secops scan.
 
-    The SAST scanner already:
-      - Identified which rule fired (rule_id stored in finding)
-      - Recorded file, line, message, severity, language, CWE
+    Authentication:
+      - X-API-Key header  — engine API key (enforced by middleware)
+      - X-Repo-Token header — Git PAT with Contents:Write on the source repo
 
-    So this engine does NOT re-match rules. Instead it:
-      1. Fetches findings from DB.
-      2. Direct O(1) lookup of rule metadata (compliant example) as AI hint.
-      3. Clones repo to read actual source code.
-      4. Groups findings per file → one Mistral call per file with full code context.
-      5. Writes AI-corrected files back → commits → pushes fix branch.
+    The SAST scanner already identified rule_id, file, line, severity.
+    This engine does NOT re-match rules — it generates AI fixes and commits them.
     """
+    # ── Audit log — record every remediation attempt ─────────────────────────
+    client_ip = raw_req.client.host if raw_req.client else "unknown"
+    _audit.info(
+        "remediation_requested",
+        extra={
+            "audit":           True,
+            "event":           "remediation_requested",
+            "scan_id":         request.secops_scan_id,
+            "tenant_id":       request.tenant_id,
+            "repo_url":        request.repo_url,
+            "source_branch":   request.source_branch,
+            "severity_filter": request.severity_filter,
+            "client_ip":       client_ip,
+        },
+    )
+
+    # ── Read git token from header (never from request body) ─────────────────
+    repo_token = raw_req.headers.get("X-Repo-Token", "").strip()
+    if not repo_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "X-Repo-Token header is required. "
+                "Pass your Git PAT (GitHub/GitLab) in this header. "
+                "It is used only for this request and is never stored."
+            ),
+        )
+
+    # ── Rate / concurrency gate ───────────────────────────────────────────────
+    if _semaphore.locked():
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=(
+                f"Too many concurrent remediation requests "
+                f"(max={_MAX_CONCURRENT}). Retry shortly."
+            ),
+        )
+
+    async with _semaphore:
+        try:
+            return await asyncio.wait_for(
+                _run_remediation(request, repo_token),
+                timeout=_PIPELINE_TIMEOUT,
+            )
+        except asyncio.TimeoutError:
+            logger.error(
+                f"[SecOpsFix] Pipeline timed out after {_PIPELINE_TIMEOUT}s "
+                f"for scan '{request.secops_scan_id}'"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail=(
+                    f"Pipeline timed out after {_PIPELINE_TIMEOUT}s. "
+                    "Check Mistral API latency and git clone speed. "
+                    "Increase SECOPS_FIX_PIPELINE_TIMEOUT if needed."
+                ),
+            )
+
+
+async def _run_remediation(request: RemediationRequest, repo_token: str) -> RemediationSummary:
+    """Core pipeline — separated so it can be wrapped with wait_for."""
     scan_report = get_scan_report(request.secops_scan_id)
     if not scan_report:
         raise HTTPException(
@@ -55,10 +125,20 @@ async def remediate(request: RemediationRequest, background_tasks: BackgroundTas
             detail=f"Scan not found: {request.secops_scan_id}",
         )
 
-    findings = get_findings(
+    findings_raw = get_findings(
         request.secops_scan_id,
         severity_filter=request.severity_filter,
     )
+
+    # ── Skip previously false-positived findings ──────────────────────────────
+    fp_ids   = get_false_positive_ids(request.secops_scan_id)
+    findings = [f for f in findings_raw if f.id not in fp_ids]
+    if fp_ids:
+        logger.info(
+            f"[SecOpsFix] Skipped {len(fp_ids)} false-positive finding(s) "
+            f"for scan {request.secops_scan_id}"
+        )
+
     if not findings:
         return RemediationSummary(
             secops_scan_id=request.secops_scan_id,
@@ -77,7 +157,7 @@ async def remediate(request: RemediationRequest, background_tasks: BackgroundTas
     try:
         local_repo_path = git_patcher.clone_readonly(
             repo_url=scan_report.repo_url,
-            repo_token=request.repo_token,
+            repo_token=repo_token,
             source_branch=scan_report.branch,
         )
     except Exception as e:
@@ -165,7 +245,7 @@ async def remediate(request: RemediationRequest, background_tasks: BackgroundTas
             try:
                 pushed_branch, _, patched_count = git_patcher.apply_fixes(
                     repo_url=scan_report.repo_url,
-                    repo_token=request.repo_token,
+                    repo_token=repo_token,
                     secops_scan_id=request.secops_scan_id,
                     source_branch=scan_report.branch,
                     fix_results=fix_results,
@@ -204,6 +284,21 @@ async def remediate(request: RemediationRequest, background_tasks: BackgroundTas
         remediations=remediations,
     )
     _log_summary(result, scan_report, fix_results)
+
+    # ── Audit log — completion record ─────────────────────────────────────────
+    _audit.info(
+        "remediation_completed",
+        extra={
+            "audit":         True,
+            "event":         "remediation_completed",
+            "scan_id":       request.secops_scan_id,
+            "tenant_id":     request.tenant_id,
+            "total_findings": result.total_findings,
+            "applied":       result.applied,
+            "failed":        result.failed,
+            "fix_branch":    result.fix_branch,
+        },
+    )
     return result
 
 

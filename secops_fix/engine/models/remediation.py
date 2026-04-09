@@ -1,5 +1,11 @@
 """
 Remediation request / response models.
+
+Security note — repo_token:
+  The Git repository PAT is NOT part of the request body. Tokens in HTTP
+  bodies appear in access logs, load-balancer logs, and error traces.
+  Instead, pass the token in the X-Repo-Token request header.
+  The router reads it from there and never logs or stores it.
 """
 
 import re
@@ -14,14 +20,14 @@ _VALID_SEVERITIES = {"critical", "high", "medium", "low", "info"}
 
 
 class RemediationRequest(BaseModel):
-    secops_scan_id: str = Field(..., min_length=36, max_length=36)
-    tenant_id: str = Field(..., min_length=1, max_length=128)
-    repo_url: str = Field(..., min_length=10, max_length=500)
-    repo_token: str = Field(..., min_length=1, max_length=256)
-    source_branch: str = Field("main", min_length=1, max_length=100)
-    orchestration_id: Optional[str] = Field(None, max_length=36)
-    customer_id: Optional[str] = Field(None, max_length=128)
-    severity_filter: Optional[List[str]] = None
+    secops_scan_id:   str            = Field(..., min_length=36, max_length=36)
+    tenant_id:        str            = Field(..., min_length=1,  max_length=128)
+    repo_url:         str            = Field(..., min_length=10, max_length=500)
+    # repo_token is intentionally absent from the body — pass it via X-Repo-Token header.
+    source_branch:    str            = Field("main", min_length=1, max_length=100)
+    orchestration_id: Optional[str]  = Field(None, max_length=36)
+    customer_id:      Optional[str]  = Field(None, max_length=128)
+    severity_filter:  Optional[List[str]] = None
 
     @field_validator("secops_scan_id")
     @classmethod
@@ -35,6 +41,9 @@ class RemediationRequest(BaseModel):
     def validate_repo_url(cls, v: str) -> str:
         if not _HTTPS_RE.match(v):
             raise ValueError("repo_url must start with https://")
+        # SSRF guard — block private IPs and cloud metadata endpoints
+        from core.ssrf_guard import validate_git_url
+        validate_git_url(v)
         return v
 
     @field_validator("source_branch")
