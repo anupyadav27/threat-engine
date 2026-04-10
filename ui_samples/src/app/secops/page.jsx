@@ -1,832 +1,2434 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Code2,
-  Plus,
-  X,
-  Shield,
-  Package,
-  Zap,
-  FileCode2,
-  AlertTriangle,
-  CheckCircle,
-  Clock,
-  Activity,
+  RefreshCw, Plus, X, Code2, Code, Globe, Package,
+  CheckCircle, Loader2, AlertTriangle, ChevronRight,
+  ShieldAlert, Shield, Activity, GitBranch, Clock, Eye,
+  TrendingUp, TrendingDown, Minus, Zap, ArrowRight,
+  Maximize2,
 } from 'lucide-react';
-import { getFromEngine, postToEngine } from '@/lib/api';
-import { useGlobalFilter } from '@/lib/global-filter-context';
-import PageLayout from '@/components/shared/PageLayout';
-import MetricStrip from '@/components/shared/MetricStrip';
+import { getFromEngine, fetchApi } from '@/lib/api';
+import { useSecOpsFilters } from '@/lib/secops-filter-context';
+import KpiCard from '@/components/shared/KpiCard';
 import DataTable from '@/components/shared/DataTable';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import StatusIndicator from '@/components/shared/StatusIndicator';
+import FilterBar from '@/components/shared/FilterBar';
+import SeverityDonut from '@/components/charts/SeverityDonut';
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   STATIC FALLBACK DATA  (shown when engines are offline / no real scans yet)
-───────────────────────────────────────────────────────────────────────────── */
-const DEMO_SAST_SCANS = [
-  {
-    scan_id: 'sast-001', repo_name: 'threat-engine', repo_url: 'https://github.com/org/threat-engine',
-    branch: 'main', status: 'completed', findings_count: 47, critical: 8, high: 19, medium: 14, low: 6,
-    started_at: new Date(Date.now() - 3600000).toISOString(), completed_at: new Date(Date.now() - 3000000).toISOString(),
-    duration: '10m 12s', languages: 'Python, Dockerfile, YAML', files_scanned: 312, iac_findings: 11,
-    secrets_found: 3, container_vulns: 7,
-  },
-  {
-    scan_id: 'sast-002', repo_name: 'cloud-infra', repo_url: 'https://github.com/org/cloud-infra',
-    branch: 'develop', status: 'completed', findings_count: 31, critical: 4, high: 12, medium: 9, low: 6,
-    started_at: new Date(Date.now() - 86400000).toISOString(), completed_at: new Date(Date.now() - 83000000).toISOString(),
-    duration: '7m 45s', languages: 'Terraform, Python', files_scanned: 198, iac_findings: 22,
-    secrets_found: 1, container_vulns: 0,
-  },
-  {
-    scan_id: 'sast-003', repo_name: 'frontend-app', repo_url: 'https://github.com/org/frontend-app',
-    branch: 'main', status: 'running', findings_count: 0, critical: 0, high: 0, medium: 0, low: 0,
-    started_at: new Date(Date.now() - 300000).toISOString(), completed_at: null,
-    duration: 'Running…', languages: 'TypeScript, JavaScript', files_scanned: 0, iac_findings: 0,
-    secrets_found: 0, container_vulns: 0,
-  },
-];
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+const TENANT_ID = 'test-tenant';
+const SCA_API_KEY = 'sbom-api-key-2024';
+const SCA_BASE = '/secops/api/v1/secops/sca/api/v1/sbom';
 
-const DEMO_DAST_SCANS = [
-  {
-    scan_id: 'dast-001', target_url: 'https://api.threat-engine.internal', scan_type: 'Active',
-    status: 'completed', vulnerabilities: 14, critical: 2, high: 5, medium: 5, low: 2,
-    started_at: new Date(Date.now() - 7200000).toISOString(), duration: '22m 30s',
-    auth_type: 'Bearer Token', pages_crawled: 148,
-  },
-  {
-    scan_id: 'dast-002', target_url: 'https://dashboard.threat-engine.internal', scan_type: 'Passive',
-    status: 'completed', vulnerabilities: 7, critical: 0, high: 2, medium: 3, low: 2,
-    started_at: new Date(Date.now() - 172800000).toISOString(), duration: '8m 10s',
-    auth_type: 'OAuth2', pages_crawled: 64,
-  },
-  {
-    scan_id: 'dast-003', target_url: 'https://onboarding.threat-engine.internal', scan_type: 'Active',
-    status: 'pending', vulnerabilities: 0, critical: 0, high: 0, medium: 0, low: 0,
-    started_at: new Date(Date.now() - 60000).toISOString(), duration: '—',
-    auth_type: 'API Key', pages_crawled: 0,
-  },
-];
+const SEV_ORDER = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
 
-const DEMO_SCA_SCANS = [
-  {
-    scan_id: 'sca-001', repo_name: 'threat-engine', package_manager: 'pip', total_packages: 87,
-    vulnerable: 12, critical: 3, high: 5, medium: 4, low: 0, outdated: 23,
-    license_issues: 2, status: 'completed',
-    scanned_at: new Date(Date.now() - 3600000).toISOString(),
-  },
-  {
-    scan_id: 'sca-002', repo_name: 'frontend-app', package_manager: 'npm', total_packages: 342,
-    vulnerable: 19, critical: 1, high: 7, medium: 8, low: 3, outdated: 67,
-    license_issues: 5, status: 'completed',
-    scanned_at: new Date(Date.now() - 86400000).toISOString(),
-  },
-  {
-    scan_id: 'sca-003', repo_name: 'cloud-infra', package_manager: 'go mod', total_packages: 56,
-    vulnerable: 4, critical: 0, high: 2, medium: 2, low: 0, outdated: 9,
-    license_issues: 0, status: 'completed',
-    scanned_at: new Date(Date.now() - 172800000).toISOString(),
-  },
-];
+function timeRangeCutoff(timeRange) {
+  const days = { '7d': 7, '30d': 30, '90d': 90, '180d': 180, '365d': 365 };
+  const d = days[timeRange] || 30;
+  return Date.now() - d * 24 * 60 * 60 * 1000;
+}
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   SCAN REPOSITORY MODAL
-───────────────────────────────────────────────────────────────────────────── */
-function ScanRepositoryModal({ isOpen, onClose, onSubmit, isLoading }) {
+function normalizeSev(s) {
+  if (!s) return 'info';
+  const v = String(s).toLowerCase();
+  if (v === 'blocker') return 'critical';
+  if (v === 'major') return 'high';
+  if (v === 'minor') return 'medium';
+  return v;
+}
+
+function fmtDate(ts) {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  if (isNaN(d)) return ts;
+  return d.toLocaleString('en-US', {
+    month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+    hour12: true,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// SourceBadge
+// ---------------------------------------------------------------------------
+function SourceBadge({ source }) {
+  const cfg = {
+    sast:  { label: 'SAST',  cls: 'bg-blue-500/15 text-blue-400 border-blue-500/30' },
+    dast:  { label: 'DAST',  cls: 'bg-purple-500/15 text-purple-400 border-purple-500/30' },
+    sca:   { label: 'SCA',   cls: 'bg-green-500/15 text-green-400 border-green-500/30' },
+  };
+  const { label, cls } = cfg[source] || { label: source?.toUpperCase() || '—', cls: 'bg-slate-500/15 text-slate-400 border-slate-500/30' };
+  return (
+    <span className={`inline-flex items-center text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border ${cls}`}>
+      {label}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// RiskScoreBadge
+// ---------------------------------------------------------------------------
+function RiskScoreBadge({ score }) {
+  const s = parseFloat(score);
+  const cfg = s >= 7 ? 'bg-red-500/20 text-red-400 border-red-500/30'
+    : s >= 4 ? 'bg-orange-500/20 text-orange-400 border-orange-500/30'
+    : s >= 2 ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+    : 'bg-green-500/20 text-green-400 border-green-500/30';
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border ${cfg}`}>
+      {score}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// SeverityBar — horizontal stacked bar with legend
+// ---------------------------------------------------------------------------
+function SeverityBar({ counts }) {
+  const SEG = [
+    { key: 'critical', label: 'Critical', bg: 'bg-red-500',    text: 'text-red-400' },
+    { key: 'high',     label: 'High',     bg: 'bg-orange-500', text: 'text-orange-400' },
+    { key: 'medium',   label: 'Medium',   bg: 'bg-yellow-500', text: 'text-yellow-400' },
+    { key: 'low',      label: 'Low',      bg: 'bg-blue-500',   text: 'text-blue-400' },
+    { key: 'info',     label: 'Info',     bg: 'bg-slate-500',  text: 'text-slate-400' },
+  ];
+  const total = SEG.reduce((a, s) => a + (counts[s.key] || 0), 0);
+  if (total === 0) {
+    return (
+      <div className="text-sm text-center py-4" style={{ color: 'var(--text-tertiary)' }}>
+        No findings data available
+      </div>
+    );
+  }
+  return (
+    <div>
+      <div className="flex rounded-full overflow-hidden h-3 gap-px">
+        {SEG.map(s => {
+          const v = counts[s.key] || 0;
+          if (!v) return null;
+          const pct = (v / total) * 100;
+          return (
+            <div key={s.key} className={`${s.bg} transition-all`} style={{ width: `${pct}%` }} title={`${s.label}: ${v}`} />
+          );
+        })}
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3">
+        {SEG.map(s => {
+          const v = counts[s.key] || 0;
+          return (
+            <div key={s.key} className="flex items-center gap-1.5">
+              <span className={`inline-block w-2 h-2 rounded-full ${s.bg}`} />
+              <span className={`text-xs font-semibold ${s.text}`}>{v}</span>
+              <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{s.label}</span>
+            </div>
+          );
+        })}
+        <div className="flex items-center gap-1.5 ml-auto">
+          <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>{total}</span>
+          <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Total</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// CoverageCard — engine scan summary with findings proportion bar
+// ---------------------------------------------------------------------------
+function CoverageCard({ icon, label, count, findings, accentCls, barColor, total }) {
+  const pct = total > 0 ? Math.max(1, Math.round((findings / total) * 100)) : 0;
+  return (
+    <div className="rounded-xl border p-3 flex flex-col gap-2"
+      style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+      {/* Top row: icon + label */}
+      <div className="flex items-center gap-2">
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${accentCls}`}>
+          {icon}
+        </div>
+        <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>
+          {label}
+        </span>
+      </div>
+
+      {/* Counts */}
+      <div className="flex items-end justify-between">
+        <div>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-xl font-bold tabular-nums" style={{ color: 'var(--text-primary)' }}>
+              {findings.toLocaleString()}
+            </span>
+            <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>findings</span>
+          </div>
+          <div className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+            {count} scan{count !== 1 ? 's' : ''}
+          </div>
+        </div>
+        {total > 0 && (
+          <span className="text-xs font-semibold tabular-nums" style={{ color: 'var(--text-secondary)' }}>
+            {pct}%
+          </span>
+        )}
+      </div>
+
+      {/* Proportion bar */}
+      {total > 0 && (
+        <div className="rounded-full overflow-hidden h-1.5" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+          <div className="h-full rounded-full transition-all"
+            style={{ width: `${pct}%`, backgroundColor: barColor }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ScanLaunchModal
+// ---------------------------------------------------------------------------
+function ScanLaunchModal({ onClose, onLaunch, scanStatus }) {
   const [repoUrl, setRepoUrl] = useState('');
   const [branch, setBranch] = useState('main');
+  const [targetUrl, setTargetUrl] = useState('');
   const [error, setError] = useState('');
+
+  const isRunning = scanStatus !== null;
 
   const handleSubmit = (e) => {
     e.preventDefault();
     setError('');
     if (!repoUrl.trim()) { setError('Repository URL is required'); return; }
-    if (!branch.trim())  { setError('Branch name is required'); return; }
-    onSubmit({ repo_url: repoUrl, branch });
-    setRepoUrl('');
-    setBranch('main');
+    onLaunch({ repo_url: repoUrl.trim(), branch: branch.trim() || 'main', target_url: targetUrl.trim() });
   };
 
-  if (!isOpen) return null;
+  const handleClose = () => {
+    if (isRunning) return;
+    setRepoUrl(''); setBranch('main'); setTargetUrl(''); setError('');
+    onClose();
+  };
+
+  const engines = [
+    { id: 'sast', label: 'SAST', desc: 'Static code analysis',             color: 'text-blue-400',   bg: 'bg-blue-500/10' },
+    { id: 'sca',  label: 'SCA',  desc: 'Dependency vulnerabilities',        color: 'text-green-400',  bg: 'bg-green-500/10' },
+    { id: 'dast', label: 'DAST', desc: 'Runtime testing (if URL provided)', color: 'text-purple-400', bg: 'bg-purple-500/10' },
+  ];
+
+  const getEngineIcon = (id) => {
+    if (!scanStatus) return null;
+    const st = scanStatus[id];
+    if (st === 'running')   return <Loader2 className="w-4 h-4 animate-spin text-blue-400" />;
+    if (st === 'completed') return <CheckCircle className="w-4 h-4 text-green-400" />;
+    if (st === 'failed')    return <AlertTriangle className="w-4 h-4 text-red-400" />;
+    return <div className="w-4 h-4 rounded-full border-2" style={{ borderColor: 'var(--border-primary)' }} />;
+  };
+
   return (
     <>
-      <div className="fixed inset-0 bg-black/50 z-40" onClick={onClose} />
-      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md border rounded-xl shadow-2xl z-50 animate-in fade-in zoom-in-95" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+      <div className="fixed inset-0 bg-black/60 z-40 backdrop-blur-sm" onClick={handleClose} />
+      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg border rounded-2xl shadow-2xl z-50"
+        style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+
+        {/* Header */}
         <div className="flex items-center justify-between p-6 border-b" style={{ borderColor: 'var(--border-primary)' }}>
-          <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Scan Repository</h2>
-          <button onClick={onClose} className="p-1 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-            <X className="w-5 h-5" style={{ color: 'var(--text-tertiary)' }} />
-          </button>
-        </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>Repository URL</label>
-            <input type="text" value={repoUrl} onChange={(e) => setRepoUrl(e.target.value)}
-              placeholder="https://github.com/org/repo"
-              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
-              style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}
-              disabled={isLoading} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>Branch</label>
-            <input type="text" value={branch} onChange={(e) => setBranch(e.target.value)}
-              placeholder="main"
-              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
-              style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}
-              disabled={isLoading} />
-          </div>
-          {error && (
-            <div className="p-3 border rounded-lg bg-red-500/20 border-red-800">
-              <p className="text-sm text-red-300">{error}</p>
-            </div>
-          )}
-          <div className="flex gap-3 pt-4">
-            <button type="button" onClick={onClose} disabled={isLoading}
-              className="flex-1 px-4 py-2 rounded-lg font-medium transition-colors"
-              style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}>
-              Cancel
-            </button>
-            <button type="submit" disabled={isLoading}
-              className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">
-              {isLoading ? 'Starting…' : 'Start Scan'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </>
-  );
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   DAST SCAN MODAL
-───────────────────────────────────────────────────────────────────────────── */
-function DastScanModal({ isOpen, onClose, onSubmit, isLoading }) {
-  const [targetUrl, setTargetUrl] = useState('');
-  const [scanType, setScanType] = useState('passive');
-  const [authType, setAuthType] = useState('none');
-  const [error, setError] = useState('');
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setError('');
-    if (!targetUrl.trim()) { setError('Target URL is required'); return; }
-    onSubmit({ target_url: targetUrl, scan_type: scanType, auth_type: authType });
-    setTargetUrl('');
-    setScanType('passive');
-    setAuthType('none');
-  };
-
-  if (!isOpen) return null;
-  return (
-    <>
-      <div className="fixed inset-0 bg-black/50 z-40" onClick={onClose} />
-      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md border rounded-xl shadow-2xl z-50 animate-in fade-in zoom-in-95" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-        <div className="flex items-center justify-between p-6 border-b" style={{ borderColor: 'var(--border-primary)' }}>
-          <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>New DAST Scan</h2>
-          <button onClick={onClose} className="p-1 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-            <X className="w-5 h-5" style={{ color: 'var(--text-tertiary)' }} />
-          </button>
-        </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>Target URL</label>
-            <input type="text" value={targetUrl} onChange={(e) => setTargetUrl(e.target.value)}
-              placeholder="https://api.yourdomain.com"
-              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
-              style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}
-              disabled={isLoading} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>Scan Type</label>
-            <select value={scanType} onChange={(e) => setScanType(e.target.value)}
-              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
-              style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}
-              disabled={isLoading}>
-              <option value="passive">Passive (safe, read-only)</option>
-              <option value="active">Active (full exploit testing)</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>Authentication</label>
-            <select value={authType} onChange={(e) => setAuthType(e.target.value)}
-              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
-              style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}
-              disabled={isLoading}>
-              <option value="none">None</option>
-              <option value="bearer">Bearer Token</option>
-              <option value="oauth2">OAuth2</option>
-              <option value="api_key">API Key</option>
-              <option value="basic">Basic Auth</option>
-            </select>
-          </div>
-          {error && (
-            <div className="p-3 border rounded-lg bg-red-500/20 border-red-800">
-              <p className="text-sm text-red-300">{error}</p>
-            </div>
-          )}
-          <div className="flex gap-3 pt-4">
-            <button type="button" onClick={onClose} disabled={isLoading}
-              className="flex-1 px-4 py-2 rounded-lg font-medium transition-colors"
-              style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}>
-              Cancel
-            </button>
-            <button type="submit" disabled={isLoading}
-              className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">
-              {isLoading ? 'Starting…' : 'Start DAST Scan'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </>
-  );
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   MINI STAT ROW  (used inside Overview cards)
-───────────────────────────────────────────────────────────────────────────── */
-function StatRow({ label, value, valueColor }) {
-  return (
-    <div className="flex items-center justify-between py-1.5 border-b last:border-0" style={{ borderColor: 'var(--border-primary)' }}>
-      <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{label}</span>
-      <span className="text-sm font-semibold" style={{ color: valueColor || 'var(--text-primary)' }}>{value}</span>
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   LANGUAGE BAR CHART  (horizontal bar rows)
-───────────────────────────────────────────────────────────────────────────── */
-function LangBar({ lang, count, max }) {
-  const pct = max ? Math.round((count / max) * 100) : 0;
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between text-xs" style={{ color: 'var(--text-secondary)' }}>
-        <span>{lang}</span>
-        <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{count} scan{count !== 1 ? 's' : ''}</span>
-      </div>
-      <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-        <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: 'var(--accent-primary)' }} />
-      </div>
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   FINDING CATEGORY BADGE
-───────────────────────────────────────────────────────────────────────────── */
-const CATEGORY_COLORS = {
-  secrets:    { bg: 'rgba(239,68,68,0.15)',   text: '#f87171' },
-  iac:        { bg: 'rgba(249,115,22,0.15)',  text: '#fb923c' },
-  container:  { bg: 'rgba(168,85,247,0.15)', text: '#c084fc' },
-  sast:       { bg: 'rgba(59,130,246,0.15)', text: '#60a5fa' },
-  dast:       { bg: 'rgba(20,184,166,0.15)', text: '#2dd4bf' },
-  sca:        { bg: 'rgba(234,179,8,0.15)',  text: '#facc15' },
-};
-function CategoryBadge({ type }) {
-  const c = CATEGORY_COLORS[type?.toLowerCase()] || { bg: 'var(--bg-tertiary)', text: 'var(--text-secondary)' };
-  return (
-    <span className="text-xs px-2 py-0.5 rounded-full font-medium uppercase" style={{ backgroundColor: c.bg, color: c.text }}>
-      {type}
-    </span>
-  );
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   MAIN PAGE COMPONENT
-───────────────────────────────────────────────────────────────────────────── */
-export default function SecopsPage() {
-  const router = useRouter();
-  const { provider, account, filterSummary } = useGlobalFilter();
-
-  /* ── Data state ─────────────────────────────────────────────────────────── */
-  const [loadingSast, setLoadingSast]   = useState(true);
-  const [loadingDast, setLoadingDast]   = useState(true);
-  const [loadingSca,  setLoadingSca]    = useState(true);
-  const [sastScans,   setSastScans]     = useState([]);
-  const [dastScans,   setDastScans]     = useState([]);
-  const [scaScans,    setScaScans]      = useState([]);
-  const [errorMsg,    setErrorMsg]      = useState(null);
-
-  /* ── Modal state ────────────────────────────────────────────────────────── */
-  const [showSastModal, setShowSastModal] = useState(false);
-  const [showDastModal, setShowDastModal] = useState(false);
-  const [isSubmitting,  setIsSubmitting]  = useState(false);
-
-  /* ── Fetch all scan types ───────────────────────────────────────────────── */
-  useEffect(() => {
-    const fetchSast = async () => {
-      try {
-        const d = await getFromEngine('secops', '/api/v1/secops/scans');
-        const list = Array.isArray(d) ? d : (d?.scans ?? []);
-        setSastScans(list.length ? list : DEMO_SAST_SCANS);
-      } catch { setSastScans(DEMO_SAST_SCANS); }
-      finally { setLoadingSast(false); }
-    };
-
-    const fetchDast = async () => {
-      try {
-        const d = await getFromEngine('secops', '/api/v1/secops/dast/scans');
-        const list = Array.isArray(d) ? d : (d?.scans ?? []);
-        setDastScans(list.length ? list : DEMO_DAST_SCANS);
-      } catch { setDastScans(DEMO_DAST_SCANS); }
-      finally { setLoadingDast(false); }
-    };
-
-    const fetchSca = async () => {
-      try {
-        const d = await getFromEngine('secops', '/api/v1/secops/sca/scans');
-        const list = Array.isArray(d) ? d : (d?.scans ?? []);
-        setScaScans(list.length ? list : DEMO_SCA_SCANS);
-      } catch { setScaScans(DEMO_SCA_SCANS); }
-      finally { setLoadingSca(false); }
-    };
-
-    fetchSast();
-    fetchDast();
-    fetchSca();
-  }, []);
-
-  /* ── SAST: submit new scan ──────────────────────────────────────────────── */
-  const handleSastSubmit = async (formData) => {
-    setIsSubmitting(true);
-    try {
-      const result = await postToEngine('secops', '/api/v1/secops/scan', formData);
-      const newScan = result?.scan_id ? result : {
-        scan_id: `secops-${Date.now()}`,
-        repo_name: formData.repo_url.split('/').pop().replace('.git', ''),
-        repo_url: formData.repo_url,
-        branch: formData.branch,
-        status: 'running',
-        findings_count: 0, critical: 0, high: 0, medium: 0, low: 0,
-        started_at: new Date().toISOString(), completed_at: null,
-        duration: 'Running…', languages: 'Detecting…', files_scanned: 0,
-        iac_findings: 0, secrets_found: 0, container_vulns: 0,
-      };
-      setSastScans(prev => [newScan, ...prev]);
-      setShowSastModal(false);
-    } catch { /* silently keep existing list */ }
-    finally { setIsSubmitting(false); }
-  };
-
-  /* ── DAST: submit new scan ──────────────────────────────────────────────── */
-  const handleDastSubmit = async (formData) => {
-    setIsSubmitting(true);
-    try {
-      const result = await postToEngine('secops', '/api/v1/secops/dast/scan', formData);
-      const newScan = result?.scan_id ? result : {
-        scan_id: `dast-${Date.now()}`,
-        target_url: formData.target_url,
-        scan_type: formData.scan_type === 'active' ? 'Active' : 'Passive',
-        auth_type: formData.auth_type,
-        status: 'pending',
-        vulnerabilities: 0, critical: 0, high: 0, medium: 0, low: 0,
-        started_at: new Date().toISOString(), duration: '—', pages_crawled: 0,
-      };
-      setDastScans(prev => [newScan, ...prev]);
-      setShowDastModal(false);
-    } catch { /* silently keep existing list */ }
-    finally { setIsSubmitting(false); }
-  };
-
-  /* ── Scope filtering ────────────────────────────────────────────────────── */
-  const filteredSast = useMemo(() => {
-    let d = sastScans;
-    if (provider) d = d.filter(r => !r.provider || r.provider?.toLowerCase() === provider.toLowerCase());
-    if (account)  d = d.filter(r => !r.account || r.account === account);
-    return d;
-  }, [sastScans, provider, account]);
-
-  const filteredDast = useMemo(() => {
-    let d = dastScans;
-    if (provider) d = d.filter(r => !r.provider || r.provider?.toLowerCase() === provider.toLowerCase());
-    if (account)  d = d.filter(r => !r.account || r.account === account);
-    return d;
-  }, [dastScans, provider, account]);
-
-  const filteredSca = useMemo(() => {
-    let d = scaScans;
-    if (provider) d = d.filter(r => !r.provider || r.provider?.toLowerCase() === provider.toLowerCase());
-    if (account)  d = d.filter(r => !r.account || r.account === account);
-    return d;
-  }, [scaScans, provider, account]);
-
-  /* ── Derived aggregate metrics ──────────────────────────────────────────── */
-  const totalCritical      = filteredSast.reduce((s, r) => s + (r.critical || 0), 0);
-  const totalSecrets       = filteredSast.reduce((s, r) => s + (r.secrets_found || 0), 0);
-  const totalIacFindings   = filteredSast.reduce((s, r) => s + (r.iac_findings || 0), 0);
-  const totalContainerVuln = filteredSast.reduce((s, r) => s + (r.container_vulns || 0), 0);
-  const totalFindings      = filteredSast.reduce((s, r) => s + (r.findings_count || 0), 0);
-  const completedSast      = filteredSast.filter(r => r.status === 'completed').length;
-  const dastVulns          = filteredDast.reduce((s, r) => s + (r.vulnerabilities || 0), 0);
-  const scaVulnPkgs        = filteredSca.reduce((s, r) => s + (r.vulnerable || 0), 0);
-
-  const allLanguages = useMemo(() => {
-    const set = new Set();
-    filteredSast.forEach(s => (s.languages || '').split(',').forEach(l => { if (l.trim()) set.add(l.trim()); }));
-    return set;
-  }, [filteredSast]);
-
-  const langStats = useMemo(() => {
-    const map = {};
-    filteredSast.forEach(s => (s.languages || '').split(',').forEach(l => {
-      const t = l.trim(); if (t) map[t] = (map[t] || 0) + 1;
-    }));
-    return Object.entries(map).sort((a, b) => b[1] - a[1]);
-  }, [filteredSast]);
-
-  const lastScanDate = filteredSast.length > 0
-    ? new Date(filteredSast[0].started_at).toLocaleDateString()
-    : '—';
-
-  /* ── MetricStrip (pinned in Overview) ───────────────────────────────────── */
-  const metricStrip = (
-    <MetricStrip groups={[
-      {
-        label: '🔴 CODE RISK',
-        color: 'var(--accent-danger)',
-        cells: [
-          { label: 'CRITICAL SECRETS',    value: totalSecrets,       valueColor: 'var(--severity-critical)', noTrend: true,  context: 'credentials exposed' },
-          { label: 'CRITICAL IaC',        value: totalIacFindings,   valueColor: 'var(--severity-high)',     delta: -2,      deltaGoodDown: true, context: 'vs last scan' },
-          { label: 'CRITICAL CONTAINERS', value: totalContainerVuln, valueColor: 'var(--severity-critical)', noTrend: true,  context: 'image CVEs' },
-        ],
-      },
-      {
-        label: '🔵 SCAN COVERAGE',
-        color: 'var(--accent-primary)',
-        cells: [
-          { label: 'REPOS SCANNED',       value: filteredSast.length,  context: 'repositories' },
-          { label: 'LANGUAGES',           value: allLanguages.size,   noTrend: true, context: 'scan technologies' },
-          { label: 'LAST SCAN',           value: lastScanDate,        noTrend: true, context: 'most recent' },
-        ],
-      },
-      {
-        label: '🟡 DAST & SCA',
-        color: 'var(--accent-warning)',
-        cells: [
-          { label: 'DAST VULNS',          value: dastVulns,    valueColor: dastVulns > 0 ? 'var(--severity-high)' : undefined, noTrend: true, context: 'web app issues' },
-          { label: 'VULNERABLE PKGS',     value: scaVulnPkgs,  valueColor: scaVulnPkgs > 0 ? 'var(--severity-high)' : undefined, noTrend: true, context: 'supply chain' },
-          { label: 'TOTAL FINDINGS',      value: totalFindings, noTrend: true, context: 'across SAST' },
-        ],
-      },
-    ]} />
-  );
-
-  /* ── Overview insight cards ─────────────────────────────────────────────── */
-  const maxLang = langStats[0]?.[1] || 1;
-
-  const overviewCards = (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-      {/* Language breakdown */}
-      <div className="rounded-xl p-5 border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-        <div className="flex items-center gap-2 mb-4">
-          <FileCode2 className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
-          <h3 className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--text-secondary)' }}>IaC &amp; Code Languages</h3>
-        </div>
-        <div className="space-y-3">
-          {langStats.length === 0 ? (
-            <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>No scan data yet</p>
-          ) : (
-            langStats.slice(0, 8).map(([lang, cnt]) => (
-              <LangBar key={lang} lang={lang} count={cnt} max={maxLang} />
-            ))
-          )}
-        </div>
-      </div>
-
-      {/* SAST statistics */}
-      <div className="rounded-xl p-5 border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-        <div className="flex items-center gap-2 mb-4">
-          <Shield className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
-          <h3 className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--text-secondary)' }}>SAST Statistics</h3>
-        </div>
-        <div className="space-y-0.5">
-          <StatRow label="Completed Scans"   value={`${completedSast} / ${filteredSast.length}`} />
-          <StatRow label="Critical Findings" value={totalCritical}      valueColor="var(--severity-critical)" />
-          <StatRow label="Total Findings"    value={totalFindings}      valueColor="var(--severity-high)" />
-          <StatRow label="Secrets Exposed"   value={totalSecrets}       valueColor={totalSecrets > 0 ? 'var(--severity-critical)' : undefined} />
-          <StatRow label="IaC Issues"        value={totalIacFindings} />
-          <StatRow label="Container CVEs"    value={totalContainerVuln} />
-          <StatRow label="Avg Files Scanned" value={
-            filteredSast.length > 0
-              ? Math.round(filteredSast.reduce((s, r) => s + (r.files_scanned || 0), 0) / filteredSast.length)
-              : 0
-          } />
-        </div>
-      </div>
-
-      {/* DAST + SCA summary */}
-      <div className="rounded-xl p-5 border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-        <div className="flex items-center gap-2 mb-4">
-          <Activity className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
-          <h3 className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--text-secondary)' }}>DAST &amp; Supply Chain</h3>
-        </div>
-        <p className="text-xs font-medium mb-2 uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>Dynamic Testing</p>
-        <div className="space-y-0.5 mb-4">
-          <StatRow label="Targets Scanned" value={filteredDast.length} />
-          <StatRow label="Vulnerabilities"  value={dastVulns}  valueColor={dastVulns > 0 ? 'var(--severity-high)' : undefined} />
-          <StatRow label="Critical"         value={filteredDast.reduce((s, r) => s + (r.critical || 0), 0)} valueColor="var(--severity-critical)" />
-        </div>
-        <p className="text-xs font-medium mb-2 uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>Software Composition</p>
-        <div className="space-y-0.5">
-          <StatRow label="Repos Analysed"   value={filteredSca.length} />
-          <StatRow label="Vulnerable Pkgs"  value={scaVulnPkgs}   valueColor={scaVulnPkgs > 0 ? 'var(--severity-high)' : undefined} />
-          <StatRow label="Outdated Pkgs"    value={filteredSca.reduce((s, r) => s + (r.outdated || 0), 0)} />
-          <StatRow label="License Issues"   value={filteredSca.reduce((s, r) => s + (r.license_issues || 0), 0)} />
-        </div>
-      </div>
-
-    </div>
-  );
-
-  /* ── SAST Scans table columns ────────────────────────────────────────────── */
-  const sastColumns = [
-    {
-      accessorKey: 'repo_name',
-      header: 'Repository',
-      cell: (info) => (
-        <div>
-          <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{info.getValue()}</p>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>{info.row.original.repo_url}</p>
-        </div>
-      ),
-    },
-    {
-      accessorKey: 'branch',
-      header: 'Branch',
-      cell: (info) => (
-        <span className="text-xs px-2 py-1 rounded" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
-          {info.getValue()}
-        </span>
-      ),
-    },
-    { accessorKey: 'status', header: 'Status', cell: (info) => <StatusIndicator status={info.getValue()} /> },
-    {
-      accessorKey: 'findings_count', header: 'Total',
-      cell: (info) => (
-        <span className={`text-sm font-medium ${info.getValue() > 0 ? 'text-orange-400' : 'text-green-400'}`}>
-          {info.getValue()}
-        </span>
-      ),
-    },
-    {
-      accessorKey: 'critical', header: 'Critical',
-      cell: (info) => info.getValue() > 0
-        ? <span className="text-sm font-medium text-red-400">{info.getValue()}</span>
-        : <span className="text-sm" style={{ color: 'var(--text-tertiary)' }}>—</span>,
-    },
-    {
-      accessorKey: 'high', header: 'High',
-      cell: (info) => info.getValue() > 0
-        ? <span className="text-sm font-medium text-orange-400">{info.getValue()}</span>
-        : <span className="text-sm" style={{ color: 'var(--text-tertiary)' }}>—</span>,
-    },
-    { accessorKey: 'iac_findings', header: 'IaC', cell: (info) => <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{info.getValue()}</span> },
-    {
-      accessorKey: 'secrets_found', header: 'Secrets',
-      cell: (info) => info.getValue() > 0
-        ? <span className="text-sm font-medium text-red-400">{info.getValue()}</span>
-        : <span className="text-sm" style={{ color: 'var(--text-tertiary)' }}>—</span>,
-    },
-    { accessorKey: 'container_vulns', header: 'Container', cell: (info) => <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{info.getValue()}</span> },
-    {
-      accessorKey: 'started_at', header: 'Started',
-      cell: (info) => {
-        const d = new Date(info.getValue());
-        return <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{d.toLocaleDateString()} {d.toLocaleTimeString()}</span>;
-      },
-    },
-  ];
-
-  /* ── DAST table columns ──────────────────────────────────────────────────── */
-  const dastColumns = [
-    {
-      accessorKey: 'target_url', header: 'Target',
-      cell: (info) => <span className="text-sm font-mono" style={{ color: 'var(--text-primary)' }}>{info.getValue()}</span>,
-    },
-    {
-      accessorKey: 'scan_type', header: 'Type',
-      cell: (info) => (
-        <span className="text-xs px-2 py-1 rounded font-medium" style={{
-          backgroundColor: info.getValue() === 'Active' ? 'rgba(239,68,68,0.15)' : 'rgba(59,130,246,0.15)',
-          color: info.getValue() === 'Active' ? '#f87171' : '#60a5fa',
-        }}>
-          {info.getValue()}
-        </span>
-      ),
-    },
-    { accessorKey: 'status', header: 'Status', cell: (info) => <StatusIndicator status={info.getValue()} /> },
-    {
-      accessorKey: 'vulnerabilities', header: 'Vulns',
-      cell: (info) => (
-        <span className={`text-sm font-medium ${info.getValue() > 0 ? 'text-orange-400' : 'text-green-400'}`}>
-          {info.getValue()}
-        </span>
-      ),
-    },
-    {
-      accessorKey: 'critical', header: 'Critical',
-      cell: (info) => info.getValue() > 0
-        ? <span className="text-sm font-medium text-red-400">{info.getValue()}</span>
-        : <span className="text-sm" style={{ color: 'var(--text-tertiary)' }}>—</span>,
-    },
-    { accessorKey: 'auth_type', header: 'Auth', cell: (info) => <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{info.getValue()}</span> },
-    { accessorKey: 'pages_crawled', header: 'Pages', cell: (info) => <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{info.getValue()}</span> },
-    { accessorKey: 'duration', header: 'Duration', cell: (info) => <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{info.getValue()}</span> },
-    {
-      accessorKey: 'started_at', header: 'Started',
-      cell: (info) => {
-        const d = new Date(info.getValue());
-        return <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{d.toLocaleDateString()} {d.toLocaleTimeString()}</span>;
-      },
-    },
-  ];
-
-  /* ── SCA / SBOM table columns ────────────────────────────────────────────── */
-  const scaColumns = [
-    { accessorKey: 'repo_name', header: 'Repository', cell: (info) => <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{info.getValue()}</span> },
-    {
-      accessorKey: 'package_manager', header: 'Package Manager',
-      cell: (info) => (
-        <span className="text-xs px-2 py-1 rounded" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
-          {info.getValue()}
-        </span>
-      ),
-    },
-    { accessorKey: 'status', header: 'Status', cell: (info) => <StatusIndicator status={info.getValue()} /> },
-    { accessorKey: 'total_packages', header: 'Total Pkgs', cell: (info) => <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{info.getValue()}</span> },
-    {
-      accessorKey: 'vulnerable', header: 'Vulnerable',
-      cell: (info) => (
-        <span className={`text-sm font-medium ${info.getValue() > 0 ? 'text-orange-400' : 'text-green-400'}`}>
-          {info.getValue()}
-        </span>
-      ),
-    },
-    {
-      accessorKey: 'critical', header: 'Critical',
-      cell: (info) => info.getValue() > 0
-        ? <span className="text-sm font-medium text-red-400">{info.getValue()}</span>
-        : <span className="text-sm" style={{ color: 'var(--text-tertiary)' }}>—</span>,
-    },
-    {
-      accessorKey: 'outdated', header: 'Outdated',
-      cell: (info) => (
-        <span className={`text-sm ${info.getValue() > 0 ? 'text-yellow-400' : ''}`} style={{ color: info.getValue() > 0 ? undefined : 'var(--text-tertiary)' }}>
-          {info.getValue()}
-        </span>
-      ),
-    },
-    {
-      accessorKey: 'license_issues', header: 'License Issues',
-      cell: (info) => info.getValue() > 0
-        ? <span className="text-sm font-medium text-yellow-400">{info.getValue()}</span>
-        : <span className="text-sm text-green-400">Clean</span>,
-    },
-    {
-      accessorKey: 'scanned_at', header: 'Scanned',
-      cell: (info) => {
-        const d = new Date(info.getValue());
-        return <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{d.toLocaleDateString()}</span>;
-      },
-    },
-  ];
-
-  /* ── Page context ────────────────────────────────────────────────────────── */
-  const pageContext = useMemo(() => ({
-    title: 'Code Security',
-    brief: 'IaC · SAST · DAST · SCA · Container · Secrets scanning',
-    tabs: [
-      { id: 'overview',   label: 'Overview'  },
-      { id: 'sast',       label: 'SAST Scans' },
-      { id: 'dast',       label: 'DAST'       },
-      { id: 'sca',        label: 'SBOM / SCA' },
-    ],
-  }), []);
-
-  /* ── Tab action buttons ──────────────────────────────────────────────────── */
-  const sastAction = (
-    <button onClick={() => setShowSastModal(true)}
-      className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm transition-colors">
-      <Plus className="w-4 h-4" /> Scan Repository
-    </button>
-  );
-
-  const dastAction = (
-    <button onClick={() => setShowDastModal(true)}
-      className="flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-medium text-sm transition-colors">
-      <Plus className="w-4 h-4" /> New DAST Scan
-    </button>
-  );
-
-  /* ── tabData ─────────────────────────────────────────────────────────────── */
-  const tabData = {
-    overview: {
-      renderTab: () => (
-        <>
-          {metricStrip}
-          <div className="mt-6">{overviewCards}</div>
-        </>
-      ),
-    },
-
-    sast: {
-      renderTab: () => (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>SAST Scan History</h2>
-              <p className="text-sm mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
-                Click a scan to view detailed findings and remediation guidance
-              </p>
-            </div>
-            {sastAction}
-          </div>
-          <DataTable
-            data={filteredSast}
-            columns={sastColumns}
-            pageSize={10}
-            onRowClick={(scan) => router.push(`/secops/${scan.scan_id}`)}
-            loading={loadingSast}
-            emptyMessage="No SAST scans found. Click 'Scan Repository' to start."
-          />
-        </div>
-      ),
-    },
-
-    dast: {
-      renderTab: () => (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>DAST Scan History</h2>
-              <p className="text-sm mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
-                Dynamic application security testing against live endpoints
-              </p>
-            </div>
-            {dastAction}
-          </div>
-          <DataTable
-            data={filteredDast}
-            columns={dastColumns}
-            pageSize={10}
-            loading={loadingDast}
-            emptyMessage="No DAST scans found. Click 'New DAST Scan' to start."
-          />
-        </div>
-      ),
-    },
-
-    sca: {
-      renderTab: () => (
-        <div className="space-y-4">
-          <div>
-            <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>Software Bill of Materials &amp; SCA</h2>
-            <p className="text-sm mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
-              Dependency vulnerability analysis and open-source license compliance
+            <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>New Security Scan</h2>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
+              SAST + SCA run automatically · DAST runs if target URL is provided
             </p>
           </div>
-          <DataTable
-            data={filteredSca}
-            columns={scaColumns}
-            pageSize={10}
-            loading={loadingSca}
-            emptyMessage="No SCA scans found."
-          />
+          <button onClick={handleClose} disabled={isRunning}
+            className="p-1.5 rounded-lg hover:bg-white/5 transition-colors disabled:opacity-40">
+            <X className="w-5 h-5" style={{ color: 'var(--text-tertiary)' }} />
+          </button>
         </div>
-      ),
-    },
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+              Repository URL <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="url"
+              value={repoUrl}
+              onChange={e => setRepoUrl(e.target.value)}
+              placeholder="https://github.com/org/repo"
+              disabled={isRunning}
+              className="w-full px-3 py-2 rounded-xl border text-sm outline-none focus:ring-2 focus:ring-blue-500/50 disabled:opacity-50"
+              style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+              Branch
+            </label>
+            <input
+              type="text"
+              value={branch}
+              onChange={e => setBranch(e.target.value)}
+              placeholder="main"
+              disabled={isRunning}
+              className="w-full px-3 py-2 rounded-xl border text-sm outline-none focus:ring-2 focus:ring-blue-500/50 disabled:opacity-50"
+              style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+              DAST Target URL <span className="text-xs font-normal" style={{ color: 'var(--text-tertiary)' }}>(optional)</span>
+            </label>
+            <input
+              type="url"
+              value={targetUrl}
+              onChange={e => setTargetUrl(e.target.value)}
+              placeholder="https://staging.example.com"
+              disabled={isRunning}
+              className="w-full px-3 py-2 rounded-xl border text-sm outline-none focus:ring-2 focus:ring-blue-500/50 disabled:opacity-50"
+              style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}
+            />
+          </div>
+
+          {error && (
+            <div className="flex items-center gap-2 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+              {error}
+            </div>
+          )}
+
+          {/* Engine status list (shown when running) */}
+          {isRunning && (
+            <div className="space-y-2 border rounded-xl p-4" style={{ borderColor: 'var(--border-primary)', backgroundColor: 'var(--bg-secondary)' }}>
+              <div className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-tertiary)' }}>
+                Pipeline Status
+              </div>
+              {engines.map(eng => (
+                <div key={eng.id} className={`flex items-center gap-3 rounded-lg px-3 py-2 ${eng.bg}`}>
+                  <div className={`w-8 h-8 rounded-lg ${eng.bg} flex items-center justify-center`}>
+                    {eng.id === 'sast' && <Code2 className={`w-4 h-4 ${eng.color}`} />}
+                    {eng.id === 'sca'  && <Package className={`w-4 h-4 ${eng.color}`} />}
+                    {eng.id === 'dast' && <Globe className={`w-4 h-4 ${eng.color}`} />}
+                  </div>
+                  <div className="flex-1">
+                    <div className={`text-sm font-semibold ${eng.color}`}>{eng.label}</div>
+                    <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{eng.desc}</div>
+                  </div>
+                  {getEngineIcon(eng.id)}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Buttons */}
+          <div className="flex items-center gap-3 pt-2">
+            <button type="button" onClick={handleClose} disabled={isRunning}
+              className="flex-1 px-4 py-2.5 rounded-xl border text-sm font-semibold transition-colors hover:bg-white/5 disabled:opacity-40"
+              style={{ borderColor: 'var(--border-primary)', color: 'var(--text-secondary)' }}>
+              Cancel
+            </button>
+            <button type="submit" disabled={isRunning}
+              className="flex-1 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+              {isRunning ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Running...</>
+              ) : (
+                <>Start Pipeline</>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Security Trend Chart — SVG line graph
+// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// EngineDonut — pure SVG donut for arbitrary [{name, value, color}] data
+// ---------------------------------------------------------------------------
+function EngineDonut({ data }) {
+  if (!data || data.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-32 text-sm" style={{ color: 'var(--text-tertiary)' }}>
+        No data available
+      </div>
+    );
+  }
+  const total = data.reduce((a, d) => a + d.value, 0);
+  if (total === 0) {
+    return (
+      <div className="flex items-center justify-center h-32 text-sm" style={{ color: 'var(--text-tertiary)' }}>
+        No findings recorded
+      </div>
+    );
+  }
+
+  // SVG arc helper
+  const R = 52, r = 34, CX = 70, CY = 70;
+  const toRad = deg => (deg * Math.PI) / 180;
+  const polarXY = (cx, cy, radius, angleDeg) => [
+    cx + radius * Math.cos(toRad(angleDeg - 90)),
+    cy + radius * Math.sin(toRad(angleDeg - 90)),
+  ];
+
+  let startAngle = 0;
+  const slices = data.map(d => {
+    const sweep = (d.value / total) * 360;
+    const end = startAngle + sweep;
+    const [x1, y1] = polarXY(CX, CY, R, startAngle);
+    const [x2, y2] = polarXY(CX, CY, R, end);
+    const [ix1, iy1] = polarXY(CX, CY, r, startAngle);
+    const [ix2, iy2] = polarXY(CX, CY, r, end);
+    const large = sweep > 180 ? 1 : 0;
+    const path = [
+      `M ${x1.toFixed(2)} ${y1.toFixed(2)}`,
+      `A ${R} ${R} 0 ${large} 1 ${x2.toFixed(2)} ${y2.toFixed(2)}`,
+      `L ${ix2.toFixed(2)} ${iy2.toFixed(2)}`,
+      `A ${r} ${r} 0 ${large} 0 ${ix1.toFixed(2)} ${iy1.toFixed(2)}`,
+      'Z',
+    ].join(' ');
+    const slice = { ...d, path, sweep };
+    startAngle = end;
+    return slice;
+  });
+
+  return (
+    <div className="flex flex-col items-center gap-3">
+      <svg viewBox="0 0 140 140" className="w-[120px] h-[120px]">
+        {slices.map((s, i) => (
+          <path key={i} d={s.path} fill={s.color} opacity="0.9">
+            <title>{s.name}: {s.value.toLocaleString()} ({((s.value / total) * 100).toFixed(1)}%)</title>
+          </path>
+        ))}
+        {/* Centre label */}
+        <text x={CX} y={CY - 5} fontSize="13" fontWeight="700"
+          fill="var(--text-primary)" textAnchor="middle">{total.toLocaleString()}</text>
+        <text x={CX} y={CY + 11} fontSize="9"
+          fill="var(--text-muted)" textAnchor="middle">findings</text>
+      </svg>
+      {/* Legend */}
+      <div className="flex flex-wrap justify-center gap-x-3 gap-y-1">
+        {data.map((d, i) => (
+          <div key={i} className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: d.color }} />
+            <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>{d.value.toLocaleString()}</span>
+            <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{d.name}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Per-project line colours (blue is reserved for the overall aggregate)
+const PROJECT_LINE_COLORS = ['#f97316', '#22c55e', '#a855f7', '#eab308', '#06b6d4', '#f43f5e'];
+
+/**
+ * SecurityTrendChart
+ * @param overall   — array of { label, total, date(ms) } for the aggregate line
+ * @param projects  — array of { name, color, scans: [{ label, total, date }] }
+ * @param onExpand  — callback to open the enlarged modal
+ * @param isModal   — true when rendered inside the expand modal (larger SVG)
+ */
+function SecurityTrendChart({ overall, projects = [], onExpand, isModal = false }) {
+  if (!overall || overall.length < 2) {
+    return (
+      <div className="flex items-center justify-center h-36 text-sm" style={{ color: 'var(--text-tertiary)' }}>
+        Need at least 2 completed scans for trend data
+      </div>
+    );
+  }
+
+  const latest   = overall[overall.length - 1];
+  const prev     = overall[overall.length - 2];
+  const delta    = latest.total - prev.total;
+  const improved = delta < 0;
+
+  // SVG canvas
+  const W   = isModal ? 700 : 360;
+  const H   = isModal ? 210 : 90;
+  const PAD = { top: 16, right: isModal ? 20 : 12, bottom: isModal ? 32 : 22, left: 32 };
+  const cW  = W - PAD.left - PAD.right;
+  const cH  = H - PAD.top  - PAD.bottom;
+
+  // Y scale — cover all series
+  const allTotals = [
+    ...overall.map(s => s.total),
+    ...projects.flatMap(p => p.scans.map(s => s.total)),
+  ];
+  const maxVal = Math.max(...allTotals, 1);
+  const yOf = v => PAD.top + cH - (v / maxVal) * cH;
+
+  // Equal-spacing X scale: each unique timestamp gets an evenly-spaced slot
+  // so points never bunch up regardless of how close together their dates are.
+  const allDatesUniq = [...new Set([
+    ...overall.map(s => s.date),
+    ...projects.flatMap(p => p.scans.map(s => s.date)),
+  ])].sort((a, b) => a - b);
+
+  const dateToX = {};
+  allDatesUniq.forEach((d, i) => {
+    dateToX[d] = PAD.left + (allDatesUniq.length > 1 ? (i / (allDatesUniq.length - 1)) * cW : cW / 2);
+  });
+  const xAt = date => dateToX[date] ?? PAD.left;
+
+  // Overall line paths
+  const overallPts = overall
+    .map(s => `${xAt(s.date).toFixed(1)},${yOf(s.total).toFixed(1)}`)
+    .join(' ');
+  const overallAreaPts = [
+    `${xAt(overall[0].date).toFixed(1)},${(PAD.top + cH).toFixed(1)}`,
+    overallPts,
+    `${xAt(overall[overall.length - 1].date).toFixed(1)},${(PAD.top + cH).toFixed(1)}`,
+  ].join(' ');
+
+  const gridFracs = [0, 0.5, 1];
+
+  // X-axis tick labels at first, middle, last overall points
+  const xLabels = [];
+  if (overall.length >= 2) {
+    xLabels.push({ i: 0, anchor: 'start' });
+    if (overall.length >= 4) xLabels.push({ i: Math.floor(overall.length / 2), anchor: 'middle' });
+    xLabels.push({ i: overall.length - 1, anchor: 'end' });
+  }
+
+  return (
+    <div>
+      {/* Trend pill + expand button */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          {improved ? (
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-green-500/15 border border-green-500/25">
+              <TrendingDown className="w-3 h-3 text-green-400" />
+              <span className="text-xs font-semibold text-green-400">{Math.abs(delta)} fewer</span>
+            </div>
+          ) : delta > 0 ? (
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-red-500/15 border border-red-500/25">
+              <TrendingUp className="w-3 h-3 text-red-400" />
+              <span className="text-xs font-semibold text-red-400">+{delta} more</span>
+            </div>
+          ) : (
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-500/15 border border-slate-500/25">
+              <Minus className="w-3 h-3" style={{ color: 'var(--text-tertiary)' }} />
+              <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>Steady</span>
+            </div>
+          )}
+          <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+            vs previous · {latest.total} total now
+          </span>
+        </div>
+
+        {/* Expand button (only in inline view) */}
+        {!isModal && onExpand && (
+          <button
+            onClick={onExpand}
+            className="p-1 rounded-lg hover:bg-white/5 transition-colors"
+            title="Expand chart"
+          >
+            <Maximize2 className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
+          </button>
+        )}
+      </div>
+
+      {/* SVG multi-line chart */}
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: isModal ? 210 : 90, overflow: 'visible' }}>
+        <defs>
+          <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stopColor="#3b82f6" stopOpacity="0.15" />
+            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.01" />
+          </linearGradient>
+        </defs>
+
+        {/* Grid lines + Y labels */}
+        {gridFracs.map(f => {
+          const y   = PAD.top + cH * (1 - f);
+          const val = Math.round(maxVal * f);
+          return (
+            <g key={f}>
+              <line x1={PAD.left} y1={y} x2={W - PAD.right} y2={y}
+                stroke="rgba(255,255,255,0.06)" strokeWidth="1"
+                strokeDasharray={f > 0 ? '3 3' : ''} />
+              <text x={PAD.left - 4} y={y + 3.5} fontSize="8"
+                fill="rgba(255,255,255,0.28)" textAnchor="end">
+                {val}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* ── Overall: area fill + semi-transparent line drawn FIRST (behind project lines) ── */}
+        {/* Reduce area opacity when per-project lines are present so they don't get obscured */}
+        <polygon points={overallAreaPts}
+          fill="url(#trendFill)"
+          opacity={projects.length > 0 ? 0.5 : 1} />
+
+        <polyline points={overallPts} fill="none"
+          stroke={projects.length > 0 ? 'rgba(59,130,246,0.45)' : '#3b82f6'}
+          strokeWidth={projects.length > 0 ? (isModal ? 1.5 : 1.5) : (isModal ? 2.5 : 2)}
+          strokeDasharray={projects.length > 0 ? '6 3' : ''}
+          strokeLinejoin="round" strokeLinecap="round" />
+
+        {/* Overall dots (small, semi-transparent when per-project lines present) */}
+        {overall.map((s, i) => {
+          const isLast = i === overall.length - 1;
+          const cx = xAt(s.date), cy = yOf(s.total);
+          const hasProjLines = projects.length > 0;
+          return (
+            <g key={i}>
+              <circle cx={cx} cy={cy}
+                r={isLast ? (hasProjLines ? 4 : 5) : 2.5}
+                fill={isLast ? '#3b82f6' : '#1e40af'}
+                stroke={isLast ? 'rgba(59,130,246,0.35)' : 'none'}
+                strokeWidth="5"
+                opacity={hasProjLines ? 0.6 : 1}>
+                <title>All projects: {s.total} findings on {s.label}</title>
+              </circle>
+              {isLast && (
+                <text x={cx} y={cy - 9} fontSize="9"
+                  fill="#93c5fd" textAnchor="middle" fontWeight="700"
+                  opacity={hasProjLines ? 0.7 : 1}>
+                  {s.total}
+                </text>
+              )}
+            </g>
+          );
+        })}
+
+        {/* ── Per-project lines drawn ON TOP of overall ── */}
+        {projects.map(proj => {
+          if (proj.scans.length < 1) return null;
+          const pts = proj.scans
+            .map(s => `${xAt(s.date).toFixed(1)},${yOf(s.total).toFixed(1)}`)
+            .join(' ');
+          return (
+            <g key={proj.name}>
+              {proj.scans.length >= 2 && (
+                <polyline points={pts} fill="none" stroke={proj.color}
+                  strokeWidth={isModal ? 2 : 1.8}
+                  strokeLinejoin="round" strokeLinecap="round" />
+              )}
+              {proj.scans.map((s, si) => {
+                const isLatest = si === proj.scans.length - 1;
+                return (
+                  <circle key={si}
+                    cx={xAt(s.date)} cy={yOf(s.total)}
+                    r={isLatest ? (isModal ? 5 : 4) : (isModal ? 3.5 : 3)}
+                    fill={proj.color}
+                    stroke="var(--bg-card)" strokeWidth="1.5">
+                    <title>{proj.name}: {s.total} findings on {s.label}</title>
+                  </circle>
+                );
+              })}
+              {/* Latest value label for each project */}
+              {(() => {
+                const last = proj.scans[proj.scans.length - 1];
+                const cx = xAt(last.date), cy = yOf(last.total);
+                return (
+                  <text x={cx} y={cy - 8} fontSize="8" fill={proj.color}
+                    textAnchor="middle" fontWeight="700">
+                    {last.total}
+                  </text>
+                );
+              })()}
+            </g>
+          );
+        })}
+
+        {/* X-axis labels */}
+        {xLabels.map(({ i, anchor }) => (
+          <text key={i}
+            x={xAt(overall[i].date)} y={H - 4}
+            fontSize="8" fill="rgba(255,255,255,0.30)"
+            textAnchor={anchor}>
+            {overall[i].label}
+          </text>
+        ))}
+      </svg>
+
+      {/* Legend */}
+      {projects.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2.5">
+          {/* Overall */}
+          <div className="flex items-center gap-1.5">
+            <span className="inline-block w-5 h-0.5 rounded bg-blue-500" />
+            <span className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>Overall</span>
+          </div>
+          {/* Per-project */}
+          {projects.map(p => (
+            <div key={p.name} className="flex items-center gap-1.5">
+              <span className="inline-block w-5 h-0.5 rounded" style={{ backgroundColor: p.color }} />
+              <span className="text-[11px] truncate max-w-[110px]"
+                style={{ color: 'var(--text-tertiary)' }}
+                title={p.name}>
+                {p.name}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Fix This First block — top 5 risky rules across recent findings
+// ---------------------------------------------------------------------------
+const FIX_RULE_MAP = {
+  sql_injection:             { label: 'SQL Injection',            sev: 'critical', fix: 'Use parameterized queries — never interpolate user input into SQL strings.' },
+  xss_html_string_concat:    { label: 'XSS via HTML concat',      sev: 'high',     fix: 'Escape all user data with markupsafe.escape() before inserting into HTML.' },
+  open_redirect:             { label: 'Open Redirect',            sev: 'high',     fix: 'Validate redirect targets — only allow relative paths or trusted domains.' },
+  path_traversal:            { label: 'Path Traversal',           sev: 'critical', fix: 'Resolve paths with os.path.realpath() and assert they stay inside BASE_DIR.' },
+  command_injection:         { label: 'Command Injection',        sev: 'critical', fix: 'Pass args as a list to subprocess.run() — never build shell strings.' },
+  hardcoded_credentials:     { label: 'Hardcoded Credentials',    sev: 'high',     fix: 'Move secrets to environment variables or a secrets manager.' },
+  insecure_hash:             { label: 'Weak Hash (MD5/SHA1)',      sev: 'medium',   fix: 'Use bcrypt/argon2 for passwords; SHA-256+ for general hashing.' },
+  insecure_random:           { label: 'Insecure Randomness',      sev: 'medium',   fix: 'Use the secrets module for tokens and security-sensitive values.' },
+  pickle_deserialization:    { label: 'Unsafe Deserialization',   sev: 'critical', fix: 'Replace pickle.loads() with json.loads() for untrusted data.' },
+  ssrf:                      { label: 'SSRF',                     sev: 'high',     fix: 'Validate outbound URLs against an allowlist before fetching.' },
+  flask_debug_mode:          { label: 'Debug Mode Enabled',       sev: 'medium',   fix: 'Set debug=False or read from env var — never leave debug=True in production.' },
+};
+
+const SEV_PILL = {
+  critical: 'bg-red-500/15 text-red-400 border-red-500/25',
+  high:     'bg-orange-500/15 text-orange-400 border-orange-500/25',
+  medium:   'bg-yellow-500/15 text-yellow-400 border-yellow-500/25',
+};
+
+function FixThisFirst({ findings, onViewAll, onItemClick }) {
+  // Aggregate by rule_id, count occurrences, weight by severity
+  const weight = { critical: 10, high: 5, medium: 2, low: 1 };
+  const byRule = {};
+  findings.forEach(f => {
+    const r = (f.rule_id || '').toLowerCase().replace(/[^a-z0-9_]/g, '_');
+    if (!byRule[r]) byRule[r] = { rule_id: r, rawRuleId: f.rule_id, count: 0, score: 0, sev: f.severity, files: new Set(), scanId: f._scan?.secops_scan_id };
+    byRule[r].count++;
+    byRule[r].score += weight[f.severity] || 1;
+    if (f.file_path) byRule[r].files.add(f.file_path);
+  });
+
+  const sorted = Object.values(byRule)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5);
+
+  if (sorted.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-24 text-sm" style={{ color: 'var(--text-tertiary)' }}>
+        Run a scan to see prioritized security recommendations here
+      </div>
+    );
+  }
+
+  return (
+    <div className="divide-y" style={{ borderColor: 'var(--border-primary)' }}>
+      {sorted.map((item, i) => {
+        const meta = FIX_RULE_MAP[item.rule_id] || { label: (item.rawRuleId || item.rule_id).replace(/_/g, ' '), sev: item.sev, fix: 'Review and remediate this finding.' };
+        const pillCls = SEV_PILL[meta.sev] || SEV_PILL.medium;
+        const fullLabel = meta.label.replace(/\b\w/g, c => c.toUpperCase());
+        return (
+          <button
+            key={item.rule_id}
+            onClick={() => onItemClick && onItemClick({ sev: meta.sev, scanId: item.scanId, rawRuleId: item.rawRuleId })}
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5 cursor-pointer group"
+            style={{ backgroundColor: 'transparent' }}>
+            {/* Rank */}
+            <span className="w-4 text-[11px] font-bold tabular-nums flex-shrink-0 text-center"
+              style={{ color: 'var(--text-muted)' }}>
+              {i + 1}
+            </span>
+            {/* Two-line content */}
+            <div className="flex-1 min-w-0">
+              {/* Line 1: message, truncated */}
+              <p className="text-sm font-medium truncate leading-snug capitalize"
+                title={fullLabel}
+                style={{ color: 'var(--text-primary)' }}>
+                {fullLabel}
+              </p>
+              {/* Line 2: severity + stats */}
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-px rounded-full border flex-shrink-0 ${pillCls}`}>
+                  {meta.sev}
+                </span>
+                <span className="text-[11px] tabular-nums" style={{ color: 'var(--text-tertiary)' }}>
+                  {item.count} occurrence{item.count !== 1 ? 's' : ''}
+                  {item.files.size > 0 ? ` · ${item.files.size} file${item.files.size !== 1 ? 's' : ''}` : ''}
+                </span>
+              </div>
+            </div>
+            <ArrowRight className="w-3 h-3 flex-shrink-0 text-blue-400 opacity-0 group-hover:opacity-60 transition-opacity" />
+          </button>
+        );
+      })}
+      {onViewAll && (
+        <button onClick={onViewAll}
+          className="w-full text-center text-xs py-2 hover:text-blue-400 transition-colors"
+          style={{ color: 'var(--text-tertiary)' }}>
+          View all findings →
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main Page Component
+// ---------------------------------------------------------------------------
+export default function SecOpsPage() {
+  const router = useRouter();
+
+  // Global filter bar state
+  const {
+    scanner:   filterScanner,
+    severity:  filterSeverity,
+    status:    filterStatus,
+    timeRange: filterTimeRange,
+    project:   filterProject,
+    setAvailableProjects,
+  } = useSecOpsFilters();
+
+  // Core data
+  const [sastScans,   setSastScans]   = useState([]);
+  const [dastScans,   setDastScans]   = useState([]);
+  const [scaScans,    setScaScans]    = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [error,       setError]       = useState(null);
+
+  // Tab state
+  const [activeTab,   setActiveTab]   = useState('overview');
+
+  // Findings (lazy-loaded on All Findings tab)
+  const [allFindings,       setAllFindings]       = useState([]);
+  const [findingsLoading,   setFindingsLoading]   = useState(false);
+  const [findingsLoaded,    setFindingsLoaded]    = useState(false);
+  const [findingFilters,    setFindingFilters]    = useState({ severity: '', source: '', status: '', ruleType: '' });
+
+  // Modal
+  const [showModal,       setShowModal]       = useState(false);
+  const [scanStatus,      setScanStatus]      = useState(null);
+  const [showTrendModal,  setShowTrendModal]  = useState(false);
+
+  // ---------------------------------------------------------------------------
+  // Data fetch
+  // ---------------------------------------------------------------------------
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [sast, dast, sca] = await Promise.all([
+        getFromEngine('secops', `/api/v1/secops/sast/scans?tenant_id=${TENANT_ID}`).catch(() => []),
+        getFromEngine('secops', `/api/v1/secops/dast/scans?tenant_id=${TENANT_ID}`).catch(() => []),
+        fetchApi(`${SCA_BASE}`, { headers: { 'X-API-Key': SCA_API_KEY } }).catch(() => []),
+      ]);
+      setSastScans(Array.isArray(sast) ? sast : (sast?.scans || sast?.results || []));
+      setDastScans(Array.isArray(dast) ? dast : (dast?.scans || dast?.results || []));
+      setScaScans(Array.isArray(sca)  ? sca  : (sca?.sboms  || sca?.results  || []));
+    } catch (err) {
+      setError(err?.message || 'Failed to load security data');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  // ---------------------------------------------------------------------------
+  // Lazy-load findings when All Findings tab is selected
+  // ---------------------------------------------------------------------------
+  const loadFindings = useCallback(async () => {
+    if (findingsLoaded) return;
+    setFindingsLoading(true);
+    try {
+      const completedSast = sastScans.filter(s => s.status === 'completed').slice(0, 5);
+      const completedDast = dastScans.filter(s => s.status === 'completed').slice(0, 3);
+      const completedSca  = scaScans.slice(0, 3);
+
+      const [sastResults, dastResults, scaResults] = await Promise.all([
+        Promise.all(completedSast.map(s =>
+          getFromEngine('secops', `/api/v1/secops/sast/scan/${s.secops_scan_id}/findings?limit=200`)
+            .then(r => ({ scan: s, findings: Array.isArray(r) ? r : (r?.findings || []) }))
+            .catch(() => ({ scan: s, findings: [] }))
+        )),
+        Promise.all(completedDast.map(s =>
+          getFromEngine('secops', `/api/v1/secops/dast/scan/${s.dast_scan_id}/findings?limit=200`)
+            .then(r => ({ scan: s, findings: Array.isArray(r) ? r : (r?.findings || []) }))
+            .catch(() => ({ scan: s, findings: [] }))
+        )),
+        Promise.all(completedSca.map(s =>
+          fetchApi(`${SCA_BASE}/${s.sbom_id}`, { headers: { 'X-API-Key': SCA_API_KEY } })
+            .then(r => ({ scan: s, detail: r }))
+            .catch(() => ({ scan: s, detail: null }))
+        )),
+      ]);
+
+      const merged = [];
+
+      // SAST findings
+      sastResults.forEach(({ scan, findings }) => {
+        findings.forEach(f => {
+          const sev = normalizeSev(f.severity);
+          merged.push({
+            _id:      f.id || `${scan.secops_scan_id}-${f.rule_id}-${f.line_number}`,
+            source:   'sast',
+            severity: sev,
+            rule_id:  f.rule_id,
+            message:  f.message,
+            asset:    f.file_path ? `${f.file_path}:${f.line_number || '?'}` : '—',
+            project:  scan.project_name || scan.repo_url || '—',
+            status:   f.status || 'open',
+            language: f.language,
+            _raw:     f,
+            _scan:    scan,
+            _ts:      scan.scan_timestamp,
+          });
+        });
+      });
+
+      // DAST findings
+      dastResults.forEach(({ scan, findings }) => {
+        findings.forEach(f => {
+          const sev = normalizeSev(f.severity);
+          merged.push({
+            _id:      f.id || `${scan.dast_scan_id}-${f.rule_id}`,
+            source:   'dast',
+            severity: sev,
+            rule_id:  f.rule_id || f.vulnerability_type,
+            message:  f.description,
+            asset:    f.endpoint_url || f.resource || '—',
+            project:  scan.target_url || '—',
+            status:   f.status || 'open',
+            _raw:     f,
+            _scan:    scan,
+            _ts:      scan.scan_timestamp,
+          });
+        });
+      });
+
+      // SCA findings (vulnerable components)
+      scaResults.forEach(({ scan, detail }) => {
+        if (!detail) return;
+        const components = detail.vulnerable_components || [];
+        components.forEach(comp => {
+          const count = (comp.vulnerability_ids || []).length;
+          const sev = count >= 5 ? 'high' : count >= 2 ? 'medium' : 'low';
+          merged.push({
+            _id:      `sca-${scan.sbom_id}-${comp.name}-${comp.version}`,
+            source:   'sca',
+            severity: sev,
+            rule_id:  'SCA-VULN',
+            message:  `${count} CVE(s) detected`,
+            asset:    `${comp.name}@${comp.version}`,
+            project:  scan.application_name || detail.application_name || '—',
+            status:   'open',
+            _raw:     comp,
+            _scan:    scan,
+            _ts:      scan.created_at,
+          });
+        });
+      });
+
+      // Sort by severity
+      merged.sort((a, b) => (SEV_ORDER[a.severity] ?? 9) - (SEV_ORDER[b.severity] ?? 9));
+      setAllFindings(merged);
+      setFindingsLoaded(true);
+    } catch (err) {
+      console.warn('[secops] loadFindings error:', err);
+    } finally {
+      setFindingsLoading(false);
+    }
+  }, [findingsLoaded, sastScans, dastScans, scaScans]);
+
+  useEffect(() => {
+    if (activeTab === 'findings' && !findingsLoaded && !findingsLoading && !loading) {
+      loadFindings();
+    }
+  }, [activeTab, findingsLoaded, findingsLoading, loading, loadFindings]);
+
+  const allScans = useMemo(() => {
+    const combined = [
+      ...sastScans.map(s => ({ ...s, _type: 'sast', _ts: s.scan_timestamp, _id: s.secops_scan_id })),
+      ...dastScans.map(s => ({ ...s, _type: 'dast', _ts: s.scan_timestamp, _id: s.dast_scan_id })),
+      ...scaScans.map(s  => ({ ...s, _type: 'sca',  _ts: s.created_at,     _id: s.sbom_id })),
+    ];
+    return combined.sort((a, b) => new Date(b._ts || 0) - new Date(a._ts || 0));
+  }, [sastScans, dastScans, scaScans]);
+
+  // ---------------------------------------------------------------------------
+  // Auto-polling: refresh every 10s while any scan is running/queued
+  // ---------------------------------------------------------------------------
+  const hasRunningScans = useMemo(() =>
+    allScans.some(s => s.status === 'running' || s.status === 'queued' || s.status === 'pending'),
+  [allScans]);
+
+  useEffect(() => {
+    if (!hasRunningScans) return;
+    const interval = setInterval(loadData, 10000);
+    return () => clearInterval(interval);
+  }, [hasRunningScans, loadData]);
+
+  // ---------------------------------------------------------------------------
+  // Apply filter-bar selections to derived scan arrays
+  // ---------------------------------------------------------------------------
+  const cutoff = useMemo(() => timeRangeCutoff(filterTimeRange), [filterTimeRange]);
+
+  const filteredSastScans = useMemo(() => {
+    let s = sastScans.filter(s => new Date(s.scan_timestamp || 0).getTime() >= cutoff);
+    if (filterProject) s = s.filter(s => (s.repo_url || s.project_name) === filterProject);
+    return s;
+  }, [sastScans, cutoff, filterProject]);
+
+  const filteredDastScans = useMemo(() => {
+    if (filterProject) return []; // DAST is URL-based, not project-based
+    return dastScans.filter(s => new Date(s.scan_timestamp || 0).getTime() >= cutoff);
+  }, [dastScans, cutoff, filterProject]);
+
+  const filteredScaScans = useMemo(() => {
+    if (filterProject) return []; // SCA is app-based — hide when a repo project is selected
+    return scaScans.filter(s => new Date(s.created_at || 0).getTime() >= cutoff);
+  }, [scaScans, cutoff, filterProject]);
+
+  // Which engines to show based on scanner filter
+  const showSast = !filterScanner || filterScanner === 'sast';
+  const showDast = !filterScanner || filterScanner === 'dast';
+  const showSca  = !filterScanner || filterScanner === 'sca';
+
+  // ---------------------------------------------------------------------------
+  // KPI computations
+  // ---------------------------------------------------------------------------
+  const sastFindings  = useMemo(() => (showSast ? filteredSastScans : []).reduce((a, s) => a + (s.total_findings || 0), 0), [filteredSastScans, showSast]);
+  const dastFindings  = useMemo(() => (showDast ? filteredDastScans : []).reduce((a, s) => a + (s.total_findings || 0), 0), [filteredDastScans, showDast]);
+  const scaVulns      = useMemo(() => (showSca  ? filteredScaScans  : []).reduce((a, s) => a + (s.vulnerability_count || 0), 0), [filteredScaScans, showSca]);
+  const totalFindings = sastFindings + dastFindings + scaVulns;
+
+  // Top findings states — must be declared BEFORE the useMemos that read them
+  const [topFindings,        setTopFindings]        = useState([]);
+  const [topQualityFindings, setTopQualityFindings] = useState([]);
+
+  const criticalHigh = useMemo(() => {
+    let ch = 0;
+    // SAST: count from actual loaded findings (accurate)
+    if (showSast) {
+      topFindings.forEach(f => {
+        if (f.severity === 'critical' || f.severity === 'high') ch++;
+      });
+    }
+    // DAST: use scan-level by_severity (API provides this)
+    (showDast ? filteredDastScans : []).forEach(s => {
+      ch += (s.by_severity?.critical || 0) + (s.by_severity?.high || 0);
+    });
+    return ch;
+  }, [topFindings, filteredDastScans, showSast, showDast]);
+
+  const reposScanned = useMemo(() => {
+    const urls = new Set(filteredSastScans.map(s => s.repo_url).filter(Boolean));
+    return urls.size || filteredSastScans.length;
+  }, [filteredSastScans]);
+
+  // Helper: classify a finding as security vs code quality (based on rule_id patterns)
+  // Kept in sync with [scanId]/page.jsx SECURITY_RULE_PATTERNS / QUALITY_RULE_PATTERNS
+  function isSecurityRule(ruleId) {
+    const r = (ruleId || '').toLowerCase();
+    const QUALITY = ['docstring', 'einops', 'reachable', 'cognitive_complexity',
+      'shadowed_by_local', 'builtins_should_not_be_shadowed',
+      'dtype_parameter', 'pandas', 'except_blocks_should_be_able', 'pattern_should_be_valid'];
+    if (QUALITY.some(p => r.includes(p))) return false;
+    const SECURITY = [
+      'securitysensitive', 'security_sensitive',
+      'injection', 'xss', 'sqli', 'sql_injection', 'formatting_sql',
+      'path_traversal', 'command_injection',
+      'pickle', 'deserialization', 'deserializ',
+      'ssrf', 'unvalidated_url', 'unrestricted_outbound',
+      'debug_mode', 'hardcoded', 'credentials_should_not',
+      'weak_hashing', 'pseudorandom', 'prng',
+      'open_redirect', 'render_template_string',
+      'bucket_ownership', 's3_operations_should_verify',
+      'configuring_loggers', 'dynamically_executing',
+      'insecure_deserialization', 'insecure_random',
+      'allowing_unrestricted',
+    ];
+    return SECURITY.some(p => r.includes(p));
+  }
+
+  // Apply severity/scanner filter to Fix This First findings (SAST-only panels)
+  const visibleTopFindings = useMemo(() => {
+    if (!showSast) return [];
+    return filterSeverity ? topFindings.filter(f => f.severity === filterSeverity) : topFindings;
+  }, [topFindings, filterSeverity, showSast]);
+
+  const visibleTopQualityFindings = useMemo(() => {
+    if (!showSast) return [];
+    return filterSeverity ? topQualityFindings.filter(f => f.severity === filterSeverity) : topQualityFindings;
+  }, [topQualityFindings, filterSeverity, showSast]);
+
+  // Severity bar counts — real data from loaded findings
+  const severityCounts = useMemo(() => {
+    const counts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
+    // Real per-severity from most-recent SAST scan (all findings: security + quality)
+    [...topFindings, ...topQualityFindings].forEach(f => {
+      const s = f.severity || 'info';
+      if (counts[s] !== undefined) counts[s]++;
+    });
+    // Real per-severity from DAST scans when the API provides it
+    dastScans.forEach(s => {
+      if (s.by_severity) {
+        Object.entries(s.by_severity).forEach(([sev, n]) => {
+          if (counts[sev] !== undefined) counts[sev] += (n || 0);
+        });
+      }
+    });
+    return counts;
+  }, [topFindings, topQualityFindings, dastScans]);
+
+  // SeverityDonut "By Engine" — respects scanner filter
+  const engineDonutData = useMemo(() => [
+    showSast ? { name: 'SAST', value: sastFindings, color: '#3b82f6' } : null,
+    showDast ? { name: 'DAST', value: dastFindings, color: '#8b5cf6' } : null,
+    showSca  ? { name: 'SCA',  value: scaVulns,    color: '#22c55e' } : null,
+  ].filter(d => d && d.value > 0), [sastFindings, dastFindings, scaVulns, showSast, showDast, showSca]);
+
+  // Recent scans (5) — apply scanner + status filter
+  const recentScans = useMemo(() => {
+    return allScans
+      .filter(s => {
+        if (filterScanner && s._type !== filterScanner) return false;
+        if (filterStatus  && s.status !== filterStatus)  return false;
+        if (new Date(s._ts || 0).getTime() < cutoff)     return false;
+        return true;
+      })
+      .slice(0, 5);
+  }, [allScans, filterScanner, filterStatus, cutoff]);
+
+  const lastScan = recentScans[0]?._ts || allScans[0]?._ts;
+
+  // ---------------------------------------------------------------------------
+  // Projects (grouped by repo_url from SAST scans)
+  // ---------------------------------------------------------------------------
+  const projects = useMemo(() => {
+    const byRepo = {};
+    filteredSastScans.forEach(s => {
+      const key = s.repo_url || s.project;
+      if (!key) return;
+      if (!byRepo[key]) {
+        byRepo[key] = {
+          repo_url: key,
+          name: s.project_name || s.project || key.split('/').pop().replace('.git', ''),
+          scans: [],
+          totalFindings: 0,
+          criticalCount: 0,
+          highCount: 0,
+          languages: [],
+          lastScan: null,
+          status: 'completed',
+        };
+      }
+      byRepo[key].scans.push(s);
+      byRepo[key].totalFindings += s.total_findings || 0;
+      // Accumulate severity counts from scan-level by_severity (available on all scans)
+      if (s.by_severity) {
+        byRepo[key].criticalCount += s.by_severity.critical || 0;
+        byRepo[key].highCount     += s.by_severity.high     || 0;
+      }
+      byRepo[key].languages = [...new Set([...byRepo[key].languages, ...(s.languages_detected || s.languages || [])])];
+      const ts = s.scan_timestamp || s.started_at;
+      if (!byRepo[key].lastScan || new Date(ts) > new Date(byRepo[key].lastScan)) {
+        byRepo[key].lastScan = ts;
+        byRepo[key].status = s.status;
+      }
+    });
+
+    // Override with topFindings counts for the most recent scan's project (more accurate)
+    const critByRepo = {}, highByRepo = {};
+    topFindings.forEach(f => {
+      const repo = f._scan?.repo_url;
+      if (!repo) return;
+      if (f.severity === 'critical') critByRepo[repo] = (critByRepo[repo] || 0) + 1;
+      if (f.severity === 'high')     highByRepo[repo] = (highByRepo[repo] || 0) + 1;
+    });
+
+    return Object.values(byRepo)
+      .map(p => {
+        // Use topFindings-based counts when available, fall back to scan-level by_severity
+        const crit = critByRepo[p.repo_url] ?? p.criticalCount;
+        const high = highByRepo[p.repo_url] ?? p.highCount;
+        return {
+          ...p,
+          criticalCount:    crit,
+          highCount:        high,
+          securityFindings: crit + high,
+          // Risk score now correctly uses the resolved crit/high values
+          riskScore: Math.min(10, ((crit * 10 + high * 5 + p.totalFindings * 0.1) / 10)).toFixed(1),
+        };
+      })
+      .sort((a, b) => parseFloat(b.riskScore) - parseFloat(a.riskScore));
+  }, [filteredSastScans, topFindings]);
+
+  // ---------------------------------------------------------------------------
+  // Load findings for ALL completed SAST scans so every project gets
+  // severity counts (Critical/High) and the Fix This First panels are complete.
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    const completedScans = [...sastScans]
+      .filter(s => s.status === 'completed')
+      .sort((a, b) => new Date(b.scan_timestamp || 0) - new Date(a.scan_timestamp || 0))
+      .slice(0, 10); // cap at 10 scans to avoid excessive API calls
+    if (completedScans.length === 0) return;
+
+    Promise.all(
+      completedScans.map(scan =>
+        getFromEngine('secops', `/api/v1/secops/sast/scan/${scan.secops_scan_id}/findings?limit=200`)
+          .then(r => {
+            const raw = Array.isArray(r) ? r : (r?.findings || []);
+            return raw.map(f => ({
+              ...f,
+              severity: normalizeSev(f.severity),
+              _scan: { repo_url: scan.repo_url, secops_scan_id: scan.secops_scan_id },
+            }));
+          })
+          .catch(() => [])
+      )
+    ).then(results => {
+      const all = results.flat();
+      setTopFindings(all.filter(f => isSecurityRule(f.rule_id)));
+      setTopQualityFindings(all.filter(f => !isSecurityRule(f.rule_id)));
+    });
+  }, [sastScans]);
+
+  // Register project list into the filter context so SecOpsFilterBar can populate its dropdown
+  useEffect(() => {
+    // Use all SAST scans (unfiltered) so the project dropdown always shows all options
+    const byRepo = {};
+    sastScans.forEach(s => {
+      const key  = s.repo_url || s.project_name;
+      if (!key) return;
+      const label = s.project_name || s.repo_url?.split('/').pop()?.replace(/\.git$/, '') || key;
+      byRepo[key] = label;
+    });
+    setAvailableProjects(
+      Object.entries(byRepo).map(([value, label]) => ({ value, label }))
+    );
+  }, [sastScans, setAvailableProjects]);
+
+  // ---------------------------------------------------------------------------
+  // Trend chart data — overall + per-project series, oldest→newest
+  // ---------------------------------------------------------------------------
+  const trendData = useMemo(() => {
+    // Use unfiltered sastScans so the trend always shows full history regardless of current filters
+    const completed = sastScans.filter(s => s.status === 'completed' && s.scan_timestamp);
+
+    // ── Overall aggregate (last 10 scans) ──────────────────────────────────
+    const overall = [...completed]
+      .sort((a, b) => new Date(a.scan_timestamp) - new Date(b.scan_timestamp))
+      .slice(-10)
+      .map(s => {
+        const d = new Date(s.scan_timestamp);
+        return {
+          label: d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+          total: s.total_findings || 0,
+          date:  d.getTime(),
+        };
+      });
+
+    // ── Per-project series (grouped by repo_url / project_name) ───────────
+    const byProject = {};
+    completed.forEach(s => {
+      const key  = s.repo_url || s.project_name || '—';
+      const name = s.project_name
+        || s.repo_url?.split('/').pop()?.replace(/\.git$/, '')
+        || '—';
+      if (!byProject[key]) byProject[key] = { name, scans: [] };
+      const d = new Date(s.scan_timestamp);
+      byProject[key].scans.push({
+        label: d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+        total: s.total_findings || 0,
+        date:  d.getTime(),
+      });
+    });
+
+    const projects = Object.values(byProject)
+      .map((p, i) => ({
+        name:  p.name,
+        color: PROJECT_LINE_COLORS[i % PROJECT_LINE_COLORS.length],
+        scans: p.scans
+          .sort((a, b) => a.date - b.date)
+          .slice(-8),
+      }))
+      .filter(p => p.scans.length >= 1)
+      .slice(0, 6); // cap at 6 projects for legibility
+
+    return { overall, projects };
+  }, [sastScans]);
+
+  // ---------------------------------------------------------------------------
+  // Filtered findings for All Findings tab
+  // ---------------------------------------------------------------------------
+  const filteredFindings = useMemo(() => {
+    return allFindings.filter(f => {
+      if (findingFilters.severity && f.severity !== findingFilters.severity) return false;
+      if (findingFilters.source   && f.source   !== findingFilters.source)   return false;
+      if (findingFilters.status   && f.status   !== findingFilters.status)   return false;
+      // Global filter bar: scanner (SAST/DAST/SCA source)
+      if (filterScanner && f.source !== filterScanner) return false;
+      // Global filter bar: project (by repo_url stored on finding)
+      if (filterProject && f._scan?.repo_url !== filterProject) return false;
+      return true;
+    });
+  }, [allFindings, findingFilters, filterScanner, filterProject]);
+
+  // ---------------------------------------------------------------------------
+  // Scan launch handler
+  // ---------------------------------------------------------------------------
+  const handleLaunch = async ({ repo_url, branch, target_url }) => {
+    setScanStatus({ sast: 'running', sca: 'idle', dast: target_url ? 'running' : 'idle' });
+    try {
+      const requests = [
+        fetchApi('/secops/api/v1/secops/sast/scan', {
+          method: 'POST',
+          body: JSON.stringify({ tenant_id: TENANT_ID, repo_url, branch: branch || 'main' }),
+        }),
+      ];
+      if (target_url) {
+        requests.push(
+          fetchApi('/secops/api/v1/secops/dast/scan', {
+            method: 'POST',
+            body: JSON.stringify({ tenant_id: TENANT_ID, target_url }),
+          })
+        );
+      }
+      const results = await Promise.all(requests.map(p => p.catch(e => ({ error: e?.message }))));
+      const failed = results.filter(r => r?.error || r?.detail);
+      if (failed.length) {
+        console.error('[SecOps] Scan launch error:', failed);
+      }
+      setScanStatus(prev => ({ ...prev, sast: 'completed', dast: target_url ? 'completed' : 'idle' }));
+      setTimeout(() => { setScanStatus(null); setShowModal(false); loadData(); setFindingsLoaded(false); }, 2000);
+    } catch (err) {
+      console.error('[SecOps] handleLaunch failed:', err);
+      setScanStatus(null);
+    }
   };
 
-  /* ── Render ──────────────────────────────────────────────────────────────── */
+  // ---------------------------------------------------------------------------
+  // Column definitions
+  // ---------------------------------------------------------------------------
+  const findingColumns = useMemo(() => [
+    {
+      accessorKey: 'severity',
+      header: 'Severity',
+      size: 90,
+      cell: info => <SeverityBadge severity={info.getValue()} />,
+    },
+    {
+      id: 'issue',
+      header: 'Issue / Rule',
+      cell: info => {
+        const row = info.row.original;
+        return (
+          <div className="min-w-0">
+            <div className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
+              {row.rule_id || '—'}
+            </div>
+            <div className="text-xs truncate mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
+              {row.message || '—'}
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: 'source',
+      header: 'Source',
+      size: 80,
+      cell: info => <SourceBadge source={info.getValue()} />,
+    },
+    {
+      accessorKey: 'asset',
+      header: 'Asset',
+      cell: info => (
+        <span className="text-xs font-mono truncate block max-w-[200px]" style={{ color: 'var(--text-secondary)' }}>
+          {info.getValue()}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'project',
+      header: 'Project',
+      cell: info => (
+        <span className="text-xs truncate block max-w-[160px]" style={{ color: 'var(--text-secondary)' }}>
+          {info.getValue()}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      size: 90,
+      cell: info => {
+        const v = info.getValue();
+        const cfg = {
+          open:      'bg-orange-500/15 text-orange-400 border-orange-500/30',
+          violation: 'bg-red-500/15 text-red-400 border-red-500/30',
+          resolved:  'bg-green-500/15 text-green-400 border-green-500/30',
+        };
+        const cls = cfg[v] || 'bg-slate-500/15 text-slate-400 border-slate-500/30';
+        return (
+          <span className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-full border ${cls}`}>
+            {v || 'open'}
+          </span>
+        );
+      },
+    },
+    {
+      id: 'action',
+      header: '',
+      size: 60,
+      cell: info => {
+        const row = info.row.original;
+        const handleView = (e) => {
+          e.stopPropagation();
+          if (row.source === 'sast' && row._scan?.secops_scan_id) router.push(`/secops/${row._scan.secops_scan_id}`);
+          else if (row.source === 'dast' && row._scan?.dast_scan_id) router.push(`/secops/dast/${row._scan.dast_scan_id}`);
+          else if (row.source === 'sca' && row._scan?.sbom_id) router.push(`/secops/sca/${row._scan.sbom_id}`);
+        };
+        return (
+          <button onClick={handleView}
+            className="p-1.5 rounded-lg hover:bg-white/5 transition-colors"
+            title="View scan">
+            <Eye className="w-4 h-4" style={{ color: 'var(--text-tertiary)' }} />
+          </button>
+        );
+      },
+    },
+  ], [router]);
+
+  const historyColumns = useMemo(() => [
+    {
+      id: 'type',
+      header: 'Type',
+      size: 80,
+      cell: info => <SourceBadge source={info.row.original._type} />,
+    },
+    {
+      id: 'project',
+      header: 'Project / Target',
+      cell: info => {
+        const row = info.row.original;
+        const name = row.project_name || row.application_name || row.target_url || row.repo_url || '—';
+        const sub  = row.branch || row.sbom_format || '';
+        const langs = row.languages_detected || [];
+        return (
+          <div className="min-w-0">
+            <div className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{name}</div>
+            {sub && <div className="text-xs truncate mt-0.5" style={{ color: 'var(--text-tertiary)' }}>{sub}</div>}
+            {langs.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-1">
+                {langs.slice(0, 3).map(l => (
+                  <span key={l} className="text-[10px] px-1.5 py-0.5 rounded-md bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                    {l}
+                  </span>
+                ))}
+                {langs.length > 3 && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-md" style={{ color: 'var(--text-tertiary)' }}>+{langs.length - 3}</span>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      size: 110,
+      cell: info => <StatusIndicator status={info.row.original.status} />,
+    },
+    {
+      id: 'findings',
+      header: 'Findings',
+      size: 90,
+      cell: info => {
+        const row = info.row.original;
+        const n = row.total_findings ?? row.vulnerability_count ?? 0;
+        return (
+          <span className={`text-sm font-bold ${n > 0 ? 'text-orange-400' : 'text-green-400'}`}>
+            {n}
+          </span>
+        );
+      },
+    },
+    {
+      id: 'date',
+      header: 'Date',
+      size: 140,
+      cell: info => (
+        <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+          {fmtDate(info.row.original._ts)}
+        </span>
+      ),
+    },
+    {
+      id: 'action',
+      header: '',
+      size: 60,
+      cell: info => {
+        const row = info.row.original;
+        const handleView = (e) => {
+          e.stopPropagation();
+          if (row._type === 'sast') router.push(`/secops/${row._id}`);
+          else if (row._type === 'dast') router.push(`/secops/dast/${row._id}`);
+          else if (row._type === 'sca')  router.push(`/secops/sca/${row._id}`);
+        };
+        return (
+          <button onClick={handleView}
+            className="p-1.5 rounded-lg hover:bg-white/5 transition-colors"
+            title="View details">
+            <Eye className="w-4 h-4" style={{ color: 'var(--text-tertiary)' }} />
+          </button>
+        );
+      },
+    },
+  ], [router]);
+
+  // ---------------------------------------------------------------------------
+  // Filter bar configs
+  // ---------------------------------------------------------------------------
+  const findingFilterDefs = [
+    {
+      key: 'severity',
+      label: 'Severity',
+      options: [
+        { value: 'critical', label: 'Critical' },
+        { value: 'high',     label: 'High' },
+        { value: 'medium',   label: 'Medium' },
+        { value: 'low',      label: 'Low' },
+        { value: 'info',     label: 'Info' },
+      ],
+    },
+    {
+      key: 'source',
+      label: 'Scanner',
+      options: [
+        { value: 'sast', label: 'SAST — Code Analysis' },
+        { value: 'dast', label: 'DAST — Runtime Testing' },
+        { value: 'sca',  label: 'SCA — Dependencies' },
+      ],
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      options: [
+        { value: 'open',      label: 'Open' },
+        { value: 'violation', label: 'Violation' },
+        { value: 'resolved',  label: 'Resolved' },
+      ],
+    },
+  ];
+
+  // ---------------------------------------------------------------------------
+  // Tabs
+  // ---------------------------------------------------------------------------
+  const tabs = [
+    { id: 'overview',  label: 'Overview' },
+    { id: 'findings',  label: `All Findings${allFindings.length > 0 ? ` (${allFindings.length})` : ''}` },
+    { id: 'history',   label: `Scan History (${allScans.length})` },
+    { id: 'sast',      label: `SAST (${sastScans.length})` },
+    { id: 'dast',      label: `DAST (${dastScans.length})` },
+    { id: 'sca',       label: `SCA (${scaScans.length})` },
+  ];
+
+  // ---------------------------------------------------------------------------
+  // Render helpers
+  // ---------------------------------------------------------------------------
+  const renderStatusPill = (status) => {
+    const cfg = {
+      open: 'bg-orange-500/15 text-orange-400',
+      violation: 'bg-red-500/15 text-red-400',
+      resolved: 'bg-green-500/15 text-green-400',
+      completed: 'bg-green-500/15 text-green-400',
+      running: 'bg-blue-500/15 text-blue-400',
+      failed: 'bg-red-500/15 text-red-400',
+      pending: 'bg-slate-500/15 text-slate-400',
+    };
+    return (
+      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${cfg[status] || 'bg-slate-500/15 text-slate-400'}`}>
+        {status}
+      </span>
+    );
+  };
+
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]" style={{ color: 'var(--text-tertiary)' }}>
+        <Loader2 className="w-6 h-6 animate-spin mr-2" />
+        Loading security data...
+      </div>
+    );
+  }
+
   return (
-    <>
-      <PageLayout
-        icon={Code2}
-        pageContext={pageContext}
-        tabData={tabData}
-        defaultTab="overview"
-        topNav
-        loading={false}
-        error={null}
-      />
+    <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-primary)' }}>
+      {/* Page header */}
+      <div className="px-6 pt-3 pb-0">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Code Security</h1>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+              SAST, DAST, and SCA vulnerability management across all repositories
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={loadData}
+              className="flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium hover:bg-white/5 transition-colors"
+              style={{ borderColor: 'var(--border-primary)', color: 'var(--text-secondary)' }}>
+              <RefreshCw className="w-4 h-4" />
+              Refresh
+            </button>
+            <button
+              onClick={() => setShowModal(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors">
+              <Plus className="w-4 h-4" />
+              New Scan Pipeline
+            </button>
+          </div>
+        </div>
 
-      <ScanRepositoryModal
-        isOpen={showSastModal}
-        onClose={() => setShowSastModal(false)}
-        onSubmit={handleSastSubmit}
-        isLoading={isSubmitting}
-      />
+        {/* Tab strip */}
+        <div className="flex items-center gap-1 border-b" style={{ borderColor: 'var(--border-primary)' }}>
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                activeTab === tab.id
+                  ? 'border-blue-500 text-blue-400'
+                  : 'border-transparent hover:opacity-75'
+              }`}
+              style={activeTab !== tab.id ? { color: 'var(--text-secondary)' } : {}}>
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
-      <DastScanModal
-        isOpen={showDastModal}
-        onClose={() => setShowDastModal(false)}
-        onSubmit={handleDastSubmit}
-        isLoading={isSubmitting}
-      />
-    </>
+      {/* Tab content */}
+      <div className="px-6 pt-3 pb-6">
+
+        {/* ── OVERVIEW TAB ── */}
+        {activeTab === 'overview' && (
+          <div className="space-y-3">
+
+            {/* Active scan banner — shown when any scan is running/queued */}
+            {hasRunningScans && (
+              <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl border"
+                style={{ borderColor: 'rgba(59,130,246,0.4)', backgroundColor: 'rgba(59,130,246,0.06)' }}>
+                <Loader2 className="w-4 h-4 animate-spin text-blue-400 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                    Scan pipeline in progress
+                  </span>
+                  <span className="text-xs ml-2" style={{ color: 'var(--text-tertiary)' }}>
+                    Auto-refreshing every 10s · see Recent Scans below for per-engine status
+                  </span>
+                </div>
+                <button
+                  onClick={loadData}
+                  className="text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors flex-shrink-0"
+                >
+                  Refresh now
+                </button>
+              </div>
+            )}
+
+            {/* KPI cards */}
+            <div className="grid grid-cols-4 gap-3">
+              <KpiCard
+                title="Total Findings"
+                value={totalFindings}
+                subtitle={`${scaVulns} vulnerabilities from SCA`}
+                icon={<ShieldAlert className="w-5 h-5" />}
+                color={totalFindings > 50 ? 'red' : 'green'}
+              />
+              <KpiCard
+                title="Critical + High"
+                value={criticalHigh}
+                subtitle="Requires immediate attention"
+                icon={<AlertTriangle className="w-5 h-5" />}
+                color="orange"
+              />
+              <KpiCard
+                title="Repos Scanned"
+                value={reposScanned}
+                subtitle={`${filteredSastScans.length} SAST scans total`}
+                icon={<Code2 className="w-5 h-5" />}
+                color="blue"
+              />
+              <KpiCard
+                title="Last Scan"
+                value={lastScan ? new Date(lastScan).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                subtitle={lastScan ? new Date(lastScan).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : 'No scans yet'}
+                icon={<Clock className="w-5 h-5" />}
+                color="purple"
+              />
+            </div>
+
+            {/* ── Row 1: Security Trend (left) + Severity Distribution (right) ── */}
+            <div className="grid grid-cols-2 gap-3">
+
+              {/* Security Trend Chart */}
+              <div className="rounded-2xl border overflow-hidden"
+                style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+                <div className="px-4 py-3 border-b flex items-center justify-between"
+                  style={{ borderColor: 'var(--border-primary)', backgroundColor: 'var(--bg-secondary)' }}>
+                  <div>
+                    <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Security Trend</div>
+                    <div className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
+                      SAST findings per scan — last {trendData.overall.length} scans
+                      {trendData.projects.length > 1 && ` · ${trendData.projects.length} projects`}
+                    </div>
+                  </div>
+                  <Activity className="w-4 h-4" style={{ color: 'var(--text-tertiary)' }} />
+                </div>
+                <div className="px-4 py-3">
+                  <SecurityTrendChart
+                    overall={trendData.overall}
+                    projects={trendData.projects}
+                    onExpand={() => setShowTrendModal(true)}
+                  />
+                </div>
+              </div>
+
+              {/* Severity Distribution */}
+              <div className="rounded-2xl border overflow-hidden"
+                style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+                <div className="px-4 py-3 border-b flex items-center justify-between"
+                  style={{ borderColor: 'var(--border-primary)', backgroundColor: 'var(--bg-secondary)' }}>
+                  <div>
+                    <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Severity Distribution</div>
+                    <div className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
+                      Based on most recent SAST scan findings
+                    </div>
+                  </div>
+                  <Activity className="w-4 h-4" style={{ color: 'var(--text-tertiary)' }} />
+                </div>
+                <div className="px-4 py-3 flex items-center justify-center gap-6">
+                  {/* Donut chart */}
+                  <div className="flex-shrink-0">
+                    {(topFindings.length + topQualityFindings.length) > 0 ? (
+                      /* SeverityDonut expects { critical, high, medium, low } keyed object */
+                      <SeverityDonut
+                        data={{
+                          critical: severityCounts.critical || 0,
+                          high:     severityCounts.high     || 0,
+                          medium:   severityCounts.medium   || 0,
+                          low:      severityCounts.low      || 0,
+                        }}
+                        title=""
+                        height={188}
+                      />
+                    ) : sastScans.filter(s => s.status === 'completed').length > 0 ? (
+                      /* Findings are still loading — show spinner */
+                      <div className="flex flex-col items-center justify-center gap-2 w-[120px] h-[120px]">
+                        <Loader2 className="w-6 h-6 animate-spin" style={{ color: 'var(--text-muted)' }} />
+                        <span className="text-[11px] text-center" style={{ color: 'var(--text-tertiary)' }}>
+                          Loading findings…
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-center py-8 w-[120px]" style={{ color: 'var(--text-tertiary)' }}>
+                        No completed scans yet
+                      </div>
+                    )}
+                  </div>
+                  {/* Stacked bar */}
+                  <div className="flex-1 min-w-0">
+                    <SeverityBar counts={severityCounts} />
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            {/* ── Row 2: Fix This First — Security (left) + Code Quality (right) ── */}
+            <div className="grid grid-cols-2 gap-3">
+
+              {/* Fix This First — Vulnerabilities */}
+              <div className="rounded-2xl border overflow-hidden"
+                style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+                <div className="px-4 py-2.5 border-b flex items-center justify-between"
+                  style={{ borderColor: 'var(--border-primary)', backgroundColor: 'var(--bg-secondary)' }}>
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-red-500/15">
+                      <ShieldAlert className="w-3.5 h-3.5 text-red-400" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Fix This First — Vulnerabilities</div>
+                      <div className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
+                        Top security risks by impact score
+                      </div>
+                    </div>
+                  </div>
+                  <button onClick={() => setActiveTab('findings')}
+                    className="text-xs text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1">
+                    All findings <ChevronRight className="w-3 h-3" />
+                  </button>
+                </div>
+                <div>
+                  <FixThisFirst
+                    findings={visibleTopFindings}
+                    onViewAll={() => setActiveTab('findings')}
+                    onItemClick={({ sev, scanId, rawRuleId }) => {
+                      if (scanId && rawRuleId) {
+                        router.push(`/secops/${scanId}?rule=${encodeURIComponent(rawRuleId)}`);
+                      } else if (scanId) {
+                        router.push(`/secops/${scanId}`);
+                      } else {
+                        setFindingFilters(prev => ({ ...prev, severity: sev }));
+                        setActiveTab('findings');
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Fix This First — Code Quality */}
+              <div className="rounded-2xl border overflow-hidden"
+                style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+                <div className="px-4 py-2.5 border-b flex items-center justify-between"
+                  style={{ borderColor: 'var(--border-primary)', backgroundColor: 'var(--bg-secondary)' }}>
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-blue-500/15">
+                      <Code2 className="w-3.5 h-3.5 text-blue-400" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Fix This First — Code Quality</div>
+                      <div className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
+                        Top code quality issues to address
+                      </div>
+                    </div>
+                  </div>
+                  <button onClick={() => setActiveTab('findings')}
+                    className="text-xs text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1">
+                    All findings <ChevronRight className="w-3 h-3" />
+                  </button>
+                </div>
+                <div>
+                  <FixThisFirst
+                    findings={visibleTopQualityFindings}
+                    onViewAll={() => setActiveTab('findings')}
+                    onItemClick={({ sev, scanId, rawRuleId }) => {
+                      if (scanId && rawRuleId) {
+                        router.push(`/secops/${scanId}?rule=${encodeURIComponent(rawRuleId)}&tab=quality`);
+                      } else if (scanId) {
+                        router.push(`/secops/${scanId}?tab=quality`);
+                      } else {
+                        setActiveTab('findings');
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+
+            </div>
+
+            {/* Applications Risk Table */}
+            <div className="rounded-2xl border overflow-hidden" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+              <div className="px-4 py-2.5 border-b flex items-center justify-between" style={{ borderColor: 'var(--border-primary)', backgroundColor: 'var(--bg-secondary)' }}>
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-blue-500/15">
+                    <GitBranch className="w-3.5 h-3.5 text-blue-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Applications</h2>
+                    <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{projects.length} repositor{projects.length !== 1 ? 'ies' : 'y'} scanned</p>
+                  </div>
+                </div>
+                <button onClick={() => router.push('/secops/projects')}
+                  className="text-xs flex items-center gap-1 hover:opacity-75 transition-opacity"
+                  style={{ color: '#60a5fa' }}>
+                  View all <ChevronRight className="w-3 h-3" />
+                </button>
+              </div>
+              {/* Column headers */}
+              <div className="grid px-4 py-1.5 text-xs font-semibold uppercase tracking-wider border-b"
+                style={{ gridTemplateColumns: '2fr 90px 60px 60px 120px 130px', gap: '1rem', borderColor: 'var(--border-primary)', color: 'var(--text-tertiary)', backgroundColor: 'var(--bg-secondary)' }}>
+                <span>Repository</span>
+                <span className="text-center" title="Composite score 0–10 based on critical × 10 + high × 5 + total findings × 0.1">Risk Score</span>
+                <span className="text-right" title="Critical severity findings — exploitable vulnerabilities requiring immediate fix">Critical</span>
+                <span className="text-right" title="High severity findings — serious vulnerabilities to address urgently">High</span>
+                <span>Languages</span>
+                <span className="text-right">Last Scan</span>
+              </div>
+              {projects.slice(0, 5).map(p => (
+                <button key={p.repo_url} onClick={() => router.push(`/secops/projects/${encodeURIComponent(p.repo_url)}`)}
+                  className="w-full grid items-center px-4 py-2 border-b last:border-0 hover:bg-white/5 transition-colors text-left"
+                  style={{ gridTemplateColumns: '2fr 90px 60px 60px 120px 130px', gap: '1rem', borderColor: 'var(--border-primary)' }}>
+                  {/* Repository */}
+                  <div className="min-w-0 overflow-hidden">
+                    <p className="text-sm font-medium truncate" title={p.name} style={{ color: 'var(--text-primary)' }}>{p.name}</p>
+                    <p className="text-xs truncate font-mono" title={p.repo_url} style={{ color: 'var(--text-tertiary)' }}>{p.repo_url}</p>
+                  </div>
+                  {/* Risk Score */}
+                  <div className="flex justify-center">
+                    <RiskScoreBadge score={p.riskScore} />
+                  </div>
+                  {/* Critical */}
+                  <div className="text-right">
+                    {p.criticalCount > 0
+                      ? <span className="text-sm font-bold tabular-nums text-red-400">{p.criticalCount}</span>
+                      : <span className="text-sm tabular-nums" style={{ color: 'var(--text-tertiary)' }}>—</span>}
+                  </div>
+                  {/* High */}
+                  <div className="text-right">
+                    {p.highCount > 0
+                      ? <span className="text-sm font-bold tabular-nums text-orange-400">{p.highCount}</span>
+                      : <span className="text-sm tabular-nums" style={{ color: 'var(--text-tertiary)' }}>—</span>}
+                  </div>
+                  {/* Languages */}
+                  <div className="flex flex-wrap gap-1 overflow-hidden" style={{ maxHeight: 28 }}>
+                    {p.languages.slice(0, 2).map(l => (
+                      <span key={l} className="text-xs px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-300 whitespace-nowrap">{l}</span>
+                    ))}
+                    {p.languages.length > 2 && <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>+{p.languages.length - 2}</span>}
+                  </div>
+                  {/* Last Scan */}
+                  <div className="text-right overflow-hidden">
+                    <span className="text-xs truncate block" style={{ color: 'var(--text-tertiary)' }}>{fmtDate(p.lastScan)}</span>
+                  </div>
+                </button>
+              ))}
+              {projects.length === 0 && !loading && (
+                <div className="px-5 py-8 text-center">
+                  <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No repositories scanned yet — start a scan pipeline to see projects here</p>
+                </div>
+              )}
+            </div>
+
+            {/* Two-column grid: Coverage (2/3) + Donut (1/3) */}
+            <div className="grid grid-cols-3 gap-3">
+              {/* Scan Coverage (2 cols) */}
+              <div className="col-span-2 rounded-2xl border overflow-hidden"
+                style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+                <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--border-primary)' }}>
+                  <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Scan Coverage</div>
+                  <div className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>Active scanning engines and results</div>
+                </div>
+                <div className="p-4 grid grid-cols-3 gap-3">
+                  {showSast && (
+                    <CoverageCard
+                      icon={<Code2 className="w-5 h-5 text-blue-400" />}
+                      label="SAST"
+                      count={filteredSastScans.length}
+                      findings={sastFindings}
+                      accentCls="bg-blue-500/10"
+                      barColor="#3b82f6"
+                      total={totalFindings}
+                    />
+                  )}
+                  {showDast && (
+                    <CoverageCard
+                      icon={<Globe className="w-5 h-5 text-purple-400" />}
+                      label="DAST"
+                      count={filteredDastScans.length}
+                      findings={dastFindings}
+                      accentCls="bg-purple-500/10"
+                      barColor="#8b5cf6"
+                      total={totalFindings}
+                    />
+                  )}
+                  {showSca && (
+                    <CoverageCard
+                      icon={<Package className="w-5 h-5 text-green-400" />}
+                      label="SCA"
+                      count={filteredScaScans.length}
+                      findings={scaVulns}
+                      accentCls="bg-green-500/10"
+                      barColor="#22c55e"
+                      total={totalFindings}
+                    />
+                  )}
+                </div>
+              </div>
+
+              {/* By Engine donut (1 col) */}
+              <div className="col-span-1 rounded-2xl border overflow-hidden"
+                style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+                <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--border-primary)' }}>
+                  <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>By Engine</div>
+                  <div className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>Findings distribution</div>
+                </div>
+                <div className="p-4">
+                  <EngineDonut data={engineDonutData} />
+                </div>
+              </div>
+            </div>
+
+            {/* Recent Scans */}
+            <div className="rounded-2xl border overflow-hidden"
+              style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+              <div className="px-4 py-2.5 border-b flex items-center justify-between"
+                style={{ borderColor: 'var(--border-primary)' }}>
+                <div>
+                  <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Recent Scans</div>
+                  <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Latest 5 scans across all engines</div>
+                </div>
+                <button
+                  onClick={() => setActiveTab('history')}
+                  className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors">
+                  View all
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {recentScans.length === 0 ? (
+                <div className="px-5 py-8 text-center text-sm" style={{ color: 'var(--text-tertiary)' }}>
+                  No scans found. Launch a scan pipeline to get started.
+                </div>
+              ) : (
+                <div className="divide-y" style={{ borderColor: 'var(--border-primary)' }}>
+                  {/* Table header */}
+                  <div className="px-4 py-1.5 grid grid-cols-5 gap-x-4"
+                    style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                    {['Project / Target', 'Type', 'Status', 'Findings', 'Date'].map(h => (
+                      <div key={h} className="text-xs font-semibold uppercase tracking-wider"
+                        style={{ color: 'var(--text-tertiary)' }}>{h}</div>
+                    ))}
+                  </div>
+                  {recentScans.map((scan, i) => {
+                    const name = scan.project_name || scan.application_name || scan.target_url || scan.repo_url || '—';
+                    const n = scan.total_findings ?? scan.vulnerability_count ?? 0;
+                    return (
+                      <div key={i}
+                        className="px-4 py-2 grid grid-cols-5 gap-x-4 items-center hover:bg-white/2 cursor-pointer transition-colors"
+                        onClick={() => {
+                          if (scan._type === 'sast') router.push(`/secops/${scan._id}`);
+                          else if (scan._type === 'dast') router.push(`/secops/dast/${scan._id}`);
+                          else router.push(`/secops/sca/${scan._id}`);
+                        }}>
+                        <div className="text-sm truncate font-medium" title={name} style={{ color: 'var(--text-primary)' }}>{name}</div>
+                        <div><SourceBadge source={scan._type} /></div>
+                        <div>{renderStatusPill(scan.status)}</div>
+                        <div className={`text-sm font-semibold ${n > 0 ? 'text-orange-400' : 'text-green-400'}`}>{n}</div>
+                        <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{fmtDate(scan._ts)}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+          </div>
+        )}
+
+        {/* ── ALL FINDINGS TAB ── */}
+        {activeTab === 'findings' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <FilterBar
+                filters={findingFilterDefs}
+                activeFilters={findingFilters}
+                onFilterChange={(key, val) => setFindingFilters(prev => ({ ...prev, [key]: val }))}
+              />
+              <div className="text-sm font-medium" style={{ color: 'var(--text-tertiary)' }}>
+                {findingsLoading ? (
+                  <span className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading...</span>
+                ) : (
+                  `${filteredFindings.length} finding${filteredFindings.length !== 1 ? 's' : ''}`
+                )}
+              </div>
+            </div>
+
+            <DataTable
+              data={filteredFindings}
+              columns={findingColumns}
+              pageSize={25}
+              loading={findingsLoading}
+              emptyMessage={findingsLoaded ? 'No findings match the current filters.' : 'Loading findings from all scan engines...'}
+              onRowClick={(row) => {
+                if (row.source === 'sast' && row._scan?.secops_scan_id) router.push(`/secops/${row._scan.secops_scan_id}`);
+                else if (row.source === 'dast' && row._scan?.dast_scan_id) router.push(`/secops/dast/${row._scan.dast_scan_id}`);
+                else if (row.source === 'sca' && row._scan?.sbom_id) router.push(`/secops/sca/${row._scan.sbom_id}`);
+              }}
+            />
+          </div>
+        )}
+
+        {/* ── SCAN HISTORY TAB ── */}
+        {activeTab === 'history' && (
+          <div className="space-y-4">
+            <DataTable
+              data={allScans}
+              columns={historyColumns}
+              pageSize={20}
+              loading={loading}
+              emptyMessage="No scans found. Launch a scan pipeline to get started."
+              onRowClick={(row) => {
+                if (row._type === 'sast') router.push(`/secops/${row._id}`);
+                else if (row._type === 'dast') router.push(`/secops/dast/${row._id}`);
+                else router.push(`/secops/sca/${row._id}`);
+              }}
+            />
+          </div>
+        )}
+
+        {/* ── SAST TAB ── */}
+        {activeTab === 'sast' && (() => {
+          const completed = sastScans.filter(s => s.status === 'completed');
+          const running   = sastScans.filter(s => s.status === 'running');
+          const failed    = sastScans.filter(s => s.status === 'failed');
+          const totalFinds = completed.reduce((a, s) => a + (s.total_findings || 0), 0);
+          const allLangs  = [...new Set(completed.flatMap(s => s.languages_detected || []))];
+          const lastSastTs = sastScans[0]?.scan_timestamp;
+          return (
+            <div className="space-y-4">
+              {/* KPI row */}
+              <div className="grid grid-cols-4 gap-3">
+                {[
+                  { label: 'Total Scans',     value: sastScans.length, sub: `${completed.length} completed · ${running.length} running · ${failed.length} failed`, color: 'blue',   icon: <Activity className="w-4 h-4" /> },
+                  { label: 'Total Findings',  value: totalFinds.toLocaleString(), sub: 'across all completed scans', color: totalFinds > 0 ? 'orange' : 'green', icon: <AlertTriangle className="w-4 h-4" /> },
+                  { label: 'Languages',       value: allLangs.length || '—', sub: allLangs.slice(0, 4).join(', ') || 'none detected', color: 'purple', icon: <Code className="w-4 h-4" /> },
+                  { label: 'Last Scan',       value: lastSastTs ? new Date(lastSastTs).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—', sub: lastSastTs ? new Date(lastSastTs).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : 'no scans yet', color: 'green', icon: <Clock className="w-4 h-4" /> },
+                ].map(k => (
+                  <KpiCard key={k.label} title={k.label} value={k.value} subtitle={k.sub} icon={k.icon} color={k.color} />
+                ))}
+              </div>
+              {/* SAST scans table */}
+              <div className="rounded-xl border overflow-hidden" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+                <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: 'var(--border-primary)' }}>
+                  <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>SAST Scan Results</span>
+                  <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Static Application Security Testing · click row to view findings</span>
+                </div>
+                <DataTable
+                  data={sastScans}
+                  columns={[
+                    {
+                      id: 'project', header: 'Project / Repo', cell: info => {
+                        const s = info.row.original;
+                        const name = s.project_name || s.repo_url?.split('/').pop()?.replace(/\.git$/, '') || '—';
+                        return (
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }} title={s.repo_url}>{name}</div>
+                            <div className="text-xs truncate mt-0.5" style={{ color: 'var(--text-tertiary)' }}>{s.branch || 'main'}</div>
+                          </div>
+                        );
+                      }
+                    },
+                    {
+                      id: 'languages', header: 'Languages', size: 160, cell: info => {
+                        const langs = info.row.original.languages_detected || [];
+                        return langs.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {langs.slice(0, 3).map(l => (
+                              <span key={l} className="text-[10px] px-1.5 py-0.5 rounded-md bg-blue-500/10 text-blue-400 border border-blue-500/20">{l}</span>
+                            ))}
+                            {langs.length > 3 && <span className="text-[10px]" style={{ color: 'var(--text-tertiary)' }}>+{langs.length - 3}</span>}
+                          </div>
+                        ) : <span style={{ color: 'var(--text-muted)' }}>—</span>;
+                      }
+                    },
+                    { id: 'status', header: 'Status', size: 110, cell: info => <StatusIndicator status={info.row.original.status} /> },
+                    {
+                      id: 'files', header: 'Files Scanned', size: 110, cell: info => (
+                        <span className="text-sm tabular-nums" style={{ color: 'var(--text-secondary)' }}>{info.row.original.files_scanned ?? '—'}</span>
+                      )
+                    },
+                    {
+                      id: 'findings', header: 'Findings', size: 90, cell: info => {
+                        const n = info.row.original.total_findings || 0;
+                        return <span className={`text-sm font-bold ${n > 0 ? 'text-orange-400' : 'text-green-400'}`}>{n}</span>;
+                      }
+                    },
+                    {
+                      id: 'errors', header: 'Errors', size: 80, cell: info => {
+                        const e = info.row.original.total_errors || 0;
+                        return <span className={`text-sm tabular-nums ${e > 0 ? 'text-red-400' : ''}`} style={e === 0 ? { color: 'var(--text-muted)' } : {}}>{e}</span>;
+                      }
+                    },
+                    {
+                      id: 'date', header: 'Scanned At', size: 150, cell: info => (
+                        <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{fmtDate(info.row.original.scan_timestamp)}</span>
+                      )
+                    },
+                  ]}
+                  pageSize={15}
+                  loading={loading}
+                  emptyMessage="No SAST scans found. Launch a scan pipeline to get started."
+                  onRowClick={row => router.push(`/secops/${row.secops_scan_id}`)}
+                />
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ── DAST TAB ── */}
+        {activeTab === 'dast' && (() => {
+          const completed = dastScans.filter(s => s.status === 'completed');
+          const running   = dastScans.filter(s => s.status === 'running');
+          const failed    = dastScans.filter(s => s.status === 'failed');
+          const totalFinds = completed.reduce((a, s) => a + (s.total_findings || 0), 0);
+          const totalPages = completed.reduce((a, s) => a + (s.summary?.pages_crawled || 0), 0);
+          const totalAttacks = completed.reduce((a, s) => a + (s.summary?.attacks_sent || 0), 0);
+          return (
+            <div className="space-y-4">
+              {/* KPI row */}
+              <div className="grid grid-cols-4 gap-3">
+                {[
+                  { label: 'Total Scans',    value: dastScans.length, sub: `${completed.length} completed · ${running.length} running · ${failed.length} failed`, color: 'purple', icon: <Globe className="w-4 h-4" /> },
+                  { label: 'Total Findings', value: totalFinds.toLocaleString(), sub: 'across all completed scans', color: totalFinds > 0 ? 'orange' : 'green', icon: <AlertTriangle className="w-4 h-4" /> },
+                  { label: 'Pages Crawled',  value: totalPages.toLocaleString(), sub: 'cumulative across all scans', color: 'blue',   icon: <Activity className="w-4 h-4" /> },
+                  { label: 'Attacks Sent',   value: totalAttacks.toLocaleString(), sub: 'cumulative payloads fired',  color: 'red',    icon: <Zap className="w-4 h-4" /> },
+                ].map(k => (
+                  <KpiCard key={k.label} title={k.label} value={k.value} subtitle={k.sub} icon={k.icon} color={k.color} />
+                ))}
+              </div>
+              {/* DAST scans table */}
+              <div className="rounded-xl border overflow-hidden" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+                <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: 'var(--border-primary)' }}>
+                  <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>DAST Scan Results</span>
+                  <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Dynamic Application Security Testing · click row to view findings</span>
+                </div>
+                <DataTable
+                  data={dastScans}
+                  columns={[
+                    {
+                      id: 'target', header: 'Target URL', cell: info => (
+                        <div className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }} title={info.row.original.target_url}>
+                          {info.row.original.target_url || '—'}
+                        </div>
+                      )
+                    },
+                    { id: 'status', header: 'Status', size: 110, cell: info => <StatusIndicator status={info.row.original.status} /> },
+                    {
+                      id: 'severity', header: 'Severity Breakdown', size: 200, cell: info => {
+                        const bySev = info.row.original.summary?.by_severity || {};
+                        if (!Object.keys(bySev).length) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
+                        return (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {[['critical','bg-red-500/15 text-red-400'],['high','bg-orange-500/15 text-orange-400'],['medium','bg-yellow-500/15 text-yellow-400'],['low','bg-green-500/15 text-green-400']].map(([sev, cls]) =>
+                              bySev[sev] ? <span key={sev} className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${cls}`}>{sev[0].toUpperCase()} {bySev[sev]}</span> : null
+                            )}
+                          </div>
+                        );
+                      }
+                    },
+                    {
+                      id: 'pages', header: 'Pages', size: 70, cell: info => (
+                        <span className="text-sm tabular-nums" style={{ color: 'var(--text-secondary)' }}>{info.row.original.summary?.pages_crawled ?? '—'}</span>
+                      )
+                    },
+                    {
+                      id: 'attacks', header: 'Attacks', size: 80, cell: info => (
+                        <span className="text-sm tabular-nums" style={{ color: 'var(--text-secondary)' }}>{info.row.original.summary?.attacks_sent?.toLocaleString() ?? '—'}</span>
+                      )
+                    },
+                    {
+                      id: 'findings', header: 'Findings', size: 85, cell: info => {
+                        const n = info.row.original.total_findings || 0;
+                        return <span className={`text-sm font-bold ${n > 0 ? 'text-orange-400' : 'text-green-400'}`}>{n}</span>;
+                      }
+                    },
+                    {
+                      id: 'date', header: 'Scanned At', size: 150, cell: info => (
+                        <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{fmtDate(info.row.original.scan_timestamp)}</span>
+                      )
+                    },
+                  ]}
+                  pageSize={15}
+                  loading={loading}
+                  emptyMessage="No DAST scans found. Launch a scan pipeline with a target URL to get started."
+                  onRowClick={row => router.push(`/secops/dast/${row.dast_scan_id}`)}
+                />
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ── SCA TAB ── */}
+        {activeTab === 'sca' && (() => {
+          const totalVulns = scaScans.reduce((a, s) => a + (s.vulnerability_count || 0), 0);
+          const critHigh   = scaScans.reduce((a, s) => a + (s.critical_count || 0) + (s.high_count || 0), 0);
+          const lastScaTs  = scaScans[0]?.created_at;
+          return (
+            <div className="space-y-4">
+              {/* KPI row */}
+              <div className="grid grid-cols-4 gap-3">
+                {[
+                  { label: 'Total SBOMs',       value: scaScans.length, sub: 'software bill of materials scanned', color: 'blue',   icon: <Package className="w-4 h-4" /> },
+                  { label: 'Total Vulnerabilities', value: totalVulns.toLocaleString(), sub: 'across all SBOMs', color: totalVulns > 0 ? 'orange' : 'green', icon: <AlertTriangle className="w-4 h-4" /> },
+                  { label: 'Critical + High',    value: critHigh || '—', sub: 'highest severity vulnerabilities', color: critHigh > 0 ? 'red' : 'green', icon: <Shield className="w-4 h-4" /> },
+                  { label: 'Last Scan',          value: lastScaTs ? new Date(lastScaTs).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—', sub: lastScaTs ? new Date(lastScaTs).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : 'no scans yet', color: 'green', icon: <Clock className="w-4 h-4" /> },
+                ].map(k => (
+                  <KpiCard key={k.label} title={k.label} value={k.value} subtitle={k.sub} icon={k.icon} color={k.color} />
+                ))}
+              </div>
+              {/* SCA scans table */}
+              <div className="rounded-xl border overflow-hidden" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+                <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: 'var(--border-primary)' }}>
+                  <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>SCA Scan Results</span>
+                  <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Software Composition Analysis · click row to view SBOM details</span>
+                </div>
+                <DataTable
+                  data={scaScans}
+                  columns={[
+                    {
+                      id: 'project', header: 'Project', cell: info => {
+                        const s = info.row.original;
+                        const name = s.project_name || s.repo_url?.split('/').pop()?.replace(/\.git$/, '') || s.sbom_id || '—';
+                        return (
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{name}</div>
+                            {s.sbom_format && <div className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>{s.sbom_format}</div>}
+                          </div>
+                        );
+                      }
+                    },
+                    { id: 'status', header: 'Status', size: 110, cell: info => <StatusIndicator status={info.row.original.status || 'completed'} /> },
+                    {
+                      id: 'vulns', header: 'Vulnerabilities', size: 120, cell: info => {
+                        const n = info.row.original.vulnerability_count || 0;
+                        return <span className={`text-sm font-bold ${n > 0 ? 'text-orange-400' : 'text-green-400'}`}>{n}</span>;
+                      }
+                    },
+                    {
+                      id: 'critical', header: 'Critical', size: 80, cell: info => {
+                        const n = info.row.original.critical_count || 0;
+                        return <span className={`text-sm font-bold ${n > 0 ? 'text-red-400' : ''}`} style={n === 0 ? { color: 'var(--text-muted)' } : {}}>{n || '—'}</span>;
+                      }
+                    },
+                    {
+                      id: 'high', header: 'High', size: 70, cell: info => {
+                        const n = info.row.original.high_count || 0;
+                        return <span className={`text-sm font-bold ${n > 0 ? 'text-orange-400' : ''}`} style={n === 0 ? { color: 'var(--text-muted)' } : {}}>{n || '—'}</span>;
+                      }
+                    },
+                    {
+                      id: 'packages', header: 'Packages', size: 90, cell: info => (
+                        <span className="text-sm tabular-nums" style={{ color: 'var(--text-secondary)' }}>{info.row.original.total_packages ?? '—'}</span>
+                      )
+                    },
+                    {
+                      id: 'date', header: 'Created At', size: 150, cell: info => (
+                        <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{fmtDate(info.row.original.created_at)}</span>
+                      )
+                    },
+                  ]}
+                  pageSize={15}
+                  loading={loading}
+                  emptyMessage="No SCA scans found. Launch a scan pipeline to generate an SBOM."
+                  onRowClick={row => router.push(`/secops/sca/${row.sbom_id}`)}
+                />
+              </div>
+            </div>
+          );
+        })()}
+
+      </div>
+
+      {/* Scan launch modal */}
+      {showModal && (
+        <ScanLaunchModal
+          onClose={() => { if (!scanStatus) setShowModal(false); }}
+          onLaunch={handleLaunch}
+          scanStatus={scanStatus}
+        />
+      )}
+
+      {/* Security Trend — expanded modal */}
+      {showTrendModal && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/60 z-40 backdrop-blur-sm"
+            onClick={() => setShowTrendModal(false)}
+          />
+          <div
+            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-3xl border rounded-2xl shadow-2xl z-50"
+            style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b"
+              style={{ borderColor: 'var(--border-primary)', backgroundColor: 'var(--bg-secondary)' }}>
+              <div>
+                <h3 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>
+                  Security Trend — Project Breakdown
+                </h3>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
+                  Per-project finding counts over time · dashed lines = individual projects · solid blue = overall
+                </p>
+              </div>
+              <button
+                onClick={() => setShowTrendModal(false)}
+                className="p-1.5 rounded-lg hover:bg-white/5 transition-colors"
+              >
+                <X className="w-5 h-5" style={{ color: 'var(--text-tertiary)' }} />
+              </button>
+            </div>
+
+            {/* Chart */}
+            <div className="px-6 py-6">
+              <SecurityTrendChart
+                overall={trendData.overall}
+                projects={trendData.projects}
+                isModal={true}
+              />
+            </div>
+
+            {/* Project summary table (only if multiple projects) */}
+            {trendData.projects.length > 1 && (
+              <div className="px-6 pb-6">
+                <div className="rounded-xl border overflow-hidden"
+                  style={{ borderColor: 'var(--border-primary)' }}>
+                  <div className="grid px-4 py-2 text-[10px] font-bold uppercase tracking-wider border-b"
+                    style={{
+                      gridTemplateColumns: '1fr 80px 80px 80px',
+                      gap: '1rem',
+                      borderColor: 'var(--border-primary)',
+                      color: 'var(--text-muted)',
+                      backgroundColor: 'var(--bg-secondary)',
+                    }}>
+                    <span>Project</span>
+                    <span className="text-right">Scans</span>
+                    <span className="text-right">Latest</span>
+                    <span className="text-right">Trend</span>
+                  </div>
+                  {trendData.projects.map(p => {
+                    const latest = p.scans[p.scans.length - 1]?.total ?? 0;
+                    const prev   = p.scans[p.scans.length - 2]?.total ?? latest;
+                    const diff   = latest - prev;
+                    return (
+                      <div key={p.name}
+                        className="grid items-center px-4 py-2.5 border-b last:border-0"
+                        style={{ gridTemplateColumns: '1fr 80px 80px 80px', gap: '1rem', borderColor: 'var(--border-primary)' }}>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="inline-block w-3 h-3 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: p.color }} />
+                          <span className="text-xs font-medium truncate"
+                            style={{ color: 'var(--text-primary)' }} title={p.name}>
+                            {p.name}
+                          </span>
+                        </div>
+                        <span className="text-xs text-right tabular-nums"
+                          style={{ color: 'var(--text-secondary)' }}>{p.scans.length}</span>
+                        <span className="text-xs text-right font-bold tabular-nums"
+                          style={{ color: 'var(--text-primary)' }}>{latest}</span>
+                        <div className="flex justify-end">
+                          {diff < 0 ? (
+                            <span className="text-xs font-semibold text-green-400">{diff}</span>
+                          ) : diff > 0 ? (
+                            <span className="text-xs font-semibold text-red-400">+{diff}</span>
+                          ) : (
+                            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>—</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
   );
 }

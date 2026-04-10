@@ -26,13 +26,19 @@ const ENGINE_PREFIXES = [
   'risk',
   'rule',
   'gateway',
-  'cspm', // Django CSPM backend
+  'cspm',       // Django CSPM backend
+  'vulnerability', // Vulnerability engine (port 8000, /vulnerability ingress)
 ];
 
 const nextConfig = {
   reactStrictMode: true,
   basePath: process.env.NODE_ENV === 'production' ? '/ui' : '',
   output: 'standalone',
+  // Prevent Next.js from stripping trailing slashes before rewrites run.
+  // Without this, /secops/.../sbom/ gets 308-redirected to /sbom (no slash),
+  // which then causes the FastAPI backend to 307-redirect back with a broken
+  // Location header that nginx cannot route correctly.
+  skipTrailingSlashRedirect: true,
   // Allow the preview/headless browser to load /_next/* resources from 127.0.0.1
   allowedDevOrigins: ['127.0.0.1', 'localhost'],
 

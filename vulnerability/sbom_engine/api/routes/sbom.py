@@ -11,6 +11,8 @@ DELETE /{sbom_id}  - Delete a SBOM
 """
 
 import logging
+import os
+import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -26,6 +28,42 @@ from core.license_checker import analyse_sbom_licenses
 from core.repo_scanner import GitRepoScanner
 
 logger = logging.getLogger(__name__)
+
+
+def _build_secops_findings(enriched_components: List[Dict]) -> List[Dict]:
+    """
+    Flatten vulnerable components into individual finding rows for secops_findings.
+    Each (component, vulnerability_id) pair becomes one finding row.
+    """
+    findings = []
+    for comp in enriched_components:
+        if not comp.get("is_vulnerable"):
+            continue
+        vuln_ids = comp.get("vulnerability_ids") or []
+        vuln_details = comp.get("vulnerabilities") or []
+        # Build a lookup of vuln_id → detail dict
+        detail_map: Dict[str, Dict] = {}
+        for d in vuln_details:
+            vid = d.get("vulnerability_id") or d.get("cve_id") or ""
+            if vid:
+                detail_map[vid] = d
+        for vid in vuln_ids:
+            detail = detail_map.get(vid, {})
+            findings.append({
+                "component_name":    comp.get("name", ""),
+                "component_version": comp.get("version", ""),
+                "component_purl":    comp.get("purl", ""),
+                "ecosystem":         comp.get("ecosystem", ""),
+                "vulnerability_id":  vid,
+                "severity":          detail.get("severity") or comp.get("severity") or "unknown",
+                "description":       detail.get("description", ""),
+                "cvss_score":        detail.get("cvss_score"),
+                "cvss_vector":       detail.get("cvss_vector"),
+                "epss_score":        detail.get("epss_score"),
+                "in_cisa_kev":       detail.get("in_cisa_kev", False),
+                "fixed_version":     detail.get("fixed_version"),
+            })
+    return findings
 
 router = APIRouter()
 
@@ -161,6 +199,30 @@ async def scan_repo(
     await db.save_sbom_document(doc)
     await db.save_sbom_components(sbom_id, enriched)
 
+    # Write to shared secops output tables
+    secops_scan_id = str(uuid.uuid4())
+    tenant_id = os.getenv("TENANT_ID", "default")
+    sca_findings = _build_secops_findings(enriched)
+    try:
+        await db.save_secops_report(
+            secops_scan_id=secops_scan_id,
+            tenant_id=tenant_id,
+            project_name=app_name,
+            repo_url=req.git_url,
+            component_count=len(enriched),
+            vulnerability_count=vuln_count,
+            summary={
+                "sbom_id": sbom_id,
+                "languages": scan_result.get("languages", []),
+                "branch": req.branch or "default",
+                "commit_sha": scan_result.get("commit_sha"),
+                "detected_files": scan_result.get("detected_files", []),
+            },
+        )
+        await db.save_secops_findings(secops_scan_id, tenant_id, sca_findings)
+    except Exception as _e:
+        logger.warning("Failed to write to secops tables (non-fatal): %s", _e)
+
     cdx = generate_cyclonedx(
         packages=enriched,
         enriched_components=enriched,
@@ -239,6 +301,24 @@ async def upload_sbom(
     await db.save_sbom_document(doc)
     await db.save_sbom_components(sbom_id, enriched)
 
+    # Write to shared secops output tables
+    secops_scan_id = str(uuid.uuid4())
+    tenant_id = os.getenv("TENANT_ID", "default")
+    sca_findings = _build_secops_findings(enriched)
+    try:
+        await db.save_secops_report(
+            secops_scan_id=secops_scan_id,
+            tenant_id=tenant_id,
+            project_name=parsed.get("application_name") or host_id or "unknown",
+            repo_url=host_id or "uploaded",
+            component_count=len(enriched),
+            vulnerability_count=vuln_count,
+            summary={"sbom_id": sbom_id, "source": parsed.get("source")},
+        )
+        await db.save_secops_findings(secops_scan_id, tenant_id, sca_findings)
+    except Exception as _e:
+        logger.warning("Failed to write to secops tables (non-fatal): %s", _e)
+
     # Generate enriched CycloneDX output
     cdx = enrich_cyclonedx(parsed, enriched)
     cdx["x-sbom-id"] = sbom_id  # attach our internal ID
@@ -309,6 +389,24 @@ async def generate_sbom(
     await db.save_sbom_document(doc)
     await db.save_sbom_components(sbom_id, enriched)
 
+    # Write to shared secops output tables
+    secops_scan_id = str(uuid.uuid4())
+    tenant_id = os.getenv("TENANT_ID", "default")
+    sca_findings = _build_secops_findings(enriched)
+    try:
+        await db.save_secops_report(
+            secops_scan_id=secops_scan_id,
+            tenant_id=tenant_id,
+            project_name=req.application_name or "unknown",
+            repo_url=req.host_id or "generated",
+            component_count=len(enriched),
+            vulnerability_count=vuln_count,
+            summary={"sbom_id": sbom_id, "parent_sbom_id": parent_sbom_id},
+        )
+        await db.save_secops_findings(secops_scan_id, tenant_id, sca_findings)
+    except Exception as _e:
+        logger.warning("Failed to write to secops tables (non-fatal): %s", _e)
+
     cdx = generate_cyclonedx(
         packages=req.packages,
         enriched_components=enriched,
@@ -328,7 +426,8 @@ async def generate_sbom(
 
 # ── List SBOMs ────────────────────────────────────────────────────────────────
 
-@router.get("/", summary="List SBOM documents")
+@router.get("", summary="List SBOM documents")
+@router.get("/", summary="List SBOM documents", include_in_schema=False)
 async def list_sboms(
     host_id: Optional[str] = Query(None),
     limit: int = Query(50, ge=1, le=500),

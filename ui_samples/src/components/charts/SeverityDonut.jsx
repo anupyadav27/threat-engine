@@ -24,7 +24,7 @@ import { SEVERITY_COLORS, SEVERITY_LABELS } from '@/lib/constants';
  * @param {string} [props.title] - Optional chart title
  * @returns {JSX.Element}
  */
-export default function SeverityDonut({ data, title = 'Severity Distribution' }) {
+export default function SeverityDonut({ data, title = 'Severity Distribution', height = 250 }) {
   const chartData = useMemo(() => {
     return [
       {
@@ -108,14 +108,14 @@ export default function SeverityDonut({ data, title = 'Severity Distribution' })
       {title && (
         <h3 style={{ color: 'var(--text-primary)' }} className="text-sm font-semibold mb-4">{title}</h3>
       )}
-      <ResponsiveContainer width="100%" height={250}>
+      <ResponsiveContainer width="100%" height={height}>
         <PieChart>
           <Pie
             data={chartData}
             cx="50%"
             cy="50%"
-            innerRadius={60}
-            outerRadius={90}
+            innerRadius={Math.round(60 * height / 250)}
+            outerRadius={Math.round(90 * height / 250)}
             paddingAngle={2}
             dataKey="value"
             label={false}

@@ -760,7 +760,7 @@ export default function DataTable({
                               }}
                               className={`${densityPadding[density]} border-r last:border-r-0 transition-colors duration-200`}
                             >
-                              <div className="break-words">
+                              <div className="min-w-0">
                                 {col.cell ? col.cell({ getValue: () => cellValue, row: { original: row } }) : cellValue}
                               </div>
                             </td>
@@ -961,7 +961,7 @@ export default function DataTable({
                               }}
                               className={`${densityPadding[density]} border-r last:border-r-0 transition-colors duration-200`}
                             >
-                              <div className="break-words">
+                              <div className="min-w-0">
                                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
                               </div>
                             </td>

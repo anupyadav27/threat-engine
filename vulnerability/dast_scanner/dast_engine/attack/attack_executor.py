@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 # Add payloads directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'payloads'))
+sys.path.insert(0, str(Path(__file__).parent.parent / 'payloads'))
 
 from payload_loader import PayloadLoader, PayloadCategory
 from payload_encoder import PayloadEncoder
