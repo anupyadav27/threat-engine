@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: engine-ciem
+  namespace: threat-engine-engines
+  labels:
+    app: engine-ciem
+    tier: engine
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: engine-ciem
+  template:
+    metadata:
+      labels:
+        app: engine-ciem
+        tier: engine
+    spec:
+      serviceAccountName: engine-sa
+      containers:
+      - name: engine-ciem
+        image: yadavanup84/engine-ciem:v-std-cols
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8025
+          name: http
+        envFrom:
+        - configMapRef:
+            name: threat-engine-db-config
+        - secretRef:
+            name: threat-engine-db-passwords
+        env:
+        - name: PYTHONPATH
+          value: /app
+        - name: ENGINE_NAME
+          value: "ciem"
+        - name: LOG_LOOKBACK_HOURS
+          value: "24"
+        - name: LOG_MAX_EVENTS
+          value: "100000"
+        - name: CIEM_SCANNER_IMAGE
+          value: "yadavanup84/engine-ciem:v-std-cols"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health/live
+            port: 8025
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /api/v1/health/ready
+            port: 8025
+          initialDelaySeconds: 5
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: engine-ciem
+  namespace: threat-engine-engines
+spec:
+  selector:
+    app: engine-ciem
+  ports:
+  - port: 80
+    targetPort: 8025
+    name: http

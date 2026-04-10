@@ -30,17 +30,19 @@ async def view_compliance(
 ):
     """Single endpoint returning everything the compliance page needs."""
 
-    # ── 3 parallel calls instead of 5 ────────────────────────────────────
+    # ── 4 parallel calls ───────────────────────────────────────────────────
     results = await fetch_many([
         ("compliance", "/api/v1/compliance/ui-data", {"tenant_id": tenant_id, "scan_id": "latest"}),
+        ("compliance", "/api/v1/compliance/frameworks/summary", {"tenant_id": tenant_id}),
         ("onboarding", "/api/v1/cloud-accounts", {"tenant_id": tenant_id}),
         ("threat",     "/api/v1/threat/ui-data",     {"tenant_id": tenant_id, "scan_run_id": "latest", "limit": "1"}),
     ])
 
-    compliance_data, onboarding_data, threat_data = results
+    compliance_data, all_frameworks_data, onboarding_data, threat_data = results
 
     # Safely unwrap responses
     compliance_data = compliance_data if isinstance(compliance_data, dict) else {}
+    all_frameworks_data = all_frameworks_data if isinstance(all_frameworks_data, dict) else {}
     onboarding_data = onboarding_data if isinstance(onboarding_data, dict) else {}
     threat_data = threat_data if isinstance(threat_data, dict) else {}
 
@@ -50,26 +52,51 @@ async def view_compliance(
         if m is not None:
             return m
 
-    # ── Normalize frameworks ─────────────────────────────────────────────
-    fw_list = compliance_data.get("frameworks", [])
-    if not isinstance(fw_list, list):
-        fw_list = []
-    frameworks = [normalize_framework(fw) for fw in fw_list if isinstance(fw, dict)]
+    # ── Normalize frameworks — prefer all_frameworks (multi-CSP) ──────────
+    all_fw_list = all_frameworks_data.get("frameworks", [])
+    if all_fw_list:
+        # Use the comprehensive frameworks list (includes CSP-specific CIS, all 23 frameworks)
+        frameworks = []
+        for fw in all_fw_list:
+            frameworks.append({
+                "id": fw.get("id") or fw.get("framework_id", ""),
+                "name": fw.get("name") or fw.get("framework_name", ""),
+                "version": fw.get("version"),
+                "authority": fw.get("authority"),
+                "category": fw.get("category"),
+                "provider": fw.get("provider", "multi"),
+                "score": fw.get("score", 0),
+                "controls": fw.get("total_controls", 0),
+                "passed": fw.get("passed", 0),
+                "failed": fw.get("failed", 0),
+                "findings": fw.get("findings", 0),
+                "has_assessment": fw.get("has_assessment", False),
+                "last_assessed": None,
+            })
+    else:
+        # Fallback to compliance_data frameworks
+        fw_list = compliance_data.get("frameworks", [])
+        if not isinstance(fw_list, list):
+            fw_list = []
+        frameworks = [normalize_framework(fw) for fw in fw_list if isinstance(fw, dict)]
+
+    # Drop degenerate rows where both id AND name are empty
+    frameworks = [fw for fw in frameworks if fw.get("id") or fw.get("name")]
 
     # If all scores are 0, derive from passed/failed
     all_zero = all(fw.get("score", 0) == 0 for fw in frameworks) if frameworks else True
     if all_zero and frameworks:
         for fw in frameworks:
-            passed = fw.get("passed", 0)
-            failed = fw.get("failed", 0)
+            passed  = fw.get("passed", 0)
+            failed  = fw.get("failed", 0)
             total_c = passed + failed
             if total_c > 0:
                 fw["score"] = round((passed / total_c) * 100, 1)
 
-    # If still no frameworks, create from raw strings
+    # If no frameworks at all, try building from raw strings
     if not frameworks and isinstance(fw_list, list):
         for fw in fw_list:
-            if isinstance(fw, str):
+            if isinstance(fw, str) and fw:
                 frameworks.append({"id": fw, "name": fw, "score": 0, "controls": 0, "passed": 0, "failed": 0, "last_assessed": None})
 
     # ── Overall score -- multi-level fallback ────────────────────────────
@@ -96,6 +123,15 @@ async def view_compliance(
 
     if not overall_score and total_controls > 0:
         overall_score = round(pass_rate, 1)
+
+    # ── Degenerate-data guard — use mock when DB data is structurally incomplete ──
+    # Triggers when: engine returned a response (not empty/health) but all
+    # framework names/ids are blank (compliance_framework column was never set).
+    # This happens with incomplete scan data; production scans populate these columns.
+    if not frameworks:
+        m = mock_fallback("compliance")
+        if m is not None:
+            return m
 
     # ── Failing controls ─────────────────────────────────────────────────
     raw_fc = compliance_data.get("failing_controls", [])
@@ -131,10 +167,12 @@ async def view_compliance(
         now = datetime.now(timezone.utc)
         trend_data_out = [{"date": now.strftime("%Y-%m-%d"), "score": round(overall_score, 1)}]
 
-    audit_deadlines = compliance_data.get("audit_deadlines", [])
+    exceptions: List[dict] = compliance_data.get("exceptions", []) or []
+
+    # Prefer real audit deadlines from engine; synthesize when empty
+    audit_deadlines: List[dict] = compliance_data.get("audit_deadlines", []) or []
     if not audit_deadlines and frameworks:
         now = datetime.now(timezone.utc)
-        audit_deadlines = []
         for i, fw in enumerate(frameworks):
             days_rem = 30 * i + 60
             audit_deadlines.append({
@@ -146,14 +184,47 @@ async def view_compliance(
                 "status": "on-track" if days_rem > 30 else "at-risk",
             })
 
-    exceptions: List[dict] = compliance_data.get("exceptions", []) or []
+    # ── Matrix key mapping: framework_id (snake_case) → MATRIX_FRAMEWORKS key ──
+    _FW_KEY_MAP: Dict[str, str] = {}
+    for mk in MATRIX_FRAMEWORKS:
+        _FW_KEY_MAP[mk.lower()] = mk                     # exact match (e.g. "cis" → "CIS")
+    # Common full IDs emitted by the engine
+    _KNOWN_FW_IDS: Dict[str, str] = {
+        "cis_aws":          "CIS",  "cis_aws_1_2":      "CIS",  "cis_aws_1_4":      "CIS",
+        "cis_aws_1_5":      "CIS",  "cis_benchmark":    "CIS",
+        "nist_csf_1_1":     "NIST", "nist_800_53":      "NIST", "nist_sp_800_53":   "NIST",
+        "soc2_type2":       "SOC2", "soc2_type1":       "SOC2", "soc_2":            "SOC2",
+        "pci_dss_3_2_1":    "PCI",  "pci_dss_4_0":      "PCI",  "pci_dss":          "PCI",
+        "hipaa_security":   "HIPAA","hipaa":             "HIPAA",
+        "iso_27001_2013":   "ISO",  "iso_27001_2022":   "ISO",  "iso_27001":        "ISO",
+        "gdpr":             "GDPR", "gdpr_2016_679":    "GDPR",
+    }
+
+    def _normalize_fw_key(raw_key: str) -> Optional[str]:
+        """Map a raw framework_id to a MATRIX_FRAMEWORKS key."""
+        low = raw_key.lower().replace("-", "_")
+        if low in _KNOWN_FW_IDS:
+            return _KNOWN_FW_IDS[low]
+        for mk in MATRIX_FRAMEWORKS:
+            if mk.lower() in low or low.startswith(mk.lower()):
+                return mk
+        return None
 
     # Per-account score lookup (from compliance ui-data if available)
+    # Engine now returns: [{account_id, nist_csf_1_1: 75.0, iso_27001_2013: 68.0, ...}, ...]
     per_account_scores: Dict[str, dict] = {}
     for entry in compliance_data.get("per_account_scores", []):
         acct_id = entry.get("account_id", "")
-        if acct_id:
-            per_account_scores[acct_id] = entry
+        if not acct_id:
+            continue
+        normalized: Dict[str, Any] = {"account_id": acct_id}
+        for key, val in entry.items():
+            if key == "account_id":
+                continue
+            mk = _normalize_fw_key(key)
+            if mk and isinstance(val, (int, float)):
+                normalized[mk] = round(float(val), 1)
+        per_account_scores[acct_id] = normalized
 
     # ── Synthetic per-account scores (variance from overall framework scores) ─
     if not per_account_scores and frameworks:
@@ -270,3 +341,59 @@ async def view_compliance(
         "exceptions": exceptions,
         "accountMatrix": account_matrix,
     }
+
+
+@router.get("/compliance/framework/{framework_id}")
+async def view_framework_detail(
+    framework_id: str,
+    tenant_id: str = Query(...),
+    scan_run_id: str = Query("latest"),
+):
+    """Framework detail view — controls grouped by family with assessment status.
+
+    Calls compliance engine /framework/{framework_id}/assessment.
+    """
+    results = await fetch_many([
+        ("compliance", f"/api/v1/compliance/framework/{framework_id}/assessment",
+         {"tenant_id": tenant_id, "scan_run_id": scan_run_id}),
+    ])
+
+    data = results[0] if results[0] and isinstance(results[0], dict) else {}
+
+    if not data or data.get("error"):
+        return {
+            "framework": {"framework_id": framework_id, "framework_name": framework_id},
+            "score": 0,
+            "total_controls": 0,
+            "summary": {},
+            "families": [],
+        }
+
+    return data
+
+
+@router.get("/compliance/framework/{framework_id}/report")
+async def view_framework_report(
+    framework_id: str,
+    tenant_id: str = Query(...),
+    scan_run_id: str = Query("latest"),
+    format: str = Query("json"),
+):
+    """Framework compliance report — full data for export (CSV/JSON)."""
+    from fastapi.responses import StreamingResponse
+
+    results = await fetch_many([
+        ("compliance", f"/api/v1/compliance/framework/{framework_id}/report",
+         {"tenant_id": tenant_id, "scan_run_id": scan_run_id, "format": format}),
+    ])
+
+    data = results[0] if results[0] else {}
+
+    if format == "csv" and isinstance(data, bytes):
+        return StreamingResponse(
+            iter([data]),
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={framework_id}_report.csv"},
+        )
+
+    return data

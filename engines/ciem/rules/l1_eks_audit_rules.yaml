@@ -1,0 +1,637 @@
+rules:
+- rule_id: eks.audit.secret_access
+  title: K8s Secret accessed
+  severity: medium
+  log_source_type: eks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: eks_audit
+    - field: operation
+      op: equals
+      value: get
+    - field: resource.type
+      op: equals
+      value: secrets
+  engines:
+  - container_engine
+  - ciem
+  primary_engine: container_engine
+  action_category: read
+  mitre_tactics:
+  - credential-access
+  mitre_techniques:
+  - T1552.007
+  domain: container_security
+  provider: aws
+  remediation: Verify the accessor has legitimate need-to-know. Review access patterns for anomalies. Consider restricting
+    read permissions.
+  compliance_frameworks: &id001
+  - CIS
+  - NIST_800-53
+  - SOC2
+  risk_score: 50
+- rule_id: eks.audit.secret_list
+  title: K8s Secrets listed in namespace
+  severity: medium
+  log_source_type: eks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: eks_audit
+    - field: operation
+      op: equals
+      value: list
+    - field: resource.type
+      op: equals
+      value: secrets
+  engines:
+  - container_engine
+  - ciem
+  primary_engine: container_engine
+  action_category: read
+  mitre_tactics:
+  - credential-access
+  - discovery
+  domain: container_security
+  provider: aws
+  remediation: Verify the accessor has legitimate need-to-know. Review access patterns for anomalies. Consider restricting
+    read permissions.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: eks.audit.secret_create
+  title: K8s Secret created
+  severity: low
+  log_source_type: eks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: eks_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource.type
+      op: equals
+      value: secrets
+  engines:
+  - container_engine
+  action_category: create
+  domain: container_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: eks.audit.secret_delete
+  title: K8s Secret deleted
+  severity: medium
+  log_source_type: eks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: eks_audit
+    - field: operation
+      op: equals
+      value: delete
+    - field: resource.type
+      op: equals
+      value: secrets
+  engines:
+  - container_engine
+  action_category: delete
+  mitre_tactics:
+  - impact
+  domain: container_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: eks.audit.clusterrole_create
+  title: K8s ClusterRole created
+  severity: high
+  log_source_type: eks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: eks_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource.type
+      op: equals
+      value: clusterroles
+  engines:
+  - container_engine
+  - ciem
+  primary_engine: container_engine
+  action_category: create
+  mitre_tactics:
+  - privilege-escalation
+  - persistence
+  mitre_techniques:
+  - T1078.004
+  domain: container_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: eks.audit.clusterrolebinding_create
+  title: K8s ClusterRoleBinding created
+  severity: high
+  log_source_type: eks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: eks_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource.type
+      op: equals
+      value: clusterrolebindings
+  engines:
+  - container_engine
+  - ciem
+  primary_engine: container_engine
+  action_category: create
+  mitre_tactics:
+  - privilege-escalation
+  domain: container_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: eks.audit.role_binding_modify
+  title: K8s RoleBinding modified
+  severity: medium
+  log_source_type: eks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: eks_audit
+    - field: operation
+      op: in
+      value:
+      - create
+      - patch
+      - update
+    - field: resource.type
+      op: in
+      value:
+      - rolebindings
+      - clusterrolebindings
+  engines:
+  - container_engine
+  - ciem
+  action_category: modify
+  domain: container_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: eks.audit.privileged_pod
+  title: Privileged pod created
+  severity: high
+  log_source_type: eks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: eks_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource.type
+      op: equals
+      value: pods
+  engines:
+  - container_engine
+  - threat_engine
+  primary_engine: container_engine
+  action_category: create
+  mitre_tactics:
+  - privilege-escalation
+  - execution
+  mitre_techniques:
+  - T1610
+  description: New pod created — check for privileged, hostNetwork, hostPID flags
+  domain: container_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: eks.audit.pod_exec
+  title: Pod exec session started
+  severity: high
+  log_source_type: eks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: eks_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource.type
+      op: equals
+      value: pods/exec
+  engines:
+  - container_engine
+  - threat_engine
+  primary_engine: container_engine
+  action_category: execute
+  mitre_tactics:
+  - execution
+  mitre_techniques:
+  - T1609
+  domain: container_security
+  provider: aws
+  remediation: Validate function/container execution is authorized. Review execution role permissions. Check for code injection
+    indicators.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: eks.audit.pod_attach
+  title: Pod attach session started
+  severity: medium
+  log_source_type: eks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: eks_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource.type
+      op: equals
+      value: pods/attach
+  engines:
+  - container_engine
+  action_category: execute
+  domain: container_security
+  provider: aws
+  remediation: Validate function/container execution is authorized. Review execution role permissions. Check for code injection
+    indicators.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: eks.audit.pod_portforward
+  title: Pod port-forward created
+  severity: medium
+  log_source_type: eks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: eks_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource.type
+      op: equals
+      value: pods/portforward
+  engines:
+  - container_engine
+  - network_engine
+  action_category: execute
+  domain: container_security
+  provider: aws
+  remediation: Validate function/container execution is authorized. Review execution role permissions. Check for code injection
+    indicators.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: eks.audit.pod_delete
+  title: Pod deleted
+  severity: low
+  log_source_type: eks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: eks_audit
+    - field: operation
+      op: equals
+      value: delete
+    - field: resource.type
+      op: equals
+      value: pods
+  engines:
+  - container_engine
+  action_category: delete
+  domain: container_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: eks.audit.namespace_create
+  title: K8s namespace created
+  severity: low
+  log_source_type: eks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: eks_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource.type
+      op: equals
+      value: namespaces
+  engines:
+  - container_engine
+  action_category: create
+  domain: container_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: eks.audit.namespace_delete
+  title: K8s namespace deleted
+  severity: high
+  log_source_type: eks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: eks_audit
+    - field: operation
+      op: equals
+      value: delete
+    - field: resource.type
+      op: equals
+      value: namespaces
+  engines:
+  - container_engine
+  - threat_engine
+  action_category: delete
+  mitre_tactics:
+  - impact
+  domain: container_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: eks.audit.configmap_modify
+  title: K8s ConfigMap modified
+  severity: low
+  log_source_type: eks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: eks_audit
+    - field: operation
+      op: in
+      value:
+      - create
+      - patch
+      - update
+    - field: resource.type
+      op: equals
+      value: configmaps
+  engines:
+  - container_engine
+  action_category: modify
+  domain: container_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: eks.audit.serviceaccount_create
+  title: K8s ServiceAccount created
+  severity: medium
+  log_source_type: eks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: eks_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource.type
+      op: equals
+      value: serviceaccounts
+  engines:
+  - container_engine
+  - ciem
+  action_category: create
+  mitre_tactics:
+  - persistence
+  domain: container_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: eks.audit.networkpolicy_modify
+  title: K8s NetworkPolicy modified
+  severity: medium
+  log_source_type: eks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: eks_audit
+    - field: operation
+      op: in
+      value:
+      - create
+      - patch
+      - update
+      - delete
+    - field: resource.type
+      op: equals
+      value: networkpolicies
+  engines:
+  - container_engine
+  - network_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  domain: container_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: eks.audit.ingress_modify
+  title: K8s Ingress modified
+  severity: medium
+  log_source_type: eks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: eks_audit
+    - field: operation
+      op: in
+      value:
+      - create
+      - patch
+      - update
+    - field: resource.type
+      op: equals
+      value: ingresses
+  engines:
+  - container_engine
+  - network_engine
+  action_category: modify
+  domain: container_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: eks.audit.deployment_create
+  title: K8s Deployment created
+  severity: low
+  log_source_type: eks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: eks_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource.type
+      op: equals
+      value: deployments
+  engines:
+  - container_engine
+  action_category: create
+  domain: container_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: eks.audit.daemonset_create
+  title: K8s DaemonSet created — runs on all nodes
+  severity: medium
+  log_source_type: eks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: eks_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource.type
+      op: equals
+      value: daemonsets
+  engines:
+  - container_engine
+  - threat_engine
+  action_category: create
+  mitre_tactics:
+  - persistence
+  - lateral-movement
+  domain: container_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: eks.audit.crd_create
+  title: Custom Resource Definition created
+  severity: medium
+  log_source_type: eks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: eks_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource.type
+      op: equals
+      value: customresourcedefinitions
+  engines:
+  - container_engine
+  action_category: create
+  domain: container_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: eks.audit.webhook_modify
+  title: Admission webhook configuration modified
+  severity: high
+  log_source_type: eks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: eks_audit
+    - field: operation
+      op: in
+      value:
+      - create
+      - patch
+      - update
+    - field: resource.type
+      op: in
+      value:
+      - mutatingwebhookconfigurations
+      - validatingwebhookconfigurations
+  engines:
+  - container_engine
+  - threat_engine
+  action_category: modify
+  mitre_tactics:
+  - persistence
+  - defense-evasion
+  domain: container_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: eks.audit.token_request
+  title: ServiceAccount token requested
+  severity: medium
+  log_source_type: eks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: eks_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource.type
+      op: equals
+      value: serviceaccounts/token
+  engines:
+  - container_engine
+  - ciem
+  action_category: create
+  mitre_tactics:
+  - credential-access
+  domain: container_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50

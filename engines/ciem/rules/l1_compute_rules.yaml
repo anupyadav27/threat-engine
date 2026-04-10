@@ -1,0 +1,944 @@
+rules:
+- rule_id: compute.ct.ec2_run_instances
+  title: EC2 instances launched
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ec2
+    - field: operation
+      op: equals
+      value: RunInstances
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - execution
+  mitre_techniques:
+  - T1204.003
+  description: New EC2 instances launched — review instance type, AMI, and VPC placement.
+  domain: compute_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: &id001
+  - CIS
+  - NIST_800-53
+  - SOC2
+  risk_score: 50
+- rule_id: compute.ct.ec2_modify_instance_attribute
+  title: EC2 instance attribute modified
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ec2
+    - field: operation
+      op: equals
+      value: ModifyInstanceAttribute
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  - persistence
+  mitre_techniques:
+  - T1578.001
+  description: Instance attribute change — could disable termination protection or change userdata.
+  domain: compute_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: compute.ct.ec2_stop_instances
+  title: EC2 instances stopped
+  severity: low
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ec2
+    - field: operation
+      op: equals
+      value: StopInstances
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1489
+  description: EC2 instances stopped — may disrupt services or indicate resource manipulation.
+  domain: compute_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: compute.ct.ec2_create_image
+  title: AMI created from EC2 instance
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ec2
+    - field: operation
+      op: equals
+      value: CreateImage
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - collection
+  - exfiltration
+  mitre_techniques:
+  - T1537
+  description: AMI creation captures full disk — potential data exfiltration vector.
+  domain: compute_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: compute.ct.ec2_modify_image_attribute
+  title: AMI sharing permissions modified
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ec2
+    - field: operation
+      op: equals
+      value: ModifyImageAttribute
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - exfiltration
+  mitre_techniques:
+  - T1537
+  description: AMI sharing modification — could expose instance data to external accounts.
+  domain: compute_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: compute.ct.ec2_import_key_pair
+  title: SSH key pair imported to EC2
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ec2
+    - field: operation
+      op: equals
+      value: ImportKeyPair
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - persistence
+  - credential-access
+  mitre_techniques:
+  - T1098.004
+  description: Imported SSH key provides persistent access to launched instances.
+  domain: compute_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: compute.ct.ec2_create_key_pair
+  title: New EC2 key pair created
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ec2
+    - field: operation
+      op: equals
+      value: CreateKeyPair
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - persistence
+  - credential-access
+  mitre_techniques:
+  - T1098.004
+  description: New key pair created — attacker may use this for SSH access to instances.
+  domain: compute_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: compute.ct.ec2_get_password_data
+  title: EC2 Windows password data retrieved
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ec2
+    - field: operation
+      op: equals
+      value: GetPasswordData
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: read
+  mitre_tactics:
+  - credential-access
+  mitre_techniques:
+  - T1552.005
+  description: Retrieving Windows instance password — requires private key to decrypt.
+  domain: compute_security
+  provider: aws
+  remediation: Verify the accessor has legitimate need-to-know. Review access patterns for anomalies. Consider restricting
+    read permissions.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: compute.ct.ec2_modify_instance_metadata_options
+  title: EC2 instance metadata options changed
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ec2
+    - field: operation
+      op: equals
+      value: ModifyInstanceMetadataOptions
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  - credential-access
+  mitre_techniques:
+  - T1552.005
+  description: Changing IMDS settings — downgrading to IMDSv1 enables SSRF credential theft.
+  domain: compute_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: compute.ct.ec2_get_console_screenshot
+  title: EC2 instance console screenshot captured
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ec2
+    - field: operation
+      op: equals
+      value: GetConsoleScreenshot
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: read
+  mitre_tactics:
+  - collection
+  mitre_techniques:
+  - T1113
+  description: Console screenshot may reveal sensitive information displayed on screen.
+  domain: compute_security
+  provider: aws
+  remediation: Verify the accessor has legitimate need-to-know. Review access patterns for anomalies. Consider restricting
+    read permissions.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: compute.ct.lambda_update_function_code
+  title: Lambda function code updated
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: lambda
+    - field: operation
+      op: equals
+      value: UpdateFunctionCode20150331v2
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - persistence
+  - execution
+  mitre_techniques:
+  - T1525
+  description: Lambda code update — attacker may inject backdoor into existing function.
+  domain: compute_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: compute.ct.lambda_update_function_configuration
+  title: Lambda function configuration changed
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: lambda
+    - field: operation
+      op: equals
+      value: UpdateFunctionConfiguration20150331v2
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - persistence
+  - defense-evasion
+  mitre_techniques:
+  - T1525
+  description: Config change may alter execution role, environment variables, or VPC settings.
+  domain: compute_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: compute.ct.lambda_add_permission
+  title: Lambda resource policy permission added
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: lambda
+    - field: operation
+      op: equals
+      value: AddPermission20150331v2
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - persistence
+  - privilege-escalation
+  mitre_techniques:
+  - T1098.003
+  description: Lambda resource policy grant — may allow cross-account invocation.
+  domain: compute_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: compute.ct.lambda_create_event_source_mapping
+  title: Lambda event source mapping created
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: lambda
+    - field: operation
+      op: equals
+      value: CreateEventSourceMapping
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - persistence
+  - collection
+  mitre_techniques:
+  - T1546
+  description: Event source mapping triggers Lambda on data events — potential data interception.
+  domain: compute_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: compute.ct.lambda_publish_layer_version
+  title: Lambda layer version published
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: lambda
+    - field: operation
+      op: equals
+      value: PublishLayerVersion
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - persistence
+  - execution
+  mitre_techniques:
+  - T1195.002
+  description: Lambda layers inject code into functions — supply chain attack vector.
+  domain: compute_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: compute.ct.lambda_add_layer_permission
+  title: Lambda layer shared with external account
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: lambda
+    - field: operation
+      op: equals
+      value: AddLayerVersionPermission
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - lateral-movement
+  mitre_techniques:
+  - T1537
+  description: Sharing Lambda layer cross-account enables code injection in other accounts.
+  domain: compute_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: compute.ct.lambda_delete_function
+  title: Lambda function deleted
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: lambda
+    - field: operation
+      op: equals
+      value: DeleteFunction20150331
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1485
+  description: Lambda function deletion — service disruption or evidence destruction.
+  domain: compute_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: compute.ct.lambda_put_function_concurrency
+  title: Lambda function concurrency limit set
+  severity: low
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: lambda
+    - field: operation
+      op: equals
+      value: PutFunctionConcurrency
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1496
+  description: Setting reserved concurrency to 0 effectively disables a function.
+  domain: compute_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: compute.ct.ecs_create_service
+  title: ECS service created
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ecs
+    - field: operation
+      op: equals
+      value: CreateService
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - execution
+  - persistence
+  mitre_techniques:
+  - T1610
+  description: New ECS service — review task definition for privileged containers and image source.
+  domain: compute_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: compute.ct.ecs_update_service
+  title: ECS service updated
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ecs
+    - field: operation
+      op: equals
+      value: UpdateService
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - execution
+  - defense-evasion
+  mitre_techniques:
+  - T1610
+  description: ECS service update may change task definition to malicious image.
+  domain: compute_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: compute.ct.ecs_run_task
+  title: ECS standalone task executed
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ecs
+    - field: operation
+      op: equals
+      value: RunTask
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: execute
+  mitre_tactics:
+  - execution
+  mitre_techniques:
+  - T1610
+  description: Standalone ECS task — common for one-off execution of attacker containers.
+  domain: compute_security
+  provider: aws
+  remediation: Validate function/container execution is authorized. Review execution role permissions. Check for code injection
+    indicators.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: compute.ct.ecs_execute_command
+  title: ECS Exec used to access running container
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ecs
+    - field: operation
+      op: equals
+      value: ExecuteCommand
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: execute
+  mitre_tactics:
+  - execution
+  - lateral-movement
+  mitre_techniques:
+  - T1609
+  description: ECS Exec provides shell access to running container — monitor for misuse.
+  domain: compute_security
+  provider: aws
+  remediation: Validate function/container execution is authorized. Review execution role permissions. Check for code injection
+    indicators.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: compute.ct.ecs_delete_service
+  title: ECS service deleted
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ecs
+    - field: operation
+      op: equals
+      value: DeleteService
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1489
+  description: ECS service deletion stops all running tasks.
+  domain: compute_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: compute.ct.eks_create_cluster
+  title: EKS cluster created
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: eks
+    - field: operation
+      op: equals
+      value: CreateCluster
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - persistence
+  - execution
+  mitre_techniques:
+  - T1610
+  description: New EKS cluster — review public endpoint, logging, and encryption settings.
+  domain: compute_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: compute.ct.eks_delete_cluster
+  title: EKS cluster deleted
+  severity: critical
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: eks
+    - field: operation
+      op: equals
+      value: DeleteCluster
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1485
+  description: EKS cluster deletion destroys all workloads and configurations.
+  domain: compute_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: compute.ct.eks_create_nodegroup
+  title: EKS node group created
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: eks
+    - field: operation
+      op: equals
+      value: CreateNodegroup
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - execution
+  mitre_techniques:
+  - T1610
+  description: New node group adds compute capacity — review instance types and IAM role.
+  domain: compute_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: compute.ct.eks_associate_access_policy
+  title: EKS access policy associated
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: eks
+    - field: operation
+      op: equals
+      value: AssociateAccessPolicy
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - privilege-escalation
+  - persistence
+  mitre_techniques:
+  - T1098.003
+  description: EKS access policy association grants Kubernetes RBAC permissions.
+  domain: compute_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: compute.ct.eks_update_cluster_config
+  title: EKS cluster configuration updated
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: eks
+    - field: operation
+      op: equals
+      value: UpdateClusterConfig
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.001
+  description: Cluster config change may disable logging or expose API endpoint publicly.
+  domain: compute_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: compute.ct.batch_submit_job
+  title: AWS Batch job submitted
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: batch
+    - field: operation
+      op: equals
+      value: SubmitJob
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: execute
+  mitre_tactics:
+  - execution
+  mitre_techniques:
+  - T1204.003
+  description: Batch job submission — review container image and compute environment.
+  domain: compute_security
+  provider: aws
+  remediation: Validate function/container execution is authorized. Review execution role permissions. Check for code injection
+    indicators.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: compute.ct.batch_create_compute_environment
+  title: AWS Batch compute environment created
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: batch
+    - field: operation
+      op: equals
+      value: CreateComputeEnvironment
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - execution
+  mitre_techniques:
+  - T1204.003
+  description: New Batch compute environment — review instance types and IAM role.
+  domain: compute_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: compute.ct.batch_register_job_definition
+  title: AWS Batch job definition registered
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: batch
+    - field: operation
+      op: equals
+      value: RegisterJobDefinition
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - persistence
+  - execution
+  mitre_techniques:
+  - T1525
+  description: Batch job definition — review for privileged mode and container image.
+  domain: compute_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: compute.ct.lightsail_create_instance
+  title: Lightsail instance created
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: lightsail
+    - field: operation
+      op: equals
+      value: CreateInstances
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - execution
+  mitre_techniques:
+  - T1204.003
+  description: Lightsail instances are outside normal EC2 governance — shadow IT risk.
+  domain: compute_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: compute.ct.lightsail_open_instance_public_ports
+  title: Lightsail instance ports opened to public
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: lightsail
+    - field: operation
+      op: equals
+      value: OpenInstancePublicPorts
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - persistence
+  - initial-access
+  mitre_techniques:
+  - T1133
+  description: Opening Lightsail ports bypasses VPC security group controls.
+  domain: compute_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: compute.ct.lightsail_create_key_pair
+  title: Lightsail key pair created
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: lightsail
+    - field: operation
+      op: equals
+      value: CreateKeyPair
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - persistence
+  - credential-access
+  mitre_techniques:
+  - T1098.004
+  description: Lightsail key pair for SSH access — outside normal key management.
+  domain: compute_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50

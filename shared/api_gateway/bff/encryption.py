@@ -11,7 +11,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Query
 
-from ._shared import fetch_many, safe_get, mock_fallback, is_empty_or_health
+from ._shared import fetch_many, fetch_all_check_findings, safe_get, mock_fallback, is_empty_or_health
 from ._transforms import apply_global_filters
 from ._page_context import encryption_page_context, encryption_filter_schema
 
@@ -39,11 +39,34 @@ async def view_encryption(
     if not isinstance(enc_data, dict):
         enc_data = {}
 
-    # Mock fallback when engine data is empty
-    if is_empty_or_health(enc_data):
-        m = mock_fallback("encryption")
-        if m is not None:
-            return m
+    # Fallback: check engine (data_protection_and_privacy domain) when engine has no data
+    _has_enc_data = (
+        safe_get(enc_data, "findings", []) or
+        safe_get(enc_data, "keys", []) or
+        safe_get(enc_data, "resources", []) or
+        safe_get(enc_data, "certificates", [])
+    )
+    if is_empty_or_health(enc_data) or not _has_enc_data:
+        check_raw = await fetch_all_check_findings({
+            "tenant_id": tenant_id,
+            "domain": "data_protection_and_privacy",
+        })
+        if check_raw:
+            # Filter to encryption-specific findings by rule_id keywords
+            _enc_keywords = ("encrypt", "kms", "tls", "ssl", "cert", "key", "secret", "vault")
+            enc_findings = [
+                f for f in check_raw
+                if any(kw in (f.get("rule_id") or "").lower() for kw in _enc_keywords)
+            ] or check_raw  # fall back to all data_protection findings if none match
+            enc_data = {
+                "findings": enc_findings,
+                "resources": enc_findings,
+                "summary": {},
+            }
+        else:
+            m = mock_fallback("encryption")
+            if m is not None:
+                return m
 
     summary = safe_get(enc_data, "summary", {})
 
@@ -120,11 +143,10 @@ async def view_encryption(
         secrets = safe_get(enc_data, "secrets_inventory", [])
 
     page_ctx["tabs"] = [
-        {"id": "resources", "label": "Resources", "count": len(filtered_resources)},
-        {"id": "keys", "label": "Keys", "count": len(keys)},
+        {"id": "findings",     "label": "Findings",     "count": len(filtered_findings)},
+        {"id": "keys",         "label": "Keys",         "count": len(keys)},
         {"id": "certificates", "label": "Certificates", "count": len(certificates)},
-        {"id": "secrets", "label": "Secrets", "count": len(secrets)},
-        {"id": "findings", "label": "Findings", "count": len(filtered_findings)},
+        {"id": "secrets",      "label": "Secrets",      "count": len(secrets)},
     ]
 
     return {
@@ -134,27 +156,24 @@ async def view_encryption(
             {
                 "title": "Encryption Posture",
                 "items": [
-                    {"label": "Posture Score", "value": posture_score, "suffix": "/100"},
-                    {"label": "Encrypted", "value": encrypted_pct, "suffix": "%"},
+                    {"label": "Posture Score",   "value": posture_score, "suffix": "/100"},
+                    {"label": "Total Findings",  "value": len(filtered_findings)},
                     {"label": "Total Resources", "value": total_resources},
-                    {"label": "Encrypted Resources", "value": encrypted_resources},
+                    {"label": "Unencrypted",     "value": total_resources - encrypted_resources},
+                    {"label": "Expiring Certs",  "value": expiring_certs},
+                    {"label": "Weak Keys",        "value": 0},
+                    {"label": "Critical",         "value": by_severity.get("critical", 0)},
+                    {"label": "High",             "value": by_severity.get("high", 0)},
+                    {"label": "Medium",           "value": by_severity.get("medium", 0)},
+                    {"label": "Low",              "value": by_severity.get("low", 0)},
                 ],
             },
             {
                 "title": "Key & Certificate Management",
                 "items": [
-                    {"label": "Keys", "value": keys_count},
-                    {"label": "Certificates", "value": certs_count},
+                    {"label": "Keys",            "value": keys_count},
+                    {"label": "Certificates",    "value": certs_count},
                     {"label": "Expiring Certs (30d)", "value": expiring_certs},
-                ],
-            },
-            {
-                "title": "Findings by Severity",
-                "items": [
-                    {"label": "Critical", "value": by_severity.get("critical", 0)},
-                    {"label": "High", "value": by_severity.get("high", 0)},
-                    {"label": "Medium", "value": by_severity.get("medium", 0)},
-                    {"label": "Low", "value": by_severity.get("low", 0)},
                 ],
             },
         ],
@@ -185,4 +204,6 @@ async def view_encryption(
             {"key": "medium", "label": "Medium", "value": by_severity.get("medium", 0)},
             {"key": "low", "label": "Low", "value": by_severity.get("low", 0)},
         ],
+        "domainBreakdown": safe_get(enc_data, "domain_breakdown", []),
+        "scanTrend": safe_get(enc_data, "scan_trend", []),
     }

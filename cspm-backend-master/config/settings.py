@@ -19,6 +19,18 @@ ACCESS_TOKEN_LIFETIME_MINUTES = int(os.getenv("ACCESS_TOKEN_LIFETIME_MINUTES", 1
 REFRESH_TOKEN_LIFETIME_DAYS = int(os.getenv("REFRESH_TOKEN_LIFETIME_DAYS", 7))
 FRONTEND_URL = os.getenv("FRONTEND_URL")
 
+# ── Google OAuth ─────────────────────────────────────────────────────────────
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+GOOGLE_REDIRECT_URI = os.getenv(
+    "GOOGLE_REDIRECT_URI",
+    "http://localhost:8000/api/auth/google/callback/",
+)
+
+# ── AWS SES ───────────────────────────────────────────────────────────────────
+SES_FROM_EMAIL = os.getenv("SES_FROM_EMAIL", "noreply@threatengine.io")
+AWS_REGION = os.getenv("AWS_REGION", "ap-south-1")
+
 DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "yes")
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost").split(",")
 
@@ -75,7 +87,7 @@ CORS_ALLOW_HEADERS = [
     "x-requested-with",
 ]
 
-ROOT_URLCONF = 'cspm.urls'
+ROOT_URLCONF = 'config.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -132,11 +144,12 @@ SAML_ATTRIBUTE_MAPPING = {
     'firstName': ('first_name',),
     'lastName': ('last_name',),
 }
-XMLSEC_BINARY=BASE_DIR/os.getenv("XMLSEC_BINARY")
+_xmlsec_env = os.getenv("XMLSEC_BINARY")
+XMLSEC_BINARY = BASE_DIR / _xmlsec_env if _xmlsec_env else None
 
 SAML_CONFIG = {
     'debug': DEBUG,
-    'xmlsec_binary': str(XMLSEC_BINARY),
+    'xmlsec_binary': str(XMLSEC_BINARY) if XMLSEC_BINARY else '',
     'entityid': os.getenv('SAML_AUDIENCE'),
     'allow_unknown_attributes': True,
 

@@ -1,0 +1,176 @@
+# Level 3: Behavior Baselines (statistical anomaly detection)
+#
+# CSP-agnostic — baselines use generic log_events columns that work
+# across all CSPs. The source_type filter is optional and only used
+# when a baseline is specific to a log type (e.g., network flow).
+#
+# Each baseline computes metrics over a historical window, then
+# detects deviations in the current scan period.
+
+# ═══════════════════════════════════════════════════════════════
+# IDENTITY BEHAVIOR BASELINES (all CSPs)
+# ═══════════════════════════════════════════════════════════════
+
+- baseline_id: identity_behavior
+  entity_type: actor.principal
+  description: Per-identity API activity baseline — detects unusual API volume, new IPs, new regions, error spikes
+  metrics:
+    - name: daily_api_count
+      query: COUNT(*) per day per actor.principal
+      anomaly_threshold: 3_stddev
+    - name: unique_operations
+      query: COUNT(DISTINCT operation) per day per actor.principal
+      anomaly_threshold: 2_stddev
+    - name: unique_source_ips
+      query: COUNT(DISTINCT actor.ip_address) per day per actor.principal
+      anomaly_threshold: 2_stddev
+    - name: unique_regions
+      query: COUNT(DISTINCT resource.region) per day per actor.principal
+      anomaly_threshold: 2_stddev
+    - name: error_rate
+      query: COUNT(outcome='failure') / COUNT(*) per day per actor.principal
+      anomaly_threshold: 2_stddev
+  window_days: 14
+  min_data_points: 5
+  fed_by_scenarios:
+    - threat.privilege_escalation_chain
+    - threat.credential_compromise
+
+# ═══════════════════════════════════════════════════════════════
+# DATA ACCESS BASELINES (all CSPs)
+# ═══════════════════════════════════════════════════════════════
+
+- baseline_id: data_access_per_resource
+  entity_type: resource.uid
+  description: Per-data-store access pattern — detects bulk downloads, new accessors, off-hours access
+  metrics:
+    - name: daily_access_count
+      query: COUNT(*) per day per resource.uid
+      anomaly_threshold: 3_stddev
+    - name: unique_accessors
+      query: COUNT(DISTINCT actor.principal) per day per resource.uid
+      anomaly_threshold: 2_stddev
+    - name: unique_source_ips
+      query: COUNT(DISTINCT actor.ip_address) per day per resource.uid
+      anomaly_threshold: 2_stddev
+    - name: off_hours_access_ratio
+      query: COUNT(hour NOT BETWEEN 8 AND 18) / COUNT(*) per day per resource.uid
+      anomaly_threshold: 2_stddev
+  window_days: 14
+  min_data_points: 5
+  fed_by_scenarios:
+    - datasec.data_exposure
+
+# ═══════════════════════════════════════════════════════════════
+# NETWORK BASELINES (all CSPs — VPC/NSG/VCN flows)
+# ═══════════════════════════════════════════════════════════════
+
+- baseline_id: network_traffic_per_resource
+  entity_type: resource.uid
+  description: Per-resource network traffic — detects port scanning, unusual destinations, traffic spikes
+  source_type_filter:
+    - vpc_flow
+    - azure_nsg_flow
+    - gcp_vpc_flow
+    - oci_vcn_flow
+  metrics:
+    - name: daily_flow_count
+      query: COUNT(*) per day per resource.uid WHERE source_type IN (vpc_flow, azure_nsg_flow, gcp_vpc_flow, oci_vcn_flow)
+      anomaly_threshold: 3_stddev
+    - name: unique_destination_ips
+      query: COUNT(DISTINCT dst_ip) per day per resource.uid
+      anomaly_threshold: 2_stddev
+    - name: unique_destination_ports
+      query: COUNT(DISTINCT dst_port) per day per resource.uid
+      anomaly_threshold: 2_stddev
+    - name: rejected_flow_ratio
+      query: COUNT(flow_action IN ('REJECT','D','deny')) / COUNT(*) per day per resource.uid
+      anomaly_threshold: 2_stddev
+    - name: bytes_transferred
+      query: SUM(bytes_in + bytes_out) per day per resource.uid
+      anomaly_threshold: 3_stddev
+  window_days: 7
+  min_data_points: 3
+  fed_by_scenarios:
+    - threat.data_exfil
+
+# ═══════════════════════════════════════════════════════════════
+# SERVICE USAGE BASELINES (all CSPs)
+# ═══════════════════════════════════════════════════════════════
+
+- baseline_id: service_usage_per_account
+  entity_type: account_id
+  description: Per-account service usage — detects first use of new services, API volume spikes
+  metrics:
+    - name: unique_services_used
+      query: COUNT(DISTINCT service) per day per account_id
+      anomaly_threshold: 2_stddev
+    - name: new_service_first_use
+      query: services NOT IN (historical services list)
+      anomaly_threshold: any_new
+    - name: api_call_volume
+      query: COUNT(*) per day per account_id
+      anomaly_threshold: 3_stddev
+  window_days: 30
+  min_data_points: 14
+  fed_by_scenarios:
+    - threat.recon_then_exploit
+
+# ═══════════════════════════════════════════════════════════════
+# KUBERNETES BASELINES (EKS/AKS/GKE/OKE/IKS)
+# ═══════════════════════════════════════════════════════════════
+
+- baseline_id: k8s_activity_per_identity
+  entity_type: actor.principal
+  description: Per-K8s identity activity — detects unusual RBAC changes, secret access, pod exec spikes
+  source_type_filter:
+    - eks_audit
+    - azure_aks_audit
+    - gcp_gke_audit
+    - oci_oke_audit
+    - ibm_k8s_audit
+  metrics:
+    - name: daily_k8s_api_count
+      query: COUNT(*) per day per actor.principal WHERE source_type IN (eks_audit, azure_aks_audit, gcp_gke_audit, oci_oke_audit, ibm_k8s_audit)
+      anomaly_threshold: 3_stddev
+    - name: unique_k8s_resources
+      query: COUNT(DISTINCT resource_type) per day per actor.principal
+      anomaly_threshold: 2_stddev
+    - name: unique_k8s_namespaces
+      query: COUNT(DISTINCT resource_name) per day per actor.principal
+      anomaly_threshold: 2_stddev
+    - name: secret_access_count
+      query: COUNT(*) WHERE resource_type = 'secrets' per day per actor.principal
+      anomaly_threshold: 2_stddev
+  window_days: 14
+  min_data_points: 5
+  fed_by_scenarios:
+    - k8s.privilege_escalation
+    - k8s.secret_exfil
+
+# ═══════════════════════════════════════════════════════════════
+# SOURCE IP BASELINES (all CSPs)
+# ═══════════════════════════════════════════════════════════════
+
+- baseline_id: source_ip_behavior
+  entity_type: actor.ip_address
+  description: Per-IP activity — detects IP hopping, scanning, credential stuffing
+  metrics:
+    - name: daily_api_count_per_ip
+      query: COUNT(*) per day per actor.ip_address
+      anomaly_threshold: 3_stddev
+    - name: unique_identities_per_ip
+      query: COUNT(DISTINCT actor.principal) per day per actor.ip_address
+      anomaly_threshold: 2_stddev
+    - name: unique_accounts_per_ip
+      query: COUNT(DISTINCT account_id) per day per actor.ip_address
+      anomaly_threshold: 2_stddev
+    - name: error_rate_per_ip
+      query: COUNT(outcome='failure') / COUNT(*) per day per actor.ip_address
+      anomaly_threshold: 2_stddev
+  window_days: 14
+  min_data_points: 5
+  fed_by_scenarios:
+    - threat.brute_force
+    - threat.credential_compromise
+    - cross_csp.lateral_movement

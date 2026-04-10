@@ -1,0 +1,232 @@
+rules:
+- rule_id: gcp.lb.armor_blocked
+  title: Cloud Armor blocked request
+  severity: medium
+  log_source_type: gcp_lb
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_lb
+    - field: outcome
+      op: equals
+      value: DENIED
+  engines:
+  - network_engine
+  - threat_engine
+  primary_engine: network_engine
+  action_category: network
+  mitre_tactics:
+  - initial-access
+  mitre_techniques:
+  - T1190
+  domain: network_security
+  provider: gcp
+  remediation: Review network configuration changes. Validate security group rules follow least-privilege. Block unauthorized
+    ports.
+  compliance_frameworks: &id001
+  - CIS
+  - NIST_800-53
+  - PCI-DSS
+  - SOC2
+  risk_score: 50
+- rule_id: gcp.lb.sqli_detected
+  title: Cloud Armor SQL injection attempt detected
+  severity: high
+  log_source_type: gcp_lb
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_lb
+    - field: operation
+      op: contains
+      value: sqli
+    - field: outcome
+      op: equals
+      value: DENIED
+  engines:
+  - network_engine
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: network
+  mitre_tactics:
+  - initial-access
+  mitre_techniques:
+  - T1190
+  domain: network_security
+  provider: gcp
+  remediation: Review network configuration changes. Validate security group rules follow least-privilege. Block unauthorized
+    ports.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: gcp.lb.xss_detected
+  title: Cloud Armor XSS attempt detected
+  severity: high
+  log_source_type: gcp_lb
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_lb
+    - field: operation
+      op: contains
+      value: xss
+    - field: outcome
+      op: equals
+      value: DENIED
+  engines:
+  - network_engine
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: network
+  mitre_tactics:
+  - initial-access
+  mitre_techniques:
+  - T1189
+  domain: network_security
+  provider: gcp
+  remediation: Review network configuration changes. Validate security group rules follow least-privilege. Block unauthorized
+    ports.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: gcp.lb.rate_limited
+  title: Cloud Armor rate limiting triggered
+  severity: medium
+  log_source_type: gcp_lb
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_lb
+    - field: operation
+      op: contains
+      value: rate_based_ban
+    - field: outcome
+      op: equals
+      value: DENIED
+  engines:
+  - network_engine
+  - threat_engine
+  primary_engine: network_engine
+  action_category: network
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1499
+  domain: network_security
+  provider: gcp
+  remediation: Review network configuration changes. Validate security group rules follow least-privilege. Block unauthorized
+    ports.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: gcp.lb.backend_5xx
+  title: GCP LB backend returned HTTP 5xx server error
+  severity: medium
+  log_source_type: gcp_lb
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_lb
+    - field: error_code
+      op: contains
+      value: '5'
+    - field: outcome
+      op: equals
+      value: failure
+  engines:
+  - network_engine
+  - threat_engine
+  primary_engine: network_engine
+  action_category: network
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1499
+  domain: network_security
+  provider: gcp
+  remediation: Review network configuration changes. Validate security group rules follow least-privilege. Block unauthorized
+    ports.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: gcp.lb.backend_timeout
+  title: GCP LB backend connection timed out
+  severity: medium
+  log_source_type: gcp_lb
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_lb
+    - field: error_code
+      op: contains
+      value: backend_timeout
+  engines:
+  - network_engine
+  primary_engine: network_engine
+  action_category: network
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1499.002
+  domain: network_security
+  provider: gcp
+  remediation: Review network configuration changes. Validate security group rules follow least-privilege. Block unauthorized
+    ports.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: gcp.lb.http_401
+  title: GCP LB HTTP 401 Unauthorized response
+  severity: medium
+  log_source_type: gcp_lb
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_lb
+    - field: error_code
+      op: equals
+      value: '401'
+  engines:
+  - network_engine
+  - ciem
+  primary_engine: ciem
+  action_category: authentication
+  mitre_tactics:
+  - initial-access
+  - credential-access
+  mitre_techniques:
+  - T1110
+  domain: network_security
+  provider: gcp
+  remediation: Review security group and NACL rules. Restrict public access. Enable VPC Flow Logs for monitoring.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: gcp.lb.request_too_large
+  title: GCP LB request size exceeded limit
+  severity: low
+  log_source_type: gcp_lb
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_lb
+    - field: error_code
+      op: equals
+      value: '413'
+  engines:
+  - network_engine
+  primary_engine: network_engine
+  action_category: network
+  mitre_tactics:
+  - initial-access
+  mitre_techniques:
+  - T1190
+  description: Oversized requests may indicate payload-based attacks or fuzzing
+  domain: network_security
+  provider: gcp
+  remediation: Review network configuration changes. Validate security group rules follow least-privilege. Block unauthorized
+    ports.
+  compliance_frameworks: *id001
+  risk_score: 25

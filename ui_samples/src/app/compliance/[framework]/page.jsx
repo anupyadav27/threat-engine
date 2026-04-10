@@ -1,116 +1,369 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { Shield, ChevronRight, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
-import { getFromEngine } from '@/lib/api';
-import KpiCard from '@/components/shared/KpiCard';
+import {
+  Shield, ChevronRight, CheckCircle, XCircle, AlertTriangle,
+  ChevronDown, ChevronUp, Database, Network, Eye, Lock, Server,
+  ExternalLink, Filter, Search,
+} from 'lucide-react';
 import SeverityBadge from '@/components/shared/SeverityBadge';
-import DataTable from '@/components/shared/DataTable';
+import KpiCard from '@/components/shared/KpiCard';
 import GaugeChart from '@/components/charts/GaugeChart';
+import { TENANT_ID } from '@/lib/constants';
 
-const FRAMEWORK_NAMES = {
-  'cis': 'CIS AWS Foundations Benchmark v1.4',
-  'nist': 'NIST CSF v1.1',
-  'pci-dss': 'PCI DSS v3.2.1',
-  'soc2': 'SOC 2 Type II',
-  'iso27001': 'ISO 27001:2013',
-  'hipaa': 'HIPAA Security Rule',
-  'gdpr': 'GDPR Technical Controls',
+/* ─── helpers ─────────────────────────────────────────────── */
+
+function scoreColor(score) {
+  if (score >= 80) return { text: 'text-green-400', bg: 'bg-green-500/20', border: '#22c55e' };
+  if (score >= 60) return { text: 'text-yellow-400', bg: 'bg-yellow-500/20', border: '#f59e0b' };
+  return { text: 'text-red-400', bg: 'bg-red-500/20', border: '#ef4444' };
+}
+
+function scoreLabel(score) {
+  if (score >= 80) return 'Compliant';
+  if (score >= 60) return 'Partially Compliant';
+  return 'Non-Compliant';
+}
+
+const DOMAIN_ICONS = {
+  'Identity & Access': <Lock className="w-4 h-4" />,
+  'Storage & Data': <Database className="w-4 h-4" />,
+  'Logging & Monitoring': <Eye className="w-4 h-4" />,
+  'Network Security': <Network className="w-4 h-4" />,
+  'Database': <Server className="w-4 h-4" />,
 };
+
+function domainIcon(domain) {
+  return DOMAIN_ICONS[domain] || <Shield className="w-4 h-4" />;
+}
+
+function resourceService(uid = '') {
+  if (uid.includes(':iam:') || uid.includes(':iam::')) return 'IAM';
+  if (uid.includes(':s3:::')) return 'S3';
+  if (uid.includes(':ec2:')) return 'EC2';
+  if (uid.includes(':rds:')) return 'RDS';
+  if (uid.includes(':cloudtrail:')) return 'CloudTrail';
+  if (uid.includes(':config:')) return 'Config';
+  return uid.split(':')[2]?.toUpperCase() || 'AWS';
+}
+
+function shortArn(arn = '') {
+  // Show last two segments of ARN for brevity
+  const parts = arn.split('/');
+  if (parts.length > 1) return parts.slice(-2).join('/');
+  const colParts = arn.split(':');
+  if (colParts.length > 5) return colParts.slice(-2).join(':');
+  return arn;
+}
+
+/* ─── Resource row (inside expanded control) ──────────────── */
+
+function ResourceRow({ resource }) {
+  const svc = resourceService(resource.resource_uid);
+  const short = shortArn(resource.resource_uid);
+
+  return (
+    <div
+      className="flex items-center gap-4 px-4 py-2.5 rounded-lg border text-xs group hover:opacity-90 transition-opacity"
+      style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)' }}
+    >
+      {/* Service pill */}
+      <span
+        className="font-mono font-semibold px-2 py-0.5 rounded text-[10px] shrink-0"
+        style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--accent-primary)' }}
+      >
+        {svc}
+      </span>
+
+      {/* ARN */}
+      <span
+        className="font-mono truncate flex-1 cursor-pointer"
+        style={{ color: 'var(--text-secondary)' }}
+        title={resource.resource_uid}
+      >
+        {short}
+      </span>
+
+      {/* Region */}
+      <span className="shrink-0" style={{ color: 'var(--text-muted)' }}>
+        {resource.region || 'global'}
+      </span>
+
+      {/* Severity */}
+      <span className="shrink-0">
+        <SeverityBadge severity={resource.severity} />
+      </span>
+
+      {/* Last seen */}
+      {resource.last_seen && (
+        <span className="shrink-0 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+          {new Date(resource.last_seen).toLocaleDateString()}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/* ─── Control row (expandable) ────────────────────────────── */
+
+function ControlRow({ control }) {
+  const [expanded, setExpanded] = useState(false);
+  const hasFailed = control.status === 'fail';
+  const hasResources = (control.resources || []).length > 0;
+
+  return (
+    <>
+      <tr
+        className="border-b transition-colors"
+        style={{ borderColor: 'var(--border-primary)' }}
+      >
+        {/* Expand toggle */}
+        <td className="pl-4 py-3 w-8">
+          {hasFailed && hasResources ? (
+            <button
+              onClick={() => setExpanded((v) => !v)}
+              className="p-1 rounded hover:opacity-80 transition-opacity"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+          ) : (
+            <span className="w-5 inline-block" />
+          )}
+        </td>
+
+        {/* Control ID */}
+        <td className="py-3 pr-4">
+          <code
+            className="text-xs font-mono px-2 py-1 rounded"
+            style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--accent-primary)' }}
+          >
+            {control.control_id}
+          </code>
+        </td>
+
+        {/* Name */}
+        <td className="py-3 pr-6">
+          <span className="text-sm" style={{ color: 'var(--text-primary)' }}>
+            {control.control_name}
+          </span>
+        </td>
+
+        {/* Domain */}
+        <td className="py-3 pr-4 hidden md:table-cell">
+          <span
+            className="flex items-center gap-1.5 text-xs whitespace-nowrap"
+            style={{ color: 'var(--text-secondary)' }}
+          >
+            {domainIcon(control.domain)}
+            {control.domain}
+          </span>
+        </td>
+
+        {/* Severity */}
+        <td className="py-3 pr-4">
+          <SeverityBadge severity={control.severity} />
+        </td>
+
+        {/* Status */}
+        <td className="py-3 pr-4">
+          {control.status === 'pass' ? (
+            <span className="flex items-center gap-1 text-xs font-medium text-green-400">
+              <CheckCircle className="w-3.5 h-3.5" /> Pass
+            </span>
+          ) : (
+            <span className="flex items-center gap-1 text-xs font-medium text-red-400">
+              <XCircle className="w-3.5 h-3.5" /> Fail
+            </span>
+          )}
+        </td>
+
+        {/* Resources affected */}
+        <td className="py-3 pr-6 text-right">
+          {control.failed > 0 ? (
+            <span
+              className="text-sm font-bold tabular-nums"
+              style={{ color: 'var(--accent-warning)' }}
+            >
+              {control.failed} resource{control.failed !== 1 ? 's' : ''}
+            </span>
+          ) : (
+            <span className="text-sm" style={{ color: 'var(--text-muted)' }}>—</span>
+          )}
+        </td>
+      </tr>
+
+      {/* Expanded resources */}
+      {expanded && hasResources && (
+        <tr style={{ borderColor: 'var(--border-primary)' }} className="border-b">
+          <td colSpan={7} className="px-8 py-3">
+            <div className="space-y-1.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-muted)' }}>
+                Affected Resources
+              </p>
+              {control.resources.map((r, i) => (
+                <ResourceRow key={`${r.resource_uid}-${i}`} resource={r} />
+              ))}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+/* ─── Domain summary card ─────────────────────────────────── */
+
+function DomainCard({ domain, controls, onClick, active }) {
+  const total = controls.length;
+  const passed = controls.filter((c) => c.status === 'pass').length;
+  const failed = total - passed;
+  const pct = total > 0 ? Math.round((passed / total) * 100) : 0;
+  const col = scoreColor(pct);
+
+  return (
+    <button
+      onClick={onClick}
+      className="rounded-xl p-4 border text-left transition-all hover:scale-[1.01]"
+      style={{
+        backgroundColor: active ? 'var(--bg-secondary)' : 'var(--bg-card)',
+        borderColor: active ? col.border : 'var(--border-primary)',
+      }}
+    >
+      <div className="flex items-center gap-2 mb-3">
+        <span className={`${col.text}`}>{domainIcon(domain)}</span>
+        <span className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
+          {domain}
+        </span>
+      </div>
+
+      <div className="flex items-end justify-between mb-2">
+        <span className={`text-2xl font-bold ${col.text}`}>{pct}%</span>
+        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{passed}/{total}</span>
+      </div>
+
+      <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+        <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: col.border }} />
+      </div>
+
+      {failed > 0 && (
+        <p className="mt-2 text-[11px]" style={{ color: 'var(--accent-danger)' }}>
+          {failed} failing control{failed !== 1 ? 's' : ''}
+        </p>
+      )}
+    </button>
+  );
+}
+
+/* ─── Main page ───────────────────────────────────────────── */
 
 export default function FrameworkDetailPage() {
   const router = useRouter();
   const params = useParams();
   const frameworkId = params?.framework;
+
   const [loading, setLoading] = useState(true);
-  const [framework, setFramework] = useState(null);
+  const [data, setData] = useState(null);
   const [error, setError] = useState(null);
-  const [activeCategory, setActiveCategory] = useState('All');
+
+  // Filters
+  const [activeDomain, setActiveDomain] = useState('All');
+  const [statusFilter, setStatusFilter] = useState('all');   // 'all' | 'fail' | 'pass'
+  const [severityFilter, setSeverityFilter] = useState('all');
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await getFromEngine('compliance', `/api/v1/compliance/report/${frameworkId}`);
-        if (res && !res.error && res.controls) {
-          setFramework(res);
+    if (!frameworkId) return;
+    setLoading(true);
+    setError(null);
+
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    fetch(`${origin}/gateway/api/v1/views/compliance/framework/${encodeURIComponent(frameworkId)}?tenant_id=${encodeURIComponent(TENANT_ID || 'default-tenant')}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d?.families) {
+          // Transform families-based response to flat controls list
+          const controls = [];
+          let totalResources = 0;
+          let criticalCount = 0;
+          let highCount = 0;
+          for (const fam of d.families || []) {
+            for (const c of fam.controls || []) {
+              const status = (c.status || 'NOT_ASSESSED').toLowerCase().replace(/_/g, ' ');
+              controls.push({ ...c, domain: fam.family || c.control_family || 'General', status });
+              totalResources += (c.fail_count || 0);
+              if (c.severity === 'critical' && status === 'fail') criticalCount++;
+              if (c.severity === 'high' && status === 'fail') highCount++;
+            }
+          }
+          const apiSummary = d.summary || {};
+          const passed = apiSummary.PASS || 0;
+          const failed = apiSummary.FAIL || 0;
+          const partial = apiSummary.PARTIAL || 0;
+          const total = d.total_controls || controls.length;
+          const score = d.score || (total > 0 ? Math.round(100 * passed / total * 10) / 10 : 0);
+          const summary = {
+            score,
+            total_controls: total,
+            passed_controls: passed,
+            failed_controls: failed + partial,
+            total_resources_affected: totalResources,
+            critical_controls: criticalCount,
+            high_controls: highCount,
+          };
+          setData({ ...d, controls, summary, framework: d.framework });
+        } else if (d?.controls) {
+          setData(d);
         } else {
-          setError(res?.error || 'Framework not found');
+          setError('Framework data unavailable');
         }
-      } catch (err) {
-        setError(err?.message || 'Failed to load framework data');
-      } finally {
-        setLoading(false);
-      }
-    };
-    if (frameworkId) fetchData();
+      })
+      .catch((e) => setError(e?.message || 'Failed to load framework'))
+      .finally(() => setLoading(false));
   }, [frameworkId]);
 
-  const categories = framework ? ['All', ...new Set((framework.controls || []).map((c) => c.category))] : ['All'];
-  const filteredControls = framework
-    ? (activeCategory === 'All' ? framework.controls : (framework.controls || []).filter((c) => c.category === activeCategory))
-    : [];
+  /* derived */
+  const domains = useMemo(() => {
+    if (!data) return [];
+    return [...new Set((data.controls || []).map((c) => c.domain))].filter(Boolean);
+  }, [data]);
 
-  const columns = [
-    {
-      accessorKey: 'control_id',
-      header: 'Control ID',
-      cell: (info) => <code className="text-xs font-mono" style={{ color: 'var(--accent-primary)' }}>{info.getValue()}</code>,
-    },
-    {
-      accessorKey: 'title',
-      header: 'Control',
-      cell: (info) => <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{info.getValue()}</span>,
-    },
-    {
-      accessorKey: 'category',
-      header: 'Category',
-      cell: (info) => (
-        <span className="text-xs px-2 py-1 rounded" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
-          {info.getValue()}
-        </span>
-      ),
-    },
-    {
-      accessorKey: 'severity',
-      header: 'Severity',
-      cell: (info) => <SeverityBadge severity={info.getValue()} />,
-    },
-    {
-      accessorKey: 'status',
-      header: 'Status',
-      cell: (info) => {
-        const val = info.getValue();
-        return (
-          <div className="flex items-center gap-1">
-            {val === 'pass'
-              ? <CheckCircle className="w-4 h-4" style={{ color: 'var(--accent-success)' }} />
-              : <XCircle className="w-4 h-4" style={{ color: 'var(--accent-danger)' }} />}
-            <span className="text-xs font-medium capitalize" style={{ color: val === 'pass' ? 'var(--accent-success)' : 'var(--accent-danger)' }}>
-              {val}
-            </span>
-          </div>
-        );
-      },
-    },
-    {
-      accessorKey: 'findings',
-      header: 'Findings',
-      cell: (info) => (
-        <span className="text-sm font-bold" style={{ color: info.getValue() > 0 ? 'var(--accent-warning)' : 'var(--text-muted)' }}>
-          {info.getValue() > 0 ? info.getValue() : '—'}
-        </span>
-      ),
-    },
-  ];
+  const filteredControls = useMemo(() => {
+    if (!data) return [];
+    return (data.controls || []).filter((c) => {
+      if (activeDomain !== 'All' && c.domain !== activeDomain) return false;
+      if (statusFilter !== 'all' && c.status !== statusFilter) return false;
+      if (severityFilter !== 'all' && c.severity !== severityFilter) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        if (!c.control_name?.toLowerCase().includes(q) && !c.control_id?.toLowerCase().includes(q)) return false;
+      }
+      return true;
+    });
+  }, [data, activeDomain, statusFilter, severityFilter, search]);
 
+  const domainControls = useMemo(() => {
+    if (!data) return {};
+    const map = {};
+    for (const c of data.controls || []) {
+      if (!map[c.domain]) map[c.domain] = [];
+      map[c.domain].push(c);
+    }
+    return map;
+  }, [data]);
+
+  /* ── loading ── */
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="h-24 animate-pulse rounded-xl" style={{ backgroundColor: 'var(--bg-secondary)' }} />
-        <div className="h-48 animate-pulse rounded-xl" style={{ backgroundColor: 'var(--bg-secondary)' }} />
+      <div className="space-y-5">
+        <div className="h-20 animate-pulse rounded-xl" style={{ backgroundColor: 'var(--bg-secondary)' }} />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-28 animate-pulse rounded-xl" style={{ backgroundColor: 'var(--bg-secondary)' }} />
+          ))}
+        </div>
+        <div className="h-56 animate-pulse rounded-xl" style={{ backgroundColor: 'var(--bg-secondary)' }} />
         <div className="h-96 animate-pulse rounded-xl" style={{ backgroundColor: 'var(--bg-secondary)' }} />
       </div>
     );
@@ -118,105 +371,257 @@ export default function FrameworkDetailPage() {
 
   if (error) {
     return (
-      <div className="rounded-xl p-6 border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--accent-danger)' }}>
-        <p className="text-sm font-medium" style={{ color: 'var(--accent-danger)' }}>Error: {error}</p>
+      <div className="rounded-xl p-8 border text-center" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--accent-danger)' }}>
+        <XCircle className="w-10 h-10 mx-auto mb-3 text-red-400" />
+        <p className="font-semibold mb-1" style={{ color: 'var(--accent-danger)' }}>Failed to load framework</p>
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{error}</p>
       </div>
     );
   }
 
-  if (!framework) return <div className="p-6" style={{ color: 'var(--text-secondary)' }}>No data available.</div>;
+  if (!data) return null;
 
-  const passRate = framework.total_controls > 0 ? Math.round((framework.passed / framework.total_controls) * 100) : 0;
+  const { summary } = data;
+  const col = scoreColor(summary.score);
 
   return (
     <div className="space-y-6">
-      {/* Breadcrumb */}
+
+      {/* ── Breadcrumb ── */}
       <div className="flex items-center gap-2">
-        <button onClick={() => router.push('/compliance')} className="text-sm" style={{ color: 'var(--text-muted)' }}>Compliance</button>
+        <button
+          onClick={() => router.push('/compliance')}
+          className="text-sm transition-opacity hover:opacity-70"
+          style={{ color: 'var(--text-muted)' }}
+        >
+          Compliance
+        </button>
         <ChevronRight className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
-        <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>{framework.name}</h1>
+        <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+          {typeof data.framework === 'object' ? data.framework?.framework_name : data.framework}
+        </span>
+        {data._source === 'demo' && (
+          <span className="ml-2 text-[10px] px-2 py-0.5 rounded-full font-medium"
+            style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}>
+            DEMO
+          </span>
+        )}
       </div>
 
-      {/* Header Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard title="Compliance Score" value={`${framework.score ?? passRate}%`} subtitle="Overall score" icon={<Shield className="w-5 h-5" />} color="blue" />
-        <KpiCard title="Controls Passed" value={framework.passed} subtitle="Compliant controls" icon={<CheckCircle className="w-5 h-5" />} color="green" />
-        <KpiCard title="Controls Failed" value={framework.failed} subtitle="Non-compliant" icon={<XCircle className="w-5 h-5" />} color="red" />
-        <KpiCard title="Total Controls" value={framework.total_controls} subtitle="In this framework" icon={<AlertTriangle className="w-5 h-5" />} color="blue" />
-      </div>
-
-      {/* Score Gauge */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="rounded-xl p-6 border flex flex-col items-center" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-          <h2 className="text-lg font-semibold mb-4 self-start" style={{ color: 'var(--text-primary)' }}>Compliance Score</h2>
-          <GaugeChart value={framework.score ?? passRate} max={100} label="Score" />
-          <div className="mt-4 w-full space-y-2">
-            <div className="flex justify-between text-sm">
-              <span style={{ color: 'var(--text-muted)' }}>Passed</span>
-              <span style={{ color: 'var(--accent-success)' }}>{framework.passed} controls</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span style={{ color: 'var(--text-muted)' }}>Failed</span>
-              <span style={{ color: 'var(--accent-danger)' }}>{framework.failed} controls</span>
-            </div>
+      {/* ── Hero header ── */}
+      <div
+        className="rounded-xl p-6 border flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
+        style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}
+      >
+        <div className="flex items-center gap-4">
+          <div className={`p-3 rounded-xl ${col.bg}`}>
+            <Shield className={`w-7 h-7 ${col.text}`} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
+              {typeof data.framework === 'object' ? data.framework?.framework_name : data.framework}
+            </h1>
+            <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
+              {summary.total_controls} controls · {summary.total_resources_affected} resources affected
+            </p>
           </div>
         </div>
 
-        <div className="lg:col-span-2 rounded-xl p-6 border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-          <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>Controls by Category</h2>
-          <div className="grid grid-cols-2 gap-3">
-            {categories.filter((c) => c !== 'All').map((cat) => {
-              const catControls = (framework.controls || []).filter((c) => c.category === cat);
-              const catPassed = catControls.filter((c) => c.status === 'pass').length;
-              const catTotal = catControls.length;
-              const catPct = catTotal > 0 ? Math.round((catPassed / catTotal) * 100) : 0;
-              return (
-                <div key={cat} className="rounded-lg p-3 border" style={{ borderColor: 'var(--border-primary)', backgroundColor: 'var(--bg-secondary)' }}>
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{cat}</span>
-                    <span className="text-xs font-bold" style={{ color: catPct === 100 ? 'var(--accent-success)' : catPct >= 50 ? 'var(--accent-warning)' : 'var(--accent-danger)' }}>
-                      {catPct}%
-                    </span>
-                  </div>
-                  <div className="h-1.5 rounded-full" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-                    <div
-                      className="h-full rounded-full"
-                      style={{
-                        width: `${catPct}%`,
-                        backgroundColor: catPct === 100 ? 'var(--accent-success)' : catPct >= 50 ? 'var(--accent-warning)' : 'var(--accent-danger)',
-                      }}
-                    />
-                  </div>
-                  <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{catPassed}/{catTotal} passed</p>
-                </div>
-              );
-            })}
+        <div className="flex items-center gap-6">
+          {/* Big score */}
+          <div className="text-right">
+            <p className={`text-5xl font-extrabold tabular-nums ${col.text}`}>
+              {summary.score}
+            </p>
+            <p className="text-xs mt-0.5 font-medium" style={{ color: 'var(--text-muted)' }}>/ 100</p>
+          </div>
+          <div>
+            <span
+              className={`px-3 py-1.5 rounded-full text-sm font-semibold ${col.bg} ${col.text}`}
+            >
+              {scoreLabel(summary.score)}
+            </span>
           </div>
         </div>
       </div>
 
-      {/* Controls Table */}
-      <div className="rounded-xl p-6 border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Controls Detail</h2>
-          <div className="flex gap-2 flex-wrap">
-            {categories.map((cat) => (
+      {/* ── KPI strip ── */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        {[
+          { label: 'Total Controls', value: summary.total_controls, color: 'blue' },
+          { label: 'Passed', value: summary.passed_controls, color: 'green' },
+          { label: 'Failed', value: summary.failed_controls, color: 'red' },
+          { label: 'Resources Affected', value: summary.total_resources_affected, color: 'orange' },
+          { label: 'Critical', value: summary.critical_controls, color: 'red' },
+          { label: 'High', value: summary.high_controls, color: 'orange' },
+        ].map(({ label, value, color }) => {
+          const colorMap = {
+            blue: { bg: 'bg-blue-500/10', text: 'text-blue-400', border: '#3b82f6' },
+            green: { bg: 'bg-green-500/10', text: 'text-green-400', border: '#22c55e' },
+            red: { bg: 'bg-red-500/10', text: 'text-red-400', border: '#ef4444' },
+            orange: { bg: 'bg-orange-500/10', text: 'text-orange-400', border: '#f97316' },
+          };
+          const c = colorMap[color] || colorMap.blue;
+          return (
+            <div
+              key={label}
+              className="rounded-xl p-4 border"
+              style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}
+            >
+              <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>{label}</p>
+              <p className={`text-2xl font-bold tabular-nums ${c.text}`}>{value}</p>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── Domain breakdown ── */}
+      {domains.length > 0 && (
+        <div>
+          <h2 className="text-base font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>
+            Coverage by Domain
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+            {domains.map((d) => (
+              <DomainCard
+                key={d}
+                domain={d}
+                controls={domainControls[d] || []}
+                active={activeDomain === d}
+                onClick={() => setActiveDomain(activeDomain === d ? 'All' : d)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Controls table ── */}
+      <div
+        className="rounded-xl border overflow-hidden"
+        style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}
+      >
+        {/* Table header / filters */}
+        <div
+          className="px-6 py-4 border-b flex flex-col md:flex-row items-start md:items-center justify-between gap-3"
+          style={{ borderColor: 'var(--border-primary)' }}
+        >
+          <div>
+            <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
+              Controls Detail
+            </h2>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+              {filteredControls.length} control{filteredControls.length !== 1 ? 's' : ''}
+              {activeDomain !== 'All' ? ` in ${activeDomain}` : ''}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Search */}
+            <div
+              className="flex items-center gap-2 rounded-lg px-3 py-1.5 border text-sm"
+              style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)' }}
+            >
+              <Search className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search controls…"
+                className="bg-transparent outline-none w-36 text-xs"
+                style={{ color: 'var(--text-primary)' }}
+              />
+            </div>
+
+            {/* Status filter */}
+            {['all', 'fail', 'pass'].map((s) => (
               <button
-                key={cat}
-                onClick={() => setActiveCategory(cat)}
-                className="text-xs px-3 py-1 rounded-full border"
+                key={s}
+                onClick={() => setStatusFilter(s)}
+                className="text-xs px-3 py-1.5 rounded-lg border capitalize transition-colors"
                 style={{
-                  backgroundColor: activeCategory === cat ? 'var(--accent-primary)' : 'transparent',
-                  color: activeCategory === cat ? 'white' : 'var(--text-secondary)',
-                  borderColor: activeCategory === cat ? 'var(--accent-primary)' : 'var(--border-primary)',
+                  backgroundColor: statusFilter === s ? (s === 'fail' ? 'rgba(239,68,68,0.2)' : s === 'pass' ? 'rgba(34,197,94,0.2)' : 'var(--bg-secondary)') : 'transparent',
+                  color: statusFilter === s ? (s === 'fail' ? '#ef4444' : s === 'pass' ? '#22c55e' : 'var(--text-primary)') : 'var(--text-secondary)',
+                  borderColor: statusFilter === s ? (s === 'fail' ? '#ef4444' : s === 'pass' ? '#22c55e' : 'var(--accent-primary)') : 'var(--border-primary)',
                 }}
               >
-                {cat}
+                {s === 'all' ? 'All' : s === 'fail' ? 'Failing' : 'Passing'}
+              </button>
+            ))}
+
+            {/* Severity filter */}
+            {['all', 'critical', 'high', 'medium'].map((sv) => (
+              <button
+                key={sv}
+                onClick={() => setSeverityFilter(sv)}
+                className="text-xs px-3 py-1.5 rounded-lg border capitalize transition-colors hidden lg:inline-flex"
+                style={{
+                  backgroundColor: severityFilter === sv ? 'var(--bg-secondary)' : 'transparent',
+                  color: severityFilter === sv ? 'var(--text-primary)' : 'var(--text-secondary)',
+                  borderColor: severityFilter === sv ? 'var(--accent-primary)' : 'var(--border-primary)',
+                }}
+              >
+                {sv === 'all' ? 'All Severity' : sv.charAt(0).toUpperCase() + sv.slice(1)}
               </button>
             ))}
           </div>
         </div>
-        <DataTable columns={columns} data={filteredControls} />
+
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                <th className="w-8 pl-4 py-2.5" />
+                <th className="text-left text-xs font-semibold uppercase tracking-wider py-2.5 pr-4" style={{ color: 'var(--text-muted)' }}>
+                  Control ID
+                </th>
+                <th className="text-left text-xs font-semibold uppercase tracking-wider py-2.5 pr-6" style={{ color: 'var(--text-muted)' }}>
+                  Control
+                </th>
+                <th className="text-left text-xs font-semibold uppercase tracking-wider py-2.5 pr-4 hidden md:table-cell" style={{ color: 'var(--text-muted)' }}>
+                  Domain
+                </th>
+                <th className="text-left text-xs font-semibold uppercase tracking-wider py-2.5 pr-4" style={{ color: 'var(--text-muted)' }}>
+                  Severity
+                </th>
+                <th className="text-left text-xs font-semibold uppercase tracking-wider py-2.5 pr-4" style={{ color: 'var(--text-muted)' }}>
+                  Status
+                </th>
+                <th className="text-right text-xs font-semibold uppercase tracking-wider py-2.5 pr-6" style={{ color: 'var(--text-muted)' }}>
+                  Resources
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredControls.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="text-center py-12">
+                    <Shield className="w-10 h-10 mx-auto mb-3 opacity-30" style={{ color: 'var(--text-muted)' }} />
+                    <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No controls match the current filters</p>
+                  </td>
+                </tr>
+              ) : (
+                filteredControls.map((control) => (
+                  <ControlRow key={control.control_id} control={control} />
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Table footer */}
+        {filteredControls.length > 0 && (
+          <div
+            className="px-6 py-3 border-t text-xs"
+            style={{ borderColor: 'var(--border-primary)', color: 'var(--text-muted)' }}
+          >
+            Showing {filteredControls.length} of {(data.controls || []).length} controls
+            {summary.failed_controls > 0 && (
+              <span className="ml-3 text-red-400">
+                · {summary.failed_controls} failing · click a row to expand affected resources
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

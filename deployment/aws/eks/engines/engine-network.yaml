@@ -1,6 +1,6 @@
 # ============================================================================
-# Network Engine K8s Manifest — Task 2.8 [Seq 62 | DO]
-# Deployment + Service — Port 8007
+# Network Security Engine K8s Manifest (v2 — layered architecture)
+# Deployment + Service — Port 8004 (container) / 80 (service)
 # ============================================================================
 
 apiVersion: apps/v1
@@ -10,8 +10,8 @@ metadata:
   namespace: threat-engine-engines
   labels:
     app: engine-network
-    component: engine
-    tier: layer-2
+    engine: network-security
+    tier: layer-3
 spec:
   replicas: 1
   selector:
@@ -21,58 +21,115 @@ spec:
     metadata:
       labels:
         app: engine-network
-        component: engine
-        tier: layer-2
+        engine: network-security
     spec:
-      serviceAccountName: threat-engine-sa
+      serviceAccountName: engine-sa
       containers:
         - name: engine-network
-          image: yadavanup84/engine-network:v1.0
+          image: yadavanup84/engine-network-security:v-rule-enrich
+          imagePullPolicy: Always
           ports:
-            - containerPort: 8007
-              protocol: TCP
+            - containerPort: 8004
           envFrom:
             - configMapRef:
                 name: threat-engine-db-config
           env:
+            - name: PYTHONPATH
+              value: /app
+            - name: DB_SSLMODE
+              value: require
+            # Network DB
             - name: NETWORK_DB_NAME
-              value: "threat_engine_network"
-            - name: DISCOVERY_DB_NAME
-              value: "threat_engine_discovery"
-            - name: LOG_DB_NAME
-              value: "threat_engine_logs"
-            - name: EXTERNAL_DB_NAME
-              value: "threat_engine_external"
-            - name: ONBOARDING_DB_NAME
-              value: "threat_engine_onboarding"
-            - name: DB_PASSWORD
+              value: threat_engine_network
+            - name: NETWORK_DB_HOST
+              value: postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com
+            - name: NETWORK_DB_PORT
+              value: "5432"
+            - name: NETWORK_DB_USER
+              value: postgres
+            - name: NETWORK_DB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: external-secret-db-passwords
-                  key: network-db-password
+                  name: threat-engine-db-passwords
+                  key: NETWORK_DB_PASSWORD
+            # Discoveries DB
+            - name: DISCOVERIES_DB_NAME
+              value: threat_engine_discoveries
+            - name: DISCOVERIES_DB_HOST
+              value: postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com
+            - name: DISCOVERIES_DB_PORT
+              value: "5432"
+            - name: DISCOVERIES_DB_USER
+              value: postgres
+            - name: DISCOVERIES_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-db-passwords
+                  key: DISCOVERIES_DB_PASSWORD
+            # Check DB
+            - name: CHECK_DB_NAME
+              value: threat_engine_check
+            - name: CHECK_DB_HOST
+              value: postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com
+            - name: CHECK_DB_PORT
+              value: "5432"
+            - name: CHECK_DB_USER
+              value: postgres
+            - name: CHECK_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-db-passwords
+                  key: CHECK_DB_PASSWORD
+            # Inventory DB
+            - name: INVENTORY_DB_NAME
+              value: threat_engine_inventory
+            - name: INVENTORY_DB_HOST
+              value: postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com
+            - name: INVENTORY_DB_PORT
+              value: "5432"
+            - name: INVENTORY_DB_USER
+              value: postgres
+            - name: INVENTORY_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-db-passwords
+                  key: INVENTORY_DB_PASSWORD
+            # Onboarding DB
+            - name: ONBOARDING_DB_NAME
+              value: threat_engine_onboarding
+            - name: ONBOARDING_DB_HOST
+              value: postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com
+            - name: ONBOARDING_DB_PORT
+              value: "5432"
+            - name: ONBOARDING_DB_USER
+              value: postgres
+            - name: ONBOARDING_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-db-passwords
+                  key: ONBOARDING_DB_PASSWORD
+            # Scanner image
+            - name: NETWORK_SCANNER_IMAGE
+              value: yadavanup84/engine-network-security:v-rule-enrich
           resources:
             requests:
-              cpu: "500m"
-              memory: "512Mi"
+              cpu: 100m
+              memory: 256Mi
             limits:
-              cpu: "2"
-              memory: "2Gi"
+              cpu: 500m
+              memory: 512Mi
           livenessProbe:
             httpGet:
               path: /api/v1/health/live
-              port: 8007
+              port: 8004
             initialDelaySeconds: 30
-            periodSeconds: 30
-            timeoutSeconds: 5
-            failureThreshold: 3
+            periodSeconds: 10
           readinessProbe:
             httpGet:
               path: /api/v1/health/ready
-              port: 8007
-            initialDelaySeconds: 60
-            periodSeconds: 15
-            timeoutSeconds: 10
-            failureThreshold: 3
+              port: 8004
+            initialDelaySeconds: 10
+            periodSeconds: 5
       restartPolicy: Always
 
 ---
@@ -87,9 +144,8 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - port: 8007
-      targetPort: 8007
+    - port: 80
+      targetPort: 8004
       protocol: TCP
-      name: http
   selector:
     app: engine-network

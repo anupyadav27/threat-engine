@@ -54,7 +54,7 @@ ENGINE_TIMEOUTS: Dict[str, float] = {
     "datasec": 8.0,
     "risk": 5.0,
     "onboarding": 5.0,
-    "check": 8.0,
+    "check": 30.0,
     "secops": 8.0,
     "rule": 5.0,
     "ai_security": 8.0,
@@ -120,6 +120,63 @@ async def fetch_many(
                 for engine, path, params in calls
             ]
         ))
+
+
+async def fetch_all_check_findings(
+    params: Dict[str, str],
+    page_size: int = 500,
+    max_pages: int = 20,
+    timeout: Optional[float] = None,
+) -> List[dict]:
+    """
+    Fetch ALL check engine findings by paginating automatically.
+
+    The check engine caps page_size at 500. This helper fetches page 1,
+    reads total_pages, then fetches remaining pages in parallel.
+
+    Args:
+        params:    Query params dict (must include tenant_id; domain/posture_category optional)
+        page_size: Items per page (max 500 for check engine)
+        max_pages: Safety cap on total pages to fetch
+        timeout:   Per-request timeout in seconds
+
+    Returns:
+        Flat list of all finding dicts across all pages.
+    """
+    t = timeout or ENGINE_TIMEOUTS.get("check", DEFAULT_TIMEOUT)
+    base = ENGINE_URLS.get("check", "")
+    path = "/api/v1/check/findings"
+
+    page_params = {**params, "page": "1", "page_size": str(page_size)}
+
+    async with httpx.AsyncClient() as client:
+        # Fetch page 1
+        first = await _fetch_engine(client, "check", path, page_params, t)
+        if not first or not isinstance(first, dict):
+            return []
+
+        findings = list(first.get("findings", []))
+        total_pages = first.get("total_pages", 1) or 1
+        total_pages = min(total_pages, max_pages)
+
+        if total_pages <= 1:
+            return findings
+
+        # Fetch remaining pages in parallel
+        remaining = list(await asyncio.gather(*[
+            _fetch_engine(
+                client, "check", path,
+                {**params, "page": str(pg), "page_size": str(page_size)},
+                t,
+            )
+            for pg in range(2, total_pages + 1)
+        ]))
+
+        for result in remaining:
+            if result and isinstance(result, dict):
+                findings.extend(result.get("findings", []))
+
+        return findings
 
 
 async def _fetch(url: str, timeout: float = DEFAULT_TIMEOUT) -> Dict[str, Any]:

@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import {
   Shield,
   AlertTriangle,
@@ -11,13 +10,16 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { fetchView } from '@/lib/api';
+import { fetchView, getFromEngine } from '@/lib/api';
 import { useGlobalFilter } from '@/lib/global-filter-context';
 import { SEVERITY_COLORS } from '@/lib/constants';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import ThreatsSubNav from '@/components/shared/ThreatsSubNav';
 import PageLayout from '@/components/shared/PageLayout';
 import InsightRow from '@/components/shared/InsightRow';
+import FindingDetailPanel from '@/components/shared/FindingDetailPanel';
+import ThreatDetailPanel from '@/components/shared/ThreatDetailPanel';
+import { AttackPathList } from '@/components/shared/AttackPathCard';
 
 // ── Demo fallback threats (shown when backend returns no data) ─────────────────
 const DEMO_THREATS = [
@@ -305,7 +307,6 @@ function MitreCompactGrid({ mitreTactics, totalMitreTechniques, selectedTechniqu
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
 export default function ThreatsPage() {
-  const router = useRouter();
   const { provider, account, region } = useGlobalFilter();
 
   // ── Data state ────────────────────────────────────────────────────────────
@@ -313,11 +314,16 @@ export default function ThreatsPage() {
   const [error, setError] = useState(null);
   const [kpi, setKpi] = useState(null);
   const [threats, setThreats] = useState([]);
+  const [findings, setFindings] = useState([]);
   const [trendData, setTrendData] = useState([]);
   const [mitreMatrix, setMitreMatrix] = useState({});
+  const [attackPaths, setAttackPaths] = useState([]);
+  const [attackPathsLoading, setAttackPathsLoading] = useState(false);
 
   // ── UI state ────────────────────────────────────────────────────────────
   const [selectedTechnique, setSelectedTechnique] = useState(null);
+  const [selectedThreat, setSelectedThreat]       = useState(null);
+  const [selectedFinding, setSelectedFinding]     = useState(null);
 
   // ── Fetch ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -333,8 +339,18 @@ export default function ThreatsPage() {
         if (data.error) { setError(data.error); return; }
         if (data.kpi) setKpi(data.kpi);
         if (data.threats) setThreats(data.threats);
+        if (data.threatFindings) setFindings(data.threatFindings);
         if (data.trendData) setTrendData(data.trendData);
         if (data.mitreMatrix) setMitreMatrix(data.mitreMatrix);
+
+        // Fetch attack paths (separate BFF endpoint, non-blocking)
+        setAttackPathsLoading(true);
+        getFromEngine('gateway', '/api/v1/views/threats/attack-paths', {
+          tenant_id: data.tenantId || 'default-tenant',
+        }).then(apData => {
+          if (apData && apData.attackPaths) setAttackPaths(apData.attackPaths);
+        }).catch(() => {}).finally(() => setAttackPathsLoading(false));
+
       } catch (err) {
         console.warn('[threats] fetch error:', err);
         setError('Failed to load threats data');
@@ -514,6 +530,35 @@ export default function ThreatsPage() {
       cell: (info) => <SeverityBadge severity={info.getValue()} />,
     },
     {
+      accessorKey: 'finding_count',
+      header: 'Findings',
+      size: 70,
+      cell: (info) => {
+        const count = info.getValue() || 0;
+        return (
+          <span className="text-xs font-bold tabular-nums" style={{ color: count > 3 ? '#f97316' : 'var(--text-secondary)' }}>
+            {count}
+          </span>
+        );
+      },
+    },
+    {
+      accessorKey: 'source',
+      header: 'Source',
+      size: 70,
+      cell: (info) => {
+        const src = info.getValue() || 'check';
+        const isCiem = src === 'ciem';
+        return (
+          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
+            style={{ backgroundColor: isCiem ? 'rgba(139,92,246,0.15)' : 'rgba(59,130,246,0.15)',
+                     color: isCiem ? '#a78bfa' : '#60a5fa' }}>
+            {isCiem ? 'Log' : 'Config'}
+          </span>
+        );
+      },
+    },
+    {
       accessorKey: 'lastSeen',
       header: 'Last Seen',
       size: 100,
@@ -525,26 +570,162 @@ export default function ThreatsPage() {
     },
   ], []);
 
+  // ── Findings columns (atomic threat rule evaluations) ──────────────────
+  const findingsColumns = useMemo(() => [
+    {
+      accessorKey: 'provider',
+      header: 'Provider',
+      size: 80,
+      cell: (info) => {
+        const p = info.getValue();
+        if (!p) return <span className="text-xs" style={{ color: 'var(--text-muted)' }}>—</span>;
+        const color = PROVIDER_COLORS[p] || '#6b7280';
+        return (
+          <span className="text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap" style={{ backgroundColor: `${color}20`, color }}>
+            {p}
+          </span>
+        );
+      },
+    },
+    {
+      accessorKey: 'account_id',
+      header: 'Account',
+      size: 120,
+      cell: (info) => (
+        <span className="text-xs font-mono whitespace-nowrap" style={{ color: 'var(--text-tertiary)' }}>
+          {info.getValue() || info.row.original.account || '—'}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'region',
+      header: 'Region',
+      size: 110,
+      cell: (info) => (
+        <span className="text-xs whitespace-nowrap" style={{ color: 'var(--text-tertiary)' }}>
+          {info.getValue() || '—'}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'resource_type',
+      header: 'Service',
+      size: 90,
+      cell: (info) => {
+        const val = info.getValue();
+        if (!val) return <span className="text-xs" style={{ color: 'var(--text-muted)' }}>—</span>;
+        return (
+          <span className="text-xs px-2 py-0.5 rounded whitespace-nowrap" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
+            {val}
+          </span>
+        );
+      },
+    },
+    {
+      accessorKey: 'rule_id',
+      header: 'Rule ID',
+      size: 200,
+      cell: (info) => (
+        <span className="text-xs font-mono" style={{ color: 'var(--accent-primary)' }}>
+          {info.getValue() || '—'}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'threat_category',
+      header: 'Category',
+      size: 140,
+      cell: (info) => {
+        const val = info.getValue();
+        if (!val) return <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>—</span>;
+        return (
+          <span className="text-xs px-2 py-0.5 rounded font-medium" style={{ backgroundColor: 'rgba(139,92,246,0.12)', color: '#a78bfa' }}>
+            {val.replace(/_/g, ' ')}
+          </span>
+        );
+      },
+    },
+    {
+      accessorKey: 'severity',
+      header: 'Severity',
+      size: 90,
+      cell: (info) => <SeverityBadge severity={info.getValue()} />,
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      size: 70,
+      cell: (info) => {
+        const s = (info.getValue() || '').toUpperCase();
+        const color = s === 'PASS' ? '#22c55e' : '#ef4444';
+        return <span style={{ fontSize: 11, fontWeight: 700, color }}>{s}</span>;
+      },
+    },
+    {
+      accessorKey: 'mitre_techniques',
+      header: 'MITRE',
+      size: 100,
+      cell: (info) => {
+        const techs = info.getValue() || [];
+        const list = Array.isArray(techs) ? techs : [];
+        if (!list.length) return <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>—</span>;
+        return (
+          <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(59,130,246,0.12)', color: '#60a5fa' }}>
+            {list[0]}{list.length > 1 ? ` +${list.length - 1}` : ''}
+          </span>
+        );
+      },
+    },
+  ], []);
+
+  // ── Findings filter options ────────────────────────────────────────────
+  const findingFilters = [
+    {
+      key: 'provider', label: 'Cloud Platform',
+      options: [{ value: 'AWS', label: 'AWS' }, { value: 'AZURE', label: 'Azure' }, { value: 'GCP', label: 'GCP' }],
+    },
+    {
+      key: 'severity', label: 'Severity',
+      options: [
+        { value: 'critical', label: 'Critical' }, { value: 'high', label: 'High' },
+        { value: 'medium', label: 'Medium' }, { value: 'low', label: 'Low' },
+      ],
+    },
+    {
+      key: 'status', label: 'Status',
+      options: [{ value: 'FAIL', label: 'FAIL' }, { value: 'PASS', label: 'PASS' }],
+    },
+  ];
+
   // ── Tab definitions with counts ───────────────────────────────────────
   const tabDefs = useMemo(() => [
     { id: 'overview',   label: 'Overview' },
-    { id: 'all', label: 'All', count: baseThreats.length },
-    { id: 'critical', label: 'Critical', count: baseThreats.filter(t => t.severity === 'critical').length },
-    { id: 'high', label: 'High', count: baseThreats.filter(t => t.severity === 'high').length },
-    { id: 'attackPath', label: 'Has Attack Path', count: baseThreats.filter(t => t.hasAttackPath === true).length },
-    { id: 'unassigned', label: 'Unassigned', count: baseThreats.filter(t => !t.assignee).length },
-  ], [baseThreats]);
+    { id: 'all',        label: 'All',            count: baseThreats.length },
+    { id: 'critical',   label: 'Critical',        count: baseThreats.filter(t => t.severity === 'critical').length },
+    { id: 'high',       label: 'High',            count: baseThreats.filter(t => t.severity === 'high').length },
+    { id: 'attackPaths', label: 'Attack Paths',    count: attackPaths.length },
+    { id: 'unassigned', label: 'Unassigned',      count: baseThreats.filter(t => !t.assignee).length },
+    { id: 'findings',   label: 'Findings',        count: findings.length },
+  ], [baseThreats, findings]);
 
   // ── Tab data: each tab gets pre-filtered data ─────────────────────────
   const tabData = useMemo(() => {
     return {
-      all: { columns, data: baseThreats },
-      critical: { columns, data: baseThreats.filter(t => t.severity === 'critical') },
-      high: { columns, data: baseThreats.filter(t => t.severity === 'high') },
-      attackPath: { columns, data: baseThreats.filter(t => t.hasAttackPath === true) },
+      all:        { columns, data: baseThreats },
+      critical:   { columns, data: baseThreats.filter(t => t.severity === 'critical') },
+      high:       { columns, data: baseThreats.filter(t => t.severity === 'high') },
+      attackPaths: {
+        renderTab: () => <AttackPathList paths={attackPaths} loading={attackPathsLoading} />,
+      },
       unassigned: { columns, data: baseThreats.filter(t => !t.assignee) },
+      findings:   {
+        columns: findingsColumns,
+        data: findings,
+        filters: findingFilters,
+        searchPlaceholder: 'Search by rule, resource, category...',
+      },
     };
-  }, [baseThreats, columns]);
+  }, [baseThreats, findings, columns, findingsColumns]);
 
   // ── Page context ──────────────────────────────────────────────────────
   const pageContext = useMemo(() => ({
@@ -559,7 +740,7 @@ export default function ThreatsPage() {
   }), [tabDefs]);
 
   // ── Custom KPI strip ─────────────────────────────────────────────────
-  const attackPathCount = useMemo(() => baseThreats.filter(t => t.hasAttackPath).length, [baseThreats]);
+  const attackPathCount = attackPaths.length || baseThreats.filter(t => t.hasAttackPath).length;
   const resolvedCount   = useMemo(() => threats.filter(t => t.status === 'resolved').length, [threats]);
 
   const kpiStripNode = useMemo(() => (
@@ -697,9 +878,30 @@ export default function ThreatsPage() {
 
   // ── Row click handler ─────────────────────────────────────────────────
   const handleRowClick = useCallback((row) => {
-    const threat = row?.original || row;
-    if (threat?.id) router.push(`/threats/${threat.id}`);
-  }, [router]);
+    const item = row?.original || row;
+    if (!item) return;
+
+    // Discriminate: atomic findings always have a dotted rule_id (e.g. "aws.iam.xxx")
+    const isFinding = !!(item.rule_id && item.rule_id.includes('.'));
+
+    if (isFinding) {
+      // Open generic finding panel
+      setSelectedFinding({
+        ...item,
+        title:        item.title || item.rule_id || '',
+        resource_uid: item.resource_uid || '',
+        account_id:   item.account_id || item.account || '',
+        description:  item.description || (item.threat_category ? `Threat category: ${item.threat_category}` : ''),
+        mitre_tactics:    item.mitre_tactics    || [],
+        mitre_techniques: item.mitre_techniques || [],
+      });
+    } else {
+      // Use pre-computed contributingFindings from BFF (exact finding_refs join)
+      // Falls back to empty array if not present (real data with no findings yet)
+      const related = item.contributingFindings || [];
+      setSelectedThreat({ ...item, relatedFindings: related });
+    }
+  }, [findings]);
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
@@ -741,6 +943,18 @@ export default function ThreatsPage() {
         onRowClick={handleRowClick}
         hideHeader
         topNav
+      />
+
+      <ThreatDetailPanel
+        threat={selectedThreat}
+        relatedFindings={selectedThreat?.relatedFindings || []}
+        open={!!selectedThreat}
+        onClose={() => setSelectedThreat(null)}
+      />
+      <FindingDetailPanel
+        finding={selectedFinding}
+        open={!!selectedFinding}
+        onClose={() => setSelectedFinding(null)}
       />
     </div>
   );

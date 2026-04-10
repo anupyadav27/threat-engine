@@ -27,6 +27,7 @@ def _project_root() -> Path:
 from engine.service_scanner import extract_value, evaluate_condition, resolve_template
 from engine.database_manager import DatabaseManager
 from engine.discovery_reader import DiscoveryReader
+from common.database.inventory_reader import InventoryReader
 from engine.rule_reader import RuleReader
 from engine.check_validator import CheckValidator
 from utils.phase_logger import PhaseLogger
@@ -46,7 +47,12 @@ class CheckEngine:
                        If None, auto-detect from environment
         """
         self.db = db_manager  # For storing check results
-        self.discovery_reader = DiscoveryReader()  # For reading discoveries from discoveries DB
+        data_source = os.getenv("CHECK_DATA_SOURCE", "discovery").lower()
+        if data_source == "inventory":
+            self.discovery_reader = InventoryReader()
+            logger.info("AWS CheckEngine reading from inventory_findings")
+        else:
+            self.discovery_reader = DiscoveryReader()
         self.use_ndjson = self._determine_mode(use_ndjson)
         self.phase_logger = None
 
@@ -531,7 +537,7 @@ class CheckEngine:
                             rule_id: str, item_record: Dict, status: str,
                             checked_fields: List[str], finding_data: Dict,
                             service: str = None, discovery_id: str = None,
-                            resource_service: str = None):
+                            resource_service: str = None, severity: str = None):
         """
         Store check result (database or file-based)
         """
@@ -554,6 +560,7 @@ class CheckEngine:
                 resource_id=item_record.get('resource_id'),
                 resource_type=item_record.get('service'),
                 status=status,
+                severity=severity,
                 checked_fields=checked_fields,
                 finding_data=finding_data,
                 service=service,
@@ -751,9 +758,10 @@ class CheckEngine:
                     for_each = check.get('for_each')  # Discovery ID
                     conditions = check.get('conditions')
 
-                    # Resolve resource_service from metadata (cross-service fix)
+                    # Resolve resource_service and severity from metadata
                     rule_meta = metadata_map.get(rule_id, {})
                     resource_service = rule_meta.get('resource_service') or service
+                    rule_severity = rule_meta.get('severity')
 
                     if not for_each or not conditions:
                         self.phase_logger.warning(f"  ⚠️  Check {rule_id} missing for_each or conditions")
@@ -867,6 +875,7 @@ class CheckEngine:
                                     'resource_id': resource_id,
                                     'resource_type': item_record.get('service'),
                                     'status': status,
+                                    'severity': rule_severity,
                                     'checked_fields': checked_fields,
                                     'finding_data': finding_data,
                                     'first_seen_at': datetime.now().isoformat()
@@ -883,6 +892,7 @@ class CheckEngine:
                                     rule_id=rule_id,
                                     item_record=item_record,
                                     status=status,
+                                    severity=rule_severity,
                                     checked_fields=checked_fields,
                                     finding_data=finding_data,
                                     service=service,

@@ -1,253 +1,236 @@
 'use client';
 
 /**
- * Architecture Diagram v2 — Two-column layout with horizontal subnets.
+ * Architecture Diagram — Landscape Layout
  *
- * Layout:
- *   ┌──────────────────────────────────────────────┬──────────────────┐
- *   │  REGIONS (70%)                               │ GLOBAL (30%)     │
- *   │  ┌─ Region: us-east-1 ────────────────────┐  │ ┌─ Global ────┐ │
- *   │  │ ┌─ VPC: vpc-abc ────────────────────┐  │  │ │ S3 buckets  │ │
- *   │  │ │ [IGW] [RT:3] [NACL:2] [VPCe:1]   │  │  │ │ CloudFront  │ │
- *   │  │ │ ┌Public┐ ┌Private┐ ┌Database┐     │  │  │ │ Route53     │ │
- *   │  │ │ │ ALB  │ │ EC2   │ │ RDS    │     │  │  │ │ Lambda      │ │
- *   │  │ │ │ IGW  │ │ EKS   │ │ Aurora │     │  │  │ └─────────────┘ │
- *   │  │ │ └──────┘ └───────┘ └────────┘     │  │  │                 │
- *   │  │ └───────────────────────────────────┘  │  │                 │
- *   │  │ Regional: Bedrock, SQS, SNS            │  │                 │
- *   │  └────────────────────────────────────────┘  │                 │
- *   └──────────────────────────────────────────────┴──────────────────┘
- *   ┌─ Supporting Services Reference ────────────────────────────────┐
- *   │ Identity: IAM-R1 ThreatEngineRole, IAM-R2 eks-cluster-role    │
- *   │ Security: SG-1 default, SG-2 launch-wizard-1                  │
- *   │ Network:  RT-1 main, NACL-1 default                           │
- *   └────────────────────────────────────────────────────────────────┘
+ * Per-account view. TGW strip on the far left spans full account height.
+ * Regions scroll horizontally. Inside each VPC:
+ *   ALB/Edge tier (leftmost) | Public subnets | Private subnets (main area)
+ * Compute inside subnets is grouped by PaaS type (eks-compute, rds-compute, …).
+ * Public services (S3, CloudFront, Route53…) in a fixed right column.
+ * Supporting services (IAM, KMS, SGs…) in a collapsible bottom bar.
  */
 
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import * as LucideIcons from 'lucide-react';
 import { getFromEngine } from '@/lib/api';
-import {
-  classifyLinkFamily,
-  getServiceIcon,
-  NESTING_COLORS,
-  getVNetLabel,
-} from '@/lib/inventory-taxonomy';
-import { CLOUD_PROVIDERS } from '@/lib/constants';
 import { useGlobalFilter } from '@/lib/global-filter-context';
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
+// ── Icons ─────────────────────────────────────────────────────────────────────
 
-function LucideIcon({ name, size = 16, color, className = '' }) {
-  const Icon = LucideIcons[name] || LucideIcons.Box;
-  return <Icon size={size} color={color} className={className} />;
+function Icon({ name, size = 14, className = '' }) {
+  const C = LucideIcons[name] || LucideIcons.Box;
+  return <C size={size} className={className} />;
 }
 
-const CATEGORY_CONFIG = {
-  // Compute
-  compute:               { icon: 'Server',       color: '#3b82f6', label: 'Compute' },
-  'compute-container':   { icon: 'Container',    color: '#06b6d4', label: 'Containers' },
-  'compute-database':    { icon: 'Database',     color: '#8b5cf6', label: 'Database' },
-  'compute-serverless':  { icon: 'Zap',          color: '#d97706', label: 'Serverless' },
-  'compute-analytics':   { icon: 'BarChart3',    color: '#0ea5e9', label: 'Analytics' },
-  // Legacy compute_ variants (from architecture builder grouping)
-  compute_eks:           { icon: 'Container',    color: '#2563eb', label: 'Compute · EKS' },
-  compute_ecs:           { icon: 'Container',    color: '#1d4ed8', label: 'Compute · ECS' },
-  compute_rds:           { icon: 'Database',     color: '#7c3aed', label: 'Compute · RDS' },
-  compute_redshift:      { icon: 'Database',     color: '#6d28d9', label: 'Compute · Redshift' },
-  compute_sagemaker:     { icon: 'Brain',        color: '#c026d3', label: 'Compute · SageMaker' },
-  compute_emr:           { icon: 'Server',       color: '#0891b2', label: 'Compute · EMR' },
-  compute_elasticache:   { icon: 'Database',     color: '#059669', label: 'Compute · ElastiCache' },
-  compute_opensearch:    { icon: 'Database',     color: '#e11d48', label: 'Compute · OpenSearch' },
-  compute_lambda:        { icon: 'Zap',          color: '#d97706', label: 'Compute · Lambda' },
-  // Network
-  network:               { icon: 'Network',      color: '#64748b', label: 'Network' },
-  'network-lb':          { icon: 'Globe',        color: '#10b981', label: 'Load Balancer' },
-  'network-gateway':     { icon: 'Router',       color: '#64748b', label: 'Gateway' },
-  'network-endpoint':    { icon: 'Plug',         color: '#64748b', label: 'VPC Endpoint' },
-  'network-dns':         { icon: 'Globe',        color: '#0ea5e9', label: 'DNS' },
-  // Storage
-  storage:               { icon: 'HardDrive',    color: '#f59e0b', label: 'Storage' },
-  'storage-object':      { icon: 'HardDrive',    color: '#f59e0b', label: 'Object Storage' },
-  'storage-block':       { icon: 'HardDrive',    color: '#f59e0b', label: 'Block Storage' },
-  'storage-file':        { icon: 'FolderOpen',   color: '#f59e0b', label: 'File Storage' },
-  // Security & Identity
-  security:              { icon: 'Shield',       color: '#ef4444', label: 'Security' },
-  identity:              { icon: 'KeyRound',     color: '#f97316', label: 'Identity' },
-  encryption:            { icon: 'Lock',         color: '#a855f7', label: 'Encryption' },
-  // Operations
-  monitoring:            { icon: 'Activity',     color: '#14b8a6', label: 'Monitoring' },
-  logging:               { icon: 'FileText',     color: '#0d9488', label: 'Logging & Audit' },
-  management:            { icon: 'Settings',     color: '#6b7280', label: 'Management' },
-  messaging:             { icon: 'MessageSquare', color: '#ec4899', label: 'Messaging' },
-  // Public services
-  public:                { icon: 'Globe',        color: '#10b981', label: 'Public Services' },
-  // Legacy
-  lambda:                { icon: 'Zap',          color: '#d97706', label: 'Lambda' },
-  file_storage:          { icon: 'FolderOpen',   color: '#f59e0b', label: 'File Storage (EFS)' },
-  container:             { icon: 'Container',    color: '#06b6d4', label: 'Containers' },
-  database:              { icon: 'Database',     color: '#8b5cf6', label: 'Database' },
-  edge:                  { icon: 'Globe',        color: '#10b981', label: 'Edge / CDN' },
-  analytics:             { icon: 'BarChart3',    color: '#0ea5e9', label: 'Analytics' },
-  ai_ml:                 { icon: 'Brain',        color: '#d946ef', label: 'AI / ML' },
-  iot:                   { icon: 'Wifi',         color: '#84cc16', label: 'IoT' },
-  other:                 { icon: 'Box',          color: '#94a3b8', label: 'Other' },
+// ── PaaS compute group config ─────────────────────────────────────────────────
+
+const PAAS_CFG = {
+  'compute':              { label: 'Compute',      icon: 'Server',    border: 'border-slate-500',   bg: 'bg-slate-600/20',    text: 'text-slate-300' },
+  'eks-compute':          { label: 'EKS',          icon: 'Layers',    border: 'border-blue-500',    bg: 'bg-blue-900/20',     text: 'text-blue-300'  },
+  'ecs-compute':          { label: 'ECS',          icon: 'Box',       border: 'border-teal-500',    bg: 'bg-teal-900/20',     text: 'text-teal-300'  },
+  'rds-compute':          { label: 'RDS',          icon: 'Database',  border: 'border-indigo-500',  bg: 'bg-indigo-900/20',   text: 'text-indigo-300'},
+  'elasticache-compute':  { label: 'ElastiCache',  icon: 'Zap',       border: 'border-cyan-500',    bg: 'bg-cyan-900/20',     text: 'text-cyan-300'  },
+  'redshift-compute':     { label: 'Redshift',     icon: 'BarChart3', border: 'border-purple-500',  bg: 'bg-purple-900/20',   text: 'text-purple-300'},
+  'docdb-compute':        { label: 'DocDB',        icon: 'Database',  border: 'border-green-500',   bg: 'bg-green-900/20',    text: 'text-green-300' },
+  'neptune-compute':      { label: 'Neptune',      icon: 'GitBranch', border: 'border-violet-500',  bg: 'bg-violet-900/20',   text: 'text-violet-300'},
+  'sagemaker-compute':    { label: 'SageMaker',    icon: 'Brain',     border: 'border-orange-500',  bg: 'bg-orange-900/20',   text: 'text-orange-300'},
+  'emr-compute':          { label: 'EMR',          icon: 'Cpu',       border: 'border-yellow-500',  bg: 'bg-yellow-900/20',   text: 'text-yellow-300'},
 };
 
-const MODEL_BADGE = {
-  IaaS: { bg: '#dbeafe', color: '#2563eb', label: 'IaaS' },
-  PaaS: { bg: '#dcfce7', color: '#16a34a', label: 'PaaS' },
-  FaaS: { bg: '#fef3c7', color: '#d97706', label: 'FaaS' },
-  SaaS: { bg: '#fce7f3', color: '#db2777', label: 'SaaS' },
-};
-
-const SUBNET_TYPE_COLORS = {
-  public:    { border: '#10b981', bg: '#10b98108', icon: 'Globe',    label: 'Public' },
-  private:   { border: '#3b82f6', bg: '#3b82f608', icon: 'Lock',     label: 'Private' },
-  database:  { border: '#8b5cf6', bg: '#8b5cf608', icon: 'Database', label: 'Database' },
-  analytics: { border: '#0ea5e9', bg: '#0ea5e908', icon: 'BarChart3',label: 'Analytics' },
-  storage:   { border: '#f59e0b', bg: '#f59e0b08', icon: 'HardDrive',label: 'Storage' },
-  unknown:   { border: '#64748b', bg: '#64748b08', icon: 'Layers',   label: 'Subnet' },
-};
-
-const CATEGORY_ORDER = [
-  'network-lb', 'network-gateway', 'network-endpoint', 'network-dns',
-  'compute', 'compute-container', 'compute-database', 'compute-serverless', 'compute-analytics',
-  'compute_eks', 'compute_ecs', 'compute_rds', 'compute_lambda',
-  'storage-object', 'storage-block', 'storage-file',
-  'edge', 'public', 'container', 'database', 'file_storage', 'storage',
-  'lambda', 'network', 'messaging', 'analytics', 'ai_ml', 'iot', 'other',
+// Regional service categories shown below VPCs
+const REGIONAL_CATS = [
+  'compute-serverless', 'compute-database', 'compute-analytics',
+  'messaging', 'network-dns', 'services',
 ];
 
-function sortCategories(entries) {
-  return entries.sort(([a], [b]) => {
-    const ai = CATEGORY_ORDER.indexOf(a);
-    const bi = CATEGORY_ORDER.indexOf(b);
-    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
-  });
-}
+// Supporting service categories rendered in bottom bar
+const SUPPORTING_CFG = {
+  identity:        { icon: 'KeyRound',    label: 'IAM',           color: 'text-orange-400' },
+  encryption:      { icon: 'Lock',        label: 'KMS / Certs',   color: 'text-purple-400' },
+  monitoring:      { icon: 'Activity',    label: 'Monitoring',    color: 'text-teal-400'   },
+  logging:         { icon: 'FileText',    label: 'Logs',          color: 'text-cyan-400'   },
+  management:      { icon: 'Settings',    label: 'Management',    color: 'text-slate-400'  },
+  security:        { icon: 'Shield',      label: 'Security',      color: 'text-red-400'    },
+  'storage-block': { icon: 'HardDrive',   label: 'EBS / Volumes', color: 'text-amber-400'  },
+  'storage-file':  { icon: 'FolderOpen',  label: 'EFS',           color: 'text-amber-300'  },
+};
 
-// ── ResourceChip ────────────────────────────────────────────────────────────
+// Public-facing service categories shown in right column
+const PUBLIC_CATS = [
+  'storage-object', 'internet_edge', 'public', 'network-dns',
+];
 
-/**
- * Scroll to a supporting-service ref in the Supporting Services Reference
- * section and flash-highlight it.
- */
-function scrollToRef(refId) {
-  const el = document.getElementById(`supporting-ref-${refId}`);
-  if (el) {
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    el.classList.add('ring-2', 'ring-indigo-400');
-    setTimeout(() => el.classList.remove('ring-2', 'ring-indigo-400'), 2000);
+// Gateway types → icon + colour (VPC-internal, shown in gateway strip)
+const GW_CFG = {
+  'ec2.internet-gateway':       { icon: 'Globe',      label: 'IGW',  color: 'text-green-400'  },
+  'ec2.nat-gateway':            { icon: 'ArrowRight', label: 'NAT',  color: 'text-yellow-400' },
+  'ec2.vpn-gateway':            { icon: 'Lock',       label: 'VGW',  color: 'text-orange-400' },
+  'ec2.vpc-peering-connection': { icon: 'GitMerge',   label: 'Peer', color: 'text-blue-400'   },
+};
+
+// Subnet / VPC badge icons (attached resources shown as icon badges)
+const BADGE_ICONS = {
+  'ec2.network-acl':       { icon: 'TableProperties', label: 'NACL', color: 'text-red-400'    },
+  'ec2.route-table':       { icon: 'Route',            label: 'RT',   color: 'text-blue-400'   },
+  'ec2.network-interface': { icon: 'Network',           label: 'ENI',  color: 'text-slate-400'  },
+  'ec2.security-group':    { icon: 'ShieldCheck',       label: 'SG',   color: 'text-orange-400' },
+  'ec2.vpc-endpoint':      { icon: 'PlugZap',           label: 'VPCE', color: 'text-purple-400' },
+  'ec2.address':           { icon: 'Globe',             label: 'EIP',  color: 'text-cyan-400'   },
+};
+
+// Per-resource-type config used inside supporting service sub-boxes
+const RESOURCE_TYPE_CFG = {
+  'iam.role':              { icon: 'UserCog',        label: 'Roles',            color: 'text-orange-400' },
+  'iam.policy':            { icon: 'ScrollText',     label: 'Policies',         color: 'text-orange-300' },
+  'iam.instance-profile':  { icon: 'ServerCog',      label: 'Instance Profiles',color: 'text-orange-200' },
+  'iam.user':              { icon: 'User',            label: 'Users',            color: 'text-orange-400' },
+  'iam.group':             { icon: 'Users',           label: 'Groups',           color: 'text-orange-300' },
+  'kms.key':               { icon: 'KeyRound',        label: 'KMS Keys',         color: 'text-purple-400' },
+  'kms.alias':             { icon: 'Tag',             label: 'KMS Aliases',      color: 'text-purple-300' },
+  'acm.certificate':       { icon: 'BadgeCheck',      label: 'Certificates',     color: 'text-purple-300' },
+  'ec2.security-group':    { icon: 'ShieldCheck',     label: 'Security Groups',  color: 'text-red-400'    },
+  'ec2.network-acl':       { icon: 'TableProperties', label: 'NACLs',            color: 'text-red-300'    },
+  'ec2.route-table':       { icon: 'Route',           label: 'Route Tables',     color: 'text-blue-300'   },
+  'ecr.repository':        { icon: 'Container',       label: 'ECR Repos',        color: 'text-teal-400'   },
+  'cloudtrail.trail':      { icon: 'Activity',        label: 'CloudTrail',       color: 'text-teal-400'   },
+  'logs.resource':         { icon: 'FileText',        label: 'Log Groups',       color: 'text-cyan-400'   },
+  'backup.resource':       { icon: 'Archive',         label: 'Backup Plans',     color: 'text-green-400'  },
+  'ram.permission':        { icon: 'Share2',          label: 'RAM Permissions',  color: 'text-amber-400'  },
+  'elasticbeanstalk.platform': { icon: 'Cpu',         label: 'EB Platforms',     color: 'text-slate-400'  },
+  'bedrock.foundation-model': { icon: 'Brain',        label: 'Bedrock Models',   color: 'text-violet-400' },
+};
+
+// External connectivity types — shown OUTSIDE the account box, only if resources exist
+const EXTERNAL_CFG = {
+  'ec2.vpn-gateway': {
+    group: 'vpn',      label: 'VPN Gateway',     icon: 'Lock',       color: 'text-orange-400', border: 'border-orange-700', bg: 'bg-orange-950/40',
+  },
+  'ec2.vpn-connection': {
+    group: 'vpn',      label: 'VPN Connection',  icon: 'Lock',       color: 'text-orange-300', border: 'border-orange-700', bg: 'bg-orange-950/40',
+  },
+  'ec2.customer-gateway': {
+    group: 'vpn',      label: 'Customer GW',     icon: 'Building2',  color: 'text-yellow-400', border: 'border-yellow-700', bg: 'bg-yellow-950/40',
+  },
+  'ec2.transit-gateway': {
+    group: 'tgw',      label: 'Transit GW',      icon: 'Share2',     color: 'text-orange-400', border: 'border-orange-700', bg: 'bg-orange-950/40',
+  },
+  'ec2.vpc-peering-connection': {
+    group: 'peering',  label: 'VPC Peering',     icon: 'GitMerge',   color: 'text-blue-400',   border: 'border-blue-700',   bg: 'bg-blue-950/40',
+  },
+  'directconnect.connection': {
+    group: 'dx',       label: 'Direct Connect',  icon: 'Cable',      color: 'text-purple-400', border: 'border-purple-700', bg: 'bg-purple-950/40',
+  },
+  'directconnect.virtual-interface': {
+    group: 'dx',       label: 'DX Interface',    icon: 'Plug',       color: 'text-purple-300', border: 'border-purple-600', bg: 'bg-purple-900/30',
+  },
+  'directconnect.direct-connect-gateway': {
+    group: 'dx',       label: 'DX Gateway',      icon: 'Router',     color: 'text-violet-400', border: 'border-violet-700', bg: 'bg-violet-950/40',
+  },
+};
+
+// Group display order + labels for the external panel
+const EXTERNAL_GROUPS = {
+  dx:      { label: 'Direct Connect',   icon: 'Cable',    color: 'text-purple-400', border: 'border-purple-700', bg: 'bg-purple-950/30' },
+  vpn:     { label: 'VPN / On-Prem',    icon: 'Lock',     color: 'text-orange-400', border: 'border-orange-700', bg: 'bg-orange-950/30' },
+  tgw:     { label: 'Transit Gateway',  icon: 'Share2',   color: 'text-orange-300', border: 'border-orange-600', bg: 'bg-orange-900/20' },
+  peering: { label: 'VPC Peering',      icon: 'GitMerge', color: 'text-blue-400',   border: 'border-blue-700',   bg: 'bg-blue-950/30'   },
+};
+
+/** Scan account data and return only the external connection groups that have resources. */
+function collectExternalConnections(account) {
+  const found = {}; // group → { cfg, items[] }
+
+  const addItem = (type, resource, region) => {
+    const cfg = EXTERNAL_CFG[type];
+    if (!cfg) return;
+    const g = cfg.group;
+    if (!found[g]) found[g] = { cfg: EXTERNAL_GROUPS[g], items: [] };
+    found[g].items.push({ ...resource, _type: type, _region: region });
+  };
+
+  for (const region of account.regions || []) {
+    // VPC gateways (vpn-gateway, peering, etc.)
+    for (const vpc of region.vpcs || []) {
+      for (const gw of vpc.gateways || []) {
+        addItem(gw.type || gw.resource_type, gw, region.region);
+      }
+    }
+    // Regional primary — network-gateway bucket (TGW) + anything else
+    for (const [, items] of Object.entries(region.regional_primary || {})) {
+      for (const item of items) {
+        addItem(item.type || item.resource_type, item, region.region);
+      }
+    }
+    // Supporting services (DX resources may land here)
+    for (const [, data] of Object.entries(account.supporting_services || {})) {
+      for (const item of (Array.isArray(data) ? data : data?.items || [])) {
+        addItem(item.type || item.resource_type, item, region.region);
+      }
+    }
   }
+
+  // Return ordered by EXTERNAL_GROUPS key order
+  return Object.keys(EXTERNAL_GROUPS)
+    .filter(g => found[g])
+    .map(g => ({ group: g, ...found[g] }));
 }
 
-function ResourceChip({ resource, onClick, compact = false }) {
-  const [hovered, setHovered] = useState(false);
-  const catConfig = CATEGORY_CONFIG[resource.category] || CATEGORY_CONFIG.other;
-  const iconName = getServiceIcon(resource.resource_type) || catConfig.icon;
-  const _garbage = /^(iip-assoc-|List[A-Z]|Describe[A-Z]|Get[A-Z])/;
-  const _pick = (v) => v && !_garbage.test(v) ? v : null;
-  const displayName = _pick(resource.name) || _pick(resource.resource_id)
-    || resource.resource_uid?.split('/').pop() || '?';
-  const modelBadge = resource.service_model ? MODEL_BADGE[resource.service_model] : null;
-  const refIds = resource.ref_ids || [];
-  const hasRefs = refIds.length > 0;
+// ── Utilities ─────────────────────────────────────────────────────────────────
 
+function shortName(r) {
+  const n = r?.name || r?.display_name || r?.resource_id || '';
+  return n.length > 18 ? n.slice(0, 16) + '…' : (n || r?.uid?.split('/').pop()?.slice(-12) || '?');
+}
+
+function riskRing(score) {
+  if (score >= 70) return 'ring-1 ring-red-500';
+  if (score >= 40) return 'ring-1 ring-yellow-500';
+  return '';
+}
+
+// ── Resource chip ─────────────────────────────────────────────────────────────
+
+function ResourceChip({ resource, onClick }) {
+  const risk = resource?.risk_score;
   return (
-    <div
-      id={`resource-${resource.resource_uid}`}
-      className="inline-flex flex-col rounded-lg cursor-pointer transition-all"
-      style={{
-        backgroundColor: hovered ? catConfig.color + '12' : 'rgba(100,116,139,0.05)',
-        border: `1px solid ${hovered ? catConfig.color + '40' : 'rgba(100,116,139,0.12)'}`,
-        minWidth: hasRefs && !compact ? 160 : undefined,
-      }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      title={[displayName, resource.resource_type, resource.subcategory].filter(Boolean).join('\n')}
+    <button
+      onClick={() => onClick?.(resource)}
+      title={`${resource.type || resource.resource_type}\n${resource.uid || resource.resource_uid}`}
+      className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded
+        bg-slate-700 border border-slate-600 text-slate-300
+        hover:bg-slate-600 hover:border-slate-400 transition-colors cursor-pointer
+        ${riskRing(risk)}`}
     >
-      {/* Top row: icon + name + badges — clicking goes to asset page */}
-      <div
-        className="flex items-center gap-1.5 px-2 py-1.5 text-xs"
-        onClick={() => onClick?.(resource)}
-      >
-        <LucideIcon name={iconName} size={compact ? 12 : 14} color={catConfig.color} />
-        <span style={{ color: 'var(--text-primary)', maxWidth: compact ? 120 : 180 }} className="truncate font-medium">
-          {displayName}
-        </span>
-        {!compact && modelBadge && (
-          <span className="text-[8px] px-1 rounded font-medium"
-            style={{ backgroundColor: modelBadge.bg, color: modelBadge.color }}>
-            {modelBadge.label}
-          </span>
-        )}
-        {resource.access_pattern === 'public' && (
-          <LucideIcon name="Globe" size={10} color="#10b981" />
-        )}
-        {resource.posture?.total_critical > 0 && (
-          <span className="text-[8px] px-1 rounded font-bold"
-            style={{ backgroundColor: '#fef2f2', color: '#dc2626' }}>
-            {resource.posture.total_critical}C
-          </span>
-        )}
-      </div>
-
-      {/* Bottom row: ref-id badges — each is an isolated clickable box */}
-      {hasRefs && (
-        <div className="flex flex-wrap gap-1 px-1.5 pb-1.5"
-          style={{ borderTop: '1px solid rgba(100,116,139,0.08)' }}>
-          {refIds.map(r => (
-            <button
-              key={r}
-              className="text-[8px] px-1.5 py-0.5 rounded font-mono transition-colors cursor-pointer"
-              style={{
-                backgroundColor: 'rgba(99,102,241,0.08)',
-                color: '#818cf8',
-                border: '1px solid rgba(99,102,241,0.18)',
-              }}
-              title={`Scroll to ${r} in Supporting Services`}
-              onClick={(e) => { e.stopPropagation(); scrollToRef(r); }}
-              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(99,102,241,0.20)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(99,102,241,0.08)'; }}
-            >
-              {r}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+      <span className="max-w-[120px] truncate">{shortName(resource)}</span>
+      {risk >= 70 && <span className="text-red-400 text-[8px]">●</span>}
+    </button>
   );
 }
 
-// ── CategoryGroup ───────────────────────────────────────────────────────────
+// ── Compute group (PaaS grouping inside subnet) ───────────────────────────────
 
-function CategoryGroup({ category, resources, onResourceClick, compact = false }) {
-  const [collapsed, setCollapsed] = useState(false);
-  const config = CATEGORY_CONFIG[category] || CATEGORY_CONFIG.other;
-  if (!resources || resources.length === 0) return null;
+function ComputeGroup({ groupKey, resources, onClick }) {
+  const [exp, setExp] = useState(true);
+  const cfg = PAAS_CFG[groupKey] || PAAS_CFG.compute;
+  if (!resources?.length) return null;
 
   return (
-    <div className="mb-1">
-      <div
-        className="flex items-center gap-1.5 cursor-pointer py-0.5 px-1.5 rounded"
-        style={{ borderLeft: `2px solid ${config.color}` }}
-        onClick={() => setCollapsed(!collapsed)}
+    <div className={`rounded border ${cfg.border} ${cfg.bg} p-1.5 mb-1`}>
+      <button
+        className={`flex items-center gap-1 w-full text-left ${cfg.text} mb-1`}
+        onClick={() => setExp(v => !v)}
       >
-        <LucideIcon name={collapsed ? 'ChevronRight' : 'ChevronDown'} size={10} color="var(--text-tertiary)" />
-        <LucideIcon name={config.icon} size={11} color={config.color} />
-        <span className="text-[10px] font-medium" style={{ color: config.color }}>
-          {config.label}
-        </span>
-        <span className="text-[9px]" style={{ color: 'var(--text-tertiary)' }}>
-          ({resources.length})
-        </span>
-      </div>
-      {!collapsed && (
-        <div className="flex flex-wrap gap-1 mt-0.5 pb-1 px-1.5 pl-4">
+        <Icon name={cfg.icon} size={10} className={cfg.text} />
+        <span className="text-[9px] font-semibold">{cfg.label}</span>
+        <span className="text-[9px] text-slate-500 ml-1">×{resources.length}</span>
+        <span className="ml-auto text-[8px] text-slate-600">{exp ? '▾' : '▸'}</span>
+      </button>
+      {exp && (
+        <div className="flex flex-wrap gap-1">
           {resources.map(r => (
-            <ResourceChip key={r.resource_uid} resource={r} onClick={onResourceClick} compact={compact} />
+            <ResourceChip key={r.uid || r.resource_uid} resource={r} onClick={onClick} />
           ))}
         </div>
       )}
@@ -255,50 +238,92 @@ function CategoryGroup({ category, resources, onResourceClick, compact = false }
   );
 }
 
-// ── CategoryGroupedResources ────────────────────────────────────────────────
+// ── Subnet column ─────────────────────────────────────────────────────────────
 
-function CategoryGroupedResources({ resourcesByCategory, onResourceClick, compact = false }) {
-  const entries = sortCategories(Object.entries(resourcesByCategory || {}));
-  if (entries.length === 0) return null;
+function SubnetColumn({ subnet, onClick }) {
+  const isPublic = subnet.subnet_type === 'public';
+  const rbc = subnet.resources_by_category || {};
+  const total = Object.values(rbc).reduce((s, a) => s + a.length, 0);
+  const az = subnet.az?.split('-').pop() || '';
 
   return (
-    <div className="space-y-0.5">
-      {entries.map(([cat, resources]) => (
-        <CategoryGroup
-          key={cat} category={cat} resources={resources}
-          onResourceClick={onResourceClick} compact={compact}
-        />
-      ))}
+    <div className={`rounded border p-2 min-w-[170px] max-w-[260px] flex-shrink-0
+      ${isPublic
+        ? 'border-amber-700 bg-amber-950/30'
+        : 'border-slate-500 bg-slate-700/20'}`}
+    >
+      {/* Header */}
+      <div className="flex items-center gap-1 mb-2">
+        <span className={`text-[8px] font-bold px-1 rounded
+          ${isPublic ? 'bg-amber-800 text-amber-200' : 'bg-slate-700 text-slate-400'}`}>
+          {isPublic ? 'PUB' : 'PRIV'}
+        </span>
+        <span className="text-[10px] text-slate-400 truncate flex-1" title={subnet.name}>
+          {subnet.name}
+        </span>
+        <span className="text-[9px] text-slate-600">{az}</span>
+      </div>
+
+      {/* Badges (NACL, RT, ENI) with Lucide icons */}
+      {subnet.badges?.length > 0 && (
+        <div className="flex gap-1 mb-1 flex-wrap">
+          {subnet.badges.map((b, i) => {
+            const bc = BADGE_ICONS[b.type] || {};
+            return (
+              <span key={i}
+                title={b.type}
+                className={`flex items-center gap-0.5 text-[8px] px-1 py-0.5 rounded
+                  bg-slate-700 border border-slate-600/70 ${bc.color || 'text-slate-400'}`}
+              >
+                <Icon name={bc.icon || 'Box'} size={8} />
+                {bc.label || b.type?.split('.').pop()?.toUpperCase()}
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      {total === 0 && (
+        <div className="text-[9px] text-slate-600 italic mt-1">empty</div>
+      )}
+
+      {/* Compute groups */}
+      {Object.entries(rbc).map(([key, items]) =>
+        items.length > 0 ? (
+          <ComputeGroup key={key} groupKey={key} resources={items} onClick={onClick} />
+        ) : null
+      )}
     </div>
   );
 }
 
-// ── VPC Infrastructure Bar ──────────────────────────────────────────────────
+// ── ALB / edge tier — leftmost inside VPC (internet entry point) ─────────────
 
-function VPCInfraBar({ items }) {
-  if (!items || items.length === 0) return null;
-
-  // Group by subcategory for compact badges
-  const groups = {};
-  items.forEach(item => {
-    const key = item.subcategory || item.category || 'infra';
-    if (!groups[key]) groups[key] = [];
-    groups[key].push(item);
-  });
-
+function ALBEdgeTier({ edgeServices }) {
+  if (!edgeServices?.length) return null;
   return (
-    <div className="flex flex-wrap gap-1.5 mb-2">
-      {Object.entries(groups).map(([key, grp]) => {
-        const catConfig = CATEGORY_CONFIG[grp[0]?.category] || CATEGORY_CONFIG.network;
+    <div className="flex flex-col items-center gap-1.5 px-2 border-x border-slate-600 mx-1">
+      <span className="text-[8px] text-slate-600 font-semibold tracking-widest"
+        style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}>
+        EDGE
+      </span>
+      {edgeServices.map(svc => {
+        const label = svc.name?.split('-').slice(-2).join('-') ||
+          svc.type?.split('.').pop()?.toUpperCase() || 'SVC';
+        const isAlb = (svc.type || '').includes('load-balancer');
+        const isEndpoint = (svc.type || '').includes('endpoint');
         return (
-          <div key={key}
-            className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px]"
-            style={{ backgroundColor: catConfig.color + '12', color: catConfig.color, border: `1px solid ${catConfig.color}20` }}
-            title={grp.map(i => i.name || i.ref_id || i.resource_uid?.split('/').pop()).join(', ')}
+          <div
+            key={svc.uid || svc.resource_uid}
+            title={`${svc.type}\n${svc.name}`}
+            className={`text-[9px] px-1.5 py-1 rounded border text-center w-full cursor-default
+              ${isAlb
+                ? 'border-green-600 bg-green-900/30 text-green-300'
+                : isEndpoint
+                  ? 'border-blue-600 bg-blue-900/30 text-blue-300'
+                  : 'border-slate-500 bg-slate-700/30 text-slate-400'}`}
           >
-            <LucideIcon name={catConfig.icon} size={10} color={catConfig.color} />
-            <span className="font-medium capitalize">{key.replace(/_/g, ' ')}</span>
-            <span className="font-bold">({grp.length})</span>
+            {isAlb ? '⚖' : isEndpoint ? '⬡' : '⊕'} {label}
           </div>
         );
       })}
@@ -306,1076 +331,587 @@ function VPCInfraBar({ items }) {
   );
 }
 
-// ── SubnetColumn ────────────────────────────────────────────────────────────
+// ── VPC box ───────────────────────────────────────────────────────────────────
 
-function SubnetColumn({ subnet, onResourceClick }) {
-  const cats = subnet.resources_by_category || subnet.categories || {};
-  const totalResources = Object.values(cats).reduce((sum, arr) => sum + arr.length, 0);
-  const subnetType = subnet.subnet_type || 'unknown';
-  const typeConfig = SUBNET_TYPE_COLORS[subnetType] || SUBNET_TYPE_COLORS.unknown;
-  // Use subnet name; fall back to subnet ID from UID
-  const rawName = subnet.name || subnet.subnet_uid?.split('/').pop() || 'Subnet';
-  const subnetName = rawName === 'ip-name' ? subnet.subnet_uid?.split('/').pop() : rawName;
-  // AZ: show just the AZ suffix (e.g. "1a" from "ap-south-1a")
-  const azFull = subnet.az || '';
-  const azShort = azFull.replace(/^.*?(\d+[a-z])$/, '$1');
-
-  return (
-    <div
-      className="rounded-lg border p-2 min-w-[220px] flex-1"
-      style={{
-        backgroundColor: typeConfig.bg,
-        borderColor: typeConfig.border + '40',
-        borderTopWidth: 3,
-        borderTopColor: typeConfig.border,
-      }}
-    >
-      {/* Subnet header */}
-      <div className="flex items-center gap-1.5 mb-1">
-        <LucideIcon name={typeConfig.icon} size={12} color={typeConfig.border} />
-        <span className="text-[10px] font-semibold" style={{ color: typeConfig.border }}>
-          {typeConfig.label}
-        </span>
-        {azFull && (
-          <span className="text-[8px] px-1.5 py-0.5 rounded font-bold"
-            style={{ backgroundColor: '#6366f118', color: '#818cf8', border: '1px solid #6366f125' }}>
-            AZ: {azShort || azFull}
-          </span>
-        )}
-        <span className="text-[9px] ml-auto" style={{ color: 'var(--text-tertiary)' }}>
-          ({totalResources})
-        </span>
-      </div>
-      <div className="text-[9px] mb-1.5 truncate font-mono" style={{ color: 'var(--text-tertiary)' }} title={subnetName}>
-        {subnetName}
-      </div>
-
-      {/* Resources stacked vertically by category */}
-      <CategoryGroupedResources
-        resourcesByCategory={cats}
-        onResourceClick={onResourceClick}
-        compact
-      />
-      {totalResources === 0 && (
-        <div className="text-[9px] py-2 text-center" style={{ color: 'var(--text-tertiary)' }}>Empty</div>
-      )}
-    </div>
-  );
-}
-
-// ── VPCBox ───────────────────────────────────────────────────────────────────
-
-function VPCBox({ vpc, provider, onResourceClick }) {
-  const vnetLabel = getVNetLabel(provider);
-  const vpcName = vpc.name || vpc.vpc_uid?.split('/').pop();
-  const subnets = vpc.subnets || [];
+function VPCBox({ vpc, onClick }) {
+  const [collapsed, setCollapsed] = useState(false);
+  const publicSubnets  = (vpc.subnets || []).filter(s => s.subnet_type === 'public');
+  const privateSubnets = (vpc.subnets || []).filter(s => s.subnet_type !== 'public');
+  const gateways    = vpc.gateways    || [];
   const edgeServices = vpc.edge_services || [];
-  const totalSubnetResources = subnets.reduce((sum, s) =>
-    sum + Object.values(s.resources_by_category || s.categories || {}).reduce((s2, arr) => s2 + arr.length, 0), 0
-  );
-  const totalResources = totalSubnetResources + edgeServices.length;
+  const totalSubnets = (vpc.subnets || []).length;
+
+  // Unique gateway types as icon badges
+  const gwTypes = [...new Set(gateways.map(g => g.type || g.resource_type).filter(Boolean))];
+  const edgeTypes = [...new Set(edgeServices.map(e => e.type || e.resource_type).filter(Boolean))];
 
   return (
-    <div
-      className="rounded-xl border p-3 mb-3"
-      style={{ backgroundColor: NESTING_COLORS.vpc.bg, borderColor: NESTING_COLORS.vpc.border, borderWidth: 2 }}
-    >
-      {/* VPC header + infra bar */}
-      <div className="flex items-center gap-2 mb-2">
-        <LucideIcon name="Network" size={16} color="rgba(100,116,139,0.8)" />
-        <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-          {vnetLabel}: {vpcName}
-        </span>
-        <span className="text-[10px] px-1.5 py-0.5 rounded"
-          style={{ backgroundColor: 'rgba(100,116,139,0.10)', color: 'var(--text-secondary)' }}>
-          {totalResources} resources · {subnets.length} subnets
-        </span>
-      </div>
-
-      {/* VPC infrastructure badges (RT, NACL, VPCe, etc.) */}
-      <VPCInfraBar items={vpc.vpc_infrastructure} />
-
-      {/* Horizontal layout: Edge (left) | Subnets (center) */}
-      <div className="flex gap-2">
-        {/* LEFT: Edge vertical column */}
-        {edgeServices.length > 0 && (
-          <div className="w-[150px] shrink-0 rounded-lg border p-2 flex flex-col"
-            style={{ backgroundColor: '#10b98106', borderColor: '#10b98130',
-                     borderTopWidth: 3, borderTopColor: '#10b981' }}>
-            <div className="flex items-center gap-1.5 mb-2">
-              <LucideIcon name="Globe" size={12} color="#10b981" />
-              <span className="text-[10px] font-bold" style={{ color: '#10b981' }}>Edge</span>
-              <span className="text-[9px] ml-auto px-1 py-0.5 rounded-full font-semibold"
-                style={{ backgroundColor: '#10b98115', color: '#10b981' }}>
-                {edgeServices.length}
-              </span>
-            </div>
-            <div className="flex flex-col gap-1">
-              {edgeServices.map(r => (
-                <ResourceChip key={r.resource_uid} resource={r} onClick={onResourceClick} compact />
-              ))}
-            </div>
-          </div>
+    <div className="rounded-lg border border-slate-500 bg-slate-800/40 mb-3">
+      {/* VPC header */}
+      <button
+        className="w-full flex items-center gap-2 px-3 py-1.5 border-b border-slate-600 hover:bg-slate-700/30"
+        onClick={() => setCollapsed(v => !v)}
+      >
+        <Icon name="Network" size={12} className="text-slate-400" />
+        <span className="text-[11px] font-semibold text-slate-200">{vpc.name}</span>
+        {vpc.cidr && (
+          <span className="text-[9px] text-slate-500 bg-slate-700 px-1 rounded">{vpc.cidr}</span>
         )}
-
-        {/* CENTER: Subnets (horizontal scroll) */}
-        <div className="flex-1 min-w-0">
-          {subnets.length > 0 ? (
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {subnets.map(subnet => (
-                <SubnetColumn
-                  key={subnet.subnet_uid}
-                  subnet={subnet}
-                  onResourceClick={onResourceClick}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="text-xs py-3 text-center" style={{ color: 'var(--text-tertiary)' }}>
-              No subnets detected
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── GlobalPrimaryPanel (right column) ───────────────────────────────────────
-
-function GlobalPrimaryPanel({ globalPrimary, onResourceClick }) {
-  const totalResources = Object.values(globalPrimary || {})
-    .reduce((sum, arr) => sum + arr.length, 0);
-  if (totalResources === 0) return null;
-
-  return (
-    <div className="rounded-lg border p-3"
-      style={{ backgroundColor: NESTING_COLORS.az?.bg || '#f8fafc08', borderColor: NESTING_COLORS.az?.border || '#64748b20' }}>
-      <div className="flex items-center gap-2 mb-2">
-        <LucideIcon name="Cloud" size={14} color="var(--text-tertiary)" />
-        <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>
-          GLOBAL PRIMARY
-        </span>
-        <span className="text-[10px]" style={{ color: 'var(--text-tertiary)' }}>
-          ({totalResources})
-        </span>
-      </div>
-      <CategoryGroupedResources
-        resourcesByCategory={globalPrimary}
-        onResourceClick={onResourceClick}
-      />
-    </div>
-  );
-}
-
-// ── PublicServicesPanel (vertical column parallel to regions) ────────────────
-
-function PublicServicesPanel({ publicServices, onResourceClick }) {
-  const entries = sortCategories(Object.entries(publicServices || {}));
-  const totalResources = entries.reduce((sum, [, arr]) => sum + arr.length, 0);
-  if (totalResources === 0) return null;
-
-  return (
-    <div className="rounded-lg border p-3"
-      style={{ backgroundColor: '#f59e0b06', borderColor: '#f59e0b25',
-               borderTopWidth: 3, borderTopColor: '#f59e0b' }}>
-      <div className="flex items-center gap-2 mb-3">
-        <LucideIcon name="Cloud" size={14} color="#f59e0b" />
-        <span className="text-xs font-bold" style={{ color: '#f59e0b' }}>
-          PUBLIC SERVICES
-        </span>
-        <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
-          style={{ backgroundColor: '#f59e0b15', color: '#f59e0b' }}>
-          {totalResources}
-        </span>
-      </div>
-
-      {/* Group by category, each as a bordered sub-section */}
-      <div className="flex flex-col gap-2">
-        {entries.map(([cat, resources]) => {
-          const config = CATEGORY_CONFIG[cat] || CATEGORY_CONFIG.other;
-          // Sub-group by resource_type for better organisation
-          const byType = {};
-          resources.forEach(r => {
-            const rt = r.resource_type || 'unknown';
-            if (!byType[rt]) byType[rt] = [];
-            byType[rt].push(r);
-          });
-          const sortedTypes = Object.entries(byType).sort((a, b) => b[1].length - a[1].length);
-
+        {/* Gateway + edge badges with Lucide icons */}
+        {gwTypes.map(t => {
+          const gc = GW_CFG[t] || BADGE_ICONS[t] || {};
           return (
-            <div key={cat} className="rounded border px-2 py-2"
-              style={{ borderColor: config.color + '25', backgroundColor: config.color + '05' }}>
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <LucideIcon name={config.icon} size={12} color={config.color} />
-                <span className="text-[10px] font-bold" style={{ color: config.color }}>
-                  {config.label}
-                </span>
-                <span className="text-[9px] ml-auto" style={{ color: 'var(--text-tertiary)' }}>
-                  ({resources.length})
-                </span>
-              </div>
-              {sortedTypes.map(([rt, items]) => {
-                const shortType = rt.split('.').pop().replace(/-/g, ' ');
+            <span key={t} title={t}
+              className={`flex items-center gap-0.5 text-[8px] px-1.5 py-0.5 rounded
+                bg-slate-700/80 border border-slate-600/60 ${gc.color || 'text-slate-400'}`}>
+              <Icon name={gc.icon || 'Router'} size={8} />
+              {gc.label || t.split('.').pop().toUpperCase()}
+            </span>
+          );
+        })}
+        {edgeTypes.map(t => (
+          <span key={`edge-${t}`} title={t}
+            className="flex items-center gap-0.5 text-[8px] px-1.5 py-0.5 rounded
+              bg-green-900/40 border border-green-800/60 text-green-400">
+            <Icon name="PlugZap" size={8} />
+            {t.split('.').pop().toUpperCase().slice(0, 6)}
+          </span>
+        ))}
+        <span className="text-[9px] text-slate-600 ml-1">{totalSubnets} subnets</span>
+        <span className="ml-auto text-slate-500 text-[10px]">{collapsed ? '▸' : '▾'}</span>
+      </button>
+
+      {!collapsed && (
+        <div className="p-2">
+          {/* Gateway strip */}
+          {gateways.length > 0 && (
+            <div className="flex flex-wrap gap-1 mb-2 pb-2 border-b border-slate-600/50">
+              {gateways.map(gw => {
+                const gwCfg = GW_CFG[gw.type] || { icon: 'Router', label: gw.type?.split('.').pop(), color: 'text-slate-400' };
                 return (
-                  <div key={rt} className="mb-1">
-                    {sortedTypes.length > 1 && (
-                      <div className="text-[8px] font-semibold capitalize mb-0.5 pl-1"
-                        style={{ color: 'var(--text-tertiary)' }}>
-                        {shortType} ({items.length})
-                      </div>
-                    )}
-                    <div className="flex flex-col gap-0.5">
-                      {items.map(r => (
-                        <div key={r.resource_uid}
-                          className="flex items-center gap-1.5 px-1.5 py-1 rounded cursor-pointer transition-all text-[10px]"
-                          style={{ backgroundColor: 'rgba(100,116,139,0.04)', border: '1px solid rgba(100,116,139,0.08)' }}
-                          onClick={() => onResourceClick?.(r)}
-                          onMouseEnter={(e) => { e.currentTarget.style.borderColor = config.color + '40'; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(100,116,139,0.08)'; }}
-                          title={`${r.name || r.resource_id} · ${r.region || ''}`}
-                        >
-                          <LucideIcon name={config.icon} size={10} color={config.color} />
-                          <span className="truncate" style={{ color: 'var(--text-primary)', maxWidth: 130 }}>
-                            {r.name || r.resource_id || r.resource_uid?.split('/').pop() || '?'}
-                          </span>
-                          {r.region && (
-                            <span className="text-[7px] ml-auto shrink-0 px-1 rounded font-mono"
-                              style={{ color: 'var(--text-tertiary)', backgroundColor: 'rgba(100,116,139,0.08)' }}>
-                              {r.region.replace(/^[a-z]+-[a-z]+-/, '')}
-                            </span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
+                  <div
+                    key={gw.uid || gw.resource_uid}
+                    title={`${gw.type}\n${gw.name}`}
+                    className="flex items-center gap-1 text-[9px] px-2 py-0.5 rounded
+                      border border-slate-600 bg-slate-700/40 cursor-default"
+                  >
+                    <Icon name={gwCfg.icon} size={10} className={gwCfg.color} />
+                    <span className={gwCfg.color}>{gwCfg.label}</span>
                   </div>
                 );
               })}
             </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ── RegionalPrimaryBox ──────────────────────────────────────────────────────
-
-function RegionalPrimaryBox({ regionalPrimary, onResourceClick }) {
-  const totalResources = Object.values(regionalPrimary || {})
-    .reduce((sum, arr) => sum + arr.length, 0);
-  if (totalResources === 0) return null;
-
-  return (
-    <div className="rounded-lg border p-2 mb-2"
-      style={{ backgroundColor: 'rgba(100,116,139,0.04)', borderColor: 'rgba(100,116,139,0.12)' }}>
-      <div className="flex items-center gap-2 mb-1.5">
-        <LucideIcon name="Layers" size={12} color="var(--text-tertiary)" />
-        <span className="text-[10px] font-semibold" style={{ color: 'var(--text-secondary)' }}>
-          REGIONAL SERVICES
-        </span>
-        <span className="text-[9px]" style={{ color: 'var(--text-tertiary)' }}>({totalResources})</span>
-      </div>
-      <CategoryGroupedResources
-        resourcesByCategory={regionalPrimary}
-        onResourceClick={onResourceClick}
-        compact
-      />
-    </div>
-  );
-}
-
-// ── Supporting Services Reference — Vertical Boxes ──────────────────────────
-
-function SupportingServicesTable({ supportingServices, groupsMeta, onResourceClick }) {
-  const [expandedTypes, setExpandedTypes] = useState({});
-
-  const groups = Object.entries(supportingServices || {});
-  if (groups.length === 0) return null;
-
-  const totalCount = groups.reduce((sum, [, grp]) => {
-    const globalCount = (grp.global || []).length;
-    const regionalCount = Object.values(grp.regional || {}).reduce((s, arr) => s + arr.length, 0);
-    return sum + globalCount + regionalCount;
-  }, 0);
-
-  // Toggle expand for a resource_type within a group
-  const toggleType = (groupKey, rtKey) => {
-    const key = `${groupKey}::${rtKey}`;
-    setExpandedTypes(prev => ({ ...prev, [key]: !prev[key] }));
-  };
-
-  return (
-    <div className="rounded-lg border p-3"
-      style={{ backgroundColor: 'rgba(100,116,139,0.03)', borderColor: 'rgba(100,116,139,0.15)' }}>
-      <div className="flex items-center gap-2 mb-3">
-        <LucideIcon name="Table2" size={14} color="var(--text-tertiary)" />
-        <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>
-          SUPPORTING SERVICES REFERENCE
-        </span>
-        <span className="text-[10px]" style={{ color: 'var(--text-tertiary)' }}>
-          ({totalCount} resources)
-        </span>
-      </div>
-
-      {/* Horizontal grid of vertical boxes — one per group */}
-      <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.min(groups.length, 4)}, 1fr)` }}>
-        {groups.map(([groupKey, grp]) => {
-          const meta = (groupsMeta || {})[groupKey] || {};
-          const catConfig = CATEGORY_CONFIG[groupKey] || CATEGORY_CONFIG.other;
-          const allItems = [
-            ...(grp.global || []),
-            ...Object.values(grp.regional || {}).flat(),
-          ];
-          const groupTotal = allItems.length;
-
-          // Group items by resource_type for subcategory breakdown
-          const byType = {};
-          allItems.forEach(item => {
-            const rt = item.resource_type || 'unknown';
-            if (!byType[rt]) byType[rt] = [];
-            byType[rt].push(item);
-          });
-          const sortedTypes = Object.entries(byType).sort((a, b) => b[1].length - a[1].length);
-
-          return (
-            <div key={groupKey}
-              className="rounded-lg border p-2.5 flex flex-col"
-              style={{
-                borderColor: catConfig.color + '30',
-                backgroundColor: catConfig.color + '06',
-                borderTopWidth: 3,
-                borderTopColor: catConfig.color,
-              }}
-            >
-              {/* Group header */}
-              <div className="flex items-center gap-1.5 mb-2">
-                <LucideIcon name={meta.icon || catConfig.icon} size={14} color={catConfig.color} />
-                <span className="text-[11px] font-bold" style={{ color: catConfig.color }}>
-                  {meta.label || catConfig.label}
-                </span>
-                <span className="text-[9px] ml-auto px-1.5 py-0.5 rounded-full font-semibold"
-                  style={{ backgroundColor: catConfig.color + '15', color: catConfig.color }}>
-                  {groupTotal}
-                </span>
-              </div>
-
-              {/* Subcategory rows (grouped by resource_type) */}
-              <div className="flex flex-col gap-1 flex-1">
-                {sortedTypes.map(([rt, items]) => {
-                  const shortType = rt.split('.').pop().replace(/-/g, ' ');
-                  const typeKey = `${groupKey}::${rt}`;
-                  const isExpanded = expandedTypes[typeKey];
-                  const MAX_COLLAPSED = 3;
-                  const showExpand = items.length > MAX_COLLAPSED;
-                  const displayItems = isExpanded ? items : items.slice(0, MAX_COLLAPSED);
-
-                  return (
-                    <div key={rt} className="rounded border px-2 py-1.5"
-                      style={{ borderColor: 'rgba(100,116,139,0.10)', backgroundColor: 'rgba(100,116,139,0.03)' }}>
-                      {/* Subcategory header */}
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <span className="text-[9px] font-semibold capitalize" style={{ color: 'var(--text-secondary)' }}>
-                          {shortType}
-                        </span>
-                        <span className="text-[8px]" style={{ color: 'var(--text-tertiary)' }}>
-                          ({items.length})
-                        </span>
-                      </div>
-                      {/* Resource items with ref_id */}
-                      <div className="flex flex-wrap gap-1">
-                        {displayItems.map(r => {
-                          const refId = r.ref_id;
-                          const itemName = r.name || r.resource_id || r.resource_uid?.split('/').pop() || '?';
-                          return (
-                            <div
-                              key={r.resource_uid}
-                              id={refId ? `supporting-ref-${refId}` : undefined}
-                              className="inline-flex items-center gap-1 px-1.5 py-1 rounded cursor-pointer transition-all text-[10px]"
-                              style={{
-                                backgroundColor: 'rgba(100,116,139,0.05)',
-                                border: '1px solid rgba(100,116,139,0.10)',
-                              }}
-                              onClick={() => onResourceClick?.(r)}
-                              onMouseEnter={(e) => { e.currentTarget.style.borderColor = catConfig.color + '50'; e.currentTarget.style.backgroundColor = catConfig.color + '10'; }}
-                              onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(100,116,139,0.10)'; e.currentTarget.style.backgroundColor = 'rgba(100,116,139,0.05)'; }}
-                              title={`Click to view ${itemName} asset details`}
-                            >
-                              {refId && (
-                                <span className="text-[8px] font-mono font-bold px-1 py-0.5 rounded"
-                                  style={{ backgroundColor: catConfig.color + '15', color: catConfig.color }}>
-                                  {refId}
-                                </span>
-                              )}
-                              <span className="truncate" style={{ color: 'var(--text-primary)', maxWidth: 140 }}>
-                                {itemName}
-                              </span>
-                            </div>
-                          );
-                        })}
-                        {showExpand && (
-                          <button
-                            className="text-[9px] px-1.5 py-0.5 rounded transition-colors"
-                            style={{ color: catConfig.color, backgroundColor: catConfig.color + '10' }}
-                            onClick={() => toggleType(groupKey, rt)}
-                          >
-                            {isExpanded ? '▲ less' : `+${items.length - MAX_COLLAPSED} more`}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ── AccountCard ─────────────────────────────────────────────────────────────
-
-function AccountCard({ account, onResourceClick }) {
-  const provider = (account.provider || 'aws').toLowerCase();
-  const cspInfo = CLOUD_PROVIDERS[provider] || CLOUD_PROVIDERS.aws;
-  const regions = account.regions || [];
-
-  // v2: global_primary / supporting_services
-  // v1 compat: global_services (treat as global_primary if v2 missing)
-  const globalPrimary = Object.keys(account.global_primary || {}).length > 0
-    ? account.global_primary
-    : (account.global_services || {});
-  const publicServices = account.public_services || {};
-  const supportingServices = account.supporting_services || {};
-
-  const hasGlobal = Object.values(globalPrimary).some(arr => arr?.length > 0);
-  const hasPublic = Object.values(publicServices).some(arr => arr?.length > 0);
-  const hasRegions = regions.length > 0;
-  const rightColumnsCount = (hasPublic ? 1 : 0) + (hasGlobal ? 1 : 0);
-
-  return (
-    <div
-      className="rounded-xl border p-4 mb-4"
-      style={{
-        backgroundColor: NESTING_COLORS.account.bg,
-        borderColor: NESTING_COLORS.account.border,
-        borderWidth: 2,
-      }}
-    >
-      {/* Account Header */}
-      <div className="flex items-center gap-3 mb-4">
-        <span className="text-xs font-bold px-2.5 py-1 rounded-md"
-          style={{ backgroundColor: cspInfo.color + '20', color: cspInfo.color }}>
-          {cspInfo.name}
-        </span>
-        <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-          Account: {account.account_id}
-        </span>
-      </div>
-
-      {/* Multi-column layout: Regions (left) | Public Services | Global (right) */}
-      <div className="flex gap-4">
-        {/* LEFT: Regions (wider) */}
-        <div className={rightColumnsCount > 0 ? 'flex-[6] min-w-0' : 'flex-1 min-w-0'}>
-          {regions.map(region => {
-            // v2: regional_primary / v1 compat: regional_services
-            const regPrimary = Object.keys(region.regional_primary || {}).length > 0
-              ? region.regional_primary
-              : (region.regional_services || {});
-            const regPrimaryCount = Object.values(regPrimary).reduce((s, arr) => s + (arr?.length || 0), 0);
-            const hasVpcs = (region.vpcs || []).some(vpc =>
-              (vpc.subnets || []).length > 0 || (vpc.edge_services || []).length > 0
-            );
-
-            // Skip empty regions — no VPCs with resources and no regional services
-            if (!hasVpcs && regPrimaryCount === 0) return null;
-
-            return (
-              <div key={region.region} className="mb-3 rounded-lg border p-3"
-                style={{ backgroundColor: NESTING_COLORS.region.bg, borderColor: NESTING_COLORS.region.border }}>
-                <div className="flex items-center gap-2 mb-2">
-                  <LucideIcon name="MapPin" size={14} color="var(--text-tertiary)" />
-                  <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>
-                    Region: {region.region}
-                  </span>
-                </div>
-
-                {/* VPCs FIRST — with edge + subnets inside */}
-                {(region.vpcs || []).map(vpc => (
-                  <VPCBox
-                    key={vpc.vpc_uid}
-                    vpc={vpc}
-                    provider={provider}
-                    onResourceClick={onResourceClick}
-                  />
-                ))}
-
-                {/* Regional services AFTER VPC (Lambda, etc.) */}
-                {regPrimaryCount > 0 && (
-                  <RegionalPrimaryBox
-                    regionalPrimary={regPrimary}
-                    onResourceClick={onResourceClick}
-                  />
-                )}
-              </div>
-            );
-          })}
-
-          {!hasRegions && (
-            <div className="text-xs p-4 text-center rounded-lg border"
-              style={{ color: 'var(--text-tertiary)', borderColor: 'var(--border-primary)' }}>
-              No regional resources
-            </div>
           )}
+
+          {/* Edge → Public → Private layout (left to right, internet flows left→right) */}
+          <div className="flex gap-0 items-start overflow-x-auto">
+
+            {/* ALB / NLB / VPC endpoints — leftmost, internet entry point */}
+            <ALBEdgeTier edgeServices={edgeServices} />
+
+            {/* Public subnets — after edge, before private */}
+            {publicSubnets.length > 0 && (
+              <div className="flex flex-col gap-1 pl-1 pr-2 border-r border-amber-800/60 mr-2 flex-shrink-0">
+                {publicSubnets.map(s => (
+                  <SubnetColumn key={s.uid || s.subnet_uid} subnet={s} onClick={onClick} />
+                ))}
+              </div>
+            )}
+
+            {/* Private subnets — main area */}
+            <div className="flex flex-row flex-wrap gap-1 flex-1 min-w-0">
+              {privateSubnets.length > 0 ? (
+                privateSubnets.map(s => (
+                  <SubnetColumn key={s.uid || s.subnet_uid} subnet={s} onClick={onClick} />
+                ))
+              ) : (
+                !publicSubnets.length && (
+                  <div className="text-[10px] text-slate-600 italic p-2">No subnets</div>
+                )
+              )}
+            </div>
+          </div>
         </div>
+      )}
+    </div>
+  );
+}
 
-        {/* MIDDLE: Public Services (S3, DynamoDB, SQS, etc.) */}
-        {hasPublic && (
-          <div className="flex-[2] min-w-[200px] max-w-[280px]">
-            <PublicServicesPanel
-              publicServices={publicServices}
-              onResourceClick={onResourceClick}
-            />
-          </div>
-        )}
+// ── Regional services row (below VPCs inside region) ─────────────────────────
 
-        {/* RIGHT: Global Primary (IAM, etc.) */}
-        {hasGlobal && (
-          <div className="flex-[2] min-w-[200px] max-w-[280px]">
-            <GlobalPrimaryPanel
-              globalPrimary={globalPrimary}
-              onResourceClick={onResourceClick}
-            />
-          </div>
-        )}
+function RegionalServicesRow({ regionalPrimary }) {
+  if (!regionalPrimary) return null;
+  const items = Object.entries(regionalPrimary)
+    .filter(([, arr]) => arr?.length > 0)
+    .flatMap(([cat, arr]) => arr.map(r => ({ ...r, _cat: cat })));
+  if (!items.length) return null;
+
+  return (
+    <div className="mt-2 pt-2 border-t border-slate-600/50">
+      <div className="flex items-center gap-1 mb-1">
+        <Icon name="Zap" size={10} className="text-violet-400" />
+        <span className="text-[9px] font-semibold text-slate-500">REGIONAL SERVICES</span>
+        <span className="text-[9px] text-slate-600">×{items.length}</span>
       </div>
-
-      {/* Bottom: Supporting Services Reference */}
-      <div className="mt-4">
-        <SupportingServicesTable
-          supportingServices={supportingServices}
-          groupsMeta={null}
-          onResourceClick={onResourceClick}
-        />
+      <div className="flex flex-wrap gap-1">
+        {items.slice(0, 24).map(r => (
+          <div
+            key={r.uid || r.resource_uid}
+            title={`${r.type || r.resource_type}\n${r.region}`}
+            className="text-[10px] px-1.5 py-0.5 rounded border border-violet-700
+              bg-violet-900/20 text-violet-300 cursor-default"
+          >
+            {shortName(r)}
+          </div>
+        ))}
+        {items.length > 24 && (
+          <span className="text-[10px] text-slate-600">+{items.length - 24}</span>
+        )}
       </div>
     </div>
   );
 }
 
-// ── FilterPanel ─────────────────────────────────────────────────────────────
+// ── Region card ───────────────────────────────────────────────────────────────
 
-/**
- * Extracts all unique filter options from architecture data.
- */
-function extractFilterOptions(data) {
-  const accounts = new Set();
-  const regions = new Set();
-  const primaryCategories = new Set();
-  const supportingGroups = new Set();
-
-  (data?.accounts || []).forEach(acct => {
-    accounts.add(acct.account_id);
-    // Supporting groups
-    Object.keys(acct.supporting_services || {}).forEach(g => supportingGroups.add(g));
-    // Public services categories
-    Object.keys(acct.public_services || {}).forEach(c => primaryCategories.add(c));
-    // Global primary categories
-    Object.keys(acct.global_primary || {}).forEach(c => primaryCategories.add(c));
-
-    (acct.regions || []).forEach(reg => {
-      regions.add(reg.region);
-      // Regional primary categories
-      Object.keys(reg.regional_primary || {}).forEach(c => primaryCategories.add(c));
-      // Subnet categories
-      (reg.vpcs || []).forEach(vpc => {
-        (vpc.subnets || []).forEach(sn => {
-          Object.keys(sn.resources_by_category || {}).forEach(c => primaryCategories.add(c));
-        });
-      });
-    });
-  });
-
-  return {
-    accounts: [...accounts].sort(),
-    regions: [...regions].sort(),
-    primaryCategories: [...primaryCategories].sort(),
-    supportingGroups: [...supportingGroups].sort(),
-  };
-}
-
-/**
- * Applies filters to the architecture data, returning a filtered copy.
- */
-function applyFilters(data, filters) {
-  if (!data?.accounts) return data;
-  const { selectedAccounts, selectedRegions, selectedCategories, selectedSupporting, searchText } = filters;
-  const searchLower = (searchText || '').toLowerCase().trim();
-
-  // Helper: does a resource match the search text?
-  const matchesSearch = (item) => {
-    if (!searchLower) return true;
-    const name = (item.name || item.resource_id || item.resource_uid || '').toLowerCase();
-    const rt = (item.resource_type || '').toLowerCase();
-    return name.includes(searchLower) || rt.includes(searchLower);
-  };
-
-  // Helper: filter a dict of category → items[]
-  const filterCatDict = (dict, allowedCats) => {
-    if (!dict) return {};
-    const result = {};
-    for (const [cat, items] of Object.entries(dict)) {
-      if (allowedCats && !allowedCats.has(cat)) continue;
-      const filtered = searchLower ? items.filter(matchesSearch) : items;
-      if (filtered.length > 0) result[cat] = filtered;
-    }
-    return result;
-  };
-
-  // Helper: filter supporting services
-  const filterSupporting = (ss) => {
-    if (!ss) return {};
-    const result = {};
-    for (const [groupKey, grp] of Object.entries(ss)) {
-      if (selectedSupporting && !selectedSupporting.has(groupKey)) continue;
-      const filteredGrp = { ...grp };
-      if (searchLower) {
-        if (grp.global) {
-          filteredGrp.global = grp.global.filter(matchesSearch);
-        }
-        if (grp.regional) {
-          const filteredRegional = {};
-          for (const [rk, items] of Object.entries(grp.regional)) {
-            if (selectedRegions && !selectedRegions.has(rk)) continue;
-            const f = items.filter(matchesSearch);
-            if (f.length > 0) filteredRegional[rk] = f;
-          }
-          filteredGrp.regional = filteredRegional;
-        }
-      } else if (selectedRegions && grp.regional) {
-        const filteredRegional = {};
-        for (const [rk, items] of Object.entries(grp.regional)) {
-          if (selectedRegions.has(rk)) filteredRegional[rk] = items;
-        }
-        filteredGrp.regional = filteredRegional;
-      }
-      // Check if group has any items left
-      const hasItems = (filteredGrp.global || []).length > 0 ||
-        Object.values(filteredGrp.regional || {}).some(a => a.length > 0);
-      if (hasItems) result[groupKey] = filteredGrp;
-    }
-    return result;
-  };
-
-  const catSet = selectedCategories ? new Set(selectedCategories) : null;
-
-  const filteredAccounts = data.accounts
-    .filter(acct => !selectedAccounts || selectedAccounts.has(acct.account_id))
-    .map(acct => {
-      const filteredRegions = (acct.regions || [])
-        .filter(reg => !selectedRegions || selectedRegions.has(reg.region))
-        .map(reg => {
-          const filteredVpcs = (reg.vpcs || []).map(vpc => {
-            const filteredSubnets = (vpc.subnets || []).map(sn => ({
-              ...sn,
-              resources_by_category: filterCatDict(sn.resources_by_category, catSet),
-            })).filter(sn => Object.keys(sn.resources_by_category || {}).length > 0);
-
-            return {
-              ...vpc,
-              subnets: filteredSubnets,
-              edge_services: searchLower
-                ? (vpc.edge_services || []).filter(matchesSearch)
-                : vpc.edge_services,
-            };
-          });
-
-          return {
-            ...reg,
-            vpcs: filteredVpcs,
-            regional_primary: filterCatDict(reg.regional_primary, catSet),
-          };
-        });
-
-      return {
-        ...acct,
-        regions: filteredRegions,
-        global_primary: filterCatDict(acct.global_primary, catSet),
-        public_services: filterCatDict(acct.public_services, catSet),
-        supporting_services: filterSupporting(acct.supporting_services),
-      };
-    });
-
-  return { ...data, accounts: filteredAccounts };
-}
-
-/**
- * Multi-select dropdown for filtering.
- */
-function FilterDropdown({ label, icon, options, selected, onToggle, onClear, colorMap }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  const allSelected = !selected || selected.size === options.length;
-  const count = selected ? selected.size : options.length;
-
-  useEffect(() => {
-    const handleClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
+function RegionCard({ regionData, onClick }) {
+  const [collapsed, setCollapsed] = useState(false);
+  const vpcs = regionData.vpcs || [];
+  // Exclude TGW from regional_primary (handled by TGW strip)
+  const regionalPrimary = useMemo(() => {
+    const rp = { ...(regionData.regional_primary || {}) };
+    delete rp['network-gateway'];
+    return rp;
+  }, [regionData]);
 
   return (
-    <div ref={ref} className="relative">
+    <div className="rounded-lg border border-slate-600 bg-slate-800/60 flex-shrink-0"
+      style={{ minWidth: '380px', maxWidth: '700px' }}>
+      {/* Header */}
       <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] transition-all"
-        style={{
-          borderColor: allSelected ? 'var(--border-primary)' : '#3b82f6',
-          backgroundColor: allSelected ? 'var(--bg-card)' : 'rgba(59,130,246,0.08)',
-          color: 'var(--text-secondary)',
-        }}
+        className="w-full flex items-center gap-2 px-3 py-2 border-b border-slate-600 hover:bg-slate-700/20"
+        onClick={() => setCollapsed(v => !v)}
       >
-        <LucideIcon name={icon} size={12} color={allSelected ? 'var(--text-tertiary)' : '#3b82f6'} />
-        <span className="font-medium">{label}</span>
-        <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold"
-          style={{
-            backgroundColor: allSelected ? 'var(--bg-tertiary)' : 'rgba(59,130,246,0.15)',
-            color: allSelected ? 'var(--text-tertiary)' : '#3b82f6',
-          }}>
-          {allSelected ? 'All' : count}
-        </span>
-        <LucideIcon name={open ? 'ChevronUp' : 'ChevronDown'} size={10} color="var(--text-tertiary)" />
+        <span className="w-2 h-2 rounded-full bg-blue-400 flex-shrink-0" />
+        <span className="text-[12px] font-semibold text-slate-200">{regionData.region}</span>
+        <span className="text-[10px] text-slate-500">{vpcs.length} VPC{vpcs.length !== 1 ? 's' : ''}</span>
+        {regionData.availability_zones?.length > 0 && (
+          <div className="flex gap-1 ml-1">
+            {regionData.availability_zones.map(az => (
+              <span key={az} className="text-[8px] px-1 rounded bg-slate-700 text-slate-500">{az.split('-').pop()}</span>
+            ))}
+          </div>
+        )}
+        <span className="ml-auto text-slate-500 text-[11px]">{collapsed ? '▸' : '▾'}</span>
       </button>
 
-      {open && (
-        <div className="absolute top-full mt-1 left-0 z-50 min-w-[200px] max-h-[300px] overflow-y-auto rounded-lg border shadow-lg p-1.5"
-          style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-          {/* Select All / Clear */}
-          <div className="flex items-center justify-between px-2 py-1 mb-1 border-b"
-            style={{ borderColor: 'var(--border-primary)' }}>
-            <button onClick={onClear}
-              className="text-[10px] font-medium transition-colors hover:underline"
-              style={{ color: '#3b82f6' }}>
-              {allSelected ? 'Clear all' : 'Select all'}
-            </button>
-          </div>
-          {options.map(opt => {
-            const isSelected = !selected || selected.has(opt);
-            const optColor = colorMap?.[opt];
-            return (
-              <button
-                key={opt}
-                onClick={() => onToggle(opt)}
-                className="flex items-center gap-2 w-full px-2 py-1.5 rounded text-left text-[11px] transition-colors"
-                style={{
-                  backgroundColor: isSelected ? 'rgba(59,130,246,0.06)' : 'transparent',
-                  color: 'var(--text-primary)',
-                }}
-              >
-                <div className="w-3.5 h-3.5 rounded border flex items-center justify-center"
-                  style={{
-                    borderColor: isSelected ? '#3b82f6' : 'var(--border-primary)',
-                    backgroundColor: isSelected ? '#3b82f6' : 'transparent',
-                  }}>
-                  {isSelected && <LucideIcon name="Check" size={8} color="white" />}
-                </div>
-                {optColor && (
-                  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: optColor }} />
-                )}
-                <span className="truncate">{opt}</span>
-              </button>
-            );
-          })}
+      {!collapsed && (
+        <div className="p-3">
+          {vpcs.length === 0 && !Object.values(regionalPrimary).some(a => a?.length > 0) && (
+            <div className="text-[10px] text-slate-600 italic mb-2">No resources</div>
+          )}
+          {vpcs.map(vpc => (
+            <VPCBox key={vpc.uid || vpc.vpc_uid} vpc={vpc} onClick={onClick} />
+          ))}
+          <RegionalServicesRow regionalPrimary={regionalPrimary} />
         </div>
       )}
     </div>
   );
 }
 
-function FilterPanel({ data, filters, onFiltersChange }) {
-  const options = useMemo(() => extractFilterOptions(data), [data]);
-  const { selectedAccounts, selectedRegions, selectedCategories, selectedSupporting, searchText } = filters;
+// ── External connections panel — above account, only populated groups shown ───
 
-  // Color maps for visual hints
-  const catColors = useMemo(() => {
-    const m = {};
-    options.primaryCategories.forEach(c => { m[c] = CATEGORY_CONFIG[c]?.color || '#94a3b8'; });
-    return m;
-  }, [options.primaryCategories]);
+function ExternalConnectionsPanel({ groups }) {
+  if (!groups?.length) return null;
+  return (
+    <div className="mb-2 rounded-lg border border-slate-600 bg-slate-900/80 px-4 py-3">
+      <div className="flex items-center gap-2 mb-3">
+        <Icon name="Globe2" size={12} className="text-slate-500" />
+        <span className="text-[9px] font-bold text-slate-500 tracking-widest">EXTERNAL CONNECTIVITY</span>
+        <span className="text-[8px] text-slate-600">(resources discovered in scan)</span>
+      </div>
+      <div className="flex flex-wrap gap-3">
+        {groups.map(({ group, cfg, items }) => (
+          <div key={group}
+            className={`rounded-lg border ${cfg.border} ${cfg.bg} px-3 py-2 min-w-[140px]`}>
+            {/* Group header */}
+            <div className={`flex items-center gap-1.5 mb-2 ${cfg.color}`}>
+              <Icon name={cfg.icon} size={12} className={cfg.color} />
+              <span className="text-[10px] font-semibold">{cfg.label}</span>
+              <span className="text-[9px] text-slate-600 ml-auto">×{items.length}</span>
+            </div>
+            {/* Individual resources */}
+            <div className="flex flex-col gap-1">
+              {items.slice(0, 5).map((item, idx) => (
+                <div key={item.uid || item.resource_uid || idx}
+                  className="flex items-center gap-1 text-[9px] text-slate-400"
+                  title={`${item._type}\n${item._region}`}>
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-600 flex-shrink-0" />
+                  <span className="truncate">{shortName(item)}</span>
+                  <span className="text-slate-600 ml-auto flex-shrink-0">{item._region?.split('-').pop()}</span>
+                </div>
+              ))}
+              {items.length > 5 && (
+                <span className="text-[9px] text-slate-600">+{items.length - 5} more</span>
+              )}
+            </div>
+            {/* Arrow pointing down into account */}
+            <div className="flex justify-center mt-2">
+              <span className="text-slate-700 text-[14px]">↓</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
-  const supColors = useMemo(() => {
-    const m = {};
-    options.supportingGroups.forEach(g => { m[g] = CATEGORY_CONFIG[g]?.color || '#64748b'; });
-    return m;
-  }, [options.supportingGroups]);
+// ── TGW strip — full account height, far left ─────────────────────────────────
 
-  // Toggle helpers
-  const toggleSet = (currentSet, allOptions, value) => {
-    // If null (all selected), create set without the value
-    if (!currentSet) {
-      const s = new Set(allOptions);
-      s.delete(value);
-      return s.size === 0 ? null : s;
+function TGWStrip({ tgwEntries }) {
+  if (!tgwEntries?.length) return null;
+  return (
+    <div className="flex-shrink-0 flex flex-col items-center
+      border-r border-orange-900 bg-orange-950/20 px-2 py-3 mr-3"
+      style={{ minWidth: '80px' }}>
+      <span className="text-[8px] font-bold text-orange-500 tracking-widest mb-3"
+        style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)', letterSpacing: '0.15em' }}>
+        TRANSIT GW
+      </span>
+      {tgwEntries.map(tgw => (
+        <div key={tgw.uid || tgw.resource_uid}
+          className="w-full mb-3 rounded border border-orange-700 bg-orange-950/50 p-2 text-center"
+          title={`${tgw.type || 'ec2.transit-gateway'}\n${tgw.region}`}>
+          <div className="text-xl mb-1">⇆</div>
+          <div className="text-[9px] text-orange-300 truncate" title={tgw.name}>
+            {shortName(tgw)}
+          </div>
+          <div className="text-[8px] text-orange-600 mt-0.5">{tgw.region}</div>
+          <div className="mt-2 border-l-2 border-dashed border-orange-800 h-4 mx-auto w-0" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Public service type → icon config
+const PUBLIC_TYPE_CFG = {
+  's3.bucket':          { icon: 'HardDrive',   label: 'S3',          color: 'text-green-400'  },
+  'cloudfront.distribution': { icon: 'Globe2', label: 'CloudFront',  color: 'text-blue-400'   },
+  'route53.hosted-zone': { icon: 'Navigation', label: 'Route53',     color: 'text-teal-400'   },
+  'elasticbeanstalk.application': { icon: 'Cpu', label: 'EB App',    color: 'text-slate-400'  },
+  'elasticbeanstalk.platform': { icon: 'Cpu',   label: 'EB Platform',color: 'text-slate-400'  },
+};
+
+// ── Public services column — far right, account-wide ─────────────────────────
+
+function PublicServicesColumn({ publicServices }) {
+  // Gather all items from all categories, group by resource_type
+  const allItems = useMemo(() => {
+    const items = Object.values(publicServices || {}).flat();
+    const byType = {};
+    for (const item of items) {
+      const rt = item.resource_type || item.type || 'other';
+      if (!byType[rt]) byType[rt] = [];
+      byType[rt].push(item);
     }
-    const next = new Set(currentSet);
-    if (next.has(value)) {
-      next.delete(value);
-      if (next.size === 0) return null; // empty → select all
-    } else {
-      next.add(value);
-      if (next.size === allOptions.length) return null; // all selected
-    }
-    return next;
-  };
+    return Object.entries(byType).sort(([, a], [, b]) => b.length - a.length);
+  }, [publicServices]);
 
-  const clearSet = (currentSet, allOptions) => {
-    // Toggle: if all selected → clear all; if some → select all
-    if (!currentSet || currentSet.size === allOptions.length) {
-      return new Set(); // clear all — will show nothing
-    }
-    return null; // select all
-  };
-
-  const hasActiveFilters = selectedAccounts || selectedRegions || selectedCategories || selectedSupporting || searchText;
+  if (!allItems.length) return null;
 
   return (
-    <div className="flex items-center gap-2 flex-wrap">
-      <LucideIcon name="SlidersHorizontal" size={14} color="var(--text-tertiary)" />
-      <span className="text-[10px] font-semibold" style={{ color: 'var(--text-tertiary)' }}>FILTERS:</span>
+    <div className="flex-shrink-0 flex flex-col ml-3 pl-3 border-l border-blue-900"
+      style={{ minWidth: '130px', maxWidth: '160px' }}>
+      <div className="flex items-center gap-1 mb-3">
+        <Icon name="Globe2" size={10} className="text-blue-400" />
+        <span className="text-[8px] font-bold text-blue-400 tracking-widest">PUBLIC</span>
+      </div>
+      {allItems.map(([rt, items]) => {
+        const cfg = PUBLIC_TYPE_CFG[rt] || RESOURCE_TYPE_CFG[rt];
+        return (
+          <div key={rt} className="mb-2 rounded border border-blue-900/60 bg-blue-950/30 p-1.5">
+            {/* Type header with icon badge */}
+            <div className={`flex items-center gap-1 mb-1 ${cfg?.color || 'text-blue-300'}`}>
+              <Icon name={cfg?.icon || 'Box'} size={10} />
+              <span className="text-[9px] font-semibold flex-1 truncate">
+                {cfg?.label || rt.split('.').pop()}
+              </span>
+              <span className="text-[8px] text-blue-700">×{items.length}</span>
+            </div>
+            {/* Individual items */}
+            {items.slice(0, 5).map(r => (
+              <div
+                key={r.uid || r.resource_uid}
+                title={`${r.type || r.resource_type}\n${r.name}`}
+                className="text-[9px] text-blue-300/80 truncate py-0.5 pl-1
+                  border-l border-blue-800/50 ml-1 cursor-default hover:text-blue-200"
+              >
+                {shortName(r)}
+              </div>
+            ))}
+            {items.length > 5 && (
+              <div className="text-[8px] text-blue-700 pl-1">+{items.length - 5}</div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
-      {/* Search */}
-      <div className="relative">
-        <LucideIcon name="Search" size={12} color="var(--text-tertiary)"
-          className="absolute left-2 top-1/2 -translate-y-1/2" />
-        <input
-          type="text"
-          placeholder="Search resources..."
-          value={searchText || ''}
-          onChange={e => onFiltersChange({ ...filters, searchText: e.target.value || '' })}
-          className="pl-6 pr-2 py-1.5 rounded-lg border text-[11px] w-[160px] outline-none transition-colors"
-          style={{
-            borderColor: searchText ? '#3b82f6' : 'var(--border-primary)',
-            backgroundColor: 'var(--bg-card)',
-            color: 'var(--text-primary)',
-          }}
-        />
+// ── Supporting services bar — full width, account bottom ──────────────────────
+// Renders category cards (IAM, Security, Encryption…). Within each card,
+// items are grouped by resource_type as collapsible sub-boxes with Lucide icons.
+
+function SupportingTypeBox({ groupKey, rt, items }) {
+  const [exp, setExp] = useState(false);
+  const rtCfg = RESOURCE_TYPE_CFG[rt];
+  const label = rtCfg?.label || rt.split('.').pop();
+  const color = rtCfg?.color || 'text-slate-400';
+  const iconName = rtCfg?.icon || 'Box';
+
+  return (
+    <div className="rounded border border-slate-700/70 bg-slate-900/50">
+      <button
+        onClick={() => setExp(v => !v)}
+        className="w-full flex items-center gap-1.5 px-2 py-1 hover:bg-slate-700/30 transition-colors"
+      >
+        <Icon name={iconName} size={10} className={color} />
+        <span className={`text-[9px] flex-1 text-left truncate ${color}`}>{label}</span>
+        <span className="text-[9px] text-slate-600">×{items.length}</span>
+        <span className="text-[8px] text-slate-700 ml-0.5">{exp ? '▾' : '▸'}</span>
+      </button>
+      {exp && (
+        <div className="px-2 pb-2 pt-0.5 flex flex-wrap gap-1 max-h-28 overflow-y-auto">
+          {items.slice(0, 30).map((item, idx) => (
+            <span
+              key={item.uid || item.resource_uid || idx}
+              title={item.uid || item.resource_uid}
+              className="text-[8px] px-1.5 py-0.5 rounded bg-slate-700 border border-slate-600
+                text-slate-300 max-w-[120px] truncate cursor-default"
+            >
+              {item.ref_id && <span className="text-slate-500 mr-0.5">{item.ref_id}</span>}
+              {shortName(item)}
+            </span>
+          ))}
+          {items.length > 30 && (
+            <span className="text-[8px] text-slate-600 self-end">+{items.length - 30}</span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SupportingBar({ supportingServices }) {
+  const [collapsedGroups, setCollapsedGroups] = useState({});
+  if (!supportingServices || !Object.keys(supportingServices).length) return null;
+
+  const toggleGroup = (group) =>
+    setCollapsedGroups(prev => ({ ...prev, [group]: !prev[group] }));
+
+  return (
+    <div className="mt-4 pt-3 border-t-2 border-slate-700">
+      <div className="flex items-center gap-1 mb-3">
+        <Icon name="Shield" size={11} className="text-slate-500" />
+        <span className="text-[9px] font-bold text-slate-500 tracking-widest">SUPPORTING SERVICES</span>
+      </div>
+      <div className="flex flex-wrap gap-3">
+        {Object.entries(supportingServices).map(([group, data]) => {
+          const cfg = SUPPORTING_CFG[group];
+          const items = Array.isArray(data) ? data : (data?.items || []);
+          if (!items.length) return null;
+
+          // Group items by resource_type for sub-boxes
+          const byType = {};
+          for (const item of items) {
+            const rt = item.resource_type || item.type || 'unknown';
+            if (!byType[rt]) byType[rt] = [];
+            byType[rt].push(item);
+          }
+          // Sort sub-types by count descending
+          const sortedTypes = Object.entries(byType).sort(([, a], [, b]) => b.length - a.length);
+          const isCollapsed = collapsedGroups[group];
+
+          return (
+            <div key={group}
+              className="rounded-lg border border-slate-700 bg-slate-800/60 overflow-hidden"
+              style={{ minWidth: '160px', maxWidth: '220px' }}
+            >
+              {/* Category header */}
+              <button
+                onClick={() => toggleGroup(group)}
+                className="w-full flex items-center gap-1.5 px-3 py-2
+                  border-b border-slate-700 hover:bg-slate-700/30 transition-colors"
+              >
+                {cfg && <Icon name={cfg.icon} size={11} className={cfg.color} />}
+                <span className={`text-[10px] font-semibold flex-1 text-left ${cfg?.color || 'text-slate-300'}`}>
+                  {cfg?.label || group}
+                </span>
+                <span className="text-[9px] text-slate-600">×{items.length}</span>
+                <span className="text-[9px] text-slate-700 ml-1">{isCollapsed ? '▸' : '▾'}</span>
+              </button>
+
+              {/* Sub-boxes per resource type */}
+              {!isCollapsed && (
+                <div className="p-1.5 flex flex-col gap-1">
+                  {sortedTypes.map(([rt, typeItems]) => (
+                    <SupportingTypeBox
+                      key={rt}
+                      groupKey={group}
+                      rt={rt}
+                      items={typeItems}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Account view ──────────────────────────────────────────────────────────────
+
+function AccountView({ account, onResourceClick }) {
+  // Collect TGW entries (for the internal strip) — only TGW type
+  const tgwEntries = useMemo(() =>
+    (account.regions || []).flatMap(r =>
+      (r.regional_primary?.['network-gateway'] || [])
+        .filter(t => (t.type || t.resource_type) === 'ec2.transit-gateway')
+        .map(t => ({ ...t, region: r.region }))
+    ),
+  [account]);
+
+  // Collect all external connection groups (only populated ones)
+  const externalGroups = useMemo(() => collectExternalConnections(account), [account]);
+
+  return (
+    <div className="mb-6">
+      {/* External connectivity panel — outside + above account box */}
+      <ExternalConnectionsPanel groups={externalGroups} />
+
+      <div className="rounded-xl border border-slate-700 bg-slate-900 p-4">
+      {/* Account header */}
+      <div className="flex items-center gap-3 mb-4 pb-2 border-b border-slate-700">
+        <span className="px-2 py-0.5 rounded text-xs font-bold bg-orange-900 text-orange-300 border border-orange-700">
+          {(account.provider || 'aws').toUpperCase()}
+        </span>
+        <span className="text-sm font-semibold text-slate-200">{account.account_id}</span>
+        <span className="text-xs text-slate-500">
+          {account.regions?.length || 0} region{account.regions?.length !== 1 ? 's' : ''}
+        </span>
       </div>
 
-      {/* Account filter (only show if > 1 account) */}
-      {options.accounts.length > 1 && (
-        <FilterDropdown
-          label="Account"
-          icon="Building2"
-          options={options.accounts}
-          selected={selectedAccounts}
-          onToggle={v => onFiltersChange({ ...filters, selectedAccounts: toggleSet(selectedAccounts, options.accounts, v) })}
-          onClear={() => onFiltersChange({ ...filters, selectedAccounts: clearSet(selectedAccounts, options.accounts) })}
-        />
-      )}
+      {/* Main content: TGW | Regions (scrollable) | Public Services */}
+      <div className="flex" style={{ minHeight: '200px' }}>
 
-      {/* Region filter */}
-      <FilterDropdown
-        label="Region"
-        icon="MapPin"
-        options={options.regions}
-        selected={selectedRegions}
-        onToggle={v => onFiltersChange({ ...filters, selectedRegions: toggleSet(selectedRegions, options.regions, v) })}
-        onClear={() => onFiltersChange({ ...filters, selectedRegions: clearSet(selectedRegions, options.regions) })}
-      />
+        {/* TGW strip — leftmost, spans full account height */}
+        <TGWStrip tgwEntries={tgwEntries} />
 
-      {/* Primary service categories */}
-      <FilterDropdown
-        label="Services"
-        icon="Server"
-        options={options.primaryCategories}
-        selected={selectedCategories}
-        onToggle={v => onFiltersChange({ ...filters, selectedCategories: toggleSet(selectedCategories, options.primaryCategories, v) })}
-        onClear={() => onFiltersChange({ ...filters, selectedCategories: clearSet(selectedCategories, options.primaryCategories) })}
-        colorMap={catColors}
-      />
-
-      {/* Supporting service groups */}
-      <FilterDropdown
-        label="Supporting"
-        icon="Link"
-        options={options.supportingGroups}
-        selected={selectedSupporting}
-        onToggle={v => onFiltersChange({ ...filters, selectedSupporting: toggleSet(selectedSupporting, options.supportingGroups, v) })}
-        onClear={() => onFiltersChange({ ...filters, selectedSupporting: clearSet(selectedSupporting, options.supportingGroups) })}
-        colorMap={supColors}
-      />
-
-      {/* Reset all */}
-      {hasActiveFilters && (
-        <button
-          onClick={() => onFiltersChange({ selectedAccounts: null, selectedRegions: null, selectedCategories: null, selectedSupporting: null, searchText: '' })}
-          className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-medium transition-colors"
-          style={{ color: '#ef4444', backgroundColor: 'rgba(239,68,68,0.08)' }}
-        >
-          <LucideIcon name="X" size={10} color="#ef4444" />
-          Reset
-        </button>
-      )}
-    </div>
-  );
-}
-
-// ── StatsStrip ──────────────────────────────────────────────────────────────
-
-function StatsStrip({ data }) {
-  const stats = data?.stats || {};
-  const accounts = data?.accounts || [];
-
-  let vpcCount = 0, subnetCount = 0, primaryCount = 0, supportingCount = 0;
-  accounts.forEach(acct => {
-    (acct.regions || []).forEach(reg => {
-      (reg.vpcs || []).forEach(vpc => {
-        vpcCount++;
-        subnetCount += (vpc.subnets || []).length;
-      });
-    });
-    // Count supporting
-    Object.values(acct.supporting_services || {}).forEach(grp => {
-      supportingCount += (grp.global || []).length;
-      Object.values(grp.regional || {}).forEach(arr => { supportingCount += arr.length; });
-    });
-  });
-  primaryCount = (stats.total_assets || 0) - supportingCount;
-
-  const items = [
-    { label: 'Accounts', value: accounts.length, icon: 'Building2' },
-    { label: 'VPCs', value: vpcCount, icon: 'Network' },
-    { label: 'Subnets', value: subnetCount, icon: 'Layers' },
-    { label: 'Primary', value: primaryCount, icon: 'Server', color: '#3b82f6' },
-    { label: 'Supporting', value: supportingCount, icon: 'Link', color: '#64748b' },
-    { label: 'Total Assets', value: stats.total_assets || 0, icon: 'Package' },
-  ];
-
-  return (
-    <div className="flex flex-wrap gap-3">
-      {items.map(s => (
-        <div key={s.label} className="flex items-center gap-2 px-3 py-2 rounded-lg border"
-          style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-          <LucideIcon name={s.icon} size={14} color={s.color || 'var(--text-tertiary)'} />
-          <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{s.label}</span>
-          <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{s.value}</span>
+        {/* Regions — horizontal scroll */}
+        <div className="flex-1 flex flex-row gap-3 overflow-x-auto pb-2 min-w-0">
+          {(account.regions || []).map(r => (
+            <RegionCard key={r.region} regionData={r} onClick={onResourceClick} />
+          ))}
         </div>
-      ))}
+
+        {/* Public services column — rightmost */}
+        <PublicServicesColumn publicServices={account.public_services} />
+      </div>
+
+      {/* Supporting services — full width bottom */}
+      <SupportingBar supportingServices={account.supporting_services} />
+      </div>
     </div>
   );
 }
 
-// ── PrioritySelector ────────────────────────────────────────────────────────
+// ── Resource detail drawer ────────────────────────────────────────────────────
 
-function PrioritySelector({ value, onChange }) {
-  const options = [
-    { val: 1, label: 'P1 · Infra', desc: 'Account, Regions, VPCs, Subnets, Gateways' },
-    { val: 2, label: 'P2 · Services', desc: '+ Compute, Database, Serverless, Load Balancers' },
-    { val: 3, label: 'P3 · Extended', desc: '+ Security Groups, KMS, Storage, Containers' },
-    { val: 4, label: 'P4 · Support', desc: '+ IAM, Monitoring, Logging, Network details' },
-    { val: 5, label: 'P5 · All', desc: 'All discovered resources including flows' },
-  ];
+function ResourceDrawer({ resource, onClose }) {
+  if (!resource) return null;
+  const fields = [
+    ['Type',       resource.type || resource.resource_type],
+    ['Region',     resource.region],
+    ['Account',    resource.account_id],
+    ['UID',        resource.uid || resource.resource_uid],
+    ['Risk Score', resource.risk_score],
+    ['Criticality',resource.criticality],
+    ['Status',     resource.compliance_status],
+  ].filter(([, v]) => v != null && v !== '');
 
   return (
-    <div className="flex items-center gap-2">
-      <span className="text-[10px] font-semibold" style={{ color: 'var(--text-tertiary)' }}>Detail:</span>
-      {options.map(opt => (
-        <button
-          key={opt.val}
-          onClick={() => onChange(opt.val)}
-          className="px-2 py-1 rounded text-[10px] transition-colors"
-          style={{
-            backgroundColor: value === opt.val ? 'var(--text-primary)' : 'var(--bg-tertiary)',
-            color: value === opt.val ? 'var(--bg-primary)' : 'var(--text-secondary)',
-          }}
-          title={opt.desc}
-        >
-          P{opt.val}
-        </button>
-      ))}
+    <div className="fixed right-0 top-0 h-full w-80 bg-slate-900 border-l border-slate-700 shadow-2xl z-50 overflow-y-auto p-4">
+      <div className="flex justify-between items-start mb-4">
+        <h3 className="text-sm font-semibold text-slate-200">{shortName(resource)}</h3>
+        <button onClick={onClose} className="text-slate-500 hover:text-slate-300 text-lg leading-none">✕</button>
+      </div>
+      <dl className="space-y-2">
+        {fields.map(([k, v]) => (
+          <div key={k}>
+            <dt className="text-[10px] text-slate-500">{k}</dt>
+            <dd className="text-[11px] text-slate-300 break-all">{String(v)}</dd>
+          </div>
+        ))}
+      </dl>
     </div>
   );
 }
 
-// ── InterfaceConnections (lightweight indicator) ────────────────────────────
+// ── Account selector ──────────────────────────────────────────────────────────
 
-function InterfaceIndicators({ connections }) {
-  if (!connections || connections.length === 0) return null;
-
+function AccountSelector({ accounts, selectedId, onChange }) {
   return (
-    <div className="flex flex-wrap gap-2 mt-2 px-1">
-      <span className="text-[9px] font-semibold" style={{ color: 'var(--text-tertiary)' }}>FLOWS:</span>
-      {connections.slice(0, 20).map((conn, i) => (
-        <div key={i} className="flex items-center gap-1 text-[9px]"
-          style={{ color: 'var(--text-tertiary)' }}>
-          <span className="px-1 rounded" style={{ backgroundColor: 'rgba(59,130,246,0.1)' }}>
-            {conn.from_subnet_type || '?'}
-          </span>
-          <LucideIcon name="ArrowRight" size={8} color="var(--text-tertiary)" />
-          <span className="px-1 rounded" style={{ backgroundColor: 'rgba(139,92,246,0.1)' }}>
-            {conn.to_subnet_type || '?'}
-          </span>
-          <span style={{ color: 'var(--text-tertiary)', opacity: 0.6 }}>
-            ({conn.count || 1})
-          </span>
-        </div>
+    <select
+      value={selectedId || ''}
+      onChange={e => onChange(e.target.value)}
+      className="text-xs bg-slate-800 border border-slate-600 rounded px-3 py-1.5
+        text-slate-200 focus:outline-none focus:border-blue-500"
+    >
+      {accounts.map(a => (
+        <option key={a.account_id} value={a.account_id}>
+          {(a.provider || 'aws').toUpperCase()} · {a.account_id}
+          {' '}({a.regions?.length || 0} regions)
+        </option>
       ))}
-    </div>
+    </select>
   );
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// MAIN PAGE
-// ═════════════════════════════════════════════════════════════════════════════
+// ── Main page ─────────────────────────────────────────────────────────────────
 
-export default function ArchitectureDiagramV2Page() {
+export default function ArchitecturePage() {
   const router = useRouter();
   const { provider } = useGlobalFilter();
 
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [zoom, setZoom] = useState(1);
-  const [maxPriority, setMaxPriority] = useState(3);
-  const [filters, setFilters] = useState({
-    selectedAccounts: null,  // null = all selected
-    selectedRegions: null,
-    selectedCategories: null,
-    selectedSupporting: null,
-    searchText: '',
-  });
+  const [data,             setData]            = useState(null);
+  const [loading,          setLoading]         = useState(true);
+  const [error,            setError]           = useState(null);
+  const [maxPriority,      setMaxPriority]     = useState(3);
+  const [selectedAccountId, setSelectedAccountId] = useState(null);
+  const [selectedResource, setSelectedResource] = useState(null);
 
+  // Load data
   useEffect(() => {
-    const loadArchitecture = async () => {
+    const load = async () => {
       setLoading(true);
       setError(null);
       try {
-        const params = {
-          max_priority: maxPriority,
-          include_relationships: true,
-        };
+        const params = { max_priority: maxPriority, include_relationships: true };
         if (provider) params.csp = provider;
 
         let result;
         try {
-          result = await getFromEngine(
-            'gateway',
-            '/api/v1/views/inventory/architecture',
-            params
-          );
+          result = await getFromEngine('gateway', '/api/v1/views/inventory/architecture', params);
         } catch {
-          result = await getFromEngine(
-            'inventory',
-            '/api/v1/inventory/architecture',
-            params
-          );
+          result = await getFromEngine('inventory', '/api/v1/inventory/architecture', params);
         }
-
-        if (result?.error) {
-          setError(result.error);
-          return;
-        }
+        if (result?.error) { setError(result.error); return; }
         setData(result);
       } catch (err) {
         setError(err?.message || 'Failed to load architecture data');
@@ -1383,200 +919,103 @@ export default function ArchitectureDiagramV2Page() {
         setLoading(false);
       }
     };
-    loadArchitecture();
+    load();
   }, [provider, maxPriority]);
 
-  const handleResourceClick = useCallback((resource) => {
-    const uid = resource?.resource_uid || resource?.id;
-    if (uid) router.push(`/inventory/${encodeURIComponent(uid)}`);
-  }, [router]);
+  // Auto-select first account
+  useEffect(() => {
+    if (data?.accounts?.length && !selectedAccountId) {
+      setSelectedAccountId(data.accounts[0].account_id);
+    }
+  }, [data, selectedAccountId]);
 
-  const zoomIn = () => setZoom(z => Math.min(z * 1.2, 3));
-  const zoomOut = () => setZoom(z => Math.max(z / 1.2, 0.3));
-  const zoomFit = () => setZoom(1);
+  const accounts = data?.accounts || [];
+  const selectedAccount = useMemo(
+    () => accounts.find(a => a.account_id === selectedAccountId) || accounts[0],
+    [accounts, selectedAccountId],
+  );
 
-  // Apply client-side filters to the loaded data
-  const filteredData = useMemo(() => {
-    if (!data) return data;
-    return applyFilters(data, filters);
-  }, [data, filters]);
+  const handleResourceClick = useCallback(resource => {
+    setSelectedResource(resource);
+  }, []);
 
-  const accounts = filteredData?.accounts || [];
+  const stats = data?.stats || {};
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => router.push('/inventory')}
-            className="p-1.5 rounded-lg transition-colors hover:bg-[var(--bg-tertiary)]"
-          >
-            <LucideIcon name="ArrowLeft" size={20} color="var(--text-tertiary)" />
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
-              Infrastructure Architecture
-            </h1>
-            <p className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
-              Live topology — Regions (left) &middot; Global (right) &middot; Supporting (reference)
-            </p>
-          </div>
+    <div className="min-h-screen bg-slate-950 text-slate-100">
+
+      {/* ── Toolbar ── */}
+      <div className="sticky top-0 z-40 bg-slate-900/95 border-b border-slate-700
+        px-4 py-2 flex items-center gap-3 flex-wrap backdrop-blur">
+        <h1 className="text-sm font-bold text-slate-200">Architecture</h1>
+        <div className="h-4 w-px bg-slate-700" />
+
+        {accounts.length > 1 && (
+          <AccountSelector
+            accounts={accounts}
+            selectedId={selectedAccountId}
+            onChange={id => { setSelectedAccountId(id); setSelectedResource(null); }}
+          />
+        )}
+
+        {/* Priority slider */}
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-slate-500">Detail</span>
+          {[1, 2, 3, 4, 5].map(p => (
+            <button
+              key={p}
+              onClick={() => setMaxPriority(p)}
+              className={`text-[10px] w-6 h-6 rounded-full font-bold transition-colors
+                ${maxPriority >= p
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-slate-700 text-slate-500 hover:bg-slate-600'}`}
+            >
+              P{p}
+            </button>
+          ))}
         </div>
-        <div className="flex items-center gap-4">
-          <PrioritySelector value={maxPriority} onChange={setMaxPriority} />
-          <div className="flex items-center gap-2">
-            <button onClick={zoomOut} className="p-2 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-              <LucideIcon name="ZoomOut" size={16} color="var(--text-secondary)" />
-            </button>
-            <span className="text-xs min-w-[3rem] text-center" style={{ color: 'var(--text-tertiary)' }}>
-              {Math.round(zoom * 100)}%
+
+        <div className="ml-auto flex items-center gap-3">
+          {stats.total_assets > 0 && (
+            <span className="text-[10px] text-slate-500">
+              {stats.total_assets} assets · {stats.total_vpcs} VPCs · {stats.total_relationships} edges
             </span>
-            <button onClick={zoomIn} className="p-2 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-              <LucideIcon name="ZoomIn" size={16} color="var(--text-secondary)" />
-            </button>
-            <button onClick={zoomFit} className="p-2 rounded-lg" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-              <LucideIcon name="Maximize2" size={16} color="var(--text-secondary)" />
-            </button>
-          </div>
+          )}
+          <button
+            onClick={() => { setData(null); setLoading(true); }}
+            className="text-xs px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-300"
+          >
+            Refresh
+          </button>
         </div>
       </div>
 
-      {/* Stats (from raw unfiltered data) */}
-      {!loading && !error && data && <StatsStrip data={data} />}
-
-      {/* Filters */}
-      {!loading && !error && data && (
-        <FilterPanel data={data} filters={filters} onFiltersChange={setFilters} />
-      )}
-
-      {/* Error */}
-      {error && (
-        <div className="rounded-lg p-4 border flex items-center gap-3"
-          style={{ backgroundColor: 'rgba(239,68,68,0.08)', borderColor: '#ef4444' }}>
-          <LucideIcon name="AlertTriangle" size={20} color="#ef4444" />
-          <div>
-            <p className="text-sm font-semibold" style={{ color: '#ef4444' }}>Failed to load architecture</p>
-            <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>{error}</p>
+      {/* ── Body ── */}
+      <div className="p-4">
+        {loading && (
+          <div className="flex items-center justify-center h-72 text-slate-500">
+            <span className="animate-pulse text-sm">Loading architecture…</span>
           </div>
-        </div>
-      )}
+        )}
+        {error && (
+          <div className="flex items-center justify-center h-72 text-red-400 text-sm">
+            Failed to load: {error}
+          </div>
+        )}
+        {!loading && !error && !accounts.length && (
+          <div className="flex flex-col items-center justify-center h-72 gap-2 text-slate-500">
+            <Icon name="Network" size={32} className="text-slate-700" />
+            <span className="text-sm">No architecture data — run a scan first.</span>
+          </div>
+        )}
+        {!loading && !error && selectedAccount && (
+          <AccountView account={selectedAccount} onResourceClick={handleResourceClick} />
+        )}
+      </div>
 
-      {/* Loading */}
-      {loading && (
-        <div className="flex items-center justify-center p-20">
-          <div className="text-center">
-            <LucideIcon name="Loader2" size={24} color="var(--text-tertiary)" className="animate-spin mx-auto mb-2" />
-            <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>Loading infrastructure topology...</p>
-          </div>
-        </div>
-      )}
-
-      {/* Empty state — no data or empty accounts */}
-      {!loading && !error && (!data || data.accounts?.length === 0) && (
-        <div className="flex items-center justify-center p-20">
-          <div className="text-center">
-            <LucideIcon name="LayoutGrid" size={40} color="var(--text-tertiary)" className="mx-auto mb-3" />
-            <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
-              No infrastructure data available
-            </p>
-            <p className="text-xs mt-1.5 max-w-xs mx-auto" style={{ color: 'var(--text-tertiary)' }}>
-              Run a discovery scan to populate the architecture diagram, or check that your cloud accounts are onboarded.
-            </p>
-            <button
-              onClick={() => router.push('/inventory')}
-              className="mt-4 px-4 py-2 rounded-lg text-xs font-medium transition-colors"
-              style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}
-            >
-              Back to Inventory
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Architecture Diagram */}
-      {!loading && !error && data && data.accounts?.length > 0 && (
-        <div
-          className="rounded-xl border overflow-auto"
-          style={{
-            backgroundColor: 'var(--bg-primary)',
-            borderColor: 'var(--border-primary)',
-            maxHeight: 'calc(100vh - 260px)',
-          }}
-        >
-          <div style={{
-            transform: `scale(${zoom})`,
-            transformOrigin: 'top left',
-            padding: 16,
-            minWidth: zoom < 1 ? `${100 / zoom}%` : '100%',
-          }}>
-            {accounts.length === 0 ? (
-              <div className="flex items-center justify-center p-20">
-                <div className="text-center">
-                  <LucideIcon name="LayoutGrid" size={32} color="var(--text-tertiary)" className="mx-auto mb-3" />
-                  <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No resources to display</p>
-                  <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>
-                    Run a discovery scan to populate the architecture diagram
-                  </p>
-                </div>
-              </div>
-            ) : (
-              accounts.map(account => (
-                <AccountCard
-                  key={account.account_id}
-                  account={account}
-                  onResourceClick={handleResourceClick}
-                />
-              ))
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Interface connections */}
-      {!loading && !error && data?.interface_connections?.length > 0 && (
-        <InterfaceIndicators connections={data.interface_connections} />
-      )}
-
-      {/* Legend */}
-      {!loading && !error && accounts.length > 0 && (
-        <div className="flex flex-wrap gap-4 px-1">
-          {/* Subnet types */}
-          <div className="flex items-center gap-3">
-            <span className="text-[10px] font-semibold" style={{ color: 'var(--text-tertiary)' }}>SUBNETS:</span>
-            {Object.entries(SUBNET_TYPE_COLORS).filter(([k]) => k !== 'unknown').map(([key, cfg]) => (
-              <div key={key} className="flex items-center gap-1">
-                <div className="w-3 h-1 rounded" style={{ backgroundColor: cfg.border }} />
-                <span className="text-[10px]" style={{ color: 'var(--text-tertiary)' }}>{cfg.label}</span>
-              </div>
-            ))}
-          </div>
-          {/* Categories */}
-          <div className="flex items-center gap-3 flex-wrap">
-            <span className="text-[10px] font-semibold" style={{ color: 'var(--text-tertiary)' }}>CATEGORIES:</span>
-            {Object.entries(CATEGORY_CONFIG)
-              .filter(([k]) => !['other', 'security', 'identity', 'encryption', 'monitoring', 'management'].includes(k))
-              .map(([key, cfg]) => (
-              <div key={key} className="flex items-center gap-1">
-                <LucideIcon name={cfg.icon} size={10} color={cfg.color} />
-                <span className="text-[10px]" style={{ color: 'var(--text-tertiary)' }}>{cfg.label}</span>
-              </div>
-            ))}
-          </div>
-          {/* Nesting */}
-          <div className="flex items-center gap-3">
-            <span className="text-[10px] font-semibold" style={{ color: 'var(--text-tertiary)' }}>NESTING:</span>
-            {['account', 'region', 'vpc', 'subnet'].map(level => (
-              <div key={level} className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded border" style={{
-                  backgroundColor: NESTING_COLORS[level]?.bg,
-                  borderColor: NESTING_COLORS[level]?.border,
-                }} />
-                <span className="text-[10px] capitalize" style={{ color: 'var(--text-tertiary)' }}>{level}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+      {/* ── Resource detail drawer ── */}
+      {selectedResource && (
+        <ResourceDrawer resource={selectedResource} onClose={() => setSelectedResource(null)} />
       )}
     </div>
   );

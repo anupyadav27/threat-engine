@@ -2,7 +2,7 @@
 """
 Load Relationship Rules into inventory DB
 
-Populates resource_relationship_rules in threat_engine_inventory (inventory DB)
+Populates resource_security_relationship_rules in threat_engine_inventory (inventory DB)
 for ALL supported CSPs:  aws | azure | gcp | oci | ibm | alicloud | k8s
 
 Rule sources (applied in order, no duplicates thanks to UPSERT ON CONFLICT):
@@ -68,14 +68,14 @@ def _upsert_rules(
     source_label: str,
 ) -> int:
     """
-    Upsert rules into resource_relationship_rules.
+    Upsert rules into resource_security_relationship_rules.
     Returns the number of rows affected.
     """
     if not rules:
         return 0
 
     sql = """
-        INSERT INTO resource_relationship_rules
+        INSERT INTO resource_security_relationship_rules
             (csp, service, from_resource_type, relation_type, to_resource_type,
              source_field, source_field_item, target_uid_pattern,
              is_active, rule_source, rule_metadata)
@@ -493,63 +493,68 @@ def _csp_rule(
 
 
 AZURE_CURATED_RULES: List[Dict[str, Any]] = [
-    # Virtual Machines
-    _csp_rule("azure", "compute.virtualmachines",  "contained_by",  "network.virtualnetworks",  "properties.networkProfile.networkInterfaces", "{id}", item="id"),
-    _csp_rule("azure", "compute.virtualmachines",  "attached_to",   "network.networkinterfaces","properties.networkProfile.networkInterfaces",  "{id}", item="id"),
-    _csp_rule("azure", "compute.virtualmachines",  "uses",          "compute.disks",            "properties.storageProfile.osDisk.managedDisk.id", "{id}"),
-    _csp_rule("azure", "compute.virtualmachines",  "uses",          "compute.disks",            "properties.storageProfile.dataDisks",           "{managedDisk.id}", item="managedDisk.id"),
-    _csp_rule("azure", "compute.virtualmachines",  "uses",          "managedidentity.userassignedidentities", "identity.userAssignedIdentities", "{id}"),
-    _csp_rule("azure", "compute.virtualmachines",  "encrypted_by",  "keyvault.vaults",          "properties.osProfile.windowsConfiguration.patchSettings.patchMode", "{id}"),
-    # Managed Disks
-    _csp_rule("azure", "compute.disks",            "encrypted_by",  "keyvault.keys",            "properties.encryption.diskEncryptionSetId", "{diskEncryptionSetId}"),
-    # Network Interfaces
-    _csp_rule("azure", "network.networkinterfaces","contained_by",  "network.virtualnetworks",  "properties.ipConfigurations.properties.subnet.id", "{id}"),
-    _csp_rule("azure", "network.networkinterfaces","attached_to",   "network.networksecuritygroups","properties.networkSecurityGroup.id", "{id}"),
-    # NSG
-    _csp_rule("azure", "network.networksecuritygroups","contained_by","network.virtualnetworks","properties.subnets", "{id}", item="id"),
-    # SQL Databases
-    _csp_rule("azure", "sql.databases",            "contained_by",  "sql.servers",              "id",           "arn:azure:sql:{region}:{account_id}:server/{serverName}"),
-    _csp_rule("azure", "sql.databases",            "encrypted_by",  "keyvault.keys",            "properties.transparentDataEncryption.keyUri", "{keyUri}"),
-    # Storage Accounts
-    _csp_rule("azure", "storage.storageaccounts",  "encrypted_by",  "keyvault.keys",            "properties.encryption.keyVaultProperties.keyVaultUri", "{keyVaultUri}"),
-    # Key Vault
-    _csp_rule("azure", "keyvault.vaults",          "contained_by",  "network.virtualnetworks",  "properties.networkAcls.virtualNetworkRules", "{virtualNetworkResourceId}", item="virtualNetworkResourceId"),
-    # App Service
-    _csp_rule("azure", "web.sites",                "contained_by",  "network.virtualnetworks",  "properties.virtualNetworkSubnetId", "{virtualNetworkSubnetId}"),
-    _csp_rule("azure", "web.sites",                "uses",          "managedidentity.userassignedidentities","identity.userAssignedIdentities", "{id}"),
-    # AKS
-    _csp_rule("azure", "containerservice.managedclusters","contained_by","network.virtualnetworks","properties.agentPoolProfiles.vnetSubnetID", "{vnetSubnetID}"),
-    _csp_rule("azure", "containerservice.managedclusters","uses",  "keyvault.vaults",           "properties.addonProfiles.azureKeyvaultSecretsProvider.identity.clientId", "{clientId}"),
-    # Azure Functions
-    _csp_rule("azure", "web.sites",                "logging_enabled_to","operationalinsights.workspaces","properties.siteConfig.appSettings", "{APPLICATIONINSIGHTS_CONNECTION_STRING}"),
+    # Virtual Machines (azure.virtual_machine)
+    _csp_rule("azure", "azure.virtual_machine",    "attached_to",   "azure.network_interface",   "properties.networkProfile.networkInterfaces", "{id}", item="id"),
+    _csp_rule("azure", "azure.virtual_machine",    "uses",          "azure.disk",                "properties.storageProfile.osDisk.managedDisk.id", "{id}"),
+    _csp_rule("azure", "azure.virtual_machine",    "uses",          "azure.disk",                "properties.storageProfile.dataDisks", "{managedDisk.id}", item="managedDisk.id"),
+    _csp_rule("azure", "azure.virtual_machine",    "uses",          "azure.managed_identity",    "identity.userAssignedIdentities", "{id}"),
+    _csp_rule("azure", "azure.virtual_machine",    "contained_by",  "azure.resource_group",      "resourceGroup", "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"),
+    # Managed Disks (azure.disk)
+    _csp_rule("azure", "azure.disk",               "encrypted_by",  "azure.key_vault",           "properties.encryption.diskEncryptionSetId", "{diskEncryptionSetId}"),
+    # Network Interfaces (azure.network_interface)
+    _csp_rule("azure", "azure.network_interface",  "contained_by",  "azure.virtual_network",     "properties.ipConfigurations.properties.subnet.id", "{id}"),
+    _csp_rule("azure", "azure.network_interface",  "attached_to",   "azure.network_security_group","properties.networkSecurityGroup.id", "{id}"),
+    # NSG (azure.network_security_group)
+    _csp_rule("azure", "azure.network_security_group","contained_by","azure.virtual_network",    "properties.subnets", "{id}", item="id"),
+    # SQL Databases (azure.sql_database)
+    _csp_rule("azure", "azure.sql_database",       "contained_by",  "azure.sql_server",          "id", "arn:azure:sql:{region}:{account_id}:server/{serverName}"),
+    _csp_rule("azure", "azure.sql_database",       "encrypted_by",  "azure.key_vault",           "properties.transparentDataEncryption.keyUri", "{keyUri}"),
+    # SQL Server (azure.sql_server)
+    _csp_rule("azure", "azure.sql_server",         "contained_by",  "azure.resource_group",      "resourceGroup", "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"),
+    # Storage Accounts (azure.storage_account)
+    _csp_rule("azure", "azure.storage_account",    "encrypted_by",  "azure.key_vault",           "properties.encryption.keyVaultProperties.keyVaultUri", "{keyVaultUri}"),
+    _csp_rule("azure", "azure.storage_account",    "contained_by",  "azure.resource_group",      "resourceGroup", "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"),
+    # Key Vault (azure.key_vault)
+    _csp_rule("azure", "azure.key_vault",          "contained_by",  "azure.virtual_network",     "properties.networkAcls.virtualNetworkRules", "{virtualNetworkResourceId}", item="virtualNetworkResourceId"),
+    _csp_rule("azure", "azure.key_vault",          "contained_by",  "azure.resource_group",      "resourceGroup", "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"),
+    # App Service (azure.app_service)
+    _csp_rule("azure", "azure.app_service",        "contained_by",  "azure.virtual_network",     "properties.virtualNetworkSubnetId", "{virtualNetworkSubnetId}"),
+    _csp_rule("azure", "azure.app_service",        "uses",          "azure.managed_identity",    "identity.userAssignedIdentities", "{id}"),
+    _csp_rule("azure", "azure.app_service",        "logging_enabled_to","azure.log_analytics_workspace","properties.siteConfig.appSettings", "{APPLICATIONINSIGHTS_CONNECTION_STRING}"),
+    # AKS (azure.aks_cluster)
+    _csp_rule("azure", "azure.aks_cluster",        "contained_by",  "azure.virtual_network",     "properties.agentPoolProfiles.vnetSubnetID", "{vnetSubnetID}"),
+    _csp_rule("azure", "azure.aks_cluster",        "uses",          "azure.key_vault",            "properties.addonProfiles.azureKeyvaultSecretsProvider.identity.clientId", "{clientId}"),
+    _csp_rule("azure", "azure.aks_cluster",        "contained_by",  "azure.resource_group",       "resourceGroup", "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}"),
+    # Blob Container (azure.blob_container)
+    _csp_rule("azure", "azure.blob_container",     "contained_by",  "azure.storage_account",     "id", "{storageAccountId}"),
 ]
 
 GCP_CURATED_RULES: List[Dict[str, Any]] = [
-    # Compute Instances
-    _csp_rule("gcp", "compute.instances",          "contained_by",  "compute.networks",          "networkInterfaces.network",    "{network}"),
-    _csp_rule("gcp", "compute.instances",          "attached_to",   "compute.subnetworks",       "networkInterfaces.subnetwork", "{subnetwork}"),
-    _csp_rule("gcp", "compute.instances",          "uses",          "iam.serviceaccounts",       "serviceAccounts.email",        "{email}"),
-    _csp_rule("gcp", "compute.instances",          "uses",          "compute.disks",             "disks.source",                 "{source}"),
-    # GKE
-    _csp_rule("gcp", "container.clusters",         "contained_by",  "compute.networks",          "network",                      "{network}"),
-    _csp_rule("gcp", "container.clusters",         "uses",          "iam.serviceaccounts",       "nodeConfig.serviceAccount",    "{serviceAccount}"),
-    # Cloud Functions
-    _csp_rule("gcp", "cloudfunctions.functions",   "uses",          "iam.serviceaccounts",       "serviceAccountEmail",          "{serviceAccountEmail}"),
-    _csp_rule("gcp", "cloudfunctions.functions",   "contained_by",  "compute.networks",          "vpcConnector",                 "{vpcConnector}"),
-    _csp_rule("gcp", "cloudfunctions.functions",   "triggers",      "pubsub.topics",             "eventTrigger.resource",        "{resource}"),
-    # Cloud SQL
-    _csp_rule("gcp", "sqladmin.instances",         "contained_by",  "compute.networks",          "settings.ipConfiguration.privateNetwork", "{privateNetwork}"),
-    # GCS
-    _csp_rule("gcp", "storage.buckets",            "encrypted_by",  "cloudkms.cryptokeys",       "encryption.defaultKmsKeyName", "{defaultKmsKeyName}"),
-    _csp_rule("gcp", "storage.buckets",            "logging_enabled_to","storage.buckets",        "logging.logBucket",            "gs://{logBucket}"),
-    # BigQuery
-    _csp_rule("gcp", "bigquery.datasets",          "encrypted_by",  "cloudkms.cryptokeys",       "defaultEncryptionConfiguration.kmsKeyName", "{kmsKeyName}"),
-    # Pub/Sub
-    _csp_rule("gcp", "pubsub.subscriptions",       "subscribes_to", "pubsub.topics",             "topic",                        "{topic}"),
-    # Cloud Run
-    _csp_rule("gcp", "run.services",               "uses",          "iam.serviceaccounts",       "spec.template.spec.serviceAccountName", "{serviceAccountName}"),
-    # KMS
-    _csp_rule("gcp", "cloudkms.cryptokeyversions", "contained_by",  "cloudkms.cryptokeys",       "name",                         "{name}"),
+    # Compute Instances (gcp.compute_instance)
+    _csp_rule("gcp", "gcp.compute_instance",       "contained_by",  "gcp.vpc_network",           "networkInterfaces.network",    "{network}"),
+    _csp_rule("gcp", "gcp.compute_instance",       "attached_to",   "gcp.vpc_subnetwork",        "networkInterfaces.subnetwork", "{subnetwork}"),
+    _csp_rule("gcp", "gcp.compute_instance",       "uses",          "gcp.iam_service_account",   "serviceAccounts.email",        "{email}"),
+    _csp_rule("gcp", "gcp.compute_instance",       "uses",          "gcp.compute_disk",          "disks.source",                 "{source}"),
+    # GKE (gcp.gke_cluster)
+    _csp_rule("gcp", "gcp.gke_cluster",            "contained_by",  "gcp.vpc_network",           "network",                      "{network}"),
+    _csp_rule("gcp", "gcp.gke_cluster",            "uses",          "gcp.iam_service_account",   "nodeConfig.serviceAccount",    "{serviceAccount}"),
+    # Cloud Functions (gcp.cloud_function)
+    _csp_rule("gcp", "gcp.cloud_function",         "uses",          "gcp.iam_service_account",   "serviceAccountEmail",          "{serviceAccountEmail}"),
+    _csp_rule("gcp", "gcp.cloud_function",         "contained_by",  "gcp.vpc_network",           "vpcConnector",                 "{vpcConnector}"),
+    _csp_rule("gcp", "gcp.cloud_function",         "triggers",      "gcp.pubsub_topic",          "eventTrigger.resource",        "{resource}"),
+    # Cloud SQL (gcp.cloud_sql_instance)
+    _csp_rule("gcp", "gcp.cloud_sql_instance",     "contained_by",  "gcp.vpc_network",           "settings.ipConfiguration.privateNetwork", "{privateNetwork}"),
+    # GCS Buckets (gcp.gcs_bucket)
+    _csp_rule("gcp", "gcp.gcs_bucket",             "encrypted_by",  "gcp.kms_crypto_key",        "encryption.defaultKmsKeyName", "{defaultKmsKeyName}"),
+    _csp_rule("gcp", "gcp.gcs_bucket",             "logging_enabled_to","gcp.gcs_bucket",         "logging.logBucket",            "gs://{logBucket}"),
+    # BigQuery (gcp.bigquery_dataset)
+    _csp_rule("gcp", "gcp.bigquery_dataset",       "encrypted_by",  "gcp.kms_crypto_key",        "defaultEncryptionConfiguration.kmsKeyName", "{kmsKeyName}"),
+    # Pub/Sub (gcp.pubsub_subscription)
+    _csp_rule("gcp", "gcp.pubsub_subscription",    "subscribes_to", "gcp.pubsub_topic",          "topic",                        "{topic}"),
+    # Cloud Run (gcp.cloud_run_service)
+    _csp_rule("gcp", "gcp.cloud_run_service",      "uses",          "gcp.iam_service_account",   "spec.template.spec.serviceAccountName", "{serviceAccountName}"),
+    # KMS (gcp.kms_crypto_key)
+    _csp_rule("gcp", "gcp.kms_crypto_key",         "contained_by",  "gcp.kms_key_ring",          "name",                         "{name}"),
 ]
 
 OCI_CURATED_RULES: List[Dict[str, Any]] = [
@@ -580,17 +585,28 @@ ALICLOUD_CURATED_RULES: List[Dict[str, Any]] = [
 ]
 
 K8S_CURATED_RULES: List[Dict[str, Any]] = [
-    _csp_rule("k8s", "apps.deployment",            "member_of",     "core.namespace",            "metadata.namespace", "k8s:namespace/{namespace}"),
-    _csp_rule("k8s", "apps.deployment",            "uses",          "core.serviceaccount",       "spec.template.spec.serviceAccountName", "k8s:{namespace}/serviceaccount/{serviceAccountName}"),
-    _csp_rule("k8s", "core.pod",                   "member_of",     "core.namespace",            "metadata.namespace", "k8s:namespace/{namespace}"),
-    _csp_rule("k8s", "core.pod",                   "uses",          "core.serviceaccount",       "spec.serviceAccountName", "k8s:{namespace}/serviceaccount/{serviceAccountName}"),
-    _csp_rule("k8s", "core.pod",                   "uses",          "core.secret",               "spec.volumes.secret.secretName", "k8s:{namespace}/secret/{secretName}"),
-    _csp_rule("k8s", "core.pod",                   "uses",          "core.configmap",            "spec.volumes.configMap.name", "k8s:{namespace}/configmap/{name}"),
-    _csp_rule("k8s", "networking.ingress",         "serves_traffic_for","core.service",           "spec.rules.http.paths.backend.service.name", "k8s:{namespace}/service/{name}"),
-    _csp_rule("k8s", "rbac.clusterrolebinding",    "grants_access_to","rbac.clusterrole",        "roleRef.name",      "k8s:clusterrole/{name}"),
-    _csp_rule("k8s", "rbac.rolebinding",           "grants_access_to","rbac.role",               "roleRef.name",      "k8s:{namespace}/role/{name}"),
-    _csp_rule("k8s", "batch.job",                  "member_of",     "core.namespace",            "metadata.namespace","k8s:namespace/{namespace}"),
-    _csp_rule("k8s", "apps.statefulset",           "uses",          "core.persistentvolumeclaim","spec.volumeClaimTemplates.metadata.name","k8s:{namespace}/persistentvolumeclaim/{name}"),
+    # Deployments (k8s.deployment)
+    _csp_rule("k8s", "k8s.deployment",        "member_of",       "k8s.namespace",       "metadata.namespace", "k8s:namespace/{namespace}"),
+    _csp_rule("k8s", "k8s.deployment",        "uses",            "k8s.serviceaccount",  "spec.template.spec.serviceAccountName", "k8s:{namespace}/serviceaccount/{serviceAccountName}"),
+    # Pods (k8s.pod)
+    _csp_rule("k8s", "k8s.pod",               "member_of",       "k8s.namespace",       "metadata.namespace", "k8s:namespace/{namespace}"),
+    _csp_rule("k8s", "k8s.pod",               "uses",            "k8s.serviceaccount",  "spec.serviceAccountName", "k8s:{namespace}/serviceaccount/{serviceAccountName}"),
+    _csp_rule("k8s", "k8s.pod",               "uses",            "k8s.secret",          "spec.volumes.secret.secretName", "k8s:{namespace}/secret/{secretName}"),
+    _csp_rule("k8s", "k8s.pod",               "uses",            "k8s.configmap",       "spec.volumes.configMap.name", "k8s:{namespace}/configmap/{name}"),
+    # Ingress (k8s.ingress)
+    _csp_rule("k8s", "k8s.ingress",           "serves_traffic_for","k8s.service",       "spec.rules.http.paths.backend.service.name", "k8s:{namespace}/service/{name}"),
+    # RBAC (k8s.clusterrolebinding, k8s.rolebinding)
+    _csp_rule("k8s", "k8s.clusterrolebinding","grants_access_to", "k8s.clusterrole",    "roleRef.name",      "k8s:clusterrole/{name}"),
+    _csp_rule("k8s", "k8s.rolebinding",       "grants_access_to", "k8s.role",           "roleRef.name",      "k8s:{namespace}/role/{name}"),
+    # Jobs (k8s.job/k8s.cronjob)
+    _csp_rule("k8s", "k8s.job",               "member_of",        "k8s.namespace",      "metadata.namespace","k8s:namespace/{namespace}"),
+    # StatefulSets (k8s.statefulset)
+    _csp_rule("k8s", "k8s.statefulset",       "uses",             "k8s.persistentvolumeclaim","spec.volumeClaimTemplates.metadata.name","k8s:{namespace}/persistentvolumeclaim/{name}"),
+    # Services (k8s.service)
+    _csp_rule("k8s", "k8s.service",           "member_of",        "k8s.namespace",      "metadata.namespace","k8s:namespace/{namespace}"),
+    # DaemonSets (k8s.daemonset)
+    _csp_rule("k8s", "k8s.daemonset",         "uses",             "k8s.serviceaccount", "spec.template.spec.serviceAccountName", "k8s:{namespace}/serviceaccount/{serviceAccountName}"),
+    _csp_rule("k8s", "k8s.daemonset",         "member_of",        "k8s.namespace",      "metadata.namespace","k8s:namespace/{namespace}"),
 ]
 
 
@@ -625,7 +641,7 @@ def main(dsn: Optional[str] = None) -> None:
     with verify_conn.cursor() as cur:
         cur.execute("""
             SELECT csp, rule_source, COUNT(*) AS n
-            FROM resource_relationship_rules
+            FROM resource_security_relationship_rules
             WHERE is_active = TRUE
             GROUP BY csp, rule_source
             ORDER BY csp, rule_source

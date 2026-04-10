@@ -8,12 +8,12 @@ import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
-import { fetchView, getFromEngine } from '@/lib/api';
-import { TENANT_ID } from '@/lib/constants';
+import { fetchView } from '@/lib/api';
 import { useGlobalFilter } from '@/lib/global-filter-context';
 import PageLayout from '@/components/shared/PageLayout';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import KpiSparkCard from '@/components/shared/KpiSparkCard';
+import FindingDetailPanel from '@/components/shared/FindingDetailPanel';
 
 // ── Colour palette ────────────────────────────────────────────────────────────
 const C = {
@@ -176,8 +176,8 @@ export default function EncryptionPage() {
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState(null);
   const [data, setData]         = useState({});
-  const [remediations, setRemediations] = useState([]);
-  const [remFetched, setRemFetched]     = useState(false);
+  const [selectedFinding, setSelectedFinding] = useState(null);
+  const handleRowClick = (row) => { const f = row?.original || row; if (f) setSelectedFinding(f); };
 
   const { provider, account, region } = useGlobalFilter();
 
@@ -202,51 +202,25 @@ export default function EncryptionPage() {
     fetchData();
   }, [provider, account, region]);
 
-  // Fetch remediations once (eagerly so the tab data is ready)
-  useEffect(() => {
-    if (remFetched) return;
-    const fetchRemediations = async () => {
-      try {
-        const result = await getFromEngine('gateway', '/api/v1/encryption/remediations', {
-          tenant_id: TENANT_ID,
-          provider: provider || undefined,
-          account:  account  || undefined,
-          region:   region   || undefined,
-        });
-        if (!result.error) {
-          const items = Array.isArray(result) ? result : (result.remediations || []);
-          setRemediations(items.sort((a, b) => (b.priority_score || 0) - (a.priority_score || 0)));
-        }
-      } catch (_) { /* handled by main error state */ }
-      setRemFetched(true);
-    };
-    fetchRemediations();
-  }, [provider, account, region, remFetched]);
-
   // ── Extract data arrays (with DEMO fallback when API returns nothing) ──
-  const rawOverview     = data.overview     || [];
   const rawFindings     = data.findings     || [];
   const rawKeys         = data.keys         || [];
   const rawCertificates = data.certificates || [];
   const rawSecrets      = data.secrets      || [];
 
-  const overview     = rawOverview.length     ? rawOverview     : DEMO_ENC_OVERVIEW;
   const findings     = rawFindings.length     ? rawFindings     : DEMO_ENC_FINDINGS;
   const keys         = rawKeys.length         ? rawKeys         : DEMO_ENC_KEYS;
   const certificates = rawCertificates.length ? rawCertificates : DEMO_ENC_CERTS;
   const secrets      = rawSecrets.length      ? rawSecrets      : DEMO_ENC_SECRETS;
-  const remediationsFinal = remediations.length ? remediations : DEMO_ENC_REMEDIATIONS;
 
-  // Ensure remediations tab exists in pageContext
+  // Build pageContext — inject Overview tab if not returned by BFF
   const pageContext = useMemo(() => {
     const ctx = data.pageContext || {};
     const serverTabs = ctx.tabs || [];
-    const hasRemTab = serverTabs.some(t => t.id === 'remediations');
-    const withRem = hasRemTab ? serverTabs : [...serverTabs, { id: 'remediations', label: 'Remediations' }];
-    const hasOverview = withRem.some(t => t.id === 'overview');
+    const hasOverview = serverTabs.some(t => t.id === 'overview');
     return {
       ...ctx,
-      tabs: hasOverview ? withRem : [{ id: 'overview', label: 'Overview' }, ...withRem],
+      tabs: hasOverview ? serverTabs : [{ id: 'overview', label: 'Overview' }, ...serverTabs],
     };
   }, [data.pageContext]);
 
@@ -257,10 +231,10 @@ export default function EncryptionPage() {
     return {
       posture_score:   get(g0, 'Posture Score')   ?? ENC_KPI_FALLBACK.posture_score,
       total_findings:  get(g0, 'Total Findings')  ?? ENC_KPI_FALLBACK.total_findings,
-      critical:        ENC_KPI_FALLBACK.critical,
-      high:            ENC_KPI_FALLBACK.high,
-      medium:          ENC_KPI_FALLBACK.medium,
-      low:             ENC_KPI_FALLBACK.low,
+      critical:        get(g0, 'Critical')        ?? ENC_KPI_FALLBACK.critical,
+      high:            get(g0, 'High')            ?? ENC_KPI_FALLBACK.high,
+      medium:          get(g0, 'Medium')          ?? ENC_KPI_FALLBACK.medium,
+      low:             get(g0, 'Low')             ?? ENC_KPI_FALLBACK.low,
       total_resources: get(g0, 'Total Resources') ?? ENC_KPI_FALLBACK.total_resources,
       unencrypted:     get(g0, 'Unencrypted')     ?? ENC_KPI_FALLBACK.unencrypted,
       weak_keys:       get(g0, 'Weak Keys')       ?? ENC_KPI_FALLBACK.weak_keys,
@@ -620,21 +594,37 @@ export default function EncryptionPage() {
   // ── Column definitions ──
 
   const overviewColumns = [
-    { accessorKey: 'resource_name', header: 'Resource' },
+    {
+      accessorKey: 'resource_name', header: 'Resource',
+      cell: (info) => {
+        const v = info.getValue();
+        const uid = info.row.original.resource_uid || info.row.original.resource_id || '';
+        const display = v || uid.split('/').pop() || uid.split(':').pop() || uid;
+        return <span className="font-mono text-xs" style={{ color: 'var(--text-secondary)' }}>{display || '—'}</span>;
+      },
+    },
     {
       accessorKey: 'resource_type', header: 'Type',
       cell: (info) => (
         <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
-          {info.getValue()}
+          {info.getValue() || '—'}
         </span>
       ),
     },
-    { accessorKey: 'account', header: 'Account' },
+    {
+      accessorKey: 'account', header: 'Account',
+      cell: (info) => info.getValue() || info.row.original.account_id || '—',
+    },
+    { accessorKey: 'provider', header: 'Provider',
+      cell: (info) => info.getValue()?.toUpperCase() || '—' },
     {
       accessorKey: 'encryption_status', header: 'Encrypted',
       cell: (info) => {
         const v = info.getValue();
-        const encrypted = v === 'encrypted' || v === 'enabled' || v === true;
+        const row = info.row.original;
+        // For check-engine findings, status PASS = encrypted OK, FAIL = not encrypted
+        const encrypted = v === 'encrypted' || v === 'enabled' || v === true
+          || (v == null && row.status === 'PASS');
         return encrypted
           ? <CheckCircle className="w-4 h-4 text-green-400" />
           : <AlertTriangle className="w-4 h-4 text-red-400" />;
@@ -644,31 +634,42 @@ export default function EncryptionPage() {
       accessorKey: 'severity', header: 'Severity',
       cell: (info) => <SeverityBadge severity={info.getValue()} />,
     },
-    { accessorKey: 'findings_count', header: 'Findings' },
+    { accessorKey: 'service', header: 'Service',
+      cell: (info) => info.getValue() || '—' },
     { accessorKey: 'region', header: 'Region' },
+    { accessorKey: 'risk_score', header: 'Risk',
+      cell: (info) => { const v = info.getValue(); if (!v) return null; const c = v >= 75 ? '#ef4444' : v >= 50 ? '#f97316' : v >= 25 ? '#eab308' : '#22c55e'; return <span className="text-xs font-bold" style={{ color: c }}>{v}</span>; } },
   ];
 
-  const findingsColumns = [
-    { accessorKey: 'resource_name', header: 'Resource' },
-    { accessorKey: 'rule_id', header: 'Rule' },
-    {
-      accessorKey: 'severity', header: 'Severity',
-      cell: (info) => <SeverityBadge severity={info.getValue()} />,
-    },
-    {
-      accessorKey: 'status', header: 'Status',
-      cell: (info) => {
-        const v = info.getValue();
-        const isFail = v === 'FAIL';
-        return (
-          <span className={`text-xs px-2 py-0.5 rounded ${isFail ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{v}</span>
-        );
-      },
-    },
-    { accessorKey: 'account_id', header: 'Account' },
-    { accessorKey: 'region', header: 'Region' },
-    { accessorKey: 'resource_type', header: 'Type' },
-  ];
+  const findingsColumns = useMemo(() => [
+    { accessorKey: 'provider',           header: 'Provider', size: 70,
+      cell: (info) => info.getValue()?.toUpperCase() || '—' },
+    { accessorKey: 'account_id',         header: 'Account', size: 130,
+      cell: (info) => info.getValue() || info.row.original.account || '—' },
+    { accessorKey: 'region',             header: 'Region', size: 110 },
+    { accessorKey: 'service',            header: 'Service', size: 110,
+      cell: (info) => info.getValue() || info.row.original.network_layer || info.row.original.encryption_domain || info.row.original.container_service || info.row.original.db_service || '—' },
+    { accessorKey: 'rule_id',            header: 'Rule ID', size: 130,
+      cell: (info) => <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>{info.getValue() || '—'}</span> },
+    { accessorKey: 'title',              header: 'Finding',
+      cell: (info) => <span className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>{info.getValue() || info.row.original.rule_id || '—'}</span> },
+    { accessorKey: 'severity',           header: 'Severity',
+      cell: (info) => <SeverityBadge severity={info.getValue()} /> },
+    { accessorKey: 'status',             header: 'Status',
+      cell: (info) => { const v = info.getValue(), f = v === 'FAIL'; return <span className={`text-xs px-2 py-0.5 rounded ${f ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{v}</span>; } },
+    { accessorKey: 'resource_uid',       header: 'Resource',
+      cell: (info) => { const v = info.getValue() || info.row.original.resource_id || ''; return <span className="font-mono text-xs" style={{ color: 'var(--text-secondary)' }}>{v.split('/').pop() || v.split(':').pop() || v}</span>; } },
+    { accessorKey: 'resource_type',      header: 'Type' },
+    { accessorKey: 'encryption_domain',  header: 'Domain',
+      cell: (info) => { const v = info.getValue(); return v ? <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'rgba(139,92,246,0.12)', color: '#a78bfa' }}>{v}</span> : null; } },
+    { accessorKey: 'key_type',           header: 'Key Type' },
+    { accessorKey: 'rotation_compliant', header: 'Rotation',
+      cell: (info) => { const v = info.getValue(); if (v == null) return null; return v ? <span className="text-xs px-2 py-0.5 rounded bg-green-500/20 text-green-400">Compliant</span> : <span className="text-xs px-2 py-0.5 rounded bg-red-500/20 text-red-400">Non-compliant</span>; } },
+    { accessorKey: 'transit_enforced',   header: 'In-Transit',
+      cell: (info) => { const v = info.getValue(); if (v == null) return null; return v ? <span className="text-xs text-green-400">✓</span> : <span className="text-xs text-red-400">✗</span>; } },
+    { accessorKey: 'risk_score',         header: 'Risk',
+      cell: (info) => { const v = info.getValue(); if (!v) return null; const c = v >= 75 ? '#ef4444' : v >= 50 ? '#f97316' : v >= 25 ? '#eab308' : '#22c55e'; return <div className="flex items-center gap-1.5"><div className="w-10 h-1.5 rounded-full" style={{ backgroundColor: 'var(--bg-tertiary)' }}><div className="h-full rounded-full" style={{ width: `${v}%`, backgroundColor: c }} /></div><span className="text-xs font-bold" style={{ color: c }}>{v}</span></div>; } },
+  ], []);
 
   const keysColumns = [
     { accessorKey: 'key_id', header: 'Key ID' },
@@ -793,16 +794,39 @@ export default function EncryptionPage() {
   // ── Helper to build dynamic filter options from a dataset ──
   const uv = (arr, key) => [...new Set(arr.map(r => r[key]).filter(Boolean))].sort();
 
+  const serviceOptions = useMemo(() =>
+    [...new Set((findings || []).map(f => f.service || f.network_layer || '').filter(Boolean))].sort(),
+  [findings]);
+
   // ── Build tabData ──
   const tabData = useMemo(() => {
     return {
       overview: {
-        data: overview,
-        columns: overviewColumns,
+        data: findings,
+        columns: findingsColumns,
+        filters: [
+          { key: 'provider', label: 'Cloud Platform', options: ['aws', 'azure', 'gcp'] },
+          { key: 'severity',  label: 'Severity',       options: ['critical', 'high', 'medium', 'low'] },
+          { key: 'status',    label: 'Status',          options: ['FAIL', 'PASS'] },
+          { key: 'service',   label: 'Service',         options: serviceOptions },
+        ],
+        searchPlaceholder: 'Search by rule, resource, title...',
       },
       findings: {
         data: findings,
         columns: findingsColumns,
+        filters: [
+          { key: 'provider', label: 'Cloud Platform', options: ['aws', 'azure', 'gcp'] },
+          { key: 'severity',  label: 'Severity',       options: ['critical', 'high', 'medium', 'low'] },
+          { key: 'status',    label: 'Status',          options: ['FAIL', 'PASS'] },
+          { key: 'service',   label: 'Service',         options: serviceOptions },
+        ],
+        extraFilters: [
+          { key: 'region',        label: 'Region',        options: [] },
+          { key: 'account_id',    label: 'Account',       options: [] },
+          { key: 'resource_type', label: 'Resource Type', options: [] },
+        ],
+        searchPlaceholder: 'Search by rule, resource, title...',
       },
       keys: {
         data: keys,
@@ -816,12 +840,8 @@ export default function EncryptionPage() {
         data: secrets,
         columns: secretsColumns,
       },
-      remediations: {
-        data: remediationsFinal,
-        columns: remediationsColumns,
-      },
     };
-  }, [overview, findings, keys, certificates, secrets, remediationsFinal]);
+  }, [findings, keys, certificates, secrets, serviceOptions]);
 
   return (
     <div className="space-y-5">
@@ -858,7 +878,9 @@ export default function EncryptionPage() {
         defaultTab="overview"
         hideHeader
         topNav
+        onRowClick={handleRowClick}
       />
+      <FindingDetailPanel finding={selectedFinding} onClose={() => setSelectedFinding(null)} />
     </div>
   );
 }

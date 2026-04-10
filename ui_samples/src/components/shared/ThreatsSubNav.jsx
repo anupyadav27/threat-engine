@@ -3,13 +3,13 @@
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 
+// Blast Radius is per-asset and lives in Inventory → Asset Detail → "Blast Radius" tab.
+// Timeline is per-threat and lives in Threat Detail → "Timeline" tab.
 const THREAT_NAV = [
   { label: 'Threat Detection', href: '/threats' },
   { label: 'Attack Paths', href: '/threats/attack-paths' },
-  { label: 'Blast Radius', href: '/threats/blast-radius' },
-  { label: 'Toxic Combos', href: '/threats/toxic-combinations' },
+  { label: 'Toxic Threat Combos', href: '/threats/toxic-combinations' },
   { label: 'Graph', href: '/threats/graph' },
-  { label: 'Timeline', href: '/threats/timeline' },
 ];
 
 /**

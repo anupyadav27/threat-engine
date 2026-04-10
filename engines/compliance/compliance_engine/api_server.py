@@ -872,10 +872,19 @@ async def generate_compliance_report_from_check_db(
 
         background_tasks.add_task(save_report_to_s3, report, request.csp)
 
+        # Return lightweight summary (full report saved to DB + S3 + local JSON)
+        summary = dashboard.get("summary", {})
         return {
             "report_id": report_id,
             "status": "completed",
-            "compliance_report": report,
+            "scan_id": scan_results.get("scan_id"),
+            "tenant_id": request.tenant_id,
+            "csp": request.csp,
+            "total_checks": summary.get("total_checks", 0),
+            "passed": summary.get("passed", 0),
+            "failed": summary.get("failed", 0),
+            "frameworks": len(framework_reports),
+            "compliance_scan_id": compliance_scan_id if 'compliance_scan_id' in dir() else None,
         }
 
     except HTTPException:
@@ -2490,7 +2499,8 @@ async def get_compliance_findings_for_resource(
         """
         _COLS = """
             SELECT compliance_framework, control_id, control_name,
-                   severity, status, rule_id, category, last_seen_at
+                   severity, status, rule_id, category, last_seen_at,
+                   finding_data
             FROM compliance_findings
             WHERE resource_uid = %s
         """
@@ -2512,6 +2522,13 @@ async def get_compliance_findings_for_resource(
         findings = []
         for r in rows:
             last_seen = r.get("last_seen_at")
+            fd = r.get("finding_data") or {}
+            if isinstance(fd, str):
+                try:
+                    fd = json.loads(fd)
+                except Exception:
+                    fd = {}
+            check_data = fd.get("check") or {}
             findings.append({
                 "framework": r.get("compliance_framework") or "",
                 "control_id": r.get("control_id") or "",
@@ -2521,6 +2538,10 @@ async def get_compliance_findings_for_resource(
                 "rule_id": r.get("rule_id") or "",
                 "category": r.get("category") or "",
                 "last_seen": last_seen.isoformat() if last_seen else None,
+                "remediation": fd.get("remediation") or check_data.get("remediation") or None,
+                "description": check_data.get("description") or fd.get("control_title") or None,
+                "rationale": check_data.get("rationale") or None,
+                "resource": check_data.get("resource") or None,
             })
 
         return {
@@ -2531,6 +2552,243 @@ async def get_compliance_findings_for_resource(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to query compliance findings: {e}")
+    finally:
+        conn.close()
+
+
+@app.get("/api/v1/compliance/findings/by-control")
+async def get_findings_by_control(
+    control_id: str = Query(...),
+    framework: str = Query(...),
+    tenant_id: str = Query(...),
+    limit: int = Query(50, ge=1, le=500),
+):
+    """Return individual compliance findings for a specific control + framework.
+
+    Used by the UI popup to show full details when clicking a row in the
+    Failing Controls table or asset compliance tab.
+    """
+    try:
+        conn = _get_compliance_conn()
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Database unavailable: {e}")
+
+    try:
+        from psycopg2.extras import RealDictCursor
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT finding_id, scan_run_id, rule_id, category,
+                       severity, confidence, status,
+                       resource_uid, resource_type, resource_id, region,
+                       compliance_framework, control_id, control_name,
+                       first_seen_at, last_seen_at, finding_data,
+                       account_id
+                FROM compliance_findings
+                WHERE tenant_id = %s
+                  AND COALESCE(NULLIF(control_id, ''), finding_data->>'control_id', rule_id) = %s
+                  AND COALESCE(NULLIF(compliance_framework, ''), finding_data->>'framework', '') = %s
+                ORDER BY severity, resource_uid
+                LIMIT %s
+            """, (tenant_id, control_id, framework, limit))
+            rows = cur.fetchall()
+
+        findings = []
+        for r in rows:
+            fd = r.get("finding_data") or {}
+            if isinstance(fd, str):
+                fd = json.loads(fd)
+            check = fd.get("check") or {}
+            evidence = check.get("evidence") or {}
+            resource = check.get("resource") or {}
+            control = check.get("control") or {}
+            first_seen = r.get("first_seen_at")
+            last_seen = r.get("last_seen_at")
+            findings.append({
+                "finding_id": str(r.get("finding_id", "")),
+                "rule_id": r.get("rule_id") or "",
+                "category": r.get("category") or check.get("service") or "",
+                "severity": (r.get("severity") or "medium").lower(),
+                "confidence": (r.get("confidence") or "medium").lower(),
+                "status": r.get("status") or "open",
+                "framework": r.get("compliance_framework") or "",
+                "control_id": r.get("control_id") or "",
+                "control_name": r.get("control_name") or control.get("control_title") or "",
+                "control_description": control.get("control_description") or None,
+                "resource_uid": r.get("resource_uid") or resource.get("uid") or "",
+                "resource_type": r.get("resource_type") or resource.get("type") or "",
+                "resource_arn": resource.get("arn") or r.get("resource_uid") or "",
+                "region": r.get("region") or check.get("region") or "",
+                "account_id": r.get("account_id") or "",
+                "first_seen": first_seen.isoformat() if first_seen else None,
+                "last_seen": last_seen.isoformat() if last_seen else None,
+                "checked_fields": evidence.get("checked_fields") or [],
+                "actual_values": (evidence.get("finding_data") or {}).get("actual_values") or {},
+                "remediation": fd.get("remediation") or check.get("remediation") or None,
+                "check_result": check.get("check_result") or r.get("status") or "",
+            })
+
+        return {
+            "control_id": control_id,
+            "framework": framework,
+            "total": len(findings),
+            "findings": findings,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to query findings: {e}")
+    finally:
+        conn.close()
+
+
+@app.get("/api/v1/compliance/findings/framework/{framework_name:path}")
+async def get_framework_findings_grouped(
+    framework_name: str,
+    tenant_id: str = Query(...),
+    scan_run_id: Optional[str] = Query(None),
+    limit: int = Query(2000, ge=1, le=5000),
+):
+    """
+    Return compliance findings for a framework grouped by control_id.
+
+    Used by the framework detail page (Wiz-like drill-down).
+    Returns controls with pass/fail counts and per-control resource lists.
+    Resolves account_id the same way as the resource findings endpoint.
+    """
+    try:
+        conn = _get_compliance_conn()
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Database unavailable: {e}")
+
+    try:
+        from psycopg2.extras import RealDictCursor
+
+        # Resolve account_id for tenant matching
+        account_id = None
+        if scan_run_id:
+            try:
+                meta = get_orchestration_metadata(scan_run_id)
+                account_id = meta.get("account_id") or None
+            except Exception:
+                pass
+
+        # Fuzzy framework name mapping: URL slugs → DB values
+        # e.g. "cis-aws-2.0" → "CIS", "nist-800-53" → "NIST_800-53"
+        _FW_MAP = {
+            "cis": "CIS", "cis-aws": "CIS", "cis-aws-2.0": "CIS", "cis-aws-2": "CIS",
+            "nist": "NIST_800-53", "nist-800-53": "NIST_800-53", "nist800-53": "NIST_800-53",
+            "nist-800-53-r5": "NIST_800-53", "nist-csf": "NIST_800-53",
+            "soc2": "SOC2", "soc-2": "SOC2", "soc2-type-ii": "SOC2", "soc-2-type-ii": "SOC2",
+            "pci": "PCI-DSS", "pci-dss": "PCI-DSS", "pci-dss-4.0": "PCI-DSS", "pci-dss-4": "PCI-DSS",
+            "hipaa": "HIPAA",
+            "iso27001": "ISO27001", "iso-27001": "ISO27001", "iso-27001-2022": "ISO27001",
+            "gdpr": "GDPR",
+            "fedramp": "FedRAMP", "fed-ramp": "FedRAMP",
+            "canada-pbmm": "CANADA_PBMM",
+            "nist-800-171": "NIST_800-171",
+        }
+        db_framework = _FW_MAP.get(framework_name.lower(), framework_name)
+
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            if account_id:
+                cur.execute("""
+                    SELECT control_id, control_name, rule_id, severity, status,
+                           resource_uid, resource_type, region, finding_data, last_seen_at,
+                           compliance_framework
+                    FROM compliance_findings
+                    WHERE (UPPER(compliance_framework) = UPPER(%s)
+                           OR compliance_framework ILIKE %s)
+                      AND (tenant_id = %s OR account_id = %s OR tenant_id = %s)
+                    ORDER BY control_id, severity, last_seen_at DESC
+                    LIMIT %s
+                """, (db_framework, f"%{db_framework}%", tenant_id, account_id, account_id, limit))
+            else:
+                cur.execute("""
+                    SELECT control_id, control_name, rule_id, severity, status,
+                           resource_uid, resource_type, region, finding_data, last_seen_at,
+                           compliance_framework
+                    FROM compliance_findings
+                    WHERE (UPPER(compliance_framework) = UPPER(%s)
+                           OR compliance_framework ILIKE %s)
+                      AND tenant_id = %s
+                    ORDER BY control_id, severity, last_seen_at DESC
+                    LIMIT %s
+                """, (db_framework, f"%{db_framework}%", tenant_id, limit))
+            rows = cur.fetchall()
+
+        # Group by control_id
+        from collections import defaultdict
+        controls_map: dict = {}
+        severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+        actual_framework = db_framework
+
+        for r in rows:
+            cid = r["control_id"] or "unknown"
+            if r.get("compliance_framework"):
+                actual_framework = r["compliance_framework"]
+
+            if cid not in controls_map:
+                controls_map[cid] = {
+                    "control_id": cid,
+                    "control_name": r.get("control_name") or cid,
+                    "severity": r.get("severity") or "medium",
+                    "rule_id": r.get("rule_id") or "",
+                    "status": "pass",
+                    "passed": 0,
+                    "failed": 0,
+                    "resources": [],
+                }
+            entry = controls_map[cid]
+
+            # Aggregate severity to worst
+            if severity_order.get(r.get("severity", "medium"), 2) < severity_order.get(entry["severity"], 2):
+                entry["severity"] = r["severity"]
+
+            s = (r.get("status") or "").lower()
+            is_fail = s in ("fail", "open", "failed")
+            if is_fail:
+                entry["failed"] += 1
+                entry["status"] = "fail"
+                uid = r.get("resource_uid") or ""
+                if uid and len(entry["resources"]) < 20:
+                    last_seen = r.get("last_seen_at")
+                    entry["resources"].append({
+                        "resource_uid": uid,
+                        "resource_type": r.get("resource_type") or "",
+                        "region": r.get("region") or "",
+                        "severity": r.get("severity") or "medium",
+                        "last_seen": last_seen.isoformat() if last_seen else None,
+                    })
+            else:
+                entry["passed"] += 1
+
+        controls = list(controls_map.values())
+        controls.sort(key=lambda c: (severity_order.get(c["severity"], 2), c["control_id"]))
+
+        fail_count = sum(1 for c in controls if c["status"] == "fail")
+        pass_count = len(controls) - fail_count
+        total_resources = sum(c["failed"] for c in controls)
+        score = round(pass_count / len(controls) * 100) if controls else 0
+
+        return {
+            "framework": actual_framework,
+            "framework_slug": framework_name,
+            "tenant_id": tenant_id,
+            "summary": {
+                "score": score,
+                "total_controls": len(controls),
+                "passed_controls": pass_count,
+                "failed_controls": fail_count,
+                "total_resources_affected": total_resources,
+                "critical_controls": sum(1 for c in controls if c["severity"] == "critical" and c["status"] == "fail"),
+                "high_controls": sum(1 for c in controls if c["severity"] == "high" and c["status"] == "fail"),
+            },
+            "controls": controls,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get framework findings: {e}")
     finally:
         conn.close()
 

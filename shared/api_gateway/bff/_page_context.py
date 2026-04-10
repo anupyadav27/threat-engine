@@ -472,7 +472,7 @@ def ai_security_page_context(summary: Dict[str, Any]) -> Dict:
     total = summary.get("total_findings", 0)
     ml_resources = summary.get("total_ml_resources", 0)
     by_sev = summary.get("by_severity", {})
-    critical = by_sev.get("critical", 0)
+    critical = by_sev.get("critical", summary.get("critical_findings", 0))
 
     return {
         "title": "AI Security Posture",

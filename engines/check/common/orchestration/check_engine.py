@@ -40,6 +40,7 @@ from common.models.evaluator_interface import CheckEvaluator
 from common.database.database_manager import DatabaseManager
 from common.database.rule_reader import RuleReader
 from common.database.discovery_reader import DiscoveryReader
+from common.database.inventory_reader import InventoryReader
 from common.utils.phase_logger import PhaseLogger
 from common.utils.condition_evaluator import (
     extract_value,
@@ -72,7 +73,13 @@ class CheckEngine:
         self.use_ndjson = self._determine_mode(use_ndjson)
         self.phase_logger: Optional[PhaseLogger] = None
 
-        self.discovery_reader = DiscoveryReader()
+        data_source = os.getenv("CHECK_DATA_SOURCE", "discovery").lower()
+        if data_source == "inventory":
+            self.discovery_reader = InventoryReader()
+            logger.info("Check engine reading from inventory_findings (CHECK_DATA_SOURCE=inventory)")
+        else:
+            self.discovery_reader = DiscoveryReader()
+            logger.info("Check engine reading from discovery_findings (CHECK_DATA_SOURCE=discovery)")
 
         self.rule_reader: Optional[RuleReader] = None
         try:
@@ -214,7 +221,7 @@ class CheckEngine:
 
     def run_check_scan(
         self,
-        discovery_scan_run_id: str,
+        discovery_scan_id: str,
         customer_id: str,
         tenant_id: str,
         provider: str,
@@ -229,7 +236,7 @@ class CheckEngine:
         Run security checks against discovered resources.
 
         Args:
-            discovery_scan_run_id: Discovery scan to evaluate against.
+            discovery_scan_id: Discovery scan to evaluate against.
             customer_id:       Customer identifier.
             tenant_id:         Tenant identifier.
             provider:          CSP name (aws / azure / gcp / oci).
@@ -259,7 +266,7 @@ class CheckEngine:
         output_dir = base / "checks" / scan_run_id
         self.phase_logger = PhaseLogger(scan_run_id, "checks", output_dir)
         self.phase_logger.info(
-            "Check scan %s [%s] → discovery %s", scan_run_id, mode, discovery_scan_run_id
+            "Check scan %s [%s] → discovery %s", scan_run_id, mode, discovery_scan_id
         )
         self.phase_logger.info(
             "  Provider: %s | Services: %d | Source: %s",
@@ -277,12 +284,12 @@ class CheckEngine:
                 hierarchy_type=hierarchy_type,
                 scan_type="check",
                 metadata={
-                    "discovery_scan_run_id": discovery_scan_run_id,
+                    "discovery_scan_id": discovery_scan_id,
                     "services": services,
                     "check_source": check_source,
                     "mode": mode,
                 },
-                discovery_scan_run_id=discovery_scan_run_id,
+                discovery_scan_id=discovery_scan_id,
             )
 
         ndjson_buffer: Optional[List[Dict]] = [] if use_ndjson_mode else None
@@ -312,7 +319,7 @@ class CheckEngine:
                     did = ch.get("for_each")
                     if did and did not in disc_cache:
                         disc_cache[did] = self._load_discoveries(
-                            did, tenant_id, account_id, discovery_scan_run_id, service
+                            did, tenant_id, account_id, discovery_scan_id, service
                         )
                 loaded = sum(1 for v in disc_cache.values() if v)
                 self.phase_logger.info(
@@ -327,9 +334,10 @@ class CheckEngine:
                     if not rule_id or not for_each or not conditions:
                         continue
 
-                    # Resolve resource_service from metadata (cross-service fix)
+                    # Resolve resource_service and severity from metadata
                     _rmeta = _meta_map.get(rule_id, {})
                     resource_service = _rmeta.get("resource_service") or service
+                    severity = _rmeta.get("severity")
 
                     items = disc_cache.get(for_each, [])
                     if not items:
@@ -382,7 +390,7 @@ class CheckEngine:
                                 ndjson_buffer.append(
                                     {
                                         "scan_run_id": scan_run_id,
-                                        "discovery_scan_run_id": discovery_scan_run_id,
+                                        "discovery_scan_id": discovery_scan_id,
                                         "customer_id": customer_id,
                                         "tenant_id": tenant_id,
                                         "provider": provider,
@@ -398,6 +406,7 @@ class CheckEngine:
                                         "resource_id": resource_id,
                                         "resource_type": resource_type,
                                         "status": status,
+                                        "severity": severity,
                                         "checked_fields": checked_fields,
                                         "actual_values": actual_values,
                                         "finding_data": finding_data,
@@ -422,6 +431,7 @@ class CheckEngine:
                                     resource_type=resource_type,
                                     resource_service=resource_service,
                                     status=status,
+                                    severity=severity,
                                     checked_fields=checked_fields,
                                     actual_values=actual_values,
                                     finding_data=finding_data,
@@ -468,7 +478,7 @@ class CheckEngine:
 
         summary = {
             "scan_run_id":    scan_run_id,
-            "discovery_scan_run_id": discovery_scan_run_id,
+            "discovery_scan_id": discovery_scan_id,
             "provider":         provider,
             "mode":             mode,
             "total_checks":     total,

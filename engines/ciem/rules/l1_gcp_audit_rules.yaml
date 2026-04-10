@@ -1,0 +1,1051 @@
+rules:
+- rule_id: gcp.audit.iam_sa_create
+  title: GCP service account created
+  severity: high
+  log_source_type: gcp_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: iam.googleapis.com
+    - field: operation
+      op: equals
+      value: google.iam.admin.v1.CreateServiceAccount
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - persistence
+  mitre_techniques:
+  - T1136.003
+  domain: iam_security
+  provider: gcp
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: &id001
+  - CIS
+  - NIST_800-53
+  - SOC2
+  - PCI-DSS
+  - ISO_27001
+  risk_score: 70
+- rule_id: gcp.audit.iam_sa_key_create
+  title: GCP service account key created
+  severity: critical
+  log_source_type: gcp_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: iam.googleapis.com
+    - field: operation
+      op: equals
+      value: google.iam.admin.v1.CreateServiceAccountKey
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - credential-access
+  - persistence
+  mitre_techniques:
+  - T1098.001
+  domain: iam_security
+  provider: gcp
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: gcp.audit.iam_set_policy
+  title: IAM policy binding changed (setIamPolicy)
+  severity: high
+  log_source_type: gcp_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: operation
+      op: contains
+      value: SetIamPolicy
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: modify
+  mitre_tactics:
+  - privilege-escalation
+  - persistence
+  mitre_techniques:
+  - T1098
+  domain: iam_security
+  provider: gcp
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: gcp.audit.iam_custom_role_create
+  title: Custom IAM role created
+  severity: high
+  log_source_type: gcp_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: iam.googleapis.com
+    - field: operation
+      op: equals
+      value: google.iam.admin.v1.CreateRole
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: create
+  mitre_tactics:
+  - privilege-escalation
+  mitre_techniques:
+  - T1098
+  domain: iam_security
+  provider: gcp
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: gcp.audit.iam_custom_role_update
+  title: Custom IAM role permissions updated
+  severity: high
+  log_source_type: gcp_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: iam.googleapis.com
+    - field: operation
+      op: equals
+      value: google.iam.admin.v1.UpdateRole
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: modify
+  mitre_tactics:
+  - privilege-escalation
+  mitre_techniques:
+  - T1098
+  domain: iam_security
+  provider: gcp
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: gcp.audit.iam_workload_identity_create
+  title: Workload identity pool or provider created
+  severity: high
+  log_source_type: gcp_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: iam.googleapis.com
+    - field: operation
+      op: contains
+      value: CreateWorkloadIdentityPool
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: create
+  mitre_tactics:
+  - initial-access
+  - persistence
+  mitre_techniques:
+  - T1078.004
+  domain: iam_security
+  provider: gcp
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: gcp.audit.iam_sa_impersonate
+  title: Service account impersonation (generateAccessToken)
+  severity: high
+  log_source_type: gcp_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: iamcredentials.googleapis.com
+    - field: operation
+      op: equals
+      value: GenerateAccessToken
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: modify
+  mitre_tactics:
+  - privilege-escalation
+  - lateral-movement
+  mitre_techniques:
+  - T1134.001
+  domain: iam_security
+  provider: gcp
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: gcp.audit.org_policy_change
+  title: Organization policy constraint changed
+  severity: critical
+  log_source_type: gcp_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: orgpolicy.googleapis.com
+    - field: operation
+      op: contains
+      value: UpdatePolicy
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.001
+  domain: iam_security
+  provider: gcp
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: gcp.audit.iam_sa_delete
+  title: GCP service account deleted
+  severity: medium
+  log_source_type: gcp_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: iam.googleapis.com
+    - field: operation
+      op: equals
+      value: google.iam.admin.v1.DeleteServiceAccount
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: delete
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1531
+  domain: iam_security
+  provider: gcp
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: gcp.audit.iam_sa_disable
+  title: GCP service account disabled
+  severity: medium
+  log_source_type: gcp_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: iam.googleapis.com
+    - field: operation
+      op: equals
+      value: google.iam.admin.v1.DisableServiceAccount
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: modify
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1531
+  domain: iam_security
+  provider: gcp
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: gcp.audit.compute_instance_create
+  title: Compute Engine instance created
+  severity: medium
+  log_source_type: gcp_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: compute.googleapis.com
+    - field: operation
+      op: equals
+      value: v1.compute.instances.insert
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - execution
+  - resource-development
+  mitre_techniques:
+  - T1578.002
+  domain: iam_security
+  provider: gcp
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: gcp.audit.compute_instance_delete
+  title: Compute Engine instance deleted
+  severity: medium
+  log_source_type: gcp_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: compute.googleapis.com
+    - field: operation
+      op: equals
+      value: v1.compute.instances.delete
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1578.003
+  domain: iam_security
+  provider: gcp
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: gcp.audit.compute_firewall_create
+  title: Compute Engine firewall rule created
+  severity: high
+  log_source_type: gcp_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: compute.googleapis.com
+    - field: operation
+      op: equals
+      value: v1.compute.firewalls.insert
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - defense-evasion
+  - persistence
+  mitre_techniques:
+  - T1562.007
+  domain: iam_security
+  provider: gcp
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: gcp.audit.compute_firewall_delete
+  title: Compute Engine firewall rule deleted
+  severity: high
+  log_source_type: gcp_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: compute.googleapis.com
+    - field: operation
+      op: equals
+      value: v1.compute.firewalls.delete
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.007
+  domain: iam_security
+  provider: gcp
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: gcp.audit.compute_snapshot_create
+  title: Compute Engine disk snapshot created
+  severity: medium
+  log_source_type: gcp_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: compute.googleapis.com
+    - field: operation
+      op: equals
+      value: v1.compute.disks.createSnapshot
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - exfiltration
+  - collection
+  mitre_techniques:
+  - T1537
+  domain: iam_security
+  provider: gcp
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: gcp.audit.gke_cluster_create
+  title: GKE cluster created
+  severity: high
+  log_source_type: gcp_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: container.googleapis.com
+    - field: operation
+      op: equals
+      value: google.container.v1.ClusterManager.CreateCluster
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - resource-development
+  mitre_techniques:
+  - T1578.002
+  domain: iam_security
+  provider: gcp
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: gcp.audit.gke_cluster_update
+  title: GKE cluster configuration updated
+  severity: high
+  log_source_type: gcp_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: container.googleapis.com
+    - field: operation
+      op: equals
+      value: google.container.v1.ClusterManager.UpdateCluster
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  - persistence
+  mitre_techniques:
+  - T1610
+  domain: iam_security
+  provider: gcp
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: gcp.audit.compute_instance_template_create
+  title: Compute Engine instance template created
+  severity: low
+  log_source_type: gcp_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: compute.googleapis.com
+    - field: operation
+      op: equals
+      value: v1.compute.instanceTemplates.insert
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - resource-development
+  mitre_techniques:
+  - T1578.002
+  domain: iam_security
+  provider: gcp
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: gcp.audit.network_vpc_create
+  title: VPC network created
+  severity: medium
+  log_source_type: gcp_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: compute.googleapis.com
+    - field: operation
+      op: equals
+      value: v1.compute.networks.insert
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.007
+  domain: iam_security
+  provider: gcp
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: gcp.audit.network_nat_create
+  title: Cloud NAT configuration created
+  severity: medium
+  log_source_type: gcp_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: compute.googleapis.com
+    - field: operation
+      op: equals
+      value: v1.compute.routers.insert
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - defense-evasion
+  - exfiltration
+  mitre_techniques:
+  - T1048
+  domain: iam_security
+  provider: gcp
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: gcp.audit.network_armor_policy_change
+  title: Cloud Armor security policy modified
+  severity: high
+  log_source_type: gcp_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: compute.googleapis.com
+    - field: operation
+      op: contains
+      value: securityPolicies
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.007
+  domain: iam_security
+  provider: gcp
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: gcp.audit.network_vpn_tunnel_create
+  title: VPN tunnel created
+  severity: medium
+  log_source_type: gcp_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: compute.googleapis.com
+    - field: operation
+      op: equals
+      value: v1.compute.vpnTunnels.insert
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - exfiltration
+  - lateral-movement
+  mitre_techniques:
+  - T1133
+  domain: iam_security
+  provider: gcp
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: gcp.audit.network_lb_create
+  title: Load balancer (forwarding rule) created
+  severity: low
+  log_source_type: gcp_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: compute.googleapis.com
+    - field: operation
+      op: equals
+      value: v1.compute.forwardingRules.insert
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - resource-development
+  mitre_techniques:
+  - T1583.004
+  domain: iam_security
+  provider: gcp
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: gcp.audit.network_subnet_create
+  title: VPC subnetwork created
+  severity: low
+  log_source_type: gcp_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: compute.googleapis.com
+    - field: operation
+      op: equals
+      value: v1.compute.subnetworks.insert
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.007
+  domain: iam_security
+  provider: gcp
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: gcp.audit.storage_bucket_iam_change
+  title: GCS bucket IAM policy changed
+  severity: high
+  log_source_type: gcp_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: storage.googleapis.com
+    - field: operation
+      op: equals
+      value: storage.setIamPermissions
+  engines:
+  - threat_engine
+  - ciem
+  - datasec_engine
+  primary_engine: datasec_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  - exfiltration
+  mitre_techniques:
+  - T1537
+  domain: iam_security
+  provider: gcp
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: gcp.audit.storage_bucket_public_access
+  title: GCS bucket made publicly accessible
+  severity: critical
+  log_source_type: gcp_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: storage.googleapis.com
+    - field: operation
+      op: equals
+      value: storage.objects.update
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: datasec_engine
+  action_category: modify
+  mitre_tactics:
+  - exfiltration
+  mitre_techniques:
+  - T1537
+  description: Requires L2 correlation to confirm allUsers/allAuthenticatedUsers binding
+  domain: iam_security
+  provider: gcp
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: gcp.audit.bigquery_dataset_iam_change
+  title: BigQuery dataset access controls changed
+  severity: high
+  log_source_type: gcp_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: bigquery.googleapis.com
+    - field: operation
+      op: equals
+      value: google.iam.v1.IAMPolicy.SetIamPolicy
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: datasec_engine
+  action_category: modify
+  mitre_tactics:
+  - collection
+  - exfiltration
+  mitre_techniques:
+  - T1530
+  domain: iam_security
+  provider: gcp
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: gcp.audit.cloudsql_instance_change
+  title: Cloud SQL instance created or modified
+  severity: medium
+  log_source_type: gcp_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: sqladmin.googleapis.com
+    - field: operation
+      op: contains
+      value: instances
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: datasec_engine
+  action_category: modify
+  mitre_tactics:
+  - persistence
+  - collection
+  mitre_techniques:
+  - T1505
+  domain: iam_security
+  provider: gcp
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: gcp.audit.kms_key_create
+  title: KMS crypto key created
+  severity: medium
+  log_source_type: gcp_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: cloudkms.googleapis.com
+    - field: operation
+      op: equals
+      value: CreateCryptoKey
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - collection
+  mitre_techniques:
+  - T1552.004
+  domain: iam_security
+  provider: gcp
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: gcp.audit.kms_key_destroy
+  title: KMS crypto key version scheduled for destruction
+  severity: critical
+  log_source_type: gcp_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: cloudkms.googleapis.com
+    - field: operation
+      op: equals
+      value: DestroyCryptoKeyVersion
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1485
+  domain: iam_security
+  provider: gcp
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: gcp.audit.scc_finding_created
+  title: Security Command Center finding created
+  severity: high
+  log_source_type: gcp_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: securitycenter.googleapis.com
+    - field: operation
+      op: contains
+      value: findings
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - discovery
+  mitre_techniques:
+  - T1518
+  domain: iam_security
+  provider: gcp
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: gcp.audit.audit_config_change
+  title: Cloud Audit Logs configuration changed
+  severity: critical
+  log_source_type: gcp_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: operation
+      op: contains
+      value: SetIamPolicy
+    - field: raw_event.protoPayload.request.policy.auditConfigs
+      op: exists
+      value: true
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.008
+  domain: iam_security
+  provider: gcp
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: gcp.audit.vpc_service_controls_change
+  title: VPC Service Controls perimeter modified
+  severity: critical
+  log_source_type: gcp_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: accesscontextmanager.googleapis.com
+    - field: operation
+      op: contains
+      value: ServicePerimeter
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.001
+  domain: iam_security
+  provider: gcp
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: gcp.audit.access_context_manager_change
+  title: Access Context Manager access level changed
+  severity: high
+  log_source_type: gcp_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: accesscontextmanager.googleapis.com
+    - field: operation
+      op: contains
+      value: AccessLevel
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  - initial-access
+  mitre_techniques:
+  - T1078
+  domain: iam_security
+  provider: gcp
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: gcp.audit.binary_authorization_policy_change
+  title: Binary Authorization policy updated
+  severity: high
+  log_source_type: gcp_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: binaryauthorization.googleapis.com
+    - field: operation
+      op: contains
+      value: UpdatePolicy
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.001
+  domain: iam_security
+  provider: gcp
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70

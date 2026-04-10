@@ -1,0 +1,392 @@
+rules:
+- rule_id: alb.http_5xx_error
+  title: ALB returned HTTP 5xx server error
+  severity: medium
+  log_source_type: alb
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alb
+    - field: outcome
+      op: equals
+      value: failure
+  engines:
+  - network_engine
+  - threat_engine
+  primary_engine: network_engine
+  action_category: network
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1499
+  domain: network_security
+  provider: aws
+  remediation: Review network configuration changes. Validate security group rules follow least-privilege. Block unauthorized
+    ports.
+  compliance_frameworks: &id001
+  - CIS
+  - NIST_800-53
+  - PCI-DSS
+  - SOC2
+  risk_score: 50
+- rule_id: alb.repeated_server_errors
+  title: Repeated HTTP 5xx errors indicating service degradation
+  severity: high
+  log_source_type: alb
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alb
+    - field: outcome
+      op: equals
+      value: failure
+    - field: error_code
+      op: contains
+      value: '5'
+  engines:
+  - network_engine
+  - threat_engine
+  primary_engine: network_engine
+  action_category: network
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1499.002
+  domain: network_security
+  provider: aws
+  remediation: Review network configuration changes. Validate security group rules follow least-privilege. Block unauthorized
+    ports.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: alb.http_401_unauthorized
+  title: ALB HTTP 401 Unauthorized response
+  severity: medium
+  log_source_type: alb
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alb
+    - field: error_code
+      op: equals
+      value: '401'
+  engines:
+  - network_engine
+  - ciem
+  primary_engine: ciem
+  action_category: authentication
+  mitre_tactics:
+  - initial-access
+  - credential-access
+  mitre_techniques:
+  - T1110
+  domain: network_security
+  provider: aws
+  remediation: Review security group and NACL rules. Restrict public access. Enable VPC Flow Logs for monitoring.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: alb.http_403_forbidden
+  title: ALB HTTP 403 Forbidden response
+  severity: medium
+  log_source_type: alb
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alb
+    - field: error_code
+      op: equals
+      value: '403'
+  engines:
+  - network_engine
+  - ciem
+  primary_engine: ciem
+  action_category: authorization
+  mitre_tactics:
+  - initial-access
+  mitre_techniques:
+  - T1190
+  domain: network_security
+  provider: aws
+  remediation: Review security group and NACL rules. Restrict public access. Enable VPC Flow Logs for monitoring.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: alb.http_404_not_found
+  title: ALB HTTP 404 Not Found — possible path enumeration
+  severity: low
+  log_source_type: alb
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alb
+    - field: error_code
+      op: equals
+      value: '404'
+  engines:
+  - network_engine
+  primary_engine: network_engine
+  action_category: reconnaissance
+  mitre_tactics:
+  - discovery
+  - reconnaissance
+  mitre_techniques:
+  - T1595.002
+  domain: network_security
+  provider: aws
+  remediation: Review security group and NACL rules. Restrict public access. Enable VPC Flow Logs for monitoring.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: alb.http_delete_method
+  title: HTTP DELETE request through ALB
+  severity: medium
+  log_source_type: alb
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alb
+    - field: operation
+      op: equals
+      value: DELETE
+  engines:
+  - network_engine
+  - datasec_engine
+  primary_engine: network_engine
+  action_category: delete
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1485
+  domain: network_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: alb.http_options_method
+  title: HTTP OPTIONS request through ALB — CORS or recon probe
+  severity: low
+  log_source_type: alb
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alb
+    - field: operation
+      op: equals
+      value: OPTIONS
+  engines:
+  - network_engine
+  primary_engine: network_engine
+  action_category: reconnaissance
+  mitre_tactics:
+  - reconnaissance
+  mitre_techniques:
+  - T1592
+  domain: network_security
+  provider: aws
+  remediation: Review security group and NACL rules. Restrict public access. Enable VPC Flow Logs for monitoring.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: alb.http_patch_method
+  title: HTTP PATCH request through ALB
+  severity: low
+  log_source_type: alb
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alb
+    - field: operation
+      op: equals
+      value: PATCH
+  engines:
+  - network_engine
+  primary_engine: network_engine
+  action_category: modify
+  domain: network_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: alb.admin_path_access
+  title: Access to administrative path through ALB
+  severity: high
+  log_source_type: alb
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alb
+    - field: resource_uid
+      op: contains
+      value: /admin
+  engines:
+  - network_engine
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: access
+  mitre_tactics:
+  - initial-access
+  mitre_techniques:
+  - T1190
+  domain: network_security
+  provider: aws
+  remediation: Review security group and NACL rules. Restrict public access. Enable VPC Flow Logs for monitoring.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: alb.api_key_path_access
+  title: Access to API key or secrets endpoint through ALB
+  severity: high
+  log_source_type: alb
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alb
+    - field: resource_uid
+      op: contains
+      value: /api/key
+  engines:
+  - network_engine
+  - datasec_engine
+  primary_engine: datasec_engine
+  action_category: credential_access
+  mitre_tactics:
+  - credential-access
+  mitre_techniques:
+  - T1552
+  domain: network_security
+  provider: aws
+  remediation: Review security group and NACL rules. Restrict public access. Enable VPC Flow Logs for monitoring.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: alb.connection_timeout
+  title: ALB connection timeout to target
+  severity: medium
+  log_source_type: alb
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alb
+    - field: error_code
+      op: equals
+      value: '504'
+  engines:
+  - network_engine
+  primary_engine: network_engine
+  action_category: network
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1499
+  domain: network_security
+  provider: aws
+  remediation: Review network configuration changes. Validate security group rules follow least-privilege. Block unauthorized
+    ports.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: alb.bad_gateway
+  title: ALB received 502 Bad Gateway from target
+  severity: medium
+  log_source_type: alb
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alb
+    - field: error_code
+      op: equals
+      value: '502'
+  engines:
+  - network_engine
+  primary_engine: network_engine
+  action_category: network
+  domain: network_security
+  provider: aws
+  remediation: Review network configuration changes. Validate security group rules follow least-privilege. Block unauthorized
+    ports.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: alb.websocket_connection
+  title: WebSocket upgrade request through ALB
+  severity: low
+  log_source_type: alb
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alb
+    - field: resource_type
+      op: equals
+      value: ws
+  engines:
+  - network_engine
+  primary_engine: network_engine
+  action_category: network
+  description: WebSocket connections are unusual for most applications and may indicate C2 channels
+  mitre_tactics:
+  - command-and-control
+  mitre_techniques:
+  - T1071.001
+  domain: network_security
+  provider: aws
+  remediation: Review network configuration changes. Validate security group rules follow least-privilege. Block unauthorized
+    ports.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: alb.dot_dot_path_traversal
+  title: Path traversal attempt through ALB (../ in URL)
+  severity: high
+  log_source_type: alb
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alb
+    - field: resource_uid
+      op: contains
+      value: ..
+  engines:
+  - network_engine
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: exploit
+  mitre_tactics:
+  - initial-access
+  mitre_techniques:
+  - T1190
+  domain: network_security
+  provider: aws
+  remediation: Review security group and NACL rules. Restrict public access. Enable VPC Flow Logs for monitoring.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: alb.health_check_failure
+  title: ALB health check returned error response
+  severity: low
+  log_source_type: alb
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alb
+    - field: resource_uid
+      op: contains
+      value: /health
+    - field: outcome
+      op: equals
+      value: failure
+  engines:
+  - network_engine
+  primary_engine: network_engine
+  action_category: monitoring
+  domain: network_security
+  provider: aws
+  remediation: Review security group and NACL rules. Restrict public access. Enable VPC Flow Logs for monitoring.
+  compliance_frameworks: *id001
+  risk_score: 25

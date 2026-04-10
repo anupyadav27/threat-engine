@@ -816,20 +816,20 @@ class CheckDatabaseQueries:
             params.append(service)
 
         if start_time:
-            where_clauses.append("created_at >= %s")
+            where_clauses.append("first_seen_at >= %s")
             params.append(start_time)
         if end_time:
-            where_clauses.append("created_at <= %s")
+            where_clauses.append("first_seen_at <= %s")
             params.append(end_time)
 
         where_sql = " AND ".join(where_clauses)
 
         query = f"""
-        SELECT scan_run_id, MAX(created_at) as created_at
+        SELECT scan_run_id, MAX(first_seen_at) as first_seen_at
         FROM check_findings
         WHERE {where_sql}
         GROUP BY scan_run_id
-        ORDER BY MAX(created_at) DESC
+        ORDER BY MAX(first_seen_at) DESC
         LIMIT 1;
         """
 
@@ -855,20 +855,20 @@ class CheckDatabaseQueries:
             params.append(service)
 
         if start_time:
-            where_clauses.append("created_at >= %s")
+            where_clauses.append("first_seen_at >= %s")
             params.append(start_time)
         if end_time:
-            where_clauses.append("created_at <= %s")
+            where_clauses.append("first_seen_at <= %s")
             params.append(end_time)
 
         where_sql = " AND ".join(where_clauses)
 
         query = f"""
-        SELECT scan_run_id, MAX(created_at) as created_at
+        SELECT scan_run_id, MAX(first_seen_at) as first_seen_at
         FROM check_findings
         WHERE {where_sql}
         GROUP BY scan_run_id
-        ORDER BY MAX(created_at) DESC
+        ORDER BY MAX(first_seen_at) DESC
         LIMIT 1;
         """
 

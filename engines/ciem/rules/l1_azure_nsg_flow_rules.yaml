@@ -1,0 +1,166 @@
+rules:
+- rule_id: azure.nsg_flow.rejected_traffic
+  title: Network traffic denied by NSG rule
+  severity: info
+  log_source_type: azure_nsg_flow
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_nsg_flow
+    - field: network.flow_action
+      op: equals
+      value: D
+  engines:
+  - network_engine
+  action_category: network
+  domain: network_security
+  provider: azure
+  remediation: Review network configuration changes. Validate security group rules follow least-privilege. Block unauthorized
+    ports.
+  compliance_frameworks: &id001
+  - CIS
+  - NIST_800-53
+  - PCI-DSS
+  - SOC2
+  risk_score: 10
+- rule_id: azure.nsg_flow.ssh_inbound
+  title: SSH traffic (port 22) accepted through NSG
+  severity: medium
+  log_source_type: azure_nsg_flow
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_nsg_flow
+    - field: network.dst_port
+      op: equals
+      value: '22'
+    - field: network.flow_action
+      op: equals
+      value: A
+  engines:
+  - network_engine
+  - threat_engine
+  action_category: network
+  mitre_tactics:
+  - lateral-movement
+  - initial-access
+  mitre_techniques:
+  - T1021.004
+  domain: network_security
+  provider: azure
+  remediation: Review network configuration changes. Validate security group rules follow least-privilege. Block unauthorized
+    ports.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: azure.nsg_flow.rdp_inbound
+  title: RDP traffic (port 3389) accepted through NSG
+  severity: medium
+  log_source_type: azure_nsg_flow
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_nsg_flow
+    - field: network.dst_port
+      op: equals
+      value: '3389'
+    - field: network.flow_action
+      op: equals
+      value: A
+  engines:
+  - network_engine
+  - threat_engine
+  action_category: network
+  mitre_tactics:
+  - lateral-movement
+  - initial-access
+  mitre_techniques:
+  - T1021.001
+  domain: network_security
+  provider: azure
+  remediation: Review network configuration changes. Validate security group rules follow least-privilege. Block unauthorized
+    ports.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: azure.nsg_flow.database_port
+  title: Database port traffic (3306/5432/1433/27017) accepted
+  severity: low
+  log_source_type: azure_nsg_flow
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_nsg_flow
+    - field: network.dst_port
+      op: in
+      value:
+      - '3306'
+      - '5432'
+      - '1433'
+      - '27017'
+      - '6379'
+    - field: network.flow_action
+      op: equals
+      value: A
+  engines:
+  - network_engine
+  - datasec_engine
+  action_category: network
+  domain: network_security
+  provider: azure
+  remediation: Review network configuration changes. Validate security group rules follow least-privilege. Block unauthorized
+    ports.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: azure.nsg_flow.dns_traffic
+  title: DNS traffic (port 53) through NSG -- potential exfiltration vector
+  severity: info
+  log_source_type: azure_nsg_flow
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_nsg_flow
+    - field: network.dst_port
+      op: equals
+      value: '53'
+  engines:
+  - network_engine
+  action_category: network
+  domain: network_security
+  provider: azure
+  remediation: Review network configuration changes. Validate security group rules follow least-privilege. Block unauthorized
+    ports.
+  compliance_frameworks: *id001
+  risk_score: 10
+- rule_id: azure.nsg_flow.smb_traffic
+  title: SMB traffic (port 445) accepted through NSG
+  severity: high
+  log_source_type: azure_nsg_flow
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_nsg_flow
+    - field: network.dst_port
+      op: equals
+      value: '445'
+    - field: network.flow_action
+      op: equals
+      value: A
+  engines:
+  - network_engine
+  - threat_engine
+  action_category: network
+  mitre_tactics:
+  - lateral-movement
+  mitre_techniques:
+  - T1021.002
+  domain: network_security
+  provider: azure
+  remediation: Review network configuration changes. Validate security group rules follow least-privilege. Block unauthorized
+    ports.
+  compliance_frameworks: *id001
+  risk_score: 70

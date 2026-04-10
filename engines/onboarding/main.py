@@ -9,15 +9,14 @@ import uvicorn
 import asyncio
 import os
 
-from engine_onboarding.api import cloud_accounts_router, health_router, credentials_router
+from engine_onboarding.api import cloud_accounts_router, health_router, credentials_router, tenants_router, schedules_router, scan_runs_router
 from engine_onboarding.config import settings
 from engine_onboarding.database.connection import init_db, check_connection
 try:
     from engine_common.telemetry import configure_telemetry as _configure_telemetry
 except ImportError:
     _configure_telemetry = None
-# from engine_onboarding.database import mark_stale_running_executions_as_failed  # REMOVED - old schema
-# from engine_onboarding.scheduler.scheduler_service import SchedulerService  # REMOVED - uses old schema
+from engine_onboarding.scheduler.scheduler_service import SchedulerService
 
 # Path prefix when running behind ingress rewrite (/onboarding -> /)
 ROOT_PATH = (os.getenv("ROOT_PATH", "") or "").rstrip("/")
@@ -78,8 +77,11 @@ app.add_middleware(
 
 # Include routers
 app.include_router(health_router)
+app.include_router(tenants_router)
 app.include_router(cloud_accounts_router)
 app.include_router(credentials_router)
+app.include_router(schedules_router)
+app.include_router(scan_runs_router)
 
 # Include unified UI data router
 try:
@@ -113,13 +115,23 @@ async def startup_event():
         traceback.print_exc()
         return
     
-    # TODO: Re-implement scheduler using cloud_accounts table schedule fields
-    print("⚠️  Scheduler disabled - needs reimplementation for cloud_accounts schema")
+    # Start scheduler
+    try:
+        scheduler_service = SchedulerService()
+        scheduler_task = asyncio.create_task(scheduler_service.run())
+        print("✅ Scheduler started")
+    except Exception as e:
+        print(f"⚠️  Scheduler failed to start: {e}")
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup on shutdown"""
+    global scheduler_service, scheduler_task
+    if scheduler_service:
+        scheduler_service.stop()
+    if scheduler_task and not scheduler_task.done():
+        scheduler_task.cancel()
     print("✅ Onboarding API shutdown complete")
 
 

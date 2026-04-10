@@ -79,4 +79,6 @@ async def view_ciem(
         "logSources": safe_get(sources, "sources", []),
         "eventStats": safe_get(stats, "summary", {}),
         "eventsBySource": safe_get(stats, "by_source", []),
+        # Scan trend (last 8 runs) — passed through from dashboard if engine provides it
+        "scanTrend": safe_get(dashboard, "scan_trend", []),
     }

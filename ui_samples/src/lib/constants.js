@@ -72,7 +72,7 @@ export const NAV_ITEMS = [
     children: [
       { label: 'Detection', href: '/threats' },
       { label: 'Attack Paths', href: '/threats/attack-paths' },
-      { label: 'Toxic Combos', href: '/threats/toxic-combinations' },
+      { label: 'Toxic Threat Combos', href: '/threats/toxic-combinations' },
       { label: 'Graph', href: '/threats/graph' },
       { label: 'Timeline', href: '/threats/timeline' },
     ],

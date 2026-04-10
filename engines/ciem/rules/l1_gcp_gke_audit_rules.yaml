@@ -1,0 +1,518 @@
+rules:
+- rule_id: gcp.gke_audit.clusterrole_create
+  title: GKE ClusterRole created
+  severity: high
+  log_source_type: gcp_gke_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_gke_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource_type
+      op: equals
+      value: clusterroles
+  engines:
+  - container_engine
+  - ciem
+  primary_engine: container_engine
+  action_category: create
+  mitre_tactics:
+  - privilege-escalation
+  - persistence
+  mitre_techniques:
+  - T1078.004
+  domain: container_security
+  provider: gcp
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: &id001
+  - CIS
+  - NIST_800-53
+  - SOC2
+  risk_score: 70
+- rule_id: gcp.gke_audit.clusterrolebinding_create
+  title: GKE ClusterRoleBinding created
+  severity: high
+  log_source_type: gcp_gke_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_gke_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource_type
+      op: equals
+      value: clusterrolebindings
+  engines:
+  - container_engine
+  - ciem
+  primary_engine: container_engine
+  action_category: create
+  mitre_tactics:
+  - privilege-escalation
+  mitre_techniques:
+  - T1078.004
+  domain: container_security
+  provider: gcp
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: gcp.gke_audit.rolebinding_modify
+  title: GKE RoleBinding modified
+  severity: medium
+  log_source_type: gcp_gke_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_gke_audit
+    - field: operation
+      op: in
+      value:
+      - create
+      - patch
+      - update
+    - field: resource_type
+      op: in
+      value:
+      - rolebindings
+      - clusterrolebindings
+  engines:
+  - container_engine
+  - ciem
+  primary_engine: container_engine
+  action_category: modify
+  mitre_tactics:
+  - privilege-escalation
+  - persistence
+  mitre_techniques:
+  - T1098
+  domain: container_security
+  provider: gcp
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: gcp.gke_audit.secret_access
+  title: GKE K8s Secret accessed
+  severity: medium
+  log_source_type: gcp_gke_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_gke_audit
+    - field: operation
+      op: equals
+      value: get
+    - field: resource_type
+      op: equals
+      value: secrets
+  engines:
+  - container_engine
+  - ciem
+  primary_engine: container_engine
+  action_category: read
+  mitre_tactics:
+  - credential-access
+  mitre_techniques:
+  - T1552.007
+  domain: container_security
+  provider: gcp
+  remediation: Verify the accessor has legitimate need-to-know. Review access patterns for anomalies. Consider restricting
+    read permissions.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: gcp.gke_audit.secret_create
+  title: GKE K8s Secret created
+  severity: low
+  log_source_type: gcp_gke_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_gke_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource_type
+      op: equals
+      value: secrets
+  engines:
+  - container_engine
+  primary_engine: container_engine
+  action_category: create
+  domain: container_security
+  provider: gcp
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: gcp.gke_audit.secret_delete
+  title: GKE K8s Secret deleted
+  severity: medium
+  log_source_type: gcp_gke_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_gke_audit
+    - field: operation
+      op: equals
+      value: delete
+    - field: resource_type
+      op: equals
+      value: secrets
+  engines:
+  - container_engine
+  primary_engine: container_engine
+  action_category: delete
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1485
+  domain: container_security
+  provider: gcp
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: gcp.gke_audit.privileged_pod
+  title: GKE privileged pod created
+  severity: high
+  log_source_type: gcp_gke_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_gke_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource_type
+      op: equals
+      value: pods
+  engines:
+  - container_engine
+  - threat_engine
+  primary_engine: container_engine
+  action_category: create
+  mitre_tactics:
+  - privilege-escalation
+  - execution
+  mitre_techniques:
+  - T1610
+  description: New pod created — check for privileged, hostNetwork, hostPID flags
+  domain: container_security
+  provider: gcp
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: gcp.gke_audit.pod_exec
+  title: GKE pod exec session started
+  severity: high
+  log_source_type: gcp_gke_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_gke_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource_type
+      op: equals
+      value: pods/exec
+  engines:
+  - container_engine
+  - threat_engine
+  primary_engine: container_engine
+  action_category: execute
+  mitre_tactics:
+  - execution
+  mitre_techniques:
+  - T1609
+  domain: container_security
+  provider: gcp
+  remediation: Validate function/container execution is authorized. Review execution role permissions. Check for code injection
+    indicators.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: gcp.gke_audit.pod_portforward
+  title: GKE pod port-forward created
+  severity: medium
+  log_source_type: gcp_gke_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_gke_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource_type
+      op: equals
+      value: pods/portforward
+  engines:
+  - container_engine
+  - network_engine
+  primary_engine: container_engine
+  action_category: execute
+  mitre_tactics:
+  - lateral-movement
+  mitre_techniques:
+  - T1090
+  domain: container_security
+  provider: gcp
+  remediation: Validate function/container execution is authorized. Review execution role permissions. Check for code injection
+    indicators.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: gcp.gke_audit.namespace_create
+  title: GKE namespace created
+  severity: low
+  log_source_type: gcp_gke_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_gke_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource_type
+      op: equals
+      value: namespaces
+  engines:
+  - container_engine
+  primary_engine: container_engine
+  action_category: create
+  domain: container_security
+  provider: gcp
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: gcp.gke_audit.namespace_delete
+  title: GKE namespace deleted
+  severity: high
+  log_source_type: gcp_gke_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_gke_audit
+    - field: operation
+      op: equals
+      value: delete
+    - field: resource_type
+      op: equals
+      value: namespaces
+  engines:
+  - container_engine
+  - threat_engine
+  primary_engine: container_engine
+  action_category: delete
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1485
+  domain: container_security
+  provider: gcp
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: gcp.gke_audit.daemonset_create
+  title: GKE DaemonSet created — runs on all nodes
+  severity: medium
+  log_source_type: gcp_gke_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_gke_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource_type
+      op: equals
+      value: daemonsets
+  engines:
+  - container_engine
+  - threat_engine
+  primary_engine: container_engine
+  action_category: create
+  mitre_tactics:
+  - persistence
+  - lateral-movement
+  mitre_techniques:
+  - T1610
+  domain: container_security
+  provider: gcp
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: gcp.gke_audit.deployment_create
+  title: GKE Deployment created
+  severity: low
+  log_source_type: gcp_gke_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_gke_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource_type
+      op: equals
+      value: deployments
+  engines:
+  - container_engine
+  primary_engine: container_engine
+  action_category: create
+  domain: container_security
+  provider: gcp
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: gcp.gke_audit.webhook_modify
+  title: GKE admission webhook configuration modified
+  severity: high
+  log_source_type: gcp_gke_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_gke_audit
+    - field: operation
+      op: in
+      value:
+      - create
+      - patch
+      - update
+    - field: resource_type
+      op: in
+      value:
+      - mutatingwebhookconfigurations
+      - validatingwebhookconfigurations
+  engines:
+  - container_engine
+  - threat_engine
+  primary_engine: container_engine
+  action_category: modify
+  mitre_tactics:
+  - persistence
+  - defense-evasion
+  mitre_techniques:
+  - T1562.001
+  domain: container_security
+  provider: gcp
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: gcp.gke_audit.serviceaccount_create
+  title: GKE ServiceAccount created
+  severity: medium
+  log_source_type: gcp_gke_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_gke_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource_type
+      op: equals
+      value: serviceaccounts
+  engines:
+  - container_engine
+  - ciem
+  primary_engine: container_engine
+  action_category: create
+  mitre_tactics:
+  - persistence
+  mitre_techniques:
+  - T1136
+  domain: container_security
+  provider: gcp
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: gcp.gke_audit.token_request
+  title: GKE ServiceAccount token requested
+  severity: medium
+  log_source_type: gcp_gke_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_gke_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource_type
+      op: equals
+      value: serviceaccounts/token
+  engines:
+  - container_engine
+  - ciem
+  primary_engine: container_engine
+  action_category: create
+  mitre_tactics:
+  - credential-access
+  mitre_techniques:
+  - T1552.007
+  domain: container_security
+  provider: gcp
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: gcp.gke_audit.networkpolicy_modify
+  title: GKE NetworkPolicy modified
+  severity: medium
+  log_source_type: gcp_gke_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_gke_audit
+    - field: operation
+      op: in
+      value:
+      - create
+      - patch
+      - update
+      - delete
+    - field: resource_type
+      op: equals
+      value: networkpolicies
+  engines:
+  - container_engine
+  - network_engine
+  primary_engine: container_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.007
+  domain: container_security
+  provider: gcp
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50

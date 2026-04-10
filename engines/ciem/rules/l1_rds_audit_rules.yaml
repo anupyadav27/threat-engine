@@ -1,0 +1,336 @@
+rules:
+- rule_id: rds.failed_login
+  title: RDS database login attempt failed
+  severity: medium
+  log_source_type: rds_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: rds_audit
+    - field: operation
+      op: equals
+      value: FAILED_CONNECT
+  engines:
+  - datasec_engine
+  - threat_engine
+  primary_engine: datasec_engine
+  action_category: authentication
+  mitre_tactics:
+  - credential-access
+  - initial-access
+  mitre_techniques:
+  - T1110
+  domain: database_security
+  provider: aws
+  remediation: Investigate the event. Review actor permissions and intent.
+  compliance_frameworks:
+  - CIS
+  - NIST_800-53
+  risk_score: 50
+- rule_id: rds.connection_closed
+  title: RDS database connection established
+  severity: info
+  log_source_type: rds_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: rds_audit
+    - field: operation
+      op: equals
+      value: CONNECT
+  engines:
+  - datasec_engine
+  primary_engine: datasec_engine
+  action_category: authentication
+  domain: database_security
+  provider: aws
+  remediation: Investigate the event. Review actor permissions and intent.
+  compliance_frameworks:
+  - CIS
+  - NIST_800-53
+  risk_score: 10
+- rule_id: rds.create_table
+  title: RDS CREATE TABLE statement executed
+  severity: medium
+  log_source_type: rds_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: rds_audit
+    - field: operation
+      op: equals
+      value: CREATE
+  engines:
+  - datasec_engine
+  - threat_engine
+  primary_engine: datasec_engine
+  action_category: create
+  mitre_tactics:
+  - persistence
+  mitre_techniques:
+  - T1505
+  domain: database_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks:
+  - CIS
+  - NIST_800-53
+  risk_score: 50
+- rule_id: rds.drop_table
+  title: RDS DROP TABLE statement executed — potential data destruction
+  severity: critical
+  log_source_type: rds_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: rds_audit
+    - field: operation
+      op: equals
+      value: DROP
+  engines:
+  - datasec_engine
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1485
+  domain: database_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks:
+  - CIS
+  - NIST_800-53
+  risk_score: 90
+- rule_id: rds.alter_table
+  title: RDS ALTER TABLE statement — schema modification
+  severity: medium
+  log_source_type: rds_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: rds_audit
+    - field: operation
+      op: equals
+      value: ALTER
+  engines:
+  - datasec_engine
+  primary_engine: datasec_engine
+  action_category: modify
+  mitre_tactics:
+  - persistence
+  domain: database_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks:
+  - CIS
+  - NIST_800-53
+  risk_score: 50
+- rule_id: rds.truncate_table
+  title: RDS TRUNCATE statement — bulk data deletion
+  severity: high
+  log_source_type: rds_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: rds_audit
+    - field: operation
+      op: equals
+      value: TRUNCATE
+  engines:
+  - datasec_engine
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1485
+  domain: database_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks:
+  - CIS
+  - NIST_800-53
+  risk_score: 70
+- rule_id: rds.grant_privilege
+  title: RDS GRANT statement — privilege escalation
+  severity: high
+  log_source_type: rds_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: rds_audit
+    - field: operation
+      op: equals
+      value: GRANT
+  engines:
+  - datasec_engine
+  - ciem
+  - threat_engine
+  primary_engine: ciem
+  action_category: privilege_escalation
+  mitre_tactics:
+  - privilege-escalation
+  - persistence
+  mitre_techniques:
+  - T1078
+  domain: database_security
+  provider: aws
+  remediation: Investigate the event. Review actor permissions and intent.
+  compliance_frameworks:
+  - CIS
+  - NIST_800-53
+  risk_score: 70
+- rule_id: rds.revoke_privilege
+  title: RDS REVOKE statement — privilege change
+  severity: medium
+  log_source_type: rds_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: rds_audit
+    - field: operation
+      op: equals
+      value: REVOKE
+  engines:
+  - datasec_engine
+  - ciem
+  primary_engine: ciem
+  action_category: privilege_change
+  domain: database_security
+  provider: aws
+  remediation: Investigate the event. Review actor permissions and intent.
+  compliance_frameworks:
+  - CIS
+  - NIST_800-53
+  risk_score: 50
+- rule_id: rds.create_user
+  title: RDS database user created
+  severity: high
+  log_source_type: rds_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: rds_audit
+    - field: operation
+      op: equals
+      value: CREATE_USER
+  engines:
+  - datasec_engine
+  - ciem
+  - threat_engine
+  primary_engine: ciem
+  action_category: create
+  mitre_tactics:
+  - persistence
+  - privilege-escalation
+  mitre_techniques:
+  - T1136
+  domain: database_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks:
+  - CIS
+  - NIST_800-53
+  risk_score: 70
+- rule_id: rds.drop_user
+  title: RDS database user deleted
+  severity: high
+  log_source_type: rds_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: rds_audit
+    - field: operation
+      op: equals
+      value: DROP_USER
+  engines:
+  - datasec_engine
+  - ciem
+  primary_engine: ciem
+  action_category: delete
+  mitre_tactics:
+  - impact
+  - defense-evasion
+  domain: database_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks:
+  - CIS
+  - NIST_800-53
+  risk_score: 70
+- rule_id: rds.root_user_activity
+  title: RDS root/admin user activity detected
+  severity: high
+  log_source_type: rds_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: rds_audit
+    - field: actor_principal
+      op: equals
+      value: root
+  engines:
+  - datasec_engine
+  - ciem
+  - threat_engine
+  primary_engine: ciem
+  action_category: admin
+  mitre_tactics:
+  - privilege-escalation
+  mitre_techniques:
+  - T1078.003
+  domain: database_security
+  provider: aws
+  remediation: Investigate the event. Review actor permissions and intent.
+  compliance_frameworks:
+  - CIS
+  - NIST_800-53
+  risk_score: 70
+- rule_id: rds.admin_user_activity
+  title: RDS admin/master user activity detected
+  severity: medium
+  log_source_type: rds_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: rds_audit
+    - field: actor_principal
+      op: equals
+      value: admin
+  engines:
+  - datasec_engine
+  - ciem
+  primary_engine: ciem
+  action_category: admin
+  mitre_tactics:
+  - privilege-escalation
+  mitre_techniques:
+  - T1078
+  domain: database_security
+  provider: aws
+  remediation: Investigate the event. Review actor permissions and intent.
+  compliance_frameworks:
+  - CIS
+  - NIST_800-53
+  risk_score: 50

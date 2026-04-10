@@ -5,16 +5,16 @@ Builds relationship edges from normalized assets using DB-driven rules.
 
 === DATABASE & TABLE MAP ===
 Source of truth: threat_engine_inventory (INVENTORY DB)
-Table: resource_relationship_rules
+Table: resource_security_relationship_rules
 
 Rules are loaded once per scan from the inventory DB — no local JSON files,
 no dependency on the pythonsdk DB at runtime.
 
 Tables READ:
-  - resource_relationship_rules : SELECT from_resource_type, relation_type,
+  - resource_security_relationship_rules : SELECT from_resource_type, relation_type,
                                           to_resource_type, source_field,
                                           source_field_item, target_uid_pattern
-                                   FROM   resource_relationship_rules
+                                   FROM   resource_security_relationship_rules
                                    WHERE  csp = %s AND is_active = TRUE
 
 Tables WRITTEN: None (returns Relationship objects to callers)
@@ -91,12 +91,12 @@ class RelationshipBuilder:
             self._conn = None
 
     # ------------------------------------------------------------------
-    # Load: read rules from resource_relationship_rules (inventory DB)
+    # Load: read rules from resource_security_relationship_rules (inventory DB)
     # ------------------------------------------------------------------
 
     def _load_rules_from_db(self) -> Dict[str, Any]:
         """
-        Load relationship rules for this CSP from resource_relationship_rules.
+        Load relationship rules for this CSP from resource_security_relationship_rules.
 
         Returns index keyed by from_resource_type:
             {"by_resource_type": {type_name: {"relationships": [...]}}}
@@ -114,7 +114,7 @@ class RelationshipBuilder:
                     """
                     SELECT from_resource_type, relation_type, to_resource_type,
                            source_field, source_field_item, target_uid_pattern
-                    FROM   resource_relationship_rules
+                    FROM   resource_security_relationship_rules
                     WHERE  csp = %s AND is_active = TRUE
                     ORDER BY from_resource_type, relation_type
                     """,
@@ -142,7 +142,7 @@ class RelationshipBuilder:
             )
             return {
                 "version": "db",
-                "source": "inventory_db:resource_relationship_rules",
+                "source": "inventory_db:resource_security_relationship_rules",
                 "classifications": {
                     "by_resource_type": by_resource_type,
                 },

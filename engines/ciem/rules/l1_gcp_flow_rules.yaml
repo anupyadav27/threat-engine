@@ -1,0 +1,170 @@
+rules:
+- rule_id: gcp.flow.rejected_traffic
+  title: GCP VPC flow log traffic rejected
+  severity: info
+  log_source_type: gcp_vpc_flow
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_vpc_flow
+    - field: network.flow_action
+      op: equals
+      value: DENIED
+  engines:
+  - network_engine
+  primary_engine: network_engine
+  action_category: network
+  domain: network_security
+  provider: gcp
+  remediation: Review network configuration changes. Validate security group rules follow least-privilege. Block unauthorized
+    ports.
+  compliance_frameworks: &id001
+  - CIS
+  - NIST_800-53
+  - PCI-DSS
+  - SOC2
+  risk_score: 10
+- rule_id: gcp.flow.ssh_inbound
+  title: SSH traffic (port 22) detected in GCP VPC
+  severity: medium
+  log_source_type: gcp_vpc_flow
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_vpc_flow
+    - field: network.dst_port
+      op: equals
+      value: '22'
+    - field: network.flow_action
+      op: equals
+      value: ALLOWED
+  engines:
+  - network_engine
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: network
+  mitre_tactics:
+  - lateral-movement
+  - initial-access
+  mitre_techniques:
+  - T1021.004
+  domain: network_security
+  provider: gcp
+  remediation: Review network configuration changes. Validate security group rules follow least-privilege. Block unauthorized
+    ports.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: gcp.flow.rdp_inbound
+  title: RDP traffic (port 3389) detected in GCP VPC
+  severity: medium
+  log_source_type: gcp_vpc_flow
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_vpc_flow
+    - field: network.dst_port
+      op: equals
+      value: '3389'
+    - field: network.flow_action
+      op: equals
+      value: ALLOWED
+  engines:
+  - network_engine
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: network
+  mitre_tactics:
+  - lateral-movement
+  - initial-access
+  mitre_techniques:
+  - T1021.001
+  domain: network_security
+  provider: gcp
+  remediation: Review network configuration changes. Validate security group rules follow least-privilege. Block unauthorized
+    ports.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: gcp.flow.database_port
+  title: Database port traffic detected in GCP VPC
+  severity: low
+  log_source_type: gcp_vpc_flow
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_vpc_flow
+    - field: network.dst_port
+      op: in
+      value:
+      - '3306'
+      - '5432'
+      - '1433'
+      - '27017'
+      - '6379'
+    - field: network.flow_action
+      op: equals
+      value: ALLOWED
+  engines:
+  - network_engine
+  - datasec_engine
+  primary_engine: network_engine
+  action_category: network
+  domain: network_security
+  provider: gcp
+  remediation: Review network configuration changes. Validate security group rules follow least-privilege. Block unauthorized
+    ports.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: gcp.flow.dns_traffic
+  title: DNS traffic (port 53) in GCP VPC -- potential exfiltration vector
+  severity: info
+  log_source_type: gcp_vpc_flow
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_vpc_flow
+    - field: network.dst_port
+      op: equals
+      value: '53'
+  engines:
+  - network_engine
+  primary_engine: network_engine
+  action_category: network
+  domain: network_security
+  provider: gcp
+  remediation: Review network configuration changes. Validate security group rules follow least-privilege. Block unauthorized
+    ports.
+  compliance_frameworks: *id001
+  risk_score: 10
+- rule_id: gcp.flow.high_volume_egress
+  title: High-volume egress traffic from GCP instance
+  severity: medium
+  log_source_type: gcp_vpc_flow
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_vpc_flow
+    - field: network.bytes_out
+      op: greater_than
+      value: '1073741824'
+  engines:
+  - network_engine
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: network
+  mitre_tactics:
+  - exfiltration
+  mitre_techniques:
+  - T1048
+  description: Egress exceeding 1 GB in a single flow record may indicate data exfiltration
+  domain: network_security
+  provider: gcp
+  remediation: Review network configuration changes. Validate security group rules follow least-privilege. Block unauthorized
+    ports.
+  compliance_frameworks: *id001
+  risk_score: 50

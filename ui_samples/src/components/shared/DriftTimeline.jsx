@@ -221,71 +221,57 @@ function transformRawDrift(raw) {
 
 // ── Sub-components ────────────────────────────────────────────────────
 
-/**
- * Renders a single field change row with before/after values.
- */
-function FieldChangeRow({ field }) {
-  const [expanded, setExpanded] = useState(false);
-  const meta = CHANGE_TYPE_META[field.change_type] || CHANGE_TYPE_META.modified;
-  const ChangeIcon = meta.icon;
-
-  const fmt = (v) => v == null ? '—' : typeof v === 'string' ? v : JSON.stringify(v);
-  const beforeStr = fmt(field.before);
-  const afterStr  = fmt(field.after);
-  const isLong = beforeStr.length > 40 || afterStr.length > 40;
-
-  return (
-    <div
-      className="flex items-start gap-3 py-2 px-3 rounded text-sm cursor-pointer hover:brightness-95 transition-all"
-      style={{ backgroundColor: meta.bg }}
-      onClick={() => isLong && setExpanded(!expanded)}
-    >
-      <ChangeIcon size={14} style={{ color: meta.color, marginTop: 2, flexShrink: 0 }} />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="font-mono font-medium" style={{ color: 'var(--text-primary)' }}>
-            {field.field}
-          </span>
-          <span
-            className="text-xs px-1.5 py-0.5 rounded"
-            style={{ backgroundColor: meta.bg, color: meta.color, border: `1px solid ${meta.color}30` }}
-          >
-            {meta.label}
-          </span>
-        </div>
-        {(field.change_type === 'modified' || expanded || !isLong) && (
-          <div className={`mt-1 font-mono text-xs ${isLong && !expanded ? 'truncate' : ''}`}>
-            {field.before != null && (
-              <span style={{ color: 'var(--accent-danger)' }}>
-                - {isLong && !expanded ? beforeStr.slice(0, 40) + '...' : beforeStr}
-              </span>
-            )}
-            {field.before != null && field.after != null && <br />}
-            {field.after != null && (
-              <span style={{ color: 'var(--accent-success)' }}>
-                + {isLong && !expanded ? afterStr.slice(0, 40) + '...' : afterStr}
-              </span>
-            )}
-          </div>
-        )}
-      </div>
-      {isLong && (
-        expanded
-          ? <ChevronDown size={14} style={{ color: 'var(--text-tertiary)', marginTop: 2 }} />
-          : <ChevronRight size={14} style={{ color: 'var(--text-tertiary)', marginTop: 2 }} />
-      )}
-    </div>
-  );
+/** Format a value for JSON diff display */
+function fmtVal(v) {
+  if (v == null) return 'null';
+  if (typeof v === 'string') return `"${v}"`;
+  if (typeof v === 'object') return JSON.stringify(v, null, 2);
+  return String(v);
 }
 
 /**
- * Renders a category group (Security, Network, Tags, Config)
- * with its field changes, collapsible.
+ * Build JSON diff lines from a list of field changes.
+ * Each line: { prefix: '+'/'-'/'~'/' ', key, value, oldValue?, type: 'added'/'removed'/'modified'/'context' }
+ */
+function buildDiffLines(fields) {
+  const lines = [];
+  for (const f of fields) {
+    const key = f.field || 'unknown';
+    const ct = f.change_type || 'modified';
+
+    if (ct === 'added') {
+      lines.push({ prefix: '+', key, value: f.after, type: 'added' });
+    } else if (ct === 'removed') {
+      lines.push({ prefix: '-', key, value: f.before, type: 'removed' });
+    } else {
+      // modified — show old then new
+      lines.push({ prefix: '-', key, value: f.before, type: 'removed' });
+      lines.push({ prefix: '+', key, value: f.after, type: 'added' });
+    }
+  }
+  return lines;
+}
+
+const DIFF_LINE_STYLES = {
+  added:   { bg: 'rgba(34, 197, 94, 0.10)', prefixColor: '#22c55e', textColor: '#4ade80' },
+  removed: { bg: 'rgba(239, 68, 68, 0.10)', prefixColor: '#ef4444', textColor: '#f87171' },
+  context: { bg: 'transparent', prefixColor: '#6b7280', textColor: 'var(--text-tertiary)' },
+};
+
+/**
+ * Renders a category group as a JSON diff code block.
+ * Fields shown as key: value lines with +/- prefixes.
  */
 function CategoryGroup({ category, fields }) {
   const [open, setOpen] = useState(true);
   const meta = CATEGORY_META[category] || { label: category, icon: Box, color: '#6b7280' };
   const CatIcon = meta.icon;
+  const diffLines = buildDiffLines(fields);
+
+  // Count by type for the badge
+  const addedCount = fields.filter(f => f.change_type === 'added').length;
+  const removedCount = fields.filter(f => f.change_type === 'removed').length;
+  const modifiedCount = fields.filter(f => f.change_type === 'modified').length;
 
   return (
     <div
@@ -305,14 +291,63 @@ function CategoryGroup({ category, fields }) {
         >
           {fields.length}
         </span>
+        {/* Inline diff summary badges */}
+        <div className="flex gap-1 ml-2">
+          {addedCount > 0 && (
+            <span className="text-xs font-mono px-1.5 rounded" style={{ color: '#22c55e', backgroundColor: 'rgba(34,197,94,0.12)' }}>
+              +{addedCount}
+            </span>
+          )}
+          {removedCount > 0 && (
+            <span className="text-xs font-mono px-1.5 rounded" style={{ color: '#ef4444', backgroundColor: 'rgba(239,68,68,0.12)' }}>
+              -{removedCount}
+            </span>
+          )}
+          {modifiedCount > 0 && (
+            <span className="text-xs font-mono px-1.5 rounded" style={{ color: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.12)' }}>
+              ~{modifiedCount}
+            </span>
+          )}
+        </div>
         <span className="flex-1" />
         {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
       </button>
       {open && (
-        <div className="px-3 py-2 space-y-1" style={{ backgroundColor: 'var(--bg-card)' }}>
-          {fields.map((f, i) => (
-            <FieldChangeRow key={`${f.field}-${i}`} field={f} />
-          ))}
+        <div
+          className="font-mono text-xs leading-relaxed overflow-x-auto"
+          style={{ backgroundColor: 'var(--bg-tertiary, #0d1117)' }}
+        >
+          {/* Opening brace */}
+          <div className="px-4 py-1" style={{ color: 'var(--text-tertiary)' }}>{'{'}</div>
+          {/* Diff lines */}
+          {diffLines.map((line, i) => {
+            const style = DIFF_LINE_STYLES[line.type] || DIFF_LINE_STYLES.context;
+            const valStr = fmtVal(line.value);
+            const isLastLine = i === diffLines.length - 1;
+            return (
+              <div
+                key={`${line.key}-${line.prefix}-${i}`}
+                className="px-4 py-0.5 flex"
+                style={{ backgroundColor: style.bg }}
+              >
+                <span
+                  className="w-4 flex-shrink-0 font-bold select-none"
+                  style={{ color: style.prefixColor }}
+                >
+                  {line.prefix}
+                </span>
+                <span style={{ color: 'var(--text-secondary)' }}>
+                  {`  "${line.key}"`}
+                </span>
+                <span style={{ color: 'var(--text-tertiary)' }}>: </span>
+                <span style={{ color: style.textColor }}>
+                  {valStr}{isLastLine ? '' : ','}
+                </span>
+              </div>
+            );
+          })}
+          {/* Closing brace */}
+          <div className="px-4 py-1" style={{ color: 'var(--text-tertiary)' }}>{'}'}</div>
         </div>
       )}
     </div>

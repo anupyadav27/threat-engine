@@ -1,0 +1,1077 @@
+rules:
+- rule_id: azure.activity.role_assignment_created
+  title: Azure RBAC role assignment created
+  severity: high
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.Authorization/roleAssignments/write
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - persistence
+  - privilege-escalation
+  mitre_techniques:
+  - T1098.001
+  domain: iam_security
+  provider: azure
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: &id001
+  - CIS
+  - NIST_800-53
+  - SOC2
+  - PCI-DSS
+  - ISO_27001
+  risk_score: 70
+- rule_id: azure.activity.role_assignment_deleted
+  title: Azure RBAC role assignment removed
+  severity: medium
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.Authorization/roleAssignments/delete
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1098
+  domain: iam_security
+  provider: azure
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: azure.activity.custom_role_created
+  title: Custom RBAC role definition created or modified
+  severity: high
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.Authorization/roleDefinitions/write
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: create
+  mitre_tactics:
+  - privilege-escalation
+  mitre_techniques:
+  - T1484
+  domain: iam_security
+  provider: azure
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: azure.activity.pim_elevation
+  title: PIM eligible role activated (just-in-time elevation)
+  severity: high
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.Authorization/roleAssignmentScheduleRequests/write
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: modify
+  mitre_tactics:
+  - privilege-escalation
+  mitre_techniques:
+  - T1078.004
+  domain: iam_security
+  provider: azure
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: azure.activity.service_principal_created
+  title: Azure AD service principal (app registration) created
+  severity: high
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.ADHybridHealthService/services/servicemembers/action
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: create
+  mitre_tactics:
+  - persistence
+  mitre_techniques:
+  - T1136.003
+  domain: iam_security
+  provider: azure
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: azure.activity.service_principal_credential_added
+  title: Credential added to service principal
+  severity: critical
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.Directory/servicePrincipals/credentials/update
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: modify
+  mitre_tactics:
+  - persistence
+  - credential-access
+  mitre_techniques:
+  - T1098.001
+  domain: iam_security
+  provider: azure
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: azure.activity.managed_identity_assigned
+  title: Managed identity assigned to resource
+  severity: medium
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.ManagedIdentity/userAssignedIdentities/assign/action
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: modify
+  mitre_tactics:
+  - privilege-escalation
+  mitre_techniques:
+  - T1098
+  domain: iam_security
+  provider: azure
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: azure.activity.conditional_access_policy_modified
+  title: Conditional Access policy created or modified
+  severity: critical
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.Authorization/policyAssignments/write
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.001
+  domain: iam_security
+  provider: azure
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: azure.activity.conditional_access_policy_deleted
+  title: Conditional Access policy deleted
+  severity: critical
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.Authorization/policyAssignments/delete
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.001
+  domain: iam_security
+  provider: azure
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: azure.activity.lock_deleted
+  title: Azure resource lock removed
+  severity: high
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.Authorization/locks/delete
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562
+  domain: iam_security
+  provider: azure
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: azure.activity.vm_created
+  title: Virtual machine created
+  severity: medium
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.Compute/virtualMachines/write
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - execution
+  mitre_techniques:
+  - T1578.002
+  domain: iam_security
+  provider: azure
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: azure.activity.vm_deleted
+  title: Virtual machine deleted
+  severity: high
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.Compute/virtualMachines/delete
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1485
+  domain: iam_security
+  provider: azure
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: azure.activity.vm_extension_installed
+  title: VM extension installed (malware/C2 vector)
+  severity: high
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.Compute/virtualMachines/extensions/write
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - execution
+  - persistence
+  mitre_techniques:
+  - T1059
+  domain: iam_security
+  provider: azure
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: azure.activity.vm_run_command
+  title: VM Run Command executed (remote code execution)
+  severity: critical
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.Compute/virtualMachines/runCommand/action
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - execution
+  mitre_techniques:
+  - T1059
+  domain: iam_security
+  provider: azure
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: azure.activity.disk_snapshot_created
+  title: Managed disk snapshot created (potential exfiltration)
+  severity: medium
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.Compute/snapshots/write
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - exfiltration
+  - collection
+  mitre_techniques:
+  - T1537
+  domain: iam_security
+  provider: azure
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: azure.activity.vmss_modified
+  title: Virtual Machine Scale Set created or modified
+  severity: medium
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.Compute/virtualMachineScaleSets/write
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - execution
+  mitre_techniques:
+  - T1578.002
+  domain: iam_security
+  provider: azure
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: azure.activity.aks_cluster_modified
+  title: AKS cluster created or modified
+  severity: high
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.ContainerService/managedClusters/write
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - execution
+  - persistence
+  mitre_techniques:
+  - T1610
+  domain: iam_security
+  provider: azure
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: azure.activity.aks_credentials_listed
+  title: AKS cluster admin credentials retrieved
+  severity: high
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.ContainerService/managedClusters/listClusterAdminCredential/action
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - credential-access
+  mitre_techniques:
+  - T1552.001
+  domain: iam_security
+  provider: azure
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: azure.activity.nsg_rule_modified
+  title: Network Security Group rule created or modified
+  severity: high
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.Network/networkSecurityGroups/securityRules/write
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.007
+  domain: iam_security
+  provider: azure
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: azure.activity.nsg_rule_deleted
+  title: Network Security Group rule deleted
+  severity: high
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.Network/networkSecurityGroups/securityRules/delete
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.007
+  domain: iam_security
+  provider: azure
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: azure.activity.vnet_modified
+  title: Virtual Network created or modified
+  severity: medium
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.Network/virtualNetworks/write
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: network_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.007
+  domain: iam_security
+  provider: azure
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: azure.activity.public_ip_created
+  title: Public IP address created
+  severity: medium
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.Network/publicIPAddresses/write
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: network_engine
+  action_category: create
+  mitre_tactics:
+  - initial-access
+  mitre_techniques:
+  - T1190
+  domain: iam_security
+  provider: azure
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: azure.activity.lb_modified
+  title: Load balancer created or modified
+  severity: low
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.Network/loadBalancers/write
+  engines:
+  - network_engine
+  primary_engine: network_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.007
+  domain: iam_security
+  provider: azure
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: azure.activity.firewall_rule_modified
+  title: Azure Firewall rule collection modified
+  severity: high
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.Network/azureFirewalls/write
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.007
+  domain: iam_security
+  provider: azure
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: azure.activity.vpn_gateway_modified
+  title: VPN gateway created or modified
+  severity: medium
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.Network/vpnGateways/write
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: network_engine
+  action_category: modify
+  mitre_tactics:
+  - command-and-control
+  mitre_techniques:
+  - T1572
+  domain: iam_security
+  provider: azure
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: azure.activity.private_endpoint_created
+  title: Private Endpoint created
+  severity: low
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.Network/privateEndpoints/write
+  engines:
+  - network_engine
+  primary_engine: network_engine
+  action_category: create
+  mitre_tactics:
+  - lateral-movement
+  mitre_techniques:
+  - T1021
+  domain: iam_security
+  provider: azure
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: azure.activity.storage_account_key_regenerated
+  title: Storage account access key regenerated
+  severity: high
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.Storage/storageAccounts/regenerateKey/action
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - credential-access
+  mitre_techniques:
+  - T1528
+  domain: iam_security
+  provider: azure
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: azure.activity.blob_container_public_access
+  title: Blob container public access level changed
+  severity: critical
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.Storage/storageAccounts/blobServices/containers/write
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: datasec_engine
+  action_category: modify
+  mitre_tactics:
+  - exfiltration
+  mitre_techniques:
+  - T1537
+  domain: iam_security
+  provider: azure
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: azure.activity.sql_firewall_rule_modified
+  title: Azure SQL Server firewall rule created or modified
+  severity: high
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.Sql/servers/firewallRules/write
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.007
+  domain: iam_security
+  provider: azure
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: azure.activity.cosmosdb_modified
+  title: Cosmos DB account configuration changed
+  severity: medium
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.DocumentDB/databaseAccounts/write
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: datasec_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562
+  domain: iam_security
+  provider: azure
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: azure.activity.keyvault_access_policy_modified
+  title: Key Vault access policy modified
+  severity: critical
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.KeyVault/vaults/accessPolicies/write
+  engines:
+  - threat_engine
+  - ciem
+  - datasec_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - credential-access
+  - privilege-escalation
+  mitre_techniques:
+  - T1552.001
+  domain: iam_security
+  provider: azure
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: azure.activity.keyvault_secret_read
+  title: Key Vault secret retrieved
+  severity: medium
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.KeyVault/vaults/secrets/read
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: datasec_engine
+  action_category: modify
+  mitre_tactics:
+  - credential-access
+  mitre_techniques:
+  - T1552.001
+  domain: iam_security
+  provider: azure
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: azure.activity.defender_disabled
+  title: Microsoft Defender for Cloud pricing tier changed (potential disabling)
+  severity: critical
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.Security/pricings/write
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.001
+  domain: iam_security
+  provider: azure
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: azure.activity.diagnostic_setting_deleted
+  title: Diagnostic settings deleted (logging disabled)
+  severity: critical
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.Insights/diagnosticSettings/delete
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.008
+  domain: iam_security
+  provider: azure
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: azure.activity.activity_log_profile_deleted
+  title: Activity Log export profile deleted
+  severity: critical
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.Insights/logProfiles/delete
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.008
+  domain: iam_security
+  provider: azure
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: azure.activity.policy_assignment_modified
+  title: Azure Policy assignment created or modified
+  severity: high
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.Authorization/policyAssignments/write
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.001
+  domain: iam_security
+  provider: azure
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: azure.activity.sentinel_connector_deleted
+  title: Microsoft Sentinel data connector deleted
+  severity: critical
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.SecurityInsights/dataConnectors/delete
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.008
+  domain: iam_security
+  provider: azure
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: azure.activity.acr_webhook_modified
+  title: Azure Container Registry webhook created or modified
+  severity: medium
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.ContainerRegistry/registries/webhooks/write
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - persistence
+  mitre_techniques:
+  - T1525
+  domain: iam_security
+  provider: azure
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: azure.activity.app_service_deployment
+  title: App Service web app deployment triggered
+  severity: medium
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.Web/sites/publishxml/action
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - execution
+  mitre_techniques:
+  - T1059
+  domain: iam_security
+  provider: azure
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: azure.activity.function_app_modified
+  title: Azure Function App configuration changed
+  severity: medium
+  log_source_type: azure_activity
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_activity
+    - field: operation
+      op: equals
+      value: Microsoft.Web/sites/write
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - persistence
+  - execution
+  mitre_techniques:
+  - T1525
+  domain: iam_security
+  provider: azure
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50

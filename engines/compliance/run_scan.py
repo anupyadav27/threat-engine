@@ -158,6 +158,52 @@ def main():
         if not scan_results or not scan_results.get("results"):
             raise ValueError(f"No check findings found for check_scan_id={check_scan_id}")
 
+        # Merge CIEM findings into scan_results (log-based compliance evidence)
+        try:
+            from engine_common.ciem_reader import CIEMReader
+            ciem_c = CIEMReader(tenant_id=tenant_id, account_id=account_id or "", days=30)
+            ciem_compliance_findings = ciem_c.get_ciem_findings(engine_filter="compliance")
+            if ciem_compliance_findings:
+                results_list = scan_results.get("results", [])
+                existing_ids = {r.get("finding_id") or r.get("rule_id") for r in results_list}
+                added = 0
+                for cf in ciem_compliance_findings:
+                    fid = cf.get("finding_id", "")
+                    if fid in existing_ids:
+                        continue
+                    results_list.append({
+                        "finding_id": fid,
+                        "rule_id": cf.get("rule_id", ""),
+                        "severity": cf.get("severity", "medium"),
+                        "status": "FAIL",
+                        "title": cf.get("title", ""),
+                        "resource_uid": cf.get("resource_uid", ""),
+                        "resource_type": cf.get("resource_type", ""),
+                        "account_id": cf.get("account_id", account_id or ""),
+                        "region": cf.get("region", ""),
+                        "provider": provider or "aws",
+                        "source": "ciem",
+                        "finding_data": {
+                            "source": "ciem",
+                            "title": cf.get("title", ""),
+                            "description": cf.get("description", ""),
+                            "remediation": cf.get("remediation", ""),
+                            "compliance_frameworks": cf.get("compliance_frameworks", []),
+                            "mitre_tactics": cf.get("mitre_tactics", []),
+                            "mitre_techniques": cf.get("mitre_techniques", []),
+                            "risk_score": cf.get("risk_score"),
+                            "domain": cf.get("domain", ""),
+                            "actor_principal": cf.get("actor_principal", ""),
+                            "operation": cf.get("operation", ""),
+                        },
+                    })
+                    existing_ids.add(fid)
+                    added += 1
+                scan_results["results"] = results_list
+                logger.info(f"CIEM: merged {added} compliance findings into scan_results")
+        except Exception as ciem_pre_err:
+            logger.warning(f"CIEM compliance pre-merge failed (non-fatal): {ciem_pre_err}")
+
         # Generate enterprise report
         from compliance_engine.schemas.enterprise_report_schema import (
             ScanContext, TriggerType, Cloud, CollectionMode,

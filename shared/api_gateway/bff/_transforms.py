@@ -179,6 +179,20 @@ def normalize_threat(t: dict) -> dict:
         "recommendations": t.get("recommendations", []),
         # Remediation steps for the detail flyout
         "remediationSteps": t.get("recommendations", []),
+        # finding_refs — IDs of atomic findings that computed this detection
+        # stored in evidence.finding_refs by the threat DB writer
+        "finding_refs": (
+            (t.get("evidence") or {}).get("finding_refs", [])
+            if isinstance(t.get("evidence"), dict)
+            else []
+        ),
+        # Multi-rule grouping (new fields)
+        "contributing_rules": t.get("contributing_rules", []),
+        "rule_id": t.get("rule_id", ""),
+        "remediation": t.get("remediation", {}),
+        "source": t.get("source", "check"),
+        "hasAttackPath": t.get("hasAttackPath", False),
+        "confidence": t.get("confidence", ""),
     }
 
 

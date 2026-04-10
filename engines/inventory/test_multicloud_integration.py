@@ -63,9 +63,9 @@ def test_metadata_loader():
 
 
 def test_arn_generation():
-    """Test pattern-based ARN generation"""
+    """Test ARN generation from flat fields"""
     print("\n" + "="*80)
-    print("TEST 2: Pattern-Based ARN Generation")
+    print("TEST 2: ARN Generation from Fields")
     print("="*80)
 
     normalizer = AssetNormalizer(tenant_id='test-tenant', scan_run_id='test-scan')
@@ -73,7 +73,7 @@ def test_arn_generation():
     test_cases = [
         {
             'name': 'S3 Bucket',
-            'resource': {'BucketName': 'my-test-bucket', 'CreationDate': '2024-01-01'},
+            'fields': {'BucketName': 'my-test-bucket'},
             'service': 's3',
             'account': '123456789012',
             'region': 'us-east-1',
@@ -81,7 +81,7 @@ def test_arn_generation():
         },
         {
             'name': 'EC2 Instance',
-            'resource': {'InstanceId': 'i-1234567890abcdef0', 'State': {'Name': 'running'}},
+            'fields': {'InstanceId': 'i-1234567890abcdef0'},
             'service': 'ec2',
             'account': '123456789012',
             'region': 'us-west-2',
@@ -89,7 +89,7 @@ def test_arn_generation():
         },
         {
             'name': 'Lambda Function (with explicit ARN)',
-            'resource': {
+            'fields': {
                 'FunctionName': 'my-function',
                 'FunctionArn': 'arn:aws:lambda:us-east-1:123456789012:function:my-function'
             },
@@ -102,14 +102,14 @@ def test_arn_generation():
 
     print()
     for test in test_cases:
-        arn = normalizer._extract_aws_resource_uid(
-            test['resource'],
+        arn = normalizer._generate_arn_from_fields(
+            test['fields'],
             test['service'],
             test['account'],
             test['region']
         )
 
-        if test['expected_contains'] in arn:
+        if arn and test['expected_contains'] in arn:
             print(f"✅ {test['name']}: {arn}")
         else:
             print(f"⚠️  {test['name']}: Got '{arn}', expected to contain '{test['expected_contains']}'")

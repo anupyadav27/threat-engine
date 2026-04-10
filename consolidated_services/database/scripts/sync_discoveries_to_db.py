@@ -77,11 +77,11 @@ from csp_filter_catalog import get_filter_rules, has_filters  # noqa: E402
 ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
 # ── Local YAML source paths per CSP ───────────────────────────────────────────
-# For AWS: two sources — curated engine_check (priority A) + generated pythonsdk (priority B)
-# For all other CSPs: only data_pythonsdk/{csp}/
+# For AWS: two sources — curated engine_check (priority A) + generated catalog (priority B)
+# For all other CSPs: only catalog/{csp}/
 
-ENGINE_CHECK_SERVICES = ROOT / "engine_check" / "engine_check_aws" / "services"
-PYTHONSDK_ROOT        = ROOT / "data_pythonsdk"
+ENGINE_CHECK_SERVICES = ROOT / "engines" / "check" / "engine_check_aws" / "services"
+PYTHONSDK_ROOT        = ROOT / "catalog"
 
 ALL_CSPS = ["aws", "azure", "gcp", "oci", "alicloud", "ibm"]
 

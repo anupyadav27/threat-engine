@@ -176,7 +176,7 @@ class InventoryDBLoader:
         # Get paginated results
         query = f"""
             SELECT
-                finding_id, tenant_id, resource_uid, provider, account_id,
+                asset_id, tenant_id, resource_uid, provider, account_id,
                 region, resource_type, resource_id, name, tags,
                 scan_run_id, latest_scan_run_id, updated_at,
                 properties
@@ -300,7 +300,7 @@ class InventoryDBLoader:
 
         query = f"""
             SELECT
-                finding_id, tenant_id, resource_uid, provider, account_id,
+                asset_id, tenant_id, resource_uid, provider, account_id,
                 region, resource_type, resource_id, name, tags,
                 scan_run_id, latest_scan_run_id, updated_at,
                 configuration, properties
@@ -489,26 +489,230 @@ class InventoryDBLoader:
         return result
 
     def get_latest_scan_id(self, tenant_id: str) -> Optional[str]:
-        """Get latest completed scan_run_id for tenant"""
+        """Get latest scan_run_id with actual findings for tenant."""
+        # Try completed report first
         query = """
             SELECT scan_run_id FROM inventory_report
-            WHERE tenant_id = %s AND status = 'completed'
+            WHERE tenant_id = %s AND status = 'completed' AND total_assets > 0
             ORDER BY completed_at DESC LIMIT 1
         """
         with self.conn.cursor() as cur:
             cur.execute(query, (tenant_id,))
             row = cur.fetchone()
+            if row:
+                return row[0]
+            # Fallback: latest scan_run_id with actual findings
+            cur.execute("""
+                SELECT scan_run_id, COUNT(*) AS cnt
+                FROM inventory_findings
+                WHERE tenant_id = %s
+                GROUP BY scan_run_id
+                ORDER BY MAX(last_seen_at) DESC NULLS LAST, cnt DESC
+                LIMIT 1
+            """, (tenant_id,))
+            row = cur.fetchone()
         return row[0] if row else None
     
+    # ── Drift enrichment helpers ────────────────────────────────────────
+
+    def _load_asset_snapshot(
+        self, tenant_id: str, resource_uid: str,
+    ) -> Dict[str, Any]:
+        """Load current asset snapshot from inventory_findings for drift enrichment."""
+        try:
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT name, resource_type, region, account_id,
+                           tags, configuration, properties
+                    FROM inventory_findings
+                    WHERE tenant_id = %s AND resource_uid = %s
+                    LIMIT 1
+                """, (tenant_id, resource_uid))
+                row = cur.fetchone()
+                if not row:
+                    return {}
+                snap: Dict[str, Any] = {}
+                for key in ("name", "resource_type", "region", "account_id"):
+                    if row.get(key):
+                        snap[key] = row[key]
+                tags = row.get("tags")
+                if isinstance(tags, str):
+                    import json as _json
+                    tags = _json.loads(tags)
+                if tags and isinstance(tags, dict):
+                    snap["tags"] = tags
+                config = row.get("configuration")
+                if isinstance(config, str):
+                    import json as _json
+                    config = _json.loads(config)
+                if config and isinstance(config, dict):
+                    for k, v in config.items():
+                        snap[f"config.{k}"] = v
+                props = row.get("properties")
+                if isinstance(props, str):
+                    import json as _json
+                    props = _json.loads(props)
+                if props and isinstance(props, dict):
+                    _skip = {"raw_refs", "emitted_fields", "enriched_from",
+                             "discovery_id", "scan_timestamp", "created_at",
+                             "last_scanned", "first_seen_at"}
+                    for k, v in props.items():
+                        if k not in _skip:
+                            snap[k] = v
+                return snap
+        except Exception as e:
+            logger.debug(f"Asset snapshot lookup failed: {e}")
+            return {}
+
+    def _load_scan_snapshots(
+        self, resource_uid: str, scan_ids: List[str],
+    ) -> Dict[str, Dict[str, Any]]:
+        """Load asset snapshots from inventory_scan_data for specific scan IDs.
+
+        Returns {scan_run_id: {flattened config/tags/props dict}}.
+        """
+        if not scan_ids:
+            return {}
+        try:
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                placeholders = ",".join(["%s"] * len(scan_ids))
+                cur.execute(f"""
+                    SELECT inventory_scan_id AS scan_run_id,
+                           name, tags, properties, configuration
+                    FROM inventory_scan_data
+                    WHERE resource_uid = %s
+                      AND inventory_scan_id IN ({placeholders})
+                """, [resource_uid] + scan_ids)
+                rows = cur.fetchall()
+
+            result: Dict[str, Dict[str, Any]] = {}
+            for row in rows:
+                snap: Dict[str, Any] = {}
+                if row.get("name"):
+                    snap["name"] = row["name"]
+
+                for col in ("tags", "configuration", "properties"):
+                    val = row.get(col)
+                    if isinstance(val, str):
+                        import json as _json
+                        val = _json.loads(val)
+                    if not val or not isinstance(val, dict):
+                        continue
+                    prefix = "config." if col == "configuration" else (
+                        "tags." if col == "tags" else ""
+                    )
+                    for k, v in val.items():
+                        if k in ("raw_refs", "emitted_fields", "enriched_from"):
+                            continue
+                        snap[f"{prefix}{k}"] = v
+
+                result[row["scan_run_id"]] = snap
+            return result
+        except Exception as e:
+            logger.debug(f"Scan snapshot lookup failed: {e}")
+            return {}
+
+    @staticmethod
+    def _diff_snapshots(
+        prev: Dict[str, Any], curr: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
+        """Compute field-level changes between two flattened snapshots."""
+        changes: List[Dict[str, Any]] = []
+        all_keys = set(prev.keys()) | set(curr.keys())
+        # Skip noisy keys that change every scan
+        ignore = {"first_seen_at", "created_at", "discovery_id", "last_scanned",
+                  "emitted_fields", "enriched_from", "raw_refs"}
+        for key in sorted(all_keys):
+            if key in ignore:
+                continue
+            pv = prev.get(key)
+            cv = curr.get(key)
+            if pv != cv:
+                changes.append({"path": key, "before": pv, "after": cv})
+        return changes
+
+    def _enrich_empty_drift(
+        self, changes: List[Dict[str, Any]], tenant_id: str, resource_uid: str,
+    ) -> None:
+        """Fill in empty changes_summary records using scan snapshots.
+
+        Modifies the change dicts in-place. For asset_added/removed, builds a
+        snapshot from inventory_findings. For asset_changed, diffs the two scan
+        snapshots from inventory_scan_data.
+        """
+        # Identify which records need enrichment
+        needs_snapshot_diff: List[Dict[str, Any]] = []  # asset_changed needing scan pair
+        needs_identity: List[Dict[str, Any]] = []       # asset_added/removed needing resource info
+
+        for c in changes:
+            summary = c.get("changes_summary")
+            if summary and summary != {}:
+                continue  # already has data
+            ct = (c.get("change_type") or "").lower()
+            if "change" in ct or "modif" in ct:
+                needs_snapshot_diff.append(c)
+            else:
+                needs_identity.append(c)
+
+        if not needs_snapshot_diff and not needs_identity:
+            return
+
+        # ── Enrich asset_added / asset_removed ──────────────────────────
+        if needs_identity:
+            snap = self._load_asset_snapshot(tenant_id, resource_uid)
+            if snap:
+                for c in needs_identity:
+                    ct = (c.get("change_type") or "").lower()
+                    c["changes_summary"] = {"snapshot": snap}
+                    if "add" in ct:
+                        c["current_state"] = snap
+                    elif "remov" in ct:
+                        c["previous_state"] = snap
+
+        # ── Enrich asset_changed via scan snapshot diffs ────────────────
+        if needs_snapshot_diff:
+            # Collect unique scan IDs we need
+            scan_ids_needed: set = set()
+            for c in needs_snapshot_diff:
+                if c.get("scan_run_id"):
+                    scan_ids_needed.add(c["scan_run_id"])
+                if c.get("previous_scan_id"):
+                    scan_ids_needed.add(c["previous_scan_id"])
+
+            if scan_ids_needed:
+                snapshots = self._load_scan_snapshots(
+                    resource_uid, list(scan_ids_needed)
+                )
+                for c in needs_snapshot_diff:
+                    prev_snap = snapshots.get(c.get("previous_scan_id", ""), {})
+                    curr_snap = snapshots.get(c.get("scan_run_id", ""), {})
+                    if prev_snap or curr_snap:
+                        field_changes = self._diff_snapshots(prev_snap, curr_snap)
+                        if field_changes:
+                            c["changes_summary"] = {"changes": field_changes}
+                            c["previous_state"] = {
+                                ch["path"]: ch["before"] for ch in field_changes
+                            }
+                            c["current_state"] = {
+                                ch["path"]: ch["after"] for ch in field_changes
+                            }
+
+    # ── Main drift loader ───────────────────────────────────────────────
+
     def load_asset_drift(
         self,
         tenant_id: str,
         resource_uid: str,
         limit: int = 50,
     ) -> Dict[str, Any]:
-        """Load drift history for a specific asset from inventory_drift table."""
+        """Load drift history for a specific asset from inventory_drift table.
+
+        Enriches empty changes_summary records by reconstructing diffs from
+        inventory_scan_data snapshots (for asset_changed) or building identity
+        snapshots from inventory_findings (for asset_added/removed).
+        """
         query = """
-            SELECT drift_id, scan_run_id, previous_scan_id,
+            SELECT drift_id, inventory_scan_id AS scan_run_id, previous_scan_id,
                    change_type, previous_state, current_state,
                    changes_summary, severity, detected_at
             FROM inventory_drift
@@ -536,6 +740,8 @@ class InventoryDBLoader:
                     summary = {}
             changes.append({
                 "drift_id": str(r.get("drift_id", "")),
+                "scan_run_id": r.get("scan_run_id", ""),
+                "previous_scan_id": r.get("previous_scan_id", ""),
                 "change_type": r.get("change_type", "modified"),
                 "severity": r.get("severity", "medium"),
                 "previous_state": r.get("previous_state") or {},
@@ -543,6 +749,13 @@ class InventoryDBLoader:
                 "changes_summary": summary or {},
                 "detected_at": detected.isoformat() if detected else None,
             })
+
+        # Enrich records that have empty changes_summary (historical data)
+        if changes:
+            try:
+                self._enrich_empty_drift(changes, tenant_id, resource_uid)
+            except Exception as e:
+                logger.debug(f"Drift enrichment failed for {resource_uid}: {e}")
 
         last_check = changes[0]["detected_at"] if changes else None
         return {
@@ -641,228 +854,6 @@ class InventoryDBLoader:
                 "region": r.get("region", ""),
             })
         return records
-
-    def get_blast_radius(
-        self,
-        tenant_id: str,
-        resource_uid: str,
-        max_depth: int = 3,
-        scan_run_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """
-        Compute blast radius — find all resources IMPACTED if the origin
-        resource is compromised, misconfigured, or goes down.
-
-        Traverses REVERSE direction: finds resources that DEPEND ON the
-        origin (who points at me?).  For example:
-          - VPC compromised → find everything contained_by this VPC
-          - Security group compromised → find everything attached_to this SG
-          - IAM role compromised → find everything that uses this role
-          - KMS key compromised → find everything encrypted_by this key
-
-        Returns resources grouped by security category (compute, database,
-        storage, identity, network, etc.) with impact summary.
-        """
-        # Resolve effective scan (same fallback as load_relationships)
-        effective_scan = scan_run_id
-        if effective_scan:
-            with self.conn.cursor() as cur:
-                cur.execute(
-                    "SELECT COUNT(*) FROM inventory_relationships "
-                    "WHERE tenant_id = %s AND scan_run_id = %s",
-                    (tenant_id, effective_scan),
-                )
-                if cur.fetchone()[0] == 0:
-                    cur.execute(
-                        "SELECT scan_run_id FROM inventory_relationships "
-                        "WHERE tenant_id = %s ORDER BY created_at DESC LIMIT 1",
-                        (tenant_id,),
-                    )
-                    row = cur.fetchone()
-                    effective_scan = row[0] if row else None
-        else:
-            with self.conn.cursor() as cur:
-                cur.execute(
-                    "SELECT scan_run_id FROM inventory_relationships "
-                    "WHERE tenant_id = %s ORDER BY created_at DESC LIMIT 1",
-                    (tenant_id,),
-                )
-                row = cur.fetchone()
-                effective_scan = row[0] if row else None
-
-        if not effective_scan:
-            return self._empty_blast_response(resource_uid, max_depth)
-
-        sf = "AND ir.scan_run_id = %(scan_id)s"
-
-        # REVERSE traversal: find resources that DEPEND ON the origin.
-        # We query WHERE to_uid = origin, and walk from_uid (the dependent)
-        # outward.  This answers "who is impacted if origin fails?"
-        query = f"""
-            WITH RECURSIVE dependents AS (
-                -- Hop 1: direct dependents (resources pointing AT origin)
-                SELECT
-                    ir.from_uid         AS dependent,
-                    ir.from_resource_type AS dependent_type,
-                    ir.relation_type,
-                    1                   AS hop,
-                    ARRAY[%(uid)s, ir.from_uid] AS path
-                FROM inventory_relationships ir
-                WHERE ir.to_uid = %(uid)s
-                  AND ir.tenant_id = %(tenant_id)s {sf}
-
-                UNION ALL
-
-                -- Recursive: find resources depending on already-found dependents
-                SELECT
-                    ir.from_uid         AS dependent,
-                    ir.from_resource_type AS dependent_type,
-                    ir.relation_type,
-                    d.hop + 1,
-                    d.path || ir.from_uid
-                FROM dependents d
-                JOIN inventory_relationships ir
-                  ON ir.to_uid = d.dependent
-                WHERE ir.tenant_id = %(tenant_id)s {sf}
-                  AND d.hop < %(max_depth)s
-                  AND NOT (ir.from_uid = ANY(d.path))
-            )
-            SELECT dependent, dependent_type, relation_type, hop, path
-            FROM dependents
-            ORDER BY hop, dependent
-            LIMIT 500
-        """
-
-        params = {
-            "uid": resource_uid,
-            "tenant_id": tenant_id,
-            "max_depth": max_depth,
-            "scan_id": effective_scan,
-        }
-
-        try:
-            with self.conn.cursor() as cur:
-                cur.execute(query, params)
-                raw_rows = cur.fetchall()
-        except Exception as e:
-            logger.warning(f"Blast radius CTE failed: {e}")
-            return self._empty_blast_response(resource_uid, max_depth)
-
-        # Deduplicate nodes (keep shortest hop)
-        node_map: Dict[str, Dict[str, Any]] = {}
-        edges: List[Dict[str, Any]] = []
-        paths: List[List[str]] = []
-
-        for dependent, dep_type, rel_type, hop, path in raw_rows:
-            if dependent not in node_map or hop < node_map[dependent]["hop"]:
-                node_map[dependent] = {
-                    "id": dependent,
-                    "type": dep_type or "",
-                    "hop": hop,
-                    "relation_type": rel_type or "",
-                }
-            edges.append({
-                "source": path[-2] if len(path) >= 2 else resource_uid,
-                "target": dependent,
-                "relation_type": rel_type or "",
-                "hop": hop,
-            })
-            paths.append(list(path))
-
-        # Enrich nodes from inventory_findings
-        node_uids = list(node_map.keys())
-        if node_uids:
-            try:
-                with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
-                    cur.execute(
-                        "SELECT DISTINCT ON (resource_uid) "
-                        "resource_uid, name, resource_type, provider, "
-                        "account_id, region "
-                        "FROM inventory_findings "
-                        "WHERE tenant_id = %s AND resource_uid = ANY(%s) "
-                        "ORDER BY resource_uid, updated_at DESC",
-                        (tenant_id, node_uids),
-                    )
-                    for r in cur.fetchall():
-                        uid = r["resource_uid"]
-                        if uid in node_map:
-                            rt = r.get("resource_type") or node_map[uid].get("type", "")
-                            node_map[uid]["name"] = r.get("name") or uid.rsplit("/", 1)[-1]
-                            node_map[uid]["type"] = rt
-                            node_map[uid]["provider"] = r.get("provider") or ""
-                            node_map[uid]["account_id"] = r.get("account_id") or ""
-                            node_map[uid]["region"] = r.get("region") or "global"
-            except Exception as e:
-                logger.warning(f"Blast radius node enrichment failed: {e}")
-
-        # Fill defaults & assign category
-        for uid, node in node_map.items():
-            if "name" not in node:
-                node["name"] = uid.rsplit("/", 1)[-1]
-            if "provider" not in node:
-                node["provider"] = ""
-            if "region" not in node:
-                node["region"] = "global"
-            rt = node.get("type", "")
-            node["service"] = rt.split(".")[0] if "." in rt else rt
-            node["category"] = _categorize_resource(rt)
-
-        # Build impact summary by category
-        impact_summary: Dict[str, int] = {}
-        for node in node_map.values():
-            cat = node["category"]
-            impact_summary[cat] = impact_summary.get(cat, 0) + 1
-
-        # Depth distribution
-        depth_dist: Dict[str, int] = {}
-        for n in node_map.values():
-            h = str(n["hop"])
-            depth_dist[h] = depth_dist.get(h, 0) + 1
-
-        # Build layers (grouped by hop)
-        layers: List[Dict[str, Any]] = []
-        max_hop = max((n["hop"] for n in node_map.values()), default=0)
-        for h in range(1, max_hop + 1):
-            layer_nodes = [n for n in node_map.values() if n["hop"] == h]
-            if layer_nodes:
-                layers.append({"hop": h, "resources": layer_nodes})
-
-        # Deduplicate edges
-        seen_edges: set = set()
-        unique_edges: List[Dict[str, Any]] = []
-        for e in edges:
-            key = (e["source"], e["target"], e["relation_type"])
-            if key not in seen_edges:
-                seen_edges.add(key)
-                unique_edges.append(e)
-
-        return {
-            "origin": resource_uid,
-            "max_depth": max_depth,
-            "impact_summary": impact_summary,
-            "layers": layers,
-            "nodes": list(node_map.values()),
-            "edges": unique_edges,
-            "paths": paths,
-            "total_impacted": len(node_map),
-            "depth_distribution": depth_dist,
-        }
-
-    @staticmethod
-    def _empty_blast_response(
-        resource_uid: str, max_depth: int
-    ) -> Dict[str, Any]:
-        return {
-            "origin": resource_uid,
-            "max_depth": max_depth,
-            "impact_summary": {},
-            "layers": [],
-            "nodes": [],
-            "edges": [],
-            "paths": [],
-            "total_impacted": 0,
-            "depth_distribution": {},
-        }
 
     # ------------------------------------------------------------------
     # Graph BFS traversal (multi-cloud)

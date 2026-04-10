@@ -1,0 +1,197 @@
+rules:
+- rule_id: ibm.db_audit.failed_login
+  title: IBM database login failure detected
+  severity: medium
+  log_source_type: ibm_db_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: ibm_db_audit
+    - field: operation
+      op: equals
+      value: AUTHENTICATE
+    - field: outcome
+      op: equals
+      value: failure
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: read
+  mitre_tactics:
+  - credential-access
+  mitre_techniques:
+  - T1110
+  domain: database_security
+  provider: ibm
+  remediation: Verify the accessor has legitimate need-to-know. Review access patterns for anomalies. Consider restricting
+    read permissions.
+  compliance_frameworks: &id001
+  - CIS
+  - NIST_800-53
+  - PCI-DSS
+  - HIPAA
+  - GDPR
+  risk_score: 50
+- rule_id: ibm.db_audit.ddl_table_change
+  title: IBM database table created, altered, or dropped
+  severity: medium
+  log_source_type: ibm_db_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: ibm_db_audit
+    - field: operation
+      op: in
+      value:
+      - CREATE_TABLE
+      - ALTER_TABLE
+      - DROP_TABLE
+      - TRUNCATE_TABLE
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1485
+  domain: database_security
+  provider: ibm
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: ibm.db_audit.schema_change
+  title: IBM database schema created or altered
+  severity: high
+  log_source_type: ibm_db_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: ibm_db_audit
+    - field: operation
+      op: in
+      value:
+      - CREATE_SCHEMA
+      - ALTER_SCHEMA
+      - DROP_SCHEMA
+      - CREATE_TABLESPACE
+      - DROP_TABLESPACE
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - impact
+  - persistence
+  mitre_techniques:
+  - T1485
+  domain: database_security
+  provider: ibm
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: ibm.db_audit.admin_activity
+  title: IBM database admin operation performed
+  severity: high
+  log_source_type: ibm_db_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: ibm_db_audit
+    - field: operation
+      op: in
+      value:
+      - FORCE_APPLICATION
+      - REORG_TABLE
+      - UPDATE_DBM_CFG
+      - UPDATE_DB_CFG
+      - BACKUP_DB
+      - RESTORE_DB
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - impact
+  - defense-evasion
+  mitre_techniques:
+  - T1489
+  domain: database_security
+  provider: ibm
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: ibm.db_audit.user_management
+  title: IBM database user created or modified
+  severity: high
+  log_source_type: ibm_db_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: ibm_db_audit
+    - field: operation
+      op: in
+      value:
+      - CREATE_USER
+      - ALTER_USER
+      - DROP_USER
+      - GRANT
+      - REVOKE
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - persistence
+  - privilege-escalation
+  mitre_techniques:
+  - T1136
+  domain: database_security
+  provider: ibm
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: ibm.db_audit.audit_config_change
+  title: IBM database audit configuration modified
+  severity: critical
+  log_source_type: ibm_db_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: ibm_db_audit
+    - field: operation
+      op: in
+      value:
+      - CONFIGURE_AUDIT
+      - ALTER_AUDIT_POLICY
+      - DROP_AUDIT_POLICY
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.008
+  domain: database_security
+  provider: ibm
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 90

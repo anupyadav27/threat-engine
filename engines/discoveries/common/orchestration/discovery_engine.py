@@ -1,26 +1,24 @@
 """
 Common Discovery Engine - CSP-Agnostic Orchestration Layer
 
-Flat-scheduling model:
+Scan-then-upload model:
   1. Enumerate all (service, region) pairs upfront
   2. Pre-load all discovery configs in one batch DB call
-  3. Run all pairs through a single asyncio.Semaphore(MAX_CONCURRENT_TASKS)
-  4. No nested semaphores — light services finish fast, heavy ones don't block others
+  3. Scan all pairs via single asyncio.Semaphore — NO DB writes during scan
+  4. After all scans complete, bulk upload results via DiscoveryUploader
 
 This layer is 100% CSP-agnostic. All provider-specific logic is delegated
 to the scanner implementation via the DiscoveryScanner interface.
 """
 
 import asyncio
-import functools
 import os
 import sys
 import time
-from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 import logging
-from concurrent.futures import ThreadPoolExecutor
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
@@ -31,6 +29,7 @@ def _project_root() -> Path:
 
 from common.database.database_manager import DatabaseManager
 from common.database.check_db_reader import CheckDBReader
+from common.storage.discovery_uploader import DiscoveryUploader
 from common.utils.phase_logger import PhaseLogger
 from common.utils.progressive_output import ProgressiveOutputWriter
 from common.models.provider_interface import DiscoveryScanner, DiscoveryError
@@ -47,20 +46,6 @@ AWS_GLOBAL_SERVICES = {
     'iam', 'organizations', 'sts', 'route53', 'cloudfront',
     'waf', 'wafv2', 'shield', 'globalaccelerator',
     'importexport', 'support', 'trustedadvisor',
-}
-
-# Discovery IDs that return catalog/pricing data, not actual customer resources.
-CATALOG_DISCOVERY_IDS = {
-    'aws.ec2.describe_instance_type_offerings',
-    'aws.ec2.describe_reserved_instances_offerings',
-    'aws.ec2.describe_spot_price_history',
-    'aws.ec2.describe_fpga_images',
-    'aws.ec2.get_vpn_connection_device_types',
-    'aws.ec2.describe_id_format',
-    'aws.ec2.describe_aggregate_id_format',
-    'aws.savingsplans.describe_savings_plans_offerings',
-    'aws.savingsplans.describe_savings_plans_offering_rates',
-    'aws.gamelift.describe_ec2_instance_limits',
 }
 
 PRIMARY_REGIONS = {
@@ -142,11 +127,16 @@ class DiscoveryEngine:
 
     async def run_scan(self, metadata: Dict[str, Any]) -> str:
         """
-        Flat-scheduled discovery scan.
+        Scan-then-upload discovery scan.
 
-        1. Load all service configs in one batch
-        2. Build (service, region) work items
-        3. Process all via single Semaphore(MAX_CONCURRENT_TASKS)
+        Phase 1 — SCAN: All (service, region) pairs run through a single
+        asyncio.Semaphore.  Results are collected in memory.  NO DB writes
+        happen during this phase, so the semaphore is released as soon as
+        the AWS API call finishes.
+
+        Phase 2 — UPLOAD: After all scans complete, DiscoveryUploader
+        writes results to discovery_findings sequentially.  No concurrency
+        pressure on the DB connection pool.
         """
         scan_id = metadata['scan_run_id']
         provider = metadata['provider']
@@ -158,7 +148,6 @@ class DiscoveryEngine:
         include_regions = metadata.get('include_regions')
         exclude_regions = metadata.get('exclude_regions') or []
 
-        # Single concurrency limit for all tasks
         max_concurrent = int(os.getenv('MAX_CONCURRENT_TASKS', '400'))
 
         # Setup logging
@@ -182,6 +171,17 @@ class DiscoveryEngine:
 
         services = list(all_configs.keys())
         self.phase_logger.info(f"  Services loaded: {len(services)}")
+
+        # ── Step 1b: Determine which services need dependent discoveries ──
+        # Services with check rules need full discovery (independent + dependent).
+        # Services without check rules only need independent (asset inventory).
+        check_services = self._get_check_services(provider)
+        full_scan_count = sum(1 for s in services if s in check_services)
+        asset_only_count = len(services) - full_scan_count
+        self.phase_logger.info(
+            f"  Full scan (with dependents): {full_scan_count} services | "
+            f"Asset-only (independent only): {asset_only_count} services"
+        )
 
         # Create scan record
         if self.use_database and self.db:
@@ -222,92 +222,134 @@ class DiscoveryEngine:
             f"  Work items: {total_tasks} (flat pool, max_concurrent={max_concurrent})"
         )
 
-        # ── Step 4: Execute all tasks with single semaphore ─────────────
-        sem = asyncio.Semaphore(max_concurrent)
-        loop = asyncio.get_event_loop()
-
-        # Executor for blocking DB writes
-        db_executor = ThreadPoolExecutor(
-            max_workers=min(max_concurrent, 30),
-            thread_name_prefix='disc-db',
+        # ── Phase 1: SCAN — collect results in memory, NO DB writes ────
+        # Dedicated thread pool for boto3 calls.  Python's default executor
+        # has only min(32, cpu+4) threads — on a 2-CPU pod that's 6 threads,
+        # far too few for 1000 concurrent service scans.
+        # Cap threads at 100 — each thread uses ~8MB stack, so 100 threads
+        # = ~800MB.  The async workers (max_concurrent) queue onto these threads.
+        scan_threads = min(max_concurrent, int(os.getenv('SCAN_THREAD_POOL', '400')))
+        scan_executor = ThreadPoolExecutor(
+            max_workers=scan_threads,
+            thread_name_prefix='disc-scan',
         )
+        loop = asyncio.get_event_loop()
+        loop.set_default_executor(scan_executor)
+
+        sem = asyncio.Semaphore(max_concurrent)
+
+        # Thread-safe collection of results: (service, region) → [items]
+        all_results: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
+        results_lock = asyncio.Lock()
 
         completed = 0
         total_discoveries = 0
         scan_start = time.time()
 
-        async def run_one(service: str, region: str) -> int:
+        # Per-service timeout: if run_service_async hangs, don't block the
+        # entire scan.  Default 120s should be plenty for any single service.
+        service_timeout = int(os.getenv('SERVICE_SCAN_TIMEOUT', '120'))
+
+        async def scan_one(service: str, region: str) -> int:
+            """Scan a single service/region — NO DB writes."""
             nonlocal completed, total_discoveries
             async with sem:
                 config = all_configs[service]
+                items = []
                 try:
-                    result = await self.scanner.scan_service(
-                        service=service,
-                        region=region,
-                        config=config,
+                    # Create a task so we can abandon it on timeout instead
+                    # of cancelling.  asyncio.wait_for() cancels the task,
+                    # which can deadlock aioboto3's context-manager cleanup.
+                    # Skip dependent discoveries for services without check rules
+                    # (asset inventory only needs independent/primary discoveries).
+                    # If check_services is empty (DB unavailable), run full for all.
+                    needs_dependents = (not check_services) or (service in check_services)
+                    task = asyncio.ensure_future(
+                        self.scanner.scan_service(
+                            service=service,
+                            region=region,
+                            config=config,
+                            skip_dependents=not needs_dependents,
+                        )
                     )
-                    discoveries = result[0] if isinstance(result, tuple) else result
-                    items = list(discoveries) if discoveries else []
+                    done, _ = await asyncio.wait(
+                        {task}, timeout=service_timeout
+                    )
+                    if done:
+                        result = task.result()
+                        discoveries = result[0] if isinstance(result, tuple) else result
+                        items = list(discoveries) if discoveries else []
+                    else:
+                        # Task didn't finish — abandon it (don't cancel, let it drain)
+                        logger.warning(
+                            f"Scan timed out ({service_timeout}s): {service}/{region} — abandoning"
+                        )
                 except Exception as e:
                     logger.error(f"Scan failed: {service}/{region}: {e}")
                     items = []
 
-                count = len(items)
+            # Semaphore released — store results in memory
+            count = len(items)
+            if items:
+                async with results_lock:
+                    all_results[(service, region)] = items
 
-                # Store to DB
-                if items and self.use_database and self.db:
-                    by_discovery: dict = defaultdict(list)
-                    for item in items:
-                        if isinstance(item, dict):
-                            did = item.pop('_discovery_id', service)
-                        else:
-                            did = service
-                        if did not in CATALOG_DISCOVERY_IDS:
-                            by_discovery[did].append(item)
+            completed += 1
+            total_discoveries += count
 
-                    store_futures = []
-                    for did, group_items in by_discovery.items():
-                        store_futures.append(
-                            loop.run_in_executor(
-                                db_executor,
-                                functools.partial(
-                                    self.db.store_discoveries_batch,
-                                    scan_id=scan_id,
-                                    customer_id=customer_id,
-                                    tenant_id=tenant_id,
-                                    provider=provider,
-                                    discovery_id=did,
-                                    items=group_items,
-                                    account_id=account_id,
-                                    hierarchy_type=hierarchy_type,
-                                    region=region,
-                                    service=service,
-                                )
-                            )
-                        )
-                    if store_futures:
-                        store_results = await asyncio.gather(*store_futures, return_exceptions=True)
-                        for i, r in enumerate(store_results):
-                            if isinstance(r, Exception):
-                                logger.error(f"DB write failed for {service}/{region}: {r}")
+            if count > 0 or completed % 50 == 0 or completed == total_tasks:
+                elapsed = time.time() - scan_start
+                self.phase_logger.info(
+                    f"  [{completed}/{total_tasks}] {service}/{region}: "
+                    f"{count} items | total={total_discoveries} | {elapsed:.0f}s"
+                )
 
-                completed += 1
-                total_discoveries += count
+            return count
 
-                # Progress logging every 50 tasks or when items found
-                if count > 0 or completed % 50 == 0 or completed == total_tasks:
-                    elapsed = time.time() - scan_start
-                    self.phase_logger.info(
-                        f"  [{completed}/{total_tasks}] {service}/{region}: "
-                        f"{count} items | total={total_discoveries} | {elapsed:.0f}s"
-                    )
+        # Process work items via a bounded worker pool.  Unlike
+        # asyncio.gather(*[... for all 6134 items]), this only creates
+        # max_concurrent tasks at a time, preventing aioboto3/aiohttp
+        # from initialising thousands of sessions simultaneously and
+        # freezing the event loop.
+        work_queue: asyncio.Queue = asyncio.Queue()
+        for item in work_items:
+            work_queue.put_nowait(item)
 
-                return count
+        async def worker():
+            while True:
+                try:
+                    svc, rgn = work_queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    break
+                await scan_one(svc, rgn)
 
-        try:
-            await asyncio.gather(*[run_one(svc, rgn) for svc, rgn in work_items])
-        finally:
-            db_executor.shutdown(wait=False)
+        await asyncio.gather(*[worker() for _ in range(max_concurrent)])
+
+        scan_executor.shutdown(wait=False)
+
+        scan_elapsed = time.time() - scan_start
+        self.phase_logger.info(
+            f"Phase 1 (scan) complete: {total_discoveries} discoveries "
+            f"in {scan_elapsed:.0f}s ({total_tasks} tasks)"
+        )
+
+        # ── Phase 2: UPLOAD — sequential bulk write to DB ──────────────
+        if all_results and self.use_database and self.db:
+            self.phase_logger.info(
+                f"Phase 2 (upload): writing {total_discoveries} discoveries "
+                f"from {len(all_results)} service-region pairs"
+            )
+            uploader = DiscoveryUploader(self.db)
+            uploaded = uploader.upload_scan_results(
+                scan_id=scan_id,
+                customer_id=customer_id,
+                tenant_id=tenant_id,
+                provider=provider,
+                account_id=account_id,
+                hierarchy_type=hierarchy_type,
+                results=all_results,
+            )
+            self.phase_logger.info(f"Phase 2 (upload) complete: {uploaded} rows written")
 
         # Complete scan
         if self.use_database and self.db:
@@ -338,6 +380,22 @@ class DiscoveryEngine:
         except Exception as e:
             logger.error(f"Failed to load discovery configs: {e}")
             return {}
+
+    def _get_check_services(self, provider: str) -> set:
+        """Return set of services that have check rules in rule_metadata.
+
+        Services in this set need full discovery (independent + dependent).
+        Services NOT in this set only need independent discoveries (asset inventory).
+        """
+        if not self.check_db_reader:
+            # Can't determine — assume all need full scan
+            logger.warning("CheckDBReader unavailable, running full scan for all services")
+            return set()
+        try:
+            return self.check_db_reader.get_check_services(provider=provider)
+        except Exception as e:
+            logger.warning(f"Failed to load check services: {e} — running full scan for all")
+            return set()
 
     async def _discover_available_regions(
         self, provider: str, exclude_regions: List[str] = None

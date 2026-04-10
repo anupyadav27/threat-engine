@@ -1,5 +1,5 @@
 from django.urls import path, include
-from cspm.health import health_check
+from config.health import health_check
 
 urlpatterns = [
     path('health', health_check, name='health'),

@@ -103,13 +103,13 @@ def save_report_to_db(report: ThreatReport) -> str:
         with conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO threat_report (
-                    scan_run_id, tenant_id, customer_id, provider,
+                    threat_scan_id, scan_run_id, tenant_id, customer_id, provider,
                     started_at, completed_at, status,
                     total_findings, critical_findings, high_findings,
                     medium_findings, low_findings, threat_score,
                     report_data
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (scan_run_id) DO UPDATE SET
                     total_findings = EXCLUDED.total_findings,
                     critical_findings = EXCLUDED.critical_findings,
@@ -121,6 +121,7 @@ def save_report_to_db(report: ThreatReport) -> str:
                     completed_at = EXCLUDED.completed_at,
                     status = EXCLUDED.status
             """, (
+                scan_run_id,  # threat_scan_id = scan_run_id
                 scan_run_id,
                 tenant_id,
                 customer_id,
@@ -144,15 +145,16 @@ def save_report_to_db(report: ThreatReport) -> str:
             confidence_val = threat.confidence.value if hasattr(threat.confidence, 'value') else str(threat.confidence)
             status_val = threat.status.value if hasattr(threat.status, 'value') else str(threat.status)
 
-            # Extract primary rule_id from correlations
-            primary_rule_id = None
+            # Primary rule_id — use new field or fallback to correlation lookup
+            primary_rule_id = threat.rule_id
             finding_refs = []
             if threat.correlations and threat.correlations.misconfig_finding_refs:
                 finding_refs = threat.correlations.misconfig_finding_refs
-                for finding in report.misconfig_findings:
-                    if finding.misconfig_finding_id == finding_refs[0]:
-                        primary_rule_id = finding.rule_id
-                        break
+                if not primary_rule_id:
+                    for finding in report.misconfig_findings:
+                        if finding.misconfig_finding_id == finding_refs[0]:
+                            primary_rule_id = finding.rule_id
+                            break
 
             # Extract resource info from first affected asset
             resource_uid = None
@@ -172,11 +174,14 @@ def save_report_to_db(report: ThreatReport) -> str:
             mitre_techniques = threat.mitre_techniques or []
             mitre_tactics = threat.mitre_tactics or []
 
-            # Build evidence JSONB
+            # Build evidence JSONB (includes new multi-rule fields)
             evidence = {
                 "finding_refs": finding_refs,
                 "affected_assets": threat.affected_assets,
                 "remediation": threat.remediation,
+                "contributing_rules": threat.contributing_rules or [],
+                "finding_count": threat.finding_count or len(finding_refs),
+                "source": threat.source or "check",
             }
 
             # Build context JSONB

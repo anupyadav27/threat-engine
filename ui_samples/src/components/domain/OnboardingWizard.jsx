@@ -1,425 +1,803 @@
 'use client';
+/**
+ * OnboardingWizard — 5-step cloud account onboarding
+ *
+ * Step 1: Select tenant workspace, account name, provider + auth method
+ * Step 2: Enter credentials (fields per provider)
+ * Step 3: Validate — auto-runs, shows progress + result
+ * Step 4: Configure scan schedule (presets, engines, regions, notifications)
+ * Step 5: Summary — review everything, launch
+ *
+ * API calls (onboarding engine):
+ *   POST  /api/v1/cloud-accounts                        → create account record
+ *   POST  /api/v1/cloud-accounts/{id}/credentials       → store + validate creds
+ *   POST  /api/v1/schedules                             → create schedule
+ */
 
 import { useState } from 'react';
-import { postToEngine } from '@/lib/api';
-import { CLOUD_PROVIDERS } from '@/lib/constants';
-import { useToast } from '@/lib/toast-context';
+import {
+  ChevronDown, Download, X, CheckCircle2, XCircle, Loader2,
+  Calendar, Clock, Globe, Layers, Bell, ChevronRight,
+} from 'lucide-react';
+import { postToEngine, getFromEngine } from '@/lib/api';
+import { useTenant } from '@/lib/tenant-context';
 
-/**
- * OnboardingWizard Component
- * 3-step wizard for onboarding cloud accounts
- * Step 1: Select Cloud Provider and Auth Method
- * Step 2: Enter Credentials
- * Step 3: Validation Result
- *
- * @param {Object} props
- * @param {Function} props.onComplete - Callback with account data on completion
- * @param {Function} props.onCancel - Callback when wizard is cancelled
- * @returns {JSX.Element}
- */
-export default function OnboardingWizard({ onComplete = () => {}, onCancel = () => {} }) {
-  const toast = useToast();
-  const [currentStep, setCurrentStep] = useState(1);
-  const [provider, setProvider] = useState('');
-  const [authMethod, setAuthMethod] = useState('');
-  const [credentials, setCredentials] = useState({});
-  const [validationStatus, setValidationStatus] = useState('idle'); // idle | validating | success | failed
-  const [validationMessage, setValidationMessage] = useState('');
-  const [validationError, setValidationError] = useState('');
+// ── Provider catalogue ────────────────────────────────────────────────────────
 
-  const handleProviderSelect = (selectedProvider) => {
-    setProvider(selectedProvider);
-    setAuthMethod('');
-  };
+const PROVIDERS = {
+  aws:      { name: 'AWS',      full: 'Amazon Web Services',         color: '#FF9900' },
+  azure:    { name: 'Azure',    full: 'Microsoft Azure',             color: '#0078D4' },
+  gcp:      { name: 'GCP',      full: 'Google Cloud Platform',       color: '#4285F4' },
+  oci:      { name: 'OCI',      full: 'Oracle Cloud Infrastructure', color: '#F80000' },
+  alicloud: { name: 'AliCloud', full: 'Alibaba Cloud',               color: '#FF6A00' },
+  ibm:      { name: 'IBM',      full: 'IBM Cloud',                   color: '#1F70C1' },
+  k8s:      { name: 'K8s',      full: 'Kubernetes Cluster',          color: '#326CE5' },
+};
 
-  const handleAuthMethodSelect = (method) => {
-    setAuthMethod(method);
-  };
+// ── Auth methods + credential fields per provider ─────────────────────────────
 
-  const handleCredentialChange = (field, value) => {
-    setCredentials(prev => ({ ...prev, [field]: value }));
-  };
+const AUTH_METHODS = {
+  aws: [
+    { value: 'iam_role',   label: 'IAM Role (Recommended)', desc: 'Cross-account assume role — most secure' },
+    { value: 'access_key', label: 'Access Keys',             desc: 'Static access key pair' },
+  ],
+  azure:    [{ value: 'service_principal', label: 'Service Principal', desc: 'Azure AD app registration' }],
+  gcp:      [{ value: 'service_account',   label: 'Service Account',   desc: 'GCP service account JSON key' }],
+  oci:      [{ value: 'api_key',           label: 'API Key',           desc: 'OCI user API key pair' }],
+  alicloud: [{ value: 'access_key',        label: 'Access Key',        desc: 'Alibaba Cloud access key pair' }],
+  ibm:      [{ value: 'api_key',           label: 'API Key',           desc: 'IBM Cloud API key' }],
+  k8s:      [{ value: 'kubeconfig',        label: 'Kubeconfig',        desc: 'Kubernetes cluster config' }],
+};
 
-  const handleNext = async () => {
-    if (currentStep === 1) {
-      if (!provider || !authMethod) {
-        toast.error('Please select both provider and auth method');
-        return;
-      }
-      setCurrentStep(2);
-    } else if (currentStep === 2) {
-      // Validate credentials
-      const requiredFields = getRequiredFields();
-      const isEmpty = requiredFields.some(field => !credentials[field]?.trim());
-      if (isEmpty) {
-        toast.error('Please fill in all required fields');
-        return;
-      }
-      setCurrentStep(3);
-      await validateCredentials();
-    }
-  };
+const CREDENTIAL_FIELDS = {
+  aws_iam_role: [
+    { key: 'account_id',  label: 'AWS Account ID', placeholder: '123456789012',                        secret: false },
+    { key: 'role_arn',    label: 'Role ARN',        placeholder: 'arn:aws:iam::123456789012:role/Name', secret: false },
+    { key: 'external_id', label: 'External ID',     placeholder: 'Optional — leave blank if not set',   secret: false, optional: true },
+  ],
+  aws_access_key: [
+    { key: 'access_key_id',     label: 'Access Key ID',     placeholder: 'AKIA…', secret: false },
+    { key: 'secret_access_key', label: 'Secret Access Key', placeholder: '••••',  secret: true  },
+  ],
+  azure_service_principal: [
+    { key: 'subscription_id', label: 'Subscription ID', placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx', secret: false },
+    { key: 'tenant_id',       label: 'Azure Tenant ID', placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx', secret: false },
+    { key: 'client_id',       label: 'Client (App) ID', placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx', secret: false },
+    { key: 'client_secret',   label: 'Client Secret',   placeholder: '••••',                                 secret: true  },
+  ],
+  gcp_service_account: [
+    { key: 'project_id',          label: 'Project ID',              placeholder: 'my-gcp-project', secret: false },
+    { key: 'service_account_key', label: 'Service Account Key JSON', placeholder: 'Paste JSON…',    secret: true, textarea: true },
+  ],
+  oci_api_key: [
+    { key: 'tenancy_ocid', label: 'Tenancy OCID', placeholder: 'ocid1.tenancy.oc1…', secret: false },
+    { key: 'user_ocid',    label: 'User OCID',    placeholder: 'ocid1.user.oc1…',    secret: false },
+    { key: 'fingerprint',  label: 'Fingerprint',  placeholder: 'xx:xx:xx:…',          secret: false },
+    { key: 'private_key',  label: 'Private Key',  placeholder: '-----BEGIN RSA…',     secret: true, textarea: true },
+  ],
+  alicloud_access_key: [
+    { key: 'access_key_id',     label: 'Access Key ID',     placeholder: 'LTAI…', secret: false },
+    { key: 'access_key_secret', label: 'Access Key Secret', placeholder: '••••',  secret: true  },
+  ],
+  ibm_api_key: [
+    { key: 'api_key',    label: 'API Key',    placeholder: '••••', secret: true  },
+    { key: 'account_id', label: 'Account ID', placeholder: 'IBM Cloud account ID', secret: false },
+  ],
+  k8s_kubeconfig: [
+    { key: 'kubeconfig', label: 'Kubeconfig YAML', placeholder: 'apiVersion: v1\nkind: Config\n…', secret: true, textarea: true },
+  ],
+};
 
-  const handleBack = () => {
-    if (currentStep > 1) setCurrentStep(currentStep - 1);
-  };
+function getFields(provider, authMethod) {
+  return CREDENTIAL_FIELDS[`${provider}_${authMethod}`] || [];
+}
 
-  const validateCredentials = async () => {
-    setValidationStatus('validating');
-    setValidationMessage('Validating credentials...');
+// ── Schedule config constants ─────────────────────────────────────────────────
 
-    try {
-      // First create a temporary account record to validate against
-      const createResult = await postToEngine('onboarding', '/api/v1/accounts', {
-        provider,
-        auth_method: authMethod,
-      });
+const CRON_PRESETS = [
+  { key: 'hourly',    label: 'Every Hour',          cron: '0 * * * *',   desc: 'Runs at the top of every hour' },
+  { key: 'daily',     label: 'Daily at 2 AM UTC',   cron: '0 2 * * *',   desc: 'Once a day, every day' },
+  { key: 'weekly',    label: 'Weekly (Sunday 2 AM)',  cron: '0 2 * * 0',   desc: 'Recommended for most accounts' },
+  { key: 'bi_weekly', label: 'Every 2 Weeks',        cron: '0 2 * * 1/2', desc: 'Every other Monday at 2 AM' },
+  { key: 'monthly',   label: 'Monthly (1st, 2 AM)',  cron: '0 2 1 * *',   desc: 'First of each month' },
+  { key: 'custom',    label: 'Custom cron…',          cron: '',            desc: 'Enter your own cron expression' },
+];
 
-      if (!createResult || !createResult.account_id) {
-        throw new Error('Failed to create account record');
-      }
+const ALL_ENGINES = ['discovery', 'check', 'inventory', 'threat', 'compliance', 'iam', 'datasec'];
+const ENGINE_LABELS = {
+  discovery:  { label: 'Discovery',   desc: 'Enumerate cloud resources' },
+  check:      { label: 'Check',       desc: 'Evaluate compliance rules' },
+  inventory:  { label: 'Inventory',   desc: 'Normalize + track assets' },
+  threat:     { label: 'Threat',      desc: 'MITRE ATT&CK mapping' },
+  compliance: { label: 'Compliance',  desc: 'Framework reports (CIS, NIST…)' },
+  iam:        { label: 'IAM',         desc: 'IAM posture analysis' },
+  datasec:    { label: 'Data Sec',    desc: 'Data classification & security' },
+};
 
-      // Store and validate credentials
-      try {
-        await postToEngine('onboarding', `/api/v1/accounts/${createResult.account_id}/credentials`, credentials);
+const COMMON_TIMEZONES = [
+  'UTC', 'America/New_York', 'America/Chicago', 'America/Los_Angeles',
+  'Europe/London', 'Europe/Berlin', 'Asia/Kolkata', 'Asia/Tokyo',
+  'Asia/Singapore', 'Australia/Sydney',
+];
 
-        const validateResult = await postToEngine('onboarding', `/api/v1/accounts/${createResult.account_id}/validate-credentials`, {});
+// ── Reusable field ────────────────────────────────────────────────────────────
 
-        if (validateResult && validateResult.valid === true) {
-          setValidationStatus('success');
-          setValidationMessage('Account successfully validated');
-        } else {
-          setValidationStatus('failed');
-          setValidationError(validateResult?.message || 'Failed to authenticate with provided credentials');
-        }
-      } catch (credError) {
-        setValidationStatus('failed');
-        setValidationError(credError.message || 'Failed to validate credentials');
-      }
-    } catch (error) {
-      setValidationStatus('failed');
-      setValidationError(error.message || 'Validation failed');
-    }
-  };
-
-  const handleSaveAccount = () => {
-    const accountData = {
-      provider,
-      authMethod,
-      credentials,
-      timestamp: new Date().toISOString()
-    };
-    onComplete(accountData);
-  };
-
-  const getRequiredFields = () => {
-    if (provider === 'aws' && authMethod === 'role_arn') {
-      return ['account_id', 'role_arn', 'external_id'];
-    } else if (provider === 'aws' && authMethod === 'access_keys') {
-      return ['access_key_id', 'secret_access_key'];
-    } else if (provider === 'azure') {
-      return ['subscription_id', 'tenant_id', 'client_id', 'client_secret'];
-    } else if (provider === 'gcp') {
-      return ['project_id', 'service_account_key'];
-    } else if (provider === 'oci') {
-      return ['tenancy_ocid', 'user_ocid', 'fingerprint', 'private_key'];
-    }
-    return [];
-  };
-
-  const authMethodOptions = {
-    aws: [
-      { value: 'role_arn', label: 'Role ARN' },
-      { value: 'access_keys', label: 'Access Keys' }
-    ],
-    azure: [{ value: 'spn', label: 'Service Principal' }],
-    gcp: [{ value: 'service_account', label: 'Service Account' }],
-    oci: [{ value: 'api_key', label: 'API Key' }]
-  };
-
-  const renderStep = () => {
-    switch (currentStep) {
-      case 1:
-        return <Step1 provider={provider} authMethod={authMethod} onProviderSelect={handleProviderSelect} onAuthMethodSelect={handleAuthMethodSelect} authMethodOptions={authMethodOptions} />;
-      case 2:
-        return <Step2 provider={provider} authMethod={authMethod} credentials={credentials} onCredentialChange={handleCredentialChange} getRequiredFields={getRequiredFields} />;
-      case 3:
-        return <Step3 validationStatus={validationStatus} validationMessage={validationMessage} validationError={validationError} provider={provider} credentials={credentials} />;
-      default:
-        return null;
-    }
-  };
+function Field({ def, value, onChange }) {
+  const base = 'w-full px-3 py-2 rounded-lg text-sm outline-none transition-colors';
+  const style = { backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-primary)', color: 'var(--text-primary)' };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <div style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }} className="rounded-xl border w-full max-w-2xl shadow-2xl transition-colors duration-200">
-        {/* Header */}
-        <div style={{ backgroundColor: 'var(--bg-tertiary)', borderBottomColor: 'var(--border-primary)' }} className="rounded-t-xl px-6 py-4 border-b transition-colors duration-200">
-          <h2 style={{ color: 'var(--text-primary)' }} className="text-lg font-semibold">
-            Cloud Account Onboarding
-          </h2>
-        </div>
-
-        {/* Step Indicator */}
-        <div style={{ borderBottomColor: 'var(--border-primary)' }} className="px-6 py-6 border-b transition-colors duration-200">
-          <div className="flex items-center justify-center gap-4">
-            {[1, 2, 3].map((step) => (
-              <div key={step} className="flex items-center gap-4">
-                <div
-                  className={`w-10 h-10 rounded-full font-semibold flex items-center justify-center transition-all ${
-                    step < currentStep
-                      ? 'bg-green-500 text-white'
-                      : step === currentStep
-                        ? 'bg-blue-500 text-white ring-2 ring-blue-400 ring-offset-2'
-                        : 'bg-slate-700 text-slate-400'
-                  }`}
-                >
-                  {step < currentStep ? '✓' : step}
-                </div>
-                <div className="hidden sm:block">
-                  <p style={{ color: 'var(--text-tertiary)' }} className="text-xs font-medium">
-                    Step {step}
-                  </p>
-                  <p style={{ color: 'var(--text-primary)' }} className="text-sm font-medium">
-                    {step === 1
-                      ? 'Select Provider'
-                      : step === 2
-                        ? 'Enter Credentials'
-                        : 'Validate'}
-                  </p>
-                </div>
-                {step < 3 && (
-                  <div className="hidden md:block w-12 h-1 bg-slate-700" />
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Step Content */}
-        <div className="px-6 py-8">
-          {renderStep()}
-        </div>
-
-        {/* Footer Buttons */}
-        <div style={{ borderTopColor: 'var(--border-primary)' }} className="px-6 py-4 border-t flex justify-between gap-3 transition-colors duration-200">
-          <div className="flex gap-3">
-            <button
-              onClick={onCancel}
-              style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}
-              className="px-4 py-2 rounded-lg font-medium text-sm hover:opacity-75 transition-colors duration-200"
-            >
-              Cancel
-            </button>
-            {currentStep > 1 && (
-              <button
-                onClick={handleBack}
-                style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}
-                className="px-4 py-2 rounded-lg font-medium text-sm hover:opacity-75 transition-colors duration-200"
-              >
-                Back
-              </button>
-            )}
-          </div>
-          <div className="flex gap-3">
-            {currentStep < 3 && (
-              <button
-                onClick={handleNext}
-                className="px-6 py-2 rounded-lg bg-blue-600 text-white font-medium text-sm hover:bg-blue-700 transition-colors"
-              >
-                Next
-              </button>
-            )}
-            {currentStep === 3 && validationStatus === 'success' && (
-              <button
-                onClick={handleSaveAccount}
-                className="px-6 py-2 rounded-lg bg-green-600 text-white font-medium text-sm hover:bg-green-700 transition-colors"
-              >
-                Save Account
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
+    <div>
+      <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
+        {def.label}
+        {def.optional && <span className="ml-1 text-xs font-normal" style={{ color: 'var(--text-muted)' }}>(optional)</span>}
+      </label>
+      {def.textarea ? (
+        <textarea rows={4} value={value || ''} onChange={e => onChange(def.key, e.target.value)}
+          placeholder={def.placeholder} className={`${base} resize-none font-mono text-xs`} style={style} />
+      ) : (
+        <input type={def.secret ? 'password' : 'text'} value={value || ''} onChange={e => onChange(def.key, e.target.value)}
+          placeholder={def.placeholder} className={base} style={style} />
+      )}
     </div>
   );
 }
 
-/**
- * Step 1: Provider and Auth Method Selection
- */
-function Step1({ provider, authMethod, onProviderSelect, onAuthMethodSelect, authMethodOptions }) {
+// ── Step 1: Provider selection ────────────────────────────────────────────────
+
+function Step1({ form, setForm }) {
+  const { tenants } = useTenant();
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
+      {/* Tenant */}
       <div>
-        <label style={{ color: 'var(--text-secondary)' }} className="block text-sm font-medium mb-4">
-          Select Cloud Provider
+        <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
+          Workspace <span className="text-red-400">*</span>
         </label>
-        <div className="grid grid-cols-2 gap-3">
-          {Object.entries(CLOUD_PROVIDERS).map(([key, value]) => (
-            <button
-              key={key}
-              onClick={() => onProviderSelect(key)}
-              style={provider === key ? {} : { borderColor: 'var(--border-primary)', backgroundColor: 'var(--bg-tertiary)' }}
-              className={`p-4 rounded-lg border-2 text-left transition-all ${
-                provider === key
-                  ? 'border-blue-500 bg-blue-500/10'
-                  : 'hover:opacity-75'
-              }`}
-            >
-              <p style={{ color: 'var(--text-primary)' }} className="font-medium">{value.name}</p>
-              <p style={{ color: 'var(--text-tertiary)' }} className="text-xs mt-1">
-                {key === 'aws' && 'Amazon Web Services'}
-                {key === 'azure' && 'Microsoft Azure'}
-                {key === 'gcp' && 'Google Cloud Platform'}
-                {key === 'oci' && 'Oracle Cloud Infrastructure'}
-              </p>
+        <div className="relative">
+          <select value={form.tenantId} onChange={e => setForm(f => ({ ...f, tenantId: e.target.value }))}
+            className="w-full px-3 py-2 rounded-lg text-sm outline-none appearance-none"
+            style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-primary)', color: 'var(--text-primary)' }}>
+            <option value="">Select workspace…</option>
+            {tenants.map(t => <option key={t.tenant_id} value={t.tenant_id}>{t.tenant_name}</option>)}
+          </select>
+          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: 'var(--text-muted)' }} />
+        </div>
+      </div>
+
+      {/* Account name */}
+      <div>
+        <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
+          Account Name <span className="text-red-400">*</span>
+        </label>
+        <input type="text" value={form.accountName} onChange={e => setForm(f => ({ ...f, accountName: e.target.value }))}
+          placeholder="e.g. Production AWS, Dev Azure"
+          className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+          style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-primary)', color: 'var(--text-primary)' }} />
+      </div>
+
+      {/* Provider grid */}
+      <div>
+        <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
+          Cloud Provider <span className="text-red-400">*</span>
+        </label>
+        <div className="grid grid-cols-4 gap-2">
+          {Object.entries(PROVIDERS).map(([key, p]) => {
+            const selected = form.provider === key;
+            return (
+              <button key={key} onClick={() => setForm(f => ({ ...f, provider: key, authMethod: '' }))}
+                className="flex flex-col items-center gap-1.5 p-3 rounded-lg text-center transition-all"
+                style={{
+                  border: `2px solid ${selected ? p.color : 'var(--border-primary)'}`,
+                  backgroundColor: selected ? `${p.color}18` : 'var(--bg-tertiary)',
+                }}>
+                <span className="text-xs font-bold" style={{ color: selected ? p.color : 'var(--text-secondary)' }}>{p.name}</span>
+                <span className="text-[9px] leading-tight" style={{ color: 'var(--text-muted)' }}>{p.full}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Auth method */}
+      {form.provider && (
+        <div>
+          <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
+            Authentication Method <span className="text-red-400">*</span>
+          </label>
+          <div className="space-y-2">
+            {AUTH_METHODS[form.provider]?.map(m => {
+              const selected = form.authMethod === m.value;
+              return (
+                <button key={m.value} onClick={() => setForm(f => ({ ...f, authMethod: m.value }))}
+                  className="w-full flex items-start gap-3 p-3 rounded-lg text-left transition-all"
+                  style={{ border: `2px solid ${selected ? 'var(--accent-primary)' : 'var(--border-primary)'}`, backgroundColor: selected ? 'rgba(59,130,246,0.08)' : 'var(--bg-tertiary)' }}>
+                  <div className={`mt-0.5 w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${selected ? 'border-blue-500' : 'border-gray-500'}`}>
+                    {selected && <div className="w-2 h-2 rounded-full bg-blue-500" />}
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{m.label}</div>
+                    <div className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{m.desc}</div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Step 2: Credential fields ─────────────────────────────────────────────────
+
+function Step2({ form, setForm }) {
+  const fields   = getFields(form.provider, form.authMethod);
+  const provider = PROVIDERS[form.provider];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+          {provider?.name} — {AUTH_METHODS[form.provider]?.find(m => m.value === form.authMethod)?.label}
+        </span>
+      </div>
+
+      {form.provider === 'aws' && form.authMethod === 'iam_role' && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs"
+          style={{ backgroundColor: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)', color: 'var(--text-secondary)' }}>
+          <span className="flex-1">Create the IAM role in your AWS account first.</span>
+          <button onClick={() => window.open('/onboarding/api/v1/cloud-accounts/aws/cloudformation-template', '_blank')}
+            className="flex items-center gap-1 text-blue-400 hover:text-blue-300 font-medium flex-shrink-0">
+            <Download className="w-3 h-3" /> CloudFormation template
+          </button>
+        </div>
+      )}
+
+      {fields.map(def => (
+        <Field key={def.key} def={def} value={form.credentials[def.key]}
+          onChange={(k, v) => setForm(f => ({ ...f, credentials: { ...f.credentials, [k]: v } }))} />
+      ))}
+    </div>
+  );
+}
+
+// ── Step 3: Validation progress ───────────────────────────────────────────────
+
+function Step3({ steps, result, form }) {
+  const provider = PROVIDERS[form.provider];
+
+  return (
+    <div className="space-y-5">
+      <div className="space-y-2">
+        {steps.map((s, i) => (
+          <div key={i} className="flex items-center gap-3">
+            <div className="w-5 h-5 flex-shrink-0 flex items-center justify-center">
+              {s.status === 'done'    && <CheckCircle2 className="w-5 h-5 text-green-400" />}
+              {s.status === 'running' && <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />}
+              {s.status === 'error'   && <XCircle className="w-5 h-5 text-red-400" />}
+              {s.status === 'pending' && <div className="w-4 h-4 rounded-full" style={{ border: '2px solid var(--border-primary)' }} />}
+            </div>
+            <span className="text-sm" style={{
+              color: s.status === 'done' ? 'var(--text-primary)' :
+                     s.status === 'running' ? 'var(--accent-primary)' :
+                     s.status === 'error' ? '#f87171' : 'var(--text-muted)'
+            }}>
+              {s.label}
+              {s.detail && <span className="ml-2 text-xs" style={{ color: 'var(--text-muted)' }}>{s.detail}</span>}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {result && (
+        <div className="p-4 rounded-lg" style={{
+          backgroundColor: result.success ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
+          border: `1px solid ${result.success ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
+        }}>
+          <p className="text-sm font-medium" style={{ color: result.success ? '#4ade80' : '#f87171' }}>
+            {result.success ? `✅ ${provider?.name} account validated` : '❌ Validation failed'}
+          </p>
+          {result.account_number && (
+            <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
+              Account ID detected: <span className="font-mono font-medium">{result.account_number}</span>
+            </p>
+          )}
+          {!result.success && result.message && (
+            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{result.message}</p>
+          )}
+          {!result.success && result.errors?.length > 0 && (
+            <ul className="mt-2 space-y-0.5">
+              {result.errors.map((e, i) => <li key={i} className="text-xs text-red-400">• {e}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Step 4: Schedule configuration ───────────────────────────────────────────
+
+function Step4({ schedule, setSchedule }) {
+  const selectedPreset = CRON_PRESETS.find(p => p.cron === schedule.cron_expression && p.key !== 'custom') || CRON_PRESETS.find(p => p.key === 'custom');
+  const [preset, setPreset] = useState(selectedPreset?.key || 'weekly');
+
+  function selectPreset(key) {
+    setPreset(key);
+    const p = CRON_PRESETS.find(x => x.key === key);
+    if (p && p.key !== 'custom') setSchedule(s => ({ ...s, cron_expression: p.cron }));
+  }
+
+  function toggleEngine(eng) {
+    setSchedule(s => ({
+      ...s,
+      engines_requested: s.engines_requested.includes(eng)
+        ? s.engines_requested.filter(e => e !== eng)
+        : [...s.engines_requested, eng],
+    }));
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Frequency presets */}
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <Clock className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
+          <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>Scan Frequency</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {CRON_PRESETS.map(p => (
+            <button key={p.key} onClick={() => selectPreset(p.key)}
+              className="flex flex-col gap-0.5 p-3 rounded-lg text-left transition-all"
+              style={{
+                border: `2px solid ${preset === p.key ? 'var(--accent-primary)' : 'var(--border-primary)'}`,
+                backgroundColor: preset === p.key ? 'rgba(59,130,246,0.08)' : 'var(--bg-tertiary)',
+              }}>
+              <span className="text-sm font-medium" style={{ color: preset === p.key ? 'var(--accent-primary)' : 'var(--text-primary)' }}>
+                {p.label}
+              </span>
+              <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{p.desc}</span>
             </button>
+          ))}
+        </div>
+
+        {/* Custom cron input */}
+        {preset === 'custom' && (
+          <div className="mt-3">
+            <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Cron Expression</label>
+            <input type="text" value={schedule.cron_expression}
+              onChange={e => setSchedule(s => ({ ...s, cron_expression: e.target.value }))}
+              placeholder="0 2 * * 0  (min hour dom month dow)"
+              className="w-full px-3 py-2 rounded-lg text-sm font-mono outline-none"
+              style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-primary)', color: 'var(--text-primary)' }} />
+          </div>
+        )}
+      </div>
+
+      {/* Timezone */}
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <Globe className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
+          <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>Timezone</span>
+        </div>
+        <div className="relative">
+          <select value={schedule.timezone} onChange={e => setSchedule(s => ({ ...s, timezone: e.target.value }))}
+            className="w-full px-3 py-2 rounded-lg text-sm outline-none appearance-none"
+            style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-primary)', color: 'var(--text-primary)' }}>
+            {COMMON_TIMEZONES.map(tz => <option key={tz} value={tz}>{tz}</option>)}
+          </select>
+          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: 'var(--text-muted)' }} />
+        </div>
+      </div>
+
+      {/* Engines to run */}
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <Layers className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
+          <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>Engines to Run</span>
+        </div>
+        <div className="grid grid-cols-2 gap-1.5">
+          {ALL_ENGINES.map(eng => {
+            const enabled = schedule.engines_requested.includes(eng);
+            const info = ENGINE_LABELS[eng];
+            return (
+              <button key={eng} onClick={() => toggleEngine(eng)}
+                className="flex items-start gap-2 p-2.5 rounded-lg text-left transition-all"
+                style={{
+                  border: `1px solid ${enabled ? 'rgba(59,130,246,0.4)' : 'var(--border-primary)'}`,
+                  backgroundColor: enabled ? 'rgba(59,130,246,0.06)' : 'var(--bg-tertiary)',
+                }}>
+                <div className={`mt-0.5 w-3.5 h-3.5 rounded flex-shrink-0 flex items-center justify-center text-white text-[9px] font-bold ${enabled ? 'bg-blue-500' : ''}`}
+                  style={{ border: enabled ? 'none' : '1px solid var(--border-primary)' }}>
+                  {enabled && '✓'}
+                </div>
+                <div>
+                  <div className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>{info.label}</div>
+                  <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{info.desc}</div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Notifications */}
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <Bell className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
+          <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>Notifications</span>
+        </div>
+        <div className="space-y-2">
+          {[
+            { key: 'notify_on_failure', label: 'Notify on scan failure' },
+            { key: 'notify_on_success', label: 'Notify on scan success' },
+          ].map(({ key, label }) => (
+            <label key={key} className="flex items-center gap-2.5 cursor-pointer">
+              <input type="checkbox" checked={schedule[key]} onChange={e => setSchedule(s => ({ ...s, [key]: e.target.checked }))}
+                className="w-4 h-4 rounded" />
+              <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{label}</span>
+            </label>
           ))}
         </div>
       </div>
 
-      {provider && (
+      {/* Enable / Disable toggle */}
+      <div className="flex items-center justify-between pt-1">
         <div>
-          <label style={{ color: 'var(--text-secondary)' }} className="block text-sm font-medium mb-4">
-            Authentication Method
-          </label>
-          <div className="grid grid-cols-1 gap-3">
-            {authMethodOptions[provider]?.map((method) => (
-              <button
-                key={method.value}
-                onClick={() => onAuthMethodSelect(method.value)}
-                style={authMethod === method.value ? {} : { borderColor: 'var(--border-primary)', backgroundColor: 'var(--bg-tertiary)' }}
-                className={`p-4 rounded-lg border-2 text-left transition-all ${
-                  authMethod === method.value
-                    ? 'border-blue-500 bg-blue-500/10'
-                    : 'hover:opacity-75'
-                }`}
-              >
-                <p style={{ color: 'var(--text-primary)' }} className="font-medium">{method.label}</p>
-              </button>
-            ))}
-          </div>
+          <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Enable schedule</div>
+          <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Disable to save config without activating</div>
         </div>
-      )}
+        <button onClick={() => setSchedule(s => ({ ...s, enabled: !s.enabled }))}
+          className="relative w-11 h-6 rounded-full transition-colors flex-shrink-0"
+          style={{ backgroundColor: schedule.enabled ? 'var(--accent-primary)' : 'var(--bg-tertiary)', border: '1px solid var(--border-primary)' }}>
+          <span className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all shadow-sm"
+            style={{ left: schedule.enabled ? '22px' : '2px' }} />
+        </button>
+      </div>
     </div>
   );
 }
 
-/**
- * Step 2: Credential Input
- */
-function Step2({ provider, authMethod, credentials, onCredentialChange, getRequiredFields }) {
-  const fields = getRequiredFields();
-  const fieldLabels = {
-    account_id: 'AWS Account ID',
-    role_arn: 'Role ARN',
-    external_id: 'External ID',
-    access_key_id: 'Access Key ID',
-    secret_access_key: 'Secret Access Key',
-    subscription_id: 'Subscription ID',
-    tenant_id: 'Tenant ID',
-    client_id: 'Client ID',
-    client_secret: 'Client Secret',
-    project_id: 'Project ID',
-    service_account_key: 'Service Account Key',
-    tenancy_ocid: 'Tenancy OCID',
-    user_ocid: 'User OCID',
-    fingerprint: 'Fingerprint',
-    private_key: 'Private Key'
-  };
+// ── Step 5: Summary ───────────────────────────────────────────────────────────
+
+function Step5({ form, schedule, accountId, result, launching, launchError }) {
+  const provider = PROVIDERS[form.provider];
+  const authLabel = AUTH_METHODS[form.provider]?.find(m => m.value === form.authMethod)?.label;
+  const freqPreset = CRON_PRESETS.find(p => p.cron === schedule.cron_expression)?.label || schedule.cron_expression;
+
+  const sections = [
+    {
+      icon: '☁️',
+      title: 'Cloud Account',
+      rows: [
+        { label: 'Account Name', value: form.accountName },
+        { label: 'Provider', value: `${provider?.name} — ${provider?.full}` },
+        { label: 'Auth Method', value: authLabel },
+        result?.account_number && { label: 'Account ID', value: result.account_number, mono: true },
+        { label: 'Account Record', value: accountId?.slice(0, 8) + '…', mono: true },
+      ].filter(Boolean),
+    },
+    {
+      icon: '📅',
+      title: 'Scan Schedule',
+      rows: [
+        { label: 'Frequency', value: freqPreset },
+        { label: 'Cron', value: schedule.cron_expression, mono: true },
+        { label: 'Timezone', value: schedule.timezone },
+        { label: 'Status', value: schedule.enabled ? 'Enabled' : 'Disabled (paused)' },
+      ],
+    },
+    {
+      icon: '⚙️',
+      title: 'Engines',
+      rows: [{ label: 'Selected', value: schedule.engines_requested.map(e => ENGINE_LABELS[e]?.label).join(', ') }],
+    },
+  ];
 
   return (
     <div className="space-y-4">
-      <p style={{ color: 'var(--text-tertiary)' }} className="text-sm">
-        Enter your {CLOUD_PROVIDERS[provider].name} credentials for {authMethod === 'role_arn' ? 'Role ARN' : authMethod === 'access_keys' ? 'Access Keys' : authMethod === 'spn' ? 'Service Principal' : 'API'} authentication.
+      <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+        Review your configuration. Clicking <strong>Launch</strong> will save the schedule and activate scanning.
       </p>
-      <div className="space-y-4">
-        {fields.map((field) => (
-          <div key={field}>
-            <label style={{ color: 'var(--text-secondary)' }} className="block text-sm font-medium mb-2">
-              {fieldLabels[field]}
-            </label>
-            <input
-              type={field.includes('key') || field.includes('secret') || field.includes('private') ? 'password' : 'text'}
-              value={credentials[field] || ''}
-              onChange={(e) => onCredentialChange(field, e.target.value)}
-              placeholder={`Enter ${fieldLabels[field].toLowerCase()}`}
-              style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}
-              className="w-full px-3 py-2 rounded-lg border placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors duration-200"
-            />
+
+      {sections.map(sec => (
+        <div key={sec.title} className="rounded-lg overflow-hidden" style={{ border: '1px solid var(--border-primary)' }}>
+          <div className="flex items-center gap-2 px-4 py-2.5" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+            <span>{sec.icon}</span>
+            <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>{sec.title}</span>
           </div>
-        ))}
-      </div>
+          <div className="divide-y" style={{ divideColor: 'var(--border-primary)' }}>
+            {sec.rows.map((row, i) => (
+              <div key={i} className="flex items-start justify-between px-4 py-2 gap-4">
+                <span className="text-xs flex-shrink-0 w-28" style={{ color: 'var(--text-muted)' }}>{row.label}</span>
+                <span className={`text-xs text-right ${row.mono ? 'font-mono' : ''}`} style={{ color: 'var(--text-secondary)' }}>{row.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {launchError && (
+        <div className="px-4 py-3 rounded-lg text-sm text-red-400" style={{ backgroundColor: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)' }}>
+          {launchError}
+        </div>
+      )}
+
+      {launching && (
+        <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--text-muted)' }}>
+          <Loader2 className="w-4 h-4 animate-spin text-blue-400" /> Saving schedule and activating…
+        </div>
+      )}
     </div>
   );
 }
 
-/**
- * Step 3: Validation Result
- */
-function Step3({ validationStatus, validationMessage, validationError, provider, credentials }) {
-  return (
-    <div className="space-y-6">
-      {/* Status Indicator */}
-      <div className="flex justify-center">
-        {validationStatus === 'validating' && (
-          <div className="flex flex-col items-center gap-4">
-            <div style={{ borderColor: 'var(--border-primary)', borderTopColor: 'rgb(59, 130, 246)' }} className="w-16 h-16 rounded-full border-4 animate-spin transition-colors duration-200" />
-            <p style={{ color: 'var(--text-secondary)' }} className="font-medium">{validationMessage}</p>
-          </div>
-        )}
-        {validationStatus === 'success' && (
-          <div className="flex flex-col items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center">
-              <svg className="w-8 h-8 text-green-400" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <p className="text-green-400 font-semibold text-lg">{validationMessage}</p>
-          </div>
-        )}
-        {validationStatus === 'failed' && (
-          <div className="flex flex-col items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center">
-              <svg className="w-8 h-8 text-red-400" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <p className="text-red-400 font-semibold text-lg">Validation Failed</p>
-            <p style={{ color: 'var(--text-tertiary)' }} className="text-sm text-center">{validationError}</p>
-          </div>
-        )}
-      </div>
+// ── Wizard shell ──────────────────────────────────────────────────────────────
 
-      {/* Account Summary */}
-      {validationStatus !== 'validating' && (
-        <div style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)' }} className="rounded-lg p-4 border transition-colors duration-200">
-          <h4 style={{ color: 'var(--text-secondary)' }} className="text-sm font-semibold mb-3">Account Summary</h4>
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <span style={{ color: 'var(--text-tertiary)' }} className="text-sm">Provider:</span>
-              <span style={{ color: 'var(--text-primary)' }} className="text-sm font-medium">
-                {CLOUD_PROVIDERS[provider].name}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span style={{ color: 'var(--text-tertiary)' }} className="text-sm">Status:</span>
-              <span className={`text-sm font-medium ${
-                validationStatus === 'success' ? 'text-green-400' : 'text-red-400'
-              }`}>
-                {validationStatus === 'success' ? 'Validated' : 'Failed Validation'}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span style={{ color: 'var(--text-tertiary)' }} className="text-sm">Timestamp:</span>
-              <span style={{ color: 'var(--text-primary)' }} className="text-sm font-medium">
-                {new Date().toLocaleString()}
-              </span>
-            </div>
+const STEP_LABELS = ['Select Provider', 'Credentials', 'Validate', 'Schedule', 'Summary'];
+
+export default function OnboardingWizard({ onComplete = () => {}, onCancel = () => {} }) {
+  const { customerId } = useTenant();
+
+  const [step, setStep] = useState(1);
+  const [form, setForm] = useState({
+    tenantId:    '',
+    accountName: '',
+    provider:    '',
+    authMethod:  '',
+    credentials: {},
+  });
+  const [schedule, setSchedule] = useState({
+    cron_expression:  '0 2 * * 0',
+    timezone:         'UTC',
+    enabled:          true,
+    engines_requested: [...ALL_ENGINES],
+    notify_on_failure: true,
+    notify_on_success: false,
+  });
+
+  // Step 3 state
+  const [validationSteps, setValidationSteps] = useState([]);
+  const [result, setResult] = useState(null);
+  const [accountId, setAccountId] = useState(null);
+
+  // Step 5 state
+  const [launching, setLaunching] = useState(false);
+  const [launchError, setLaunchError] = useState(null);
+
+  function updateVStep(i, patch) {
+    setValidationSteps(prev => prev.map((s, idx) => idx === i ? { ...s, ...patch } : s));
+  }
+
+  async function runValidation() {
+    const steps = [
+      { label: 'Creating account record…', status: 'running' },
+      { label: `Connecting to ${PROVIDERS[form.provider]?.name}…`, status: 'pending' },
+      { label: 'Validating credentials…', status: 'pending' },
+    ];
+    setValidationSteps(steps);
+    setResult(null);
+
+    try {
+      const created = await postToEngine('onboarding', '/api/v1/cloud-accounts', {
+        customer_id:  customerId,
+        tenant_id:    form.tenantId,
+        account_name: form.accountName,
+        provider:     form.provider,
+      });
+
+      if (created.error || !created.account_id) {
+        updateVStep(0, { status: 'error', detail: created.error || 'No account_id returned' });
+        setResult({ success: false, message: created.error || 'Failed to create account', errors: [] });
+        return;
+      }
+
+      const aid = created.account_id;
+      setAccountId(aid);
+      updateVStep(0, { status: 'done', detail: `ID: ${aid.slice(0, 8)}…` });
+      updateVStep(1, { status: 'running' });
+
+      const credResult = await postToEngine('onboarding', `/api/v1/cloud-accounts/${aid}/credentials`, {
+        credential_type: form.authMethod,
+        credentials:     form.credentials,
+      });
+
+      updateVStep(1, { status: 'done' });
+      updateVStep(2, { status: 'running' });
+      await new Promise(r => setTimeout(r, 400));
+      updateVStep(2, { status: credResult.success ? 'done' : 'error' });
+      setResult(credResult);
+
+    } catch (err) {
+      setResult({ success: false, message: err.message || 'Unexpected error', errors: [] });
+    }
+  }
+
+  async function handleLaunch() {
+    setLaunching(true);
+    setLaunchError(null);
+    try {
+      const sched = await postToEngine('onboarding', '/api/v1/schedules', {
+        account_id:        accountId,
+        tenant_id:         form.tenantId,
+        customer_id:       customerId,
+        schedule_name:     `${form.accountName} — ${schedule.cron_expression}`,
+        cron_expression:   schedule.cron_expression,
+        timezone:          schedule.timezone,
+        enabled:           schedule.enabled,
+        engines_requested: schedule.engines_requested,
+        notify_on_failure: schedule.notify_on_failure,
+        notify_on_success: schedule.notify_on_success,
+      });
+
+      if (sched.error) throw new Error(sched.error);
+
+      onComplete({
+        accountId,
+        scheduleId: sched.schedule_id,
+        provider:   form.provider,
+        accountName: form.accountName,
+      });
+    } catch (err) {
+      setLaunchError(err.message || 'Failed to save schedule');
+    } finally {
+      setLaunching(false);
+    }
+  }
+
+  async function handleNext() {
+    if (step === 1) {
+      if (!form.tenantId || !form.accountName.trim() || !form.provider || !form.authMethod) return;
+      setStep(2);
+    } else if (step === 2) {
+      const allFilled = getFields(form.provider, form.authMethod)
+        .filter(f => !f.optional)
+        .every(f => form.credentials[f.key]?.trim());
+      if (!allFilled) return;
+      setStep(3);
+      await runValidation();
+    } else if (step === 3 && result?.success) {
+      setStep(4);
+    } else if (step === 4) {
+      setStep(5);
+    }
+  }
+
+  const step1Valid = form.tenantId && form.accountName.trim() && form.provider && form.authMethod;
+  const step2Valid = getFields(form.provider, form.authMethod)
+    .filter(f => !f.optional)
+    .every(f => form.credentials[f.key]?.trim());
+  const step4Valid = schedule.engines_requested.length > 0 && schedule.cron_expression.trim();
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
+      <div className="rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]"
+        style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-primary)' }}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b"
+          style={{ borderColor: 'var(--border-primary)', backgroundColor: 'var(--bg-secondary)' }}>
+          <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>Add Cloud Account</h2>
+          <button onClick={onCancel} className="p-1 rounded hover:bg-white/10">
+            <X className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
+          </button>
+        </div>
+
+        {/* Step indicator */}
+        <div className="flex items-center gap-0 px-6 py-3 border-b overflow-x-auto" style={{ borderColor: 'var(--border-primary)' }}>
+          {STEP_LABELS.map((label, i) => {
+            const n = i + 1;
+            const done   = n < step;
+            const active = n === step;
+            return (
+              <div key={n} className="flex items-center flex-shrink-0">
+                <div className="flex items-center gap-1.5">
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${done ? 'bg-green-500 text-white' : active ? 'bg-blue-500 text-white' : 'text-gray-500'}`}
+                    style={{ border: done || active ? 'none' : '2px solid var(--border-primary)' }}>
+                    {done ? '✓' : n}
+                  </div>
+                  <span className="text-xs font-medium whitespace-nowrap" style={{ color: active ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                    {label}
+                  </span>
+                </div>
+                {i < STEP_LABELS.length - 1 && (
+                  <ChevronRight className="w-3.5 h-3.5 mx-1.5 flex-shrink-0" style={{ color: 'var(--border-primary)' }} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+          {step === 1 && <Step1 form={form} setForm={setForm} />}
+          {step === 2 && <Step2 form={form} setForm={setForm} />}
+          {step === 3 && <Step3 steps={validationSteps} result={result} form={form} />}
+          {step === 4 && <Step4 schedule={schedule} setSchedule={setSchedule} />}
+          {step === 5 && (
+            <Step5
+              form={form}
+              schedule={schedule}
+              accountId={accountId}
+              result={result}
+              launching={launching}
+              launchError={launchError}
+            />
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-6 py-4 border-t" style={{ borderColor: 'var(--border-primary)' }}>
+          {/* Left: Cancel + Back */}
+          <div className="flex gap-2">
+            <button onClick={onCancel} className="px-4 py-2 rounded-lg text-sm"
+              style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-primary)' }}>
+              Cancel
+            </button>
+            {step > 1 && step < 3 && (
+              <button onClick={() => setStep(s => s - 1)} className="px-4 py-2 rounded-lg text-sm"
+                style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-primary)' }}>
+                ← Back
+              </button>
+            )}
+            {(step === 4 || step === 5) && (
+              <button onClick={() => setStep(s => s - 1)} className="px-4 py-2 rounded-lg text-sm"
+                style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-primary)' }}>
+                ← Back
+              </button>
+            )}
+          </div>
+
+          {/* Right: Primary action */}
+          <div className="flex gap-2">
+            {step === 1 && (
+              <button onClick={handleNext} disabled={!step1Valid}
+                className="px-5 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-40"
+                style={{ backgroundColor: 'var(--accent-primary)' }}>
+                Next →
+              </button>
+            )}
+            {step === 2 && (
+              <button onClick={handleNext} disabled={!step2Valid}
+                className="px-5 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-40"
+                style={{ backgroundColor: 'var(--accent-primary)' }}>
+                Validate Credentials →
+              </button>
+            )}
+            {step === 3 && result?.success && (
+              <button onClick={handleNext}
+                className="px-5 py-2 rounded-lg text-sm font-medium text-white"
+                style={{ backgroundColor: 'var(--accent-primary)' }}>
+                Configure Schedule →
+              </button>
+            )}
+            {step === 3 && result && !result.success && (
+              <button onClick={() => { setStep(2); setResult(null); }}
+                className="px-5 py-2 rounded-lg text-sm font-medium"
+                style={{ color: 'var(--text-primary)', border: '1px solid var(--border-primary)' }}>
+                ← Fix Credentials
+              </button>
+            )}
+            {step === 4 && (
+              <button onClick={handleNext} disabled={!step4Valid}
+                className="px-5 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-40"
+                style={{ backgroundColor: 'var(--accent-primary)' }}>
+                Review Summary →
+              </button>
+            )}
+            {step === 5 && (
+              <button onClick={handleLaunch} disabled={launching}
+                className="px-5 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-60 flex items-center gap-2"
+                style={{ backgroundColor: '#22c55e' }}>
+                {launching && <Loader2 className="w-4 h-4 animate-spin" />}
+                {launching ? 'Launching…' : '🚀 Launch'}
+              </button>
+            )}
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

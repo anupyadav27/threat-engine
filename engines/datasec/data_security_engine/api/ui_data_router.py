@@ -39,6 +39,33 @@ def _get_datasec_db_connection() -> psycopg2.extensions.connection:
     )
 
 
+def _query_datasec_scan_trend(conn, tenant_id: str) -> list:
+    """Return last 8 datasec scan summaries for trend charts (oldest-first)."""
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT
+                    to_char(created_at, 'Mon DD')     AS date,
+                    COALESCE(total_findings, 0)        AS total,
+                    COALESCE(critical_findings, 0)     AS critical,
+                    COALESCE(high_findings, 0)         AS high,
+                    COALESCE(medium_findings, 0)       AS medium,
+                    COALESCE(low_findings, 0)          AS low,
+                    COALESCE(data_risk_score, 0)       AS pass_rate
+                FROM datasec_report
+                WHERE tenant_id = %s
+                ORDER BY created_at DESC
+                LIMIT 8
+                """,
+                (tenant_id,),
+            )
+            return [dict(r) for r in reversed(cur.fetchall())]
+    except Exception:
+        logger.warning("datasec scan_trend query failed", exc_info=True)
+        return []
+
+
 def _resolve_latest_scan_run_id(
     cur: psycopg2.extensions.cursor,
     tenant_id: str,
@@ -52,12 +79,28 @@ def _resolve_latest_scan_run_id(
     Returns:
         The latest scan_run_id string, or None if no report exists.
     """
+    # Try report table first (with findings)
     cur.execute(
         """
         SELECT scan_run_id
         FROM datasec_report
-        WHERE tenant_id = %s
+        WHERE tenant_id = %s AND total_findings > 0
         ORDER BY created_at DESC
+        LIMIT 1
+        """,
+        (tenant_id,),
+    )
+    row = cur.fetchone()
+    if row:
+        return row["scan_run_id"]
+    # Fallback: find latest scan_run_id from findings directly
+    cur.execute(
+        """
+        SELECT scan_run_id, COUNT(*) AS cnt
+        FROM datasec_findings
+        WHERE tenant_id = %s
+        GROUP BY scan_run_id
+        ORDER BY MAX(last_seen_at) DESC NULLS LAST, cnt DESC
         LIMIT 1
         """,
         (tenant_id,),
@@ -111,10 +154,26 @@ async def get_datasec_ui_data(
                        classified_resources,
                        total_data_stores,
                        findings_by_module,
+                       findings_by_status,
+                       severity_breakdown,
                        classification_summary,
                        residency_summary,
                        report_data,
-                       provider
+                       provider,
+                       data_risk_score,
+                       encryption_score,
+                       access_score,
+                       classification_score,
+                       lifecycle_score,
+                       residency_score,
+                       monitoring_score,
+                       critical_findings,
+                       high_findings,
+                       medium_findings,
+                       low_findings,
+                       encrypted_pct AS report_encrypted_pct,
+                       public_data_stores,
+                       sensitive_exposed
                 FROM datasec_report
                 WHERE scan_run_id = %s AND tenant_id = %s
                 LIMIT 1
@@ -251,8 +310,11 @@ async def get_datasec_ui_data(
             catalog = _build_catalog(cur, scan_run_id, tenant_id)
 
             # ── 9a. Module-grouped sections for BFF ─────────────────────
-            classifications = _query_findings_by_module(cur, scan_run_id, tenant_id, "classification", limit)
+            # Classifications: BFF expects {name, data_type, count, locations, confidence}
+            classifications = _query_classification_summary(cur, scan_run_id, tenant_id)
+            # DLP violations: BFF expects {id, type, resource, data_type, severity, action, timestamp}
             dlp_violations = _query_findings_by_module(cur, scan_run_id, tenant_id, "dlp", limit)
+            # Encryption status: raw findings for encryption module
             encryption_status = _query_findings_by_module(cur, scan_run_id, tenant_id, "encryption", limit)
 
             # ── 9. Paginated findings list ──────────────────────────────
@@ -309,7 +371,52 @@ async def get_datasec_ui_data(
                     "data_classification": f.get("data_classification") or [],
                     "sensitivity_score": f.get("sensitivity_score"),
                     "finding_data": fd,
+                    # ── Rule metadata — unpacked from finding_data JSONB ──────
+                    "title":                fd.get("title") or fd.get("rule_name") or f.get("rule_id", ""),
+                    "description":          fd.get("description") or fd.get("rationale") or "",
+                    "remediation":          fd.get("remediation") or "",
+                    "posture_category":     fd.get("posture_category") or "",
+                    "domain":               fd.get("domain") or fd.get("security_domain") or "",
+                    "risk_score":           fd.get("risk_score"),
+                    "compliance_frameworks":fd.get("compliance_frameworks") or [],
+                    "mitre_tactics":        fd.get("mitre_tactics") or [],
+                    "mitre_techniques":     fd.get("mitre_techniques") or [],
+                    "checked_fields":       fd.get("checked_fields"),
+                    "actual_values":        fd.get("actual_values"),
+                    "service":              fd.get("service") or f.get("resource_type", ""),
+                    "source":               fd.get("source", "check"),
                 })
+
+        # ── 10. Build activity from datasec_access_activity ──────
+        activity = _query_access_activity(cur, scan_run_id, tenant_id)
+
+        # ── 11. Build lineage from datasec_lineage ────────────────
+        lineage = _query_lineage(cur, scan_run_id, tenant_id)
+
+        # ── 11b. Scan trend (last 8 scans, oldest-first) ─────────
+        scan_trend = _query_datasec_scan_trend(conn, tenant_id)
+
+        # ── 12. Extract scores from report ────────────────────────
+        data_risk_score = 0
+        module_scores = {}
+        if report_row:
+            data_risk_score = report_row.get("data_risk_score") or 0
+            module_scores = {
+                "encryption": report_row.get("encryption_score") or 0,
+                "access": report_row.get("access_score") or 0,
+                "classification": report_row.get("classification_score") or 0,
+                "lifecycle": report_row.get("lifecycle_score") or 0,
+                "residency": report_row.get("residency_score") or 0,
+                "monitoring": report_row.get("monitoring_score") or 0,
+            }
+            # Use report-level encrypted_pct if available
+            rpt_enc = report_row.get("report_encrypted_pct")
+            if rpt_enc and float(rpt_enc) > 0:
+                encrypted_pct = float(rpt_enc)
+
+            # Severity counts from report
+            if report_row.get("critical_findings") is not None:
+                sensitive_exposed = report_row.get("sensitive_exposed") or sensitive_exposed
 
         return {
             "summary": {
@@ -317,9 +424,19 @@ async def get_datasec_ui_data(
                 "total_stores": total_data_stores,
                 "by_module": by_module,
                 "by_classification": by_classification,
+                "by_severity": {
+                    "critical": report_row.get("critical_findings", 0) if report_row else 0,
+                    "high": report_row.get("high_findings", 0) if report_row else 0,
+                    "medium": report_row.get("medium_findings", 0) if report_row else 0,
+                    "low": report_row.get("low_findings", 0) if report_row else 0,
+                },
+                "by_status": report_row.get("findings_by_status", {}) if report_row else {},
                 "sensitive_exposed": sensitive_exposed,
                 "encrypted_pct": encrypted_pct,
                 "classified_pct": classified_pct,
+                "data_risk_score": data_risk_score,
+                "module_scores": module_scores,
+                "public_data_stores": report_row.get("public_data_stores", 0) if report_row else 0,
                 "residency": residency,
                 "by_region": by_region,
             },
@@ -328,11 +445,12 @@ async def get_datasec_ui_data(
             "dlp_violations": dlp_violations,
             "encryption_status": encryption_status,
             "residency": by_region,
-            "activity": [],
-            "lineage": {},
+            "activity": activity,
+            "lineage": lineage,
             "findings": findings,
             "total_findings": total_findings,
             "scan_id": scan_run_id,
+            "scan_trend": scan_trend,
         }
 
     except Exception:
@@ -358,9 +476,14 @@ def _empty_response() -> Dict[str, Any]:
             "total_stores": 0,
             "by_module": {},
             "by_classification": {},
+            "by_severity": {"critical": 0, "high": 0, "medium": 0, "low": 0},
+            "by_status": {},
             "sensitive_exposed": 0,
             "encrypted_pct": 0.0,
             "classified_pct": 0.0,
+            "data_risk_score": 0,
+            "module_scores": {},
+            "public_data_stores": 0,
             "residency": {},
             "by_region": [],
         },
@@ -500,30 +623,26 @@ def _build_catalog(
     scan_run_id: str,
     tenant_id: str,
 ) -> List[Dict[str, Any]]:
-    """Build a data-store catalog from findings.
+    """Build a data-store catalog for the BFF normalize_datastore() function.
 
-    Groups findings by resource_uid for resource_types that match active
-    data store services (from datasec_data_store_services table), returning
-    one catalog entry per unique resource.
+    Primary source: datasec_data_catalog (enriched with discovery metadata).
+    Fallback: datasec_findings grouped by resource_uid.
 
-    Args:
-        cur: Database cursor (RealDictCursor).
-        scan_run_id: Scan identifier.
-        tenant_id: Tenant identifier.
-
-    Returns:
-        List of catalog entry dicts.
+    The BFF expects each entry to have:
+      resource_uid, resource_type, account_id, region, provider,
+      metadata.name, metadata.size_bytes, metadata.record_count,
+      metadata.data_classification, metadata.encryption_status,
+      metadata.public_access, tags.Owner, discovered_at
     """
+    # ── Try enriched data catalog first ───────────────────────────────
+    catalog_from_table = _try_enriched_catalog(cur, scan_run_id, tenant_id)
+    if catalog_from_table:
+        return catalog_from_table
+
+    # ── Fallback: build from findings ─────────────────────────────────
     try:
-        # Get active data store service resource types
-        cur.execute(
-            """
-            SELECT service_name FROM datasec_data_store_services WHERE is_active = TRUE
-            """
-        )
-        active_services = {row["service_name"].lower() for row in cur.fetchall()}
+        active_services = _load_active_services(cur)
     except Exception:
-        # Table may not exist yet — fall back to common data stores
         active_services = {
             "s3", "rds", "dynamodb", "redshift", "ebs", "efs",
             "elasticsearch", "opensearch", "glue", "athena",
@@ -536,6 +655,7 @@ def _build_catalog(
                resource_type,
                resource_id,
                account_id,
+               provider,
                region,
                data_classification,
                sensitivity_score,
@@ -545,7 +665,7 @@ def _build_catalog(
         FROM datasec_findings
         WHERE scan_run_id = %s AND tenant_id = %s
         GROUP BY resource_uid, resource_type, resource_id,
-                 account_id, region, data_classification, sensitivity_score
+                 account_id, provider, region, data_classification, sensitivity_score
         ORDER BY fail_count DESC, sensitivity_score DESC NULLS LAST
         """,
         (scan_run_id, tenant_id),
@@ -558,20 +678,32 @@ def _build_catalog(
         uid = row.get("resource_uid") or row.get("resource_id") or ""
         if uid in seen_uids:
             continue
-
-        # Filter to data store resource types when active_services known
         rtype = (row.get("resource_type") or "").lower()
         if active_services and not any(svc in rtype for svc in active_services):
             continue
 
         seen_uids.add(uid)
+        # Shape it for BFF normalize_datastore()
+        classifications = row.get("data_classification") or []
+        classification_str = classifications[0] if classifications else ""
+
         catalog.append({
             "resource_uid": uid,
+            "id": uid,
             "resource_type": row.get("resource_type"),
             "resource_id": row.get("resource_id"),
             "account_id": row.get("account_id"),
+            "provider": row.get("provider", "aws"),
             "region": row.get("region"),
-            "data_classification": row.get("data_classification") or [],
+            "metadata": {
+                "name": (row.get("resource_id") or uid).rsplit("/", 1)[-1],
+                "data_classification": classification_str,
+                "size_bytes": None,
+                "record_count": None,
+                "encryption_status": None,
+                "public_access": False,
+            },
+            "tags": {},
             "sensitivity_score": row.get("sensitivity_score"),
             "finding_count": row["finding_count"],
             "fail_count": row["fail_count"],
@@ -579,6 +711,76 @@ def _build_catalog(
         })
 
     return catalog
+
+
+def _try_enriched_catalog(
+    cur: psycopg2.extensions.cursor,
+    scan_run_id: str,
+    tenant_id: str,
+) -> List[Dict[str, Any]]:
+    """Try to load from datasec_data_catalog (enriched with discovery metadata)."""
+    try:
+        cur.execute("""
+            SELECT c.resource_uid, c.resource_type, c.resource_name, c.service,
+                   c.account_id, c.provider, c.region,
+                   c.size_bytes, c.record_count, c.owner, c.tags,
+                   c.data_classification, c.sensitivity_score,
+                   c.encryption_at_rest, c.kms_key_type,
+                   c.is_public, c.versioning_enabled,
+                   c.finding_count, c.fail_count, c.risk_score,
+                   c.last_scanned_at
+            FROM datasec_data_catalog c
+            WHERE c.scan_run_id = %s AND c.tenant_id = %s
+            ORDER BY c.fail_count DESC, c.risk_score DESC
+        """, (scan_run_id, tenant_id))
+        rows = cur.fetchall()
+
+        if not rows:
+            return []
+
+        catalog = []
+        for row in rows:
+            uid = row.get("resource_uid", "")
+            classifications = row.get("data_classification") or []
+            classification_str = classifications[0] if classifications else ""
+
+            enc_status = "Unencrypted"
+            if row.get("encryption_at_rest"):
+                ktype = row.get("kms_key_type", "")
+                enc_status = "CMK" if "customer" in (ktype or "").lower() else "AWS-Managed"
+
+            catalog.append({
+                "resource_uid": uid,
+                "id": uid,
+                "resource_type": row.get("resource_type") or row.get("service", ""),
+                "account_id": row.get("account_id", ""),
+                "provider": row.get("provider", "aws"),
+                "region": row.get("region", ""),
+                "metadata": {
+                    "name": row.get("resource_name") or uid.rsplit("/", 1)[-1],
+                    "size_bytes": row.get("size_bytes"),
+                    "record_count": row.get("record_count"),
+                    "data_classification": classification_str,
+                    "encryption_status": enc_status,
+                    "public_access": row.get("is_public", False),
+                },
+                "tags": row.get("tags") or {},
+                "discovered_at": row["last_scanned_at"].isoformat() if row.get("last_scanned_at") else None,
+                "sensitivity_score": row.get("sensitivity_score"),
+                "finding_count": row.get("finding_count", 0),
+                "fail_count": row.get("fail_count", 0),
+            })
+
+        return catalog
+    except Exception:
+        logger.debug("datasec_data_catalog table not available, falling back to findings")
+        return []
+
+
+def _load_active_services(cur: psycopg2.extensions.cursor):
+    """Load active data store service names."""
+    cur.execute("SELECT service_name FROM datasec_data_store_services WHERE is_active = TRUE")
+    return {row["service_name"].lower() for row in cur.fetchall()}
 
 
 def _query_region_breakdown(
@@ -619,12 +821,170 @@ def _query_region_breakdown(
         return [
             {
                 "region": row["region"],
+                "assets": row["resource_count"],       # BFF normalize_residency expects "assets"
+                "count": row["resource_count"],         # alt key
                 "finding_count": row["finding_count"],
                 "resource_count": row["resource_count"],
                 "fail_count": row["fail_count"],
+                "status": "compliant" if row["fail_count"] == 0 else "non-compliant",
+                "compliance": "compliant" if row["fail_count"] == 0 else "non-compliant",
             }
             for row in rows
         ]
     except Exception:
         logger.warning("Failed to compute region breakdown", exc_info=True)
+        return []
+
+
+def _query_access_activity(
+    cur: psycopg2.extensions.cursor,
+    scan_run_id: str,
+    tenant_id: str,
+    limit: int = 100,
+) -> List[Dict[str, Any]]:
+    """Query recent data access activity from datasec_access_activity table.
+
+    Returns an empty list if the table doesn't exist yet (graceful degradation).
+    """
+    try:
+        cur.execute(
+            """
+            SELECT resource_uid, resource_type, principal, action,
+                   event_time, source_ip, is_anomaly, anomaly_reason
+            FROM datasec_access_activity
+            WHERE tenant_id = %s
+              AND (scan_run_id = %s OR scan_run_id IS NULL)
+            ORDER BY event_time DESC NULLS LAST
+            LIMIT %s
+            """,
+            (tenant_id, scan_run_id, limit),
+        )
+        return [
+            {
+                "resource": row.get("resource_uid", ""),
+                "resource_type": row.get("resource_type", ""),
+                "user": row.get("principal", ""),
+                "action": row.get("action", ""),
+                "timestamp": row["event_time"].isoformat() if row.get("event_time") else None,
+                "location": row.get("source_ip", ""),
+                "anomaly": row.get("is_anomaly", False),
+                "anomaly_reason": row.get("anomaly_reason", ""),
+            }
+            for row in cur.fetchall()
+        ]
+    except Exception:
+        # Table may not exist yet
+        logger.debug("datasec_access_activity table not available")
+        return []
+
+
+def _query_lineage(
+    cur: psycopg2.extensions.cursor,
+    scan_run_id: str,
+    tenant_id: str,
+    limit: int = 500,
+) -> Dict[str, Any]:
+    """Query data lineage (flow relationships) from datasec_lineage table.
+
+    Returns a graph-friendly structure with nodes and edges for the UI.
+    """
+    try:
+        cur.execute(
+            """
+            SELECT source_uid, source_type, source_region,
+                   destination_uid, destination_type, destination_region,
+                   transfer_type, is_cross_region, is_cross_account
+            FROM datasec_lineage
+            WHERE scan_run_id = %s AND tenant_id = %s
+            ORDER BY source_uid
+            LIMIT %s
+            """,
+            (scan_run_id, tenant_id, limit),
+        )
+        rows = cur.fetchall()
+
+        if not rows:
+            return {}
+
+        nodes = {}
+        edges = []
+        for row in rows:
+            src = row["source_uid"]
+            dst = row["destination_uid"]
+            if src and src not in nodes:
+                nodes[src] = {
+                    "id": src,
+                    "type": row.get("source_type", ""),
+                    "region": row.get("source_region", ""),
+                }
+            if dst and dst not in nodes:
+                nodes[dst] = {
+                    "id": dst,
+                    "type": row.get("destination_type", ""),
+                    "region": row.get("destination_region", ""),
+                }
+            edges.append({
+                "source": src,
+                "target": dst,
+                "transfer_type": row.get("transfer_type", ""),
+                "is_cross_region": row.get("is_cross_region", False),
+                "is_cross_account": row.get("is_cross_account", False),
+            })
+
+        return {
+            "nodes": list(nodes.values()),
+            "edges": edges,
+            "total_flows": len(edges),
+            "cross_region_flows": sum(1 for e in edges if e.get("is_cross_region")),
+        }
+    except Exception:
+        logger.debug("datasec_lineage table not available")
+        return {}
+
+
+def _query_classification_summary(
+    cur: psycopg2.extensions.cursor,
+    scan_run_id: str,
+    tenant_id: str,
+) -> List[Dict[str, Any]]:
+    """Build classification summary for BFF normalize_classification().
+
+    BFF expects: {name|pattern_name, data_type|classification, count|total,
+                  locations, confidence, auto_classified}
+
+    We build this from the data_classification TEXT[] on datasec_findings,
+    counting how many distinct resources have each classification type.
+    """
+    try:
+        cur.execute(
+            """
+            SELECT c AS classification_type,
+                   COUNT(DISTINCT resource_uid) AS resource_count,
+                   COUNT(*) AS finding_count,
+                   array_agg(DISTINCT region) FILTER (WHERE region IS NOT NULL) AS regions
+            FROM datasec_findings, unnest(data_classification) AS c
+            WHERE scan_run_id = %s AND tenant_id = %s
+            GROUP BY c
+            ORDER BY resource_count DESC
+            """,
+            (scan_run_id, tenant_id),
+        )
+        rows = cur.fetchall()
+
+        return [
+            {
+                "name": row["classification_type"],
+                "pattern_name": row["classification_type"],
+                "data_type": row["classification_type"],
+                "classification": row["classification_type"],
+                "count": row["resource_count"],
+                "total": row["finding_count"],
+                "locations": row.get("regions") or [],
+                "confidence": 0.85,         # default confidence for rule-based classification
+                "auto_classified": True,
+            }
+            for row in rows
+        ]
+    except Exception:
+        logger.warning("Failed to build classification summary", exc_info=True)
         return []

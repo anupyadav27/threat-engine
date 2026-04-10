@@ -464,8 +464,158 @@ CREATE TRIGGER update_rii_updated_at
     FOR EACH ROW EXECUTE FUNCTION update_inventory_updated_at_column();
 
 -- ── Comment ──────────────────────────────────────────────────────────────────
+-- ── Architecture display columns (added separately from discovery metadata) ──
+-- show_in_architecture: gates whether this resource type can ever appear in
+--   the architecture diagram. FALSE for sub-resources, config-only, ephemeral.
+--   Overrides architecture_resource_placement entirely when FALSE.
+-- diagram_zone: where the resource lives in the landscape diagram.
+--   internet_edge  = global strip at top   (S3, CloudFront, Route53, API GW)
+--   network        = Region card layer 1   (VPC container, IGW, NAT, RT, NACL, subnet container)
+--   compute        = Region card layer 2   (EC2, RDS, EKS, ALB — subnet-scoped)
+--   services       = Region card layer 3   (Lambda, DynamoDB, SQS — regional, no subnet)
+--   supporting     = bottom strip          (IAM, KMS, CloudWatch, security groups, EBS)
+--   hidden         = never shown           (sub-resources, config-only, ephemeral)
+ALTER TABLE resource_inventory_identifier
+    ADD COLUMN IF NOT EXISTS show_in_architecture BOOLEAN NOT NULL DEFAULT TRUE,
+    ADD COLUMN IF NOT EXISTS diagram_zone         VARCHAR(30) DEFAULT 'services';
+
+-- Default rules derived from classification:
+--   SUB_RESOURCE  → hidden  (sg-rule, policy-version, bucket-acl, listener-rule …)
+--   CONFIGURATION → hidden  (config-rule, health-check, parameter-store entry …)
+--   EPHEMERAL     → hidden  (spot-request, import-job, pending-task …)
+UPDATE resource_inventory_identifier
+    SET show_in_architecture = FALSE,
+        diagram_zone         = 'hidden'
+    WHERE classification IN ('SUB_RESOURCE', 'CONFIGURATION', 'EPHEMERAL');
+
+CREATE INDEX IF NOT EXISTS idx_rii_show_in_arch
+    ON resource_inventory_identifier(csp, show_in_architecture)
+    WHERE show_in_architecture = TRUE;
+
+CREATE INDEX IF NOT EXISTS idx_rii_diagram_zone
+    ON resource_inventory_identifier(csp, diagram_zone);
+
+COMMENT ON COLUMN resource_inventory_identifier.show_in_architecture IS
+    'FALSE = never render in architecture diagram (sub-resources, config-only, ephemeral).';
+COMMENT ON COLUMN resource_inventory_identifier.diagram_zone IS
+    'Landscape diagram zone: internet_edge | network | compute | services | supporting | hidden.';
+
 COMMENT ON TABLE resource_inventory_identifier IS
     'Static step5 resource catalog: ARN entity paths, identifier patterns, root/enrich ops per csp.service.resource_type.';
+
+-- ============================================================================
+-- ARCHITECTURE DIAGRAM TABLES
+-- ============================================================================
+-- architecture_resource_placement: one row per (csp, resource_type) defining
+--   how to render that resource type in the landscape architecture diagram.
+--   Seeded by: scripts/create_architecture_tables.py
+--   Consumed by: /api/v1/inventory/architecture endpoint
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS architecture_resource_placement (
+    id               SERIAL PRIMARY KEY,
+    csp              VARCHAR(20)  NOT NULL,  -- aws | azure | gcp | oci | ibm | alicloud | k8s
+    resource_type    VARCHAR(200) NOT NULL,  -- e.g. ec2.instance, lambda.function
+
+    -- Diagram zone (overrides resource_inventory_identifier.diagram_zone if present)
+    diagram_zone     VARCHAR(30)  NOT NULL DEFAULT 'services',
+    --   internet_edge  = global/public top strip
+    --   network        = Region card — Network layer  (containers + gateway icons)
+    --   compute        = Region card — Compute layer  (subnet-scoped resources)
+    --   services       = Region card — Services layer (regional, outside VPC)
+    --   supporting     = bottom strip (IAM, KMS, monitoring, security)
+    --   hidden         = excluded from diagram
+
+    -- Placement detail (used by the builder for precise positioning)
+    arch_layer       INTEGER      NOT NULL DEFAULT 3,
+    --   2 = network topology  3 = compute/services  4 = supporting/control
+    placement_scope  VARCHAR(50),
+    --   global | regional | vpc | az | subnet | multi-subnet | multi-az
+    placement_parent VARCHAR(200),
+    --   account | region | ec2.vpc | ec2.subnet (for builder routing)
+    placement_zone   VARCHAR(30)  DEFAULT 'center',
+    --   center | right | bottom  (legacy sub-positioning within a zone)
+
+    -- Visual grouping
+    visual_group     VARCHAR(100) NOT NULL DEFAULT 'other',
+    --   network | compute | compute-container | compute-database | compute-serverless
+    --   storage-object | identity | encryption | monitoring | messaging | public | security
+    visual_subgroup  VARCHAR(100),
+    --   vpc | subnet | igw | natgw | ec2 | rds | eks | ecs | lambda | s3 | iam | kms | cw …
+
+    -- Container / nesting
+    is_container     BOOLEAN      DEFAULT FALSE,
+    container_depth  INTEGER      DEFAULT 0,
+
+    -- Detail level (P1–P5 slider)
+    display_priority INTEGER      DEFAULT 3,
+    --   1 = always show (VPC, Subnet, EC2, ALB)
+    --   2 = important   (RDS, IGW, NAT, KMS, IAM role)
+    --   3 = extended    (SG, ElastiCache, VPC endpoint)
+    --   4 = operational (CloudWatch, CloudTrail, log groups)
+    --   5 = all         (ENI, EBS, policy docs, listeners)
+
+    -- Render style
+    show_as          VARCHAR(50)  DEFAULT 'box',
+    --   box    = full resource chip (default)
+    --   icon   = small inline pill  (gateways, NAT)
+    --   badge  = count badge on parent (RT, NACL)
+    --   count  = number only          (security groups in supporting)
+    --   hidden = never render
+
+    icon_type        VARCHAR(100),
+    created_at       TIMESTAMPTZ  DEFAULT NOW(),
+    updated_at       TIMESTAMPTZ  DEFAULT NOW(),
+
+    UNIQUE(csp, resource_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_arp_csp_zone     ON architecture_resource_placement(csp, diagram_zone);
+CREATE INDEX IF NOT EXISTS idx_arp_csp_layer    ON architecture_resource_placement(csp, arch_layer);
+CREATE INDEX IF NOT EXISTS idx_arp_visual_group ON architecture_resource_placement(csp, visual_group);
+CREATE INDEX IF NOT EXISTS idx_arp_priority     ON architecture_resource_placement(csp, display_priority);
+
+COMMENT ON TABLE architecture_resource_placement IS
+    'Per-(csp, resource_type) diagram placement rules for the landscape architecture view. '
+    'diagram_zone drives which strip/layer a resource renders in. '
+    'display_priority (P1-P5) controls detail level visibility. '
+    'Seeded by scripts/create_architecture_tables.py.';
+
+-- ── Architecture Relationship Rules ─────────────────────────────────────────
+-- Defines visual edges to draw between resource types in the diagram.
+-- Seeded by scripts/create_architecture_tables.py
+
+CREATE TABLE IF NOT EXISTS architecture_relationship_rules (
+    id               SERIAL PRIMARY KEY,
+    csp              VARCHAR(20)  NOT NULL,
+    rel_category     VARCHAR(50)  NOT NULL,
+    --   topology | placement | composition | dependency | flow
+    rel_type         VARCHAR(100) NOT NULL,
+    from_resource_type VARCHAR(200) NOT NULL,
+    to_resource_type   VARCHAR(200) NOT NULL,
+    source_field     VARCHAR(200),
+    source_field_item VARCHAR(200),
+    target_uid_pattern VARCHAR(500),
+    arch_layer       INTEGER      NOT NULL DEFAULT 3,
+    line_style       VARCHAR(50)  DEFAULT 'solid',   -- solid | dashed | dotted
+    line_color       VARCHAR(50),
+    line_label       VARCHAR(100),
+    bidirectional    BOOLEAN      DEFAULT FALSE,
+    is_active        BOOLEAN      DEFAULT TRUE,
+    created_at       TIMESTAMPTZ  DEFAULT NOW(),
+    updated_at       TIMESTAMPTZ  DEFAULT NOW(),
+
+    UNIQUE(csp, rel_category, from_resource_type, to_resource_type, rel_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_arr_csp_category ON architecture_relationship_rules(csp, rel_category);
+CREATE INDEX IF NOT EXISTS idx_arr_from_type    ON architecture_relationship_rules(csp, from_resource_type);
+CREATE INDEX IF NOT EXISTS idx_arr_layer        ON architecture_relationship_rules(csp, arch_layer);
+
+COMMENT ON TABLE architecture_relationship_rules IS
+    'Visual edge rules for the architecture diagram: defines which resource types '
+    'are connected and how (line style, label, direction). '
+    'Seeded by scripts/create_architecture_tables.py.';
 
 -- ============================================================================
 -- RELATIONSHIP RULES  (single DB-driven source of truth, no local JSON files)

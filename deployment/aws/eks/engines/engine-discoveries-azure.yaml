@@ -1,0 +1,117 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: engine-discoveries-azure
+  namespace: threat-engine-engines
+  labels:
+    app: engine-discoveries-azure
+    tier: engine
+    provider: azure
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: engine-discoveries-azure
+  template:
+    metadata:
+      labels:
+        app: engine-discoveries-azure
+        tier: engine
+        provider: azure
+    spec:
+      serviceAccountName: engine-sa
+      containers:
+      - name: engine-discoveries-azure
+        image: yadavanup84/engine-discoveries-azure:v1.azure.20260409
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8001
+          name: http
+        envFrom:
+        - configMapRef:
+            name: threat-engine-db-config
+        - secretRef:
+            name: threat-engine-db-passwords
+        # Azure SP credentials — NOT optional (fail fast if secret is missing)
+        # Secret format: {"tenant_id": ..., "client_id": ..., "client_secret": ..., "subscription_id": ...}
+        # Created via: kubectl create secret generic azure-creds --from-literal=... -n threat-engine-engines
+        - secretRef:
+            name: azure-creds
+            optional: false
+        env:
+        - name: PYTHONPATH
+          value: /app
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: ENGINE_NAME
+          value: "discoveries-azure"
+        - name: DISCOVERY_MODE
+          value: "database"
+        - name: DISCOVERY_CONFIG_SOURCE
+          value: "database"
+        - name: MAX_SERVICE_WORKERS
+          value: "5"
+        - name: MAX_REGION_WORKERS
+          value: "3"
+        # Onboarding database for orchestration (scan_runs table)
+        - name: ONBOARDING_DB_HOST
+          value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+        - name: ONBOARDING_DB_PORT
+          value: "5432"
+        - name: ONBOARDING_DB_NAME
+          value: "threat_engine_onboarding"
+        - name: ONBOARDING_DB_USER
+          value: "postgres"
+        - name: ONBOARDING_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: ONBOARDING_DB_PASSWORD
+        - name: ORCHESTRATION_ENABLED
+          value: "true"
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "3500Mi"
+            cpu: "1500m"
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health/live
+            port: 8001
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 10
+        readinessProbe:
+          httpGet:
+            path: /api/v1/health/ready
+            port: 8001
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: engine-discoveries-azure
+  namespace: threat-engine-engines
+  labels:
+    app: engine-discoveries-azure
+    provider: azure
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8001
+    protocol: TCP
+    name: http
+  selector:
+    app: engine-discoveries-azure

@@ -11,6 +11,7 @@ import { useGlobalFilter } from '@/lib/global-filter-context';
 import PageLayout from '@/components/shared/PageLayout';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import KpiSparkCard from '@/components/shared/KpiSparkCard';
+import FindingDetailPanel from '@/components/shared/FindingDetailPanel';
 
 // ── Colour palette ────────────────────────────────────────────────────────────
 const C = {
@@ -118,14 +119,14 @@ function NetDonut({ slices, size = 160 }) {
 
 // ── Demo / fallback data ──────────────────────────────────────────────────────
 const DEMO_NET_FINDINGS = [
-  { id: 'nf-001', title: 'Security group allows unrestricted SSH access', severity: 'critical', resource_id: 'sg-0a1b2c3d4e5f', resource_type: 'SecurityGroup', provider: 'aws', region: 'us-east-1', status: 'FAIL', finding_type: 'security_groups', description: 'Inbound rule 0.0.0.0/0 on port 22 exposes SSH to the internet.', first_seen: '2024-01-15', last_seen: '2024-03-03' },
-  { id: 'nf-002', title: 'Security group allows unrestricted RDP access', severity: 'critical', resource_id: 'sg-0b2c3d4e5f6a', resource_type: 'SecurityGroup', provider: 'aws', region: 'us-west-2', status: 'FAIL', finding_type: 'security_groups', description: 'Inbound rule 0.0.0.0/0 on port 3389 exposes RDP to the internet.', first_seen: '2024-01-18', last_seen: '2024-03-03' },
-  { id: 'nf-003', title: 'EC2 instance has public IP and no WAF association', severity: 'high', resource_id: 'i-0c3d4e5f6a7b', resource_type: 'EC2Instance', provider: 'aws', region: 'us-east-1', status: 'FAIL', finding_type: 'internet_exposure', description: 'Instance is internet-accessible with no WAF rule group attached.', first_seen: '2024-02-01', last_seen: '2024-03-03' },
-  { id: 'nf-004', title: 'Load balancer listener uses HTTP instead of HTTPS', severity: 'high', resource_id: 'arn:aws:elasticloadbalancing:us-east-1:123456789:loadbalancer/app/prod-alb', resource_type: 'LoadBalancer', provider: 'aws', region: 'us-east-1', status: 'FAIL', finding_type: 'internet_exposure', description: 'ALB listener on port 80 forwards traffic without TLS termination.', first_seen: '2024-01-28', last_seen: '2024-03-03' },
-  { id: 'nf-005', title: 'VPC flow logs disabled', severity: 'medium', resource_id: 'vpc-0d4e5f6a7b8c', resource_type: 'VPC', provider: 'aws', region: 'eu-west-1', status: 'FAIL', finding_type: 'vpc_topology', description: 'VPC flow logging is not enabled; network traffic cannot be audited.', first_seen: '2024-02-05', last_seen: '2024-03-03' },
-  { id: 'nf-006', title: 'WAF web ACL has no rate-based rules', severity: 'medium', resource_id: 'arn:aws:wafv2:us-east-1:123456789:webacl/prod-waf', resource_type: 'WAFWebACL', provider: 'aws', region: 'us-east-1', status: 'FAIL', finding_type: 'waf_protection', description: 'No rate-based rules are configured; DDoS mitigation is incomplete.', first_seen: '2024-02-10', last_seen: '2024-03-03' },
-  { id: 'nf-007', title: 'Subnet routes all traffic through NAT gateway', severity: 'low', resource_id: 'subnet-0e5f6a7b8c9d', resource_type: 'Subnet', provider: 'aws', region: 'us-west-2', status: 'PASS', finding_type: 'vpc_topology', description: 'Private subnet correctly routes outbound traffic through NAT gateway.', first_seen: '2024-01-10', last_seen: '2024-03-03' },
-  { id: 'nf-008', title: 'Security group egress unrestricted on all ports', severity: 'medium', resource_id: 'sg-0f6a7b8c9d0e', resource_type: 'SecurityGroup', provider: 'aws', region: 'ap-southeast-1', status: 'FAIL', finding_type: 'security_groups', description: 'Outbound rule 0.0.0.0/0 allows all egress; data exfiltration risk.', first_seen: '2024-02-14', last_seen: '2024-03-03' },
+  { id: 'nf-001', rule_id: 'NET-SG-001', title: 'Security group allows unrestricted SSH access', severity: 'critical', resource_uid: 'sg-0a1b2c3d4e5f', resource_id: 'sg-0a1b2c3d4e5f', resource_type: 'SecurityGroup', account_id: '588989875114', provider: 'aws', region: 'us-east-1', status: 'FAIL', finding_type: 'security_groups', network_layer: 'security_groups', risk_score: 95, description: 'Inbound rule 0.0.0.0/0 on port 22 exposes SSH to the internet, allowing any host to attempt authentication.', remediation: 'Restrict SSH (port 22) inbound rules to specific trusted CIDR ranges. Use AWS Systems Manager Session Manager as an alternative to direct SSH access.', compliance_frameworks: ['CIS AWS 4.1', 'PCI-DSS 1.3', 'NIST AC-17'], mitre_tactics: ['Initial Access'], mitre_techniques: [{ technique_id: 'T1190', technique_name: 'Exploit Public-Facing Application' }], posture_category: 'network_security', first_seen: '2024-01-15', last_seen: '2024-03-03' },
+  { id: 'nf-002', rule_id: 'NET-SG-002', title: 'Security group allows unrestricted RDP access', severity: 'critical', resource_uid: 'sg-0b2c3d4e5f6a', resource_id: 'sg-0b2c3d4e5f6a', resource_type: 'SecurityGroup', account_id: '588989875114', provider: 'aws', region: 'us-west-2', status: 'FAIL', finding_type: 'security_groups', network_layer: 'security_groups', risk_score: 95, description: 'Inbound rule 0.0.0.0/0 on port 3389 exposes RDP to the internet, enabling brute-force attacks.', remediation: 'Restrict RDP (port 3389) to specific IP ranges or use a VPN/bastion host. Enable MFA on all RDP-accessible instances.', compliance_frameworks: ['CIS AWS 4.2', 'PCI-DSS 1.3', 'NIST AC-17', 'SOC 2 CC6.6'], mitre_tactics: ['Initial Access', 'Lateral Movement'], mitre_techniques: [{ technique_id: 'T1021.001', technique_name: 'Remote Desktop Protocol' }], posture_category: 'network_security', first_seen: '2024-01-18', last_seen: '2024-03-03' },
+  { id: 'nf-003', rule_id: 'NET-EXP-001', title: 'EC2 instance has public IP and no WAF association', severity: 'high', resource_uid: 'i-0c3d4e5f6a7b', resource_id: 'i-0c3d4e5f6a7b', resource_type: 'EC2Instance', account_id: '588989875114', provider: 'aws', region: 'us-east-1', status: 'FAIL', finding_type: 'internet_exposure', network_layer: 'reachability', risk_score: 78, description: 'Instance is internet-accessible with no WAF rule group attached, leaving web applications unprotected.', remediation: 'Associate a WAF Web ACL with the load balancer or CloudFront distribution fronting this instance. Consider placing the instance in a private subnet behind an ALB.', compliance_frameworks: ['CIS AWS 5.4', 'NIST SC-7', 'ISO 27001 A.13.1'], mitre_tactics: ['Initial Access'], mitre_techniques: [{ technique_id: 'T1190', technique_name: 'Exploit Public-Facing Application' }], posture_category: 'network_security', first_seen: '2024-02-01', last_seen: '2024-03-03' },
+  { id: 'nf-004', rule_id: 'NET-LB-001', title: 'Load balancer listener uses HTTP instead of HTTPS', severity: 'high', resource_uid: 'arn:aws:elasticloadbalancing:us-east-1:123456789:loadbalancer/app/prod-alb', resource_id: 'arn:aws:elasticloadbalancing:us-east-1:123456789:loadbalancer/app/prod-alb', resource_type: 'LoadBalancer', account_id: '588989875114', provider: 'aws', region: 'us-east-1', status: 'FAIL', finding_type: 'internet_exposure', network_layer: 'load_balancer', risk_score: 72, description: 'ALB listener on port 80 forwards traffic without TLS termination, exposing data in transit.', remediation: 'Add an HTTPS listener (port 443) with a valid ACM certificate. Configure an HTTP-to-HTTPS redirect rule on port 80. Enable TLS 1.2+ policies.', compliance_frameworks: ['PCI-DSS 4.1', 'HIPAA §164.312(e)', 'NIST SC-8', 'SOC 2 CC6.7'], mitre_tactics: ['Credential Access', 'Collection'], mitre_techniques: [{ technique_id: 'T1557', technique_name: 'Adversary-in-the-Middle' }], posture_category: 'encryption_in_transit', first_seen: '2024-01-28', last_seen: '2024-03-03' },
+  { id: 'nf-005', rule_id: 'NET-VPC-001', title: 'VPC flow logs disabled', severity: 'medium', resource_uid: 'vpc-0d4e5f6a7b8c', resource_id: 'vpc-0d4e5f6a7b8c', resource_type: 'VPC', account_id: '588989875114', provider: 'aws', region: 'eu-west-1', status: 'FAIL', finding_type: 'vpc_topology', network_layer: 'topology', risk_score: 55, description: 'VPC flow logging is not enabled; network traffic cannot be audited or investigated for anomalies.', remediation: 'Enable VPC flow logs and send them to CloudWatch Logs or S3. Retain logs for at least 90 days to meet compliance requirements.', compliance_frameworks: ['CIS AWS 3.9', 'NIST AU-2', 'SOC 2 CC7.2'], mitre_tactics: ['Defense Evasion'], mitre_techniques: [{ technique_id: 'T1562.008', technique_name: 'Disable or Modify Cloud Logs' }], posture_category: 'network_monitoring', first_seen: '2024-02-05', last_seen: '2024-03-03' },
+  { id: 'nf-006', rule_id: 'NET-WAF-001', title: 'WAF web ACL has no rate-based rules', severity: 'medium', resource_uid: 'arn:aws:wafv2:us-east-1:123456789:webacl/prod-waf', resource_id: 'arn:aws:wafv2:us-east-1:123456789:webacl/prod-waf', resource_type: 'WAFWebACL', account_id: '588989875114', provider: 'aws', region: 'us-east-1', status: 'FAIL', finding_type: 'waf_protection', network_layer: 'waf', risk_score: 50, description: 'No rate-based rules are configured on this WAF web ACL; DDoS and brute-force mitigation is incomplete.', remediation: 'Add a rate-based rule to limit requests per IP (recommended: 2000 req/5min for public APIs). Enable AWS Shield Advanced for critical resources.', compliance_frameworks: ['NIST SC-5', 'ISO 27001 A.13.2', 'PCI-DSS 6.6'], mitre_tactics: ['Impact'], mitre_techniques: [{ technique_id: 'T1498', technique_name: 'Network Denial of Service' }], posture_category: 'network_security', first_seen: '2024-02-10', last_seen: '2024-03-03' },
+  { id: 'nf-007', rule_id: 'NET-VPC-002', title: 'Subnet routes all traffic through NAT gateway', severity: 'low', resource_uid: 'subnet-0e5f6a7b8c9d', resource_id: 'subnet-0e5f6a7b8c9d', resource_type: 'Subnet', account_id: '588989875114', provider: 'aws', region: 'us-west-2', status: 'PASS', finding_type: 'vpc_topology', network_layer: 'topology', risk_score: 10, description: 'Private subnet correctly routes outbound traffic through NAT gateway, preventing direct internet exposure.', remediation: 'No action required. Continue monitoring for route table changes.', compliance_frameworks: ['CIS AWS 5.5', 'NIST SC-7'], mitre_tactics: [], mitre_techniques: [], posture_category: 'network_security', first_seen: '2024-01-10', last_seen: '2024-03-03' },
+  { id: 'nf-008', rule_id: 'NET-SG-003', title: 'Security group egress unrestricted on all ports', severity: 'medium', resource_uid: 'sg-0f6a7b8c9d0e', resource_id: 'sg-0f6a7b8c9d0e', resource_type: 'SecurityGroup', account_id: '588989875114', provider: 'aws', region: 'ap-southeast-1', status: 'FAIL', finding_type: 'security_groups', network_layer: 'security_groups', risk_score: 52, description: 'Outbound rule 0.0.0.0/0 on all ports allows unrestricted egress, enabling data exfiltration or C2 communication.', remediation: 'Apply least-privilege egress rules. Allow only required ports and destinations. Block known malicious IPs using a managed prefix list.', compliance_frameworks: ['CIS AWS 4.3', 'NIST SC-7', 'PCI-DSS 1.3.2', 'ISO 27001 A.13.1'], mitre_tactics: ['Exfiltration', 'Command and Control'], mitre_techniques: [{ technique_id: 'T1048', technique_name: 'Exfiltration Over Alternative Protocol' }], posture_category: 'network_security', first_seen: '2024-02-14', last_seen: '2024-03-03' },
 ];
 
 const DEMO_NET_SGS = [
@@ -158,11 +159,36 @@ const DEMO_NET_WAF = [
   { id: 'waf-004', rule_name: 'RateLimitRule-500rpm',               waf_name: 'prod-waf', provider: 'aws', region: 'ap-southeast-1', action: 'Count', requests_blocked: 0,    false_positives: 0,  status: 'inactive' },
 ];
 
+// ── Network Finding Detail Panel ─────────────────────────────────────────────
+const NET_REMEDIATION = {
+  security_groups:   'Remove or restrict inbound rules allowing 0.0.0.0/0 on sensitive ports (22, 3389, 3306). Apply least-privilege rules scoped to specific CIDR ranges or security group references.',
+  internet_exposure: 'Assign resources to private subnets and route traffic through an ALB or NAT gateway. Enable WAF on any internet-facing load balancers and enforce HTTPS-only listeners.',
+  vpc_topology:      'Enable VPC Flow Logs to an S3 bucket or CloudWatch Logs for all VPCs. Review transit gateway and peering attachments for unintended cross-account routes.',
+  waf_protection:    'Attach a WAF Web ACL with managed rule groups (AWSManagedRulesCommonRuleSet, SQLiRuleSet) and configure rate-based rules to mitigate DDoS.',
+  dns_security:      'Enable DNSSEC on Route 53 hosted zones. Review resolver rules for split-horizon configurations that could expose internal records.',
+  load_balancer:     'Redirect HTTP→HTTPS on all ALB listeners. Enable access logging to S3. Attach an SSL policy enforcing TLS 1.2 or higher.',
+};
+
+const NET_CATEGORY_COLORS = {
+  security_groups:   '#6366f1',
+  internet_exposure: '#ef4444',
+  waf_protection:    '#0ea5e9',
+  vpc_topology:      '#8b5cf6',
+  dns_security:      '#14b8a6',
+  load_balancer:     '#10b981',
+};
+
 export default function NetworkSecurityPage() {
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState(null);
   const [data, setData]         = useState({});
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [selectedFinding, setSelectedFinding] = useState(null);
+
+  const handleRowClick = (row) => {
+    const finding = row?.original || row;
+    if (finding) setSelectedFinding(finding);
+  };
 
   const { provider, account, region } = useGlobalFilter();
 
@@ -186,16 +212,19 @@ export default function NetworkSecurityPage() {
     fetchData();
   }, [provider, account, region]);
 
-  const rawFindings        = (data.data || {}).findings         || [];
-  const rawSecurityGroups  = (data.data || {}).security_groups  || [];
-  const rawInternetExposure= (data.data || {}).internet_exposure || [];
-  const rawTopology        = (data.data || {}).topology         || [];
-  const rawWaf             = (data.data || {}).waf              || [];
+  const rawFindings         = (data.data || {}).findings          || [];
+  const rawSecurityGroups   = (data.data || {}).security_groups   || [];
+  const rawInternetExposure = (data.data || {}).internet_exposure || [];
+  const rawTopology         = (data.data || {}).topology          || [];
+  const rawWaf              = (data.data || {}).waf               || [];
+
+  // All sub-tables are filtered views of the same check findings.
+  // Demo fallbacks filter DEMO_NET_FINDINGS by finding_type so columns stay consistent.
   const findings         = rawFindings.length         ? rawFindings         : DEMO_NET_FINDINGS;
-  const securityGroups   = rawSecurityGroups.length   ? rawSecurityGroups   : DEMO_NET_SGS;
-  const internetExposure = rawInternetExposure.length ? rawInternetExposure : DEMO_NET_EXPOSURE;
-  const topology         = rawTopology.length         ? rawTopology         : DEMO_NET_TOPOLOGY;
-  const waf              = rawWaf.length              ? rawWaf              : DEMO_NET_WAF;
+  const securityGroups   = rawSecurityGroups.length   ? rawSecurityGroups   : DEMO_NET_FINDINGS.filter(f => f.finding_type === 'security_groups');
+  const internetExposure = rawInternetExposure.length ? rawInternetExposure : DEMO_NET_FINDINGS.filter(f => f.finding_type === 'internet_exposure');
+  const topology         = rawTopology.length         ? rawTopology         : DEMO_NET_FINDINGS.filter(f => f.finding_type === 'vpc_topology');
+  const waf              = rawWaf.length              ? rawWaf              : DEMO_NET_FINDINGS.filter(f => f.finding_type === 'waf_protection');
 
   // ── Derive KPI numbers ──────────────────────────────────────────────────
   const kpiNums = useMemo(() => {
@@ -567,118 +596,114 @@ export default function NetworkSecurityPage() {
     );
   }, [kpiNums, activeScanTrend]);
 
-  // ── Column definitions ──────────────────────────────────────────────────
-  const findingsColumns = [
-    { accessorKey: 'resource_name', header: 'Resource' },
-    { accessorKey: 'rule_id',       header: 'Rule'     },
+  // ── Unified column definition ────────────────────────────────────────────
+  // All sub-tables (Findings, Security Groups, Internet Exposure, Topology, WAF)
+  // are filtered views of check findings — same schema, different rows.
+  const findingsColumns = useMemo(() => [
     {
-      accessorKey: 'module', header: 'Module',
-      cell: (info) => (
-        <span className="text-xs px-2 py-0.5 rounded"
-          style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
-          {info.getValue()}
-        </span>
-      ),
+      accessorKey: 'provider',
+      header: 'Provider', size: 70,
+      cell: (info) => info.getValue()?.toUpperCase() || '—',
     },
-    { accessorKey: 'severity',     header: 'Severity',
-      cell: (info) => <SeverityBadge severity={info.getValue()} /> },
     {
-      accessorKey: 'status', header: 'Status',
+      accessorKey: 'account_id',
+      header: 'Account', size: 130,
+      cell: (info) => info.getValue() || info.row.original.account || '—',
+    },
+    { accessorKey: 'region', header: 'Region', size: 110 },
+    {
+      accessorKey: 'service',
+      header: 'Service', size: 110,
+      cell: (info) => info.getValue() || info.row.original.network_layer || info.row.original.encryption_domain || info.row.original.container_service || info.row.original.db_service || '—',
+    },
+    {
+      accessorKey: 'rule_id',
+      header: 'Rule ID', size: 130,
+      cell: (info) => <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>{info.getValue() || '—'}</span>,
+    },
+    {
+      accessorKey: 'resource_name',
+      header: 'Resource',
+      // resource_name (BFF-enriched) or fall back to resource_id / resource_uid
+      cell: (info) => {
+        const row = info.row.original;
+        const v = info.getValue() || row.resource_id || row.resource_uid || '—';
+        return <span className="font-mono text-xs" style={{ color: 'var(--text-primary)' }}>{v}</span>;
+      },
+    },
+    {
+      accessorKey: 'title',
+      header: 'Finding',
+      cell: (info) => {
+        const row = info.row.original;
+        const v = info.getValue() || row.rule_id || '—';
+        return <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{v}</span>;
+      },
+    },
+    {
+      accessorKey: 'module',
+      header: 'Module',
+      cell: (info) => {
+        const v = info.getValue() || info.row.original.finding_type || '';
+        if (!v) return null;
+        return (
+          <span className="text-xs px-2 py-0.5 rounded"
+            style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
+            {v}
+          </span>
+        );
+      },
+    },
+    {
+      accessorKey: 'severity',
+      header: 'Severity',
+      cell: (info) => <SeverityBadge severity={info.getValue()} />,
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
       cell: (info) => {
         const v = info.getValue(), isFail = v === 'FAIL';
         return <span className={`text-xs px-2 py-0.5 rounded ${isFail ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{v}</span>;
       },
     },
-    { accessorKey: 'account_id',   header: 'Account' },
-    { accessorKey: 'region',       header: 'Region'  },
-    { accessorKey: 'resource_type',header: 'Type'    },
-  ];
+    { accessorKey: 'resource_type', header: 'Type' },
+  ], []);
 
-  const sgColumns = [
-    { accessorKey: 'group_name', header: 'Security Group' },
-    { accessorKey: 'group_id',   header: 'Group ID'       },
-    { accessorKey: 'vpc_id',     header: 'VPC'            },
-    {
-      accessorKey: 'open_to_internet', header: 'Open to Internet',
-      cell: (info) => info.getValue()
-        ? <AlertTriangle className="w-4 h-4 text-red-400" />
-        : <CheckCircle   className="w-4 h-4 text-green-400" />,
-    },
-    { accessorKey: 'inbound_rules',  header: 'Inbound Rules'  },
-    { accessorKey: 'outbound_rules', header: 'Outbound Rules' },
-    { accessorKey: 'severity',       header: 'Severity',
-      cell: (info) => <SeverityBadge severity={info.getValue()} /> },
-    { accessorKey: 'account_id',     header: 'Account' },
-    { accessorKey: 'region',         header: 'Region'  },
-  ];
-
-  const exposureColumns = [
-    { accessorKey: 'resource_name', header: 'Resource' },
-    { accessorKey: 'resource_type', header: 'Type'     },
-    {
-      accessorKey: 'exposure_type', header: 'Exposure',
-      cell: (info) => (
-        <span className="text-xs px-2 py-0.5 rounded bg-red-500/20 text-red-400">
-          {info.getValue()}
-        </span>
-      ),
-    },
-    { accessorKey: 'ports',     header: 'Ports'     },
-    { accessorKey: 'protocols', header: 'Protocols' },
-    { accessorKey: 'severity',  header: 'Severity',
-      cell: (info) => <SeverityBadge severity={info.getValue()} /> },
-    { accessorKey: 'account_id',header: 'Account'  },
-    { accessorKey: 'region',    header: 'Region'   },
-  ];
-
-  const topologyColumns = [
-    { accessorKey: 'vpc_id',              header: 'VPC'      },
-    { accessorKey: 'cidr_block',          header: 'CIDR'     },
-    { accessorKey: 'subnets',             header: 'Subnets'  },
-    { accessorKey: 'peering_connections', header: 'Peering'  },
-    { accessorKey: 'transit_gateways',    header: 'TGW'      },
-    { accessorKey: 'internet_gateways',   header: 'IGW'      },
-    { accessorKey: 'nat_gateways',        header: 'NAT'      },
-    { accessorKey: 'account_id',          header: 'Account'  },
-    { accessorKey: 'region',              header: 'Region'   },
-  ];
-
-  const wafColumns = [
-    { accessorKey: 'resource_name', header: 'Resource' },
-    {
-      accessorKey: 'waf_enabled', header: 'WAF',
-      cell: (info) => info.getValue()
-        ? <CheckCircle   className="w-4 h-4 text-green-400" />
-        : <AlertTriangle className="w-4 h-4 text-red-400"   />,
-    },
-    {
-      accessorKey: 'shield_enabled', header: 'Shield',
-      cell: (info) => info.getValue()
-        ? <CheckCircle   className="w-4 h-4 text-green-400"  />
-        : <AlertTriangle className="w-4 h-4 text-yellow-400" />,
-    },
-    { accessorKey: 'web_acl_name', header: 'Web ACL'  },
-    { accessorKey: 'rule_count',   header: 'Rules'    },
-    { accessorKey: 'severity',     header: 'Severity',
-      cell: (info) => <SeverityBadge severity={info.getValue()} /> },
-    { accessorKey: 'account_id',   header: 'Account'  },
-    { accessorKey: 'region',       header: 'Region'   },
-  ];
+  const serviceOptions = useMemo(() =>
+    [...new Set((findings || []).map(f => f.service || f.network_layer || '').filter(Boolean))].sort(),
+  [findings]);
 
   const tabData = useMemo(() => ({
-    overview:         { data: findings,         columns: findingsColumns  },
-    findings:         { data: findings,         columns: findingsColumns  },
-    security_groups:  { data: securityGroups,   columns: sgColumns        },
-    internet_exposure:{ data: internetExposure, columns: exposureColumns  },
-    topology:         { data: topology,         columns: topologyColumns  },
-    waf:              { data: waf,              columns: wafColumns        },
-  }), [findings, securityGroups, internetExposure, topology, waf]);
+    overview:         { renderTab: () => null                                                    },
+    findings: {
+      data: findings,
+      columns: findingsColumns,
+      filters: [
+        { key: 'provider', label: 'Cloud Platform', options: ['aws', 'azure', 'gcp'] },
+        { key: 'severity',  label: 'Severity',       options: ['critical', 'high', 'medium', 'low'] },
+        { key: 'status',    label: 'Status',          options: ['FAIL', 'PASS'] },
+        { key: 'service',   label: 'Service',         options: serviceOptions },
+      ],
+      extraFilters: [
+        { key: 'region',        label: 'Region',        options: [] },
+        { key: 'account_id',    label: 'Account',       options: [] },
+        { key: 'resource_type', label: 'Resource Type', options: [] },
+      ],
+      searchPlaceholder: 'Search by rule, resource, title...',
+    },
+    security_groups:  { data: securityGroups,   columns: findingsColumns },
+    internet_exposure:{ data: internetExposure, columns: findingsColumns },
+    topology:         { data: topology,         columns: findingsColumns },
+    waf:              { data: waf,              columns: findingsColumns },
+  }), [findings, securityGroups, internetExposure, topology, waf, findingsColumns, serviceOptions]);
 
-  const pageContext = data.pageContext || {
-    title: 'Network Security',
-    brief: 'Network exposure, security group misconfigurations, and internet-facing resource risk across all connected accounts.',
+  const pageContext = {
+    title: (data.pageContext || {}).title || 'Network Security',
+    brief: (data.pageContext || {}).brief || 'Network exposure, security group misconfigurations, and internet-facing resource risk across all connected accounts.',
     tabs: [
-      { id: 'overview',          label: 'Overview',          count: findings.length          },
+      { id: 'overview',          label: 'Overview'                                           },
+      { id: 'findings',          label: 'Findings',          count: findings.length          },
       { id: 'security_groups',   label: 'Security Groups',   count: securityGroups.length    },
       { id: 'internet_exposure', label: 'Internet Exposure', count: internetExposure.length  },
       { id: 'topology',          label: 'VPC Topology',      count: topology.length          },
@@ -736,9 +761,13 @@ export default function NetworkSecurityPage() {
         loading={false}
         error={error}
         defaultTab="overview"
+        onRowClick={handleRowClick}
         hideHeader
         topNav
       />
+
+      {/* Finding detail drawer */}
+      <FindingDetailPanel finding={selectedFinding} onClose={() => setSelectedFinding(null)} />
     </div>
   );
 }

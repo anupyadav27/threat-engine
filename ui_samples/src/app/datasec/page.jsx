@@ -8,6 +8,8 @@ import {
   RefreshCw,
   Info,
   ChevronDown,
+  ShieldCheck,
+  FileSearch,
 } from 'lucide-react';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
@@ -18,6 +20,7 @@ import { useGlobalFilter } from '@/lib/global-filter-context';
 import PageLayout from '@/components/shared/PageLayout';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import KpiSparkCard from '@/components/shared/KpiSparkCard';
+import FindingDetailPanel from '@/components/shared/FindingDetailPanel';
 
 // ── Colour palette ────────────────────────────────────────────────────────────
 const C = {
@@ -33,20 +36,20 @@ const C = {
   teal:     '#14b8a6',
 };
 
-// ── Enriched scan trend ───────────────────────────────────────────────────────
+// ── Enriched scan trend (static fallback) ─────────────────────────────────────
 const DS_SCAN_TREND = [
-  { date: 'Jan 13', passRate: 44, critical: 9,  high: 28, medium: 35, total: 82, exposed: 22, unencrypted: 41 },
-  { date: 'Jan 20', passRate: 47, critical: 8,  high: 26, medium: 32, total: 77, exposed: 20, unencrypted: 38 },
-  { date: 'Jan 27', passRate: 46, critical: 9,  high: 27, medium: 33, total: 79, exposed: 23, unencrypted: 36 },
-  { date: 'Feb 3',  passRate: 51, critical: 7,  high: 24, medium: 30, total: 73, exposed: 19, unencrypted: 33 },
-  { date: 'Feb 10', passRate: 54, critical: 6,  high: 22, medium: 28, total: 68, exposed: 17, unencrypted: 31 },
-  { date: 'Feb 17', passRate: 57, critical: 6,  high: 21, medium: 26, total: 65, exposed: 16, unencrypted: 28 },
-  { date: 'Feb 24', passRate: 59, critical: 5,  high: 19, medium: 24, total: 61, exposed: 15, unencrypted: 26 },
-  { date: 'Mar 3',  passRate: 61, critical: 5,  high: 18, medium: 23, total: 59, exposed: 14, unencrypted: 24 },
+  { date: 'Jan 13', passRate: 44, critical: 9,  high: 28, medium: 35, total: 72 },
+  { date: 'Jan 20', passRate: 47, critical: 8,  high: 26, medium: 32, total: 66 },
+  { date: 'Jan 27', passRate: 46, critical: 9,  high: 27, medium: 33, total: 69 },
+  { date: 'Feb 3',  passRate: 51, critical: 7,  high: 24, medium: 30, total: 61 },
+  { date: 'Feb 10', passRate: 54, critical: 6,  high: 22, medium: 28, total: 56 },
+  { date: 'Feb 17', passRate: 57, critical: 6,  high: 21, medium: 26, total: 53 },
+  { date: 'Feb 24', passRate: 59, critical: 5,  high: 19, medium: 24, total: 48 },
+  { date: 'Mar 3',  passRate: 61, critical: 5,  high: 18, medium: 23, total: 46 },
 ];
 
-// ── Module scores ─────────────────────────────────────────────────────────────
-const DS_MODULE_SCORES = [
+// ── Module scores (domain-based, derived when possible) ──────────────────────
+const DS_MODULE_FALLBACK = [
   { module: 'Data Classification', pass: 7,  total: 12, color: '#8b5cf6' },
   { module: 'Encryption Coverage', pass: 9,  total: 16, color: '#3b82f6' },
   { module: 'Public Access',       pass: 3,  total: 8,  color: '#ef4444' },
@@ -55,28 +58,20 @@ const DS_MODULE_SCORES = [
   { module: 'Access Monitoring',   pass: 6,  total: 10, color: '#f59e0b' },
 ];
 
-const DS_DOMAIN_MAP = {
-  data_classification: { label: 'Data Classification', color: '#8b5cf6' },
-  encryption_coverage: { label: 'Encryption Coverage', color: '#3b82f6' },
-  public_access:       { label: 'Public Access',       color: '#ef4444' },
-  dlp_rules:           { label: 'DLP Rules',           color: '#06b6d4' },
-  data_residency:      { label: 'Data Residency',      color: '#10b981' },
-  access_monitoring:   { label: 'Access Monitoring',   color: '#f59e0b' },
-};
-
-// ── KPI fallback ──────────────────────────────────────────────────────────────
-const DS_KPI_FALLBACK = {
-  posture_score: 61, total_findings: 244,
-  critical: 5, high: 18, medium: 23, low: 198,
-  data_stores: 47, exposed_stores: 14, unencrypted_stores: 24, dlp_violations: 8,
-};
-
-const DS_SPARKLINES = {
-  posture_score:  [28, 30, 29, 32, 34, 36, 37, 39],
-  total_findings: [142, 138, 140, 135, 131, 128, 125, 122],
-  exposed_stores: [18, 17, 19, 16, 15, 14, 13, 12],
-  dlp_violations: [47, 44, 46, 42, 39, 37, 35, 33],
-};
+// ── Category badge ────────────────────────────────────────────────────────────
+function CategoryBadge({ value }) {
+  const v = (value || '').toLowerCase();
+  const style =
+    v === 'encryption'       ? { backgroundColor: 'rgba(59,130,246,0.15)', color: '#60a5fa' }
+    : v === 'data_protection' ? { backgroundColor: 'rgba(245,158,11,0.15)', color: '#fbbf24' }
+    : v === 'dlp'             ? { backgroundColor: 'rgba(239,68,68,0.15)',  color: '#f87171' }
+    : { backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' };
+  const label = v === 'encryption'       ? 'Encryption'
+    : v === 'data_protection' ? 'Data Protection'
+    : v === 'dlp'             ? 'DLP'
+    : value || '—';
+  return <span className="text-xs px-2 py-0.5 rounded font-medium" style={style}>{label}</span>;
+}
 
 // ── Pure-SVG severity donut ───────────────────────────────────────────────────
 function DsDonut({ slices, size = 160 }) {
@@ -122,23 +117,22 @@ function DsDonut({ slices, size = 160 }) {
   );
 }
 
-
 export default function DataSecurityPage() {
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState(null);
-  const [realCatalog, setRealCatalog]             = useState([]);
-  const [realClassification, setRealClassification] = useState([]);
-  const [dlpViolations, setDlpViolations]         = useState([]);
-  const [encryptionData, setEncryptionData]       = useState([]);
-  const [dataResidency, setDataResidency]         = useState([]);
-  const [accessMonitoring, setAccessMonitoring]   = useState([]);
-  const [detailsOpen, setDetailsOpen]             = useState(false);
-  const [scanTrendData, setScanTrendData]         = useState([]);
+  const [loading, setLoading]               = useState(true);
+  const [error, setError]                   = useState(null);
+  const [realCatalog, setRealCatalog]       = useState([]);
+  const [dlpViolations, setDlpViolations]   = useState([]);
+  const [dataResidency, setDataResidency]   = useState([]);
+  const [accessMonitoring, setAccessMonitoring] = useState([]);
+  const [realFindings, setRealFindings]     = useState([]);
+  const [scanTrendData, setScanTrendData]   = useState([]);
+  const [detailsOpen, setDetailsOpen]       = useState(false);
+  const [selectedFinding, setSelectedFinding] = useState(null);
+  const handleRowClick = (row) => { const f = row?.original || row; if (f) setSelectedFinding(f); };
 
   const { provider, account, region } = useGlobalFilter();
 
   // ── Data fetch ──────────────────────────────────────────────────────────────
-
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -151,12 +145,11 @@ export default function DataSecurityPage() {
         });
         if (data.error) { setError(data.error); return; }
         if (data.catalog)          setRealCatalog(data.catalog);
-        if (data.classifications)  setRealClassification(data.classifications);
         if (data.dlp)              setDlpViolations(data.dlp);
-        if (data.encryption)       setEncryptionData(data.encryption);
         if (data.residency)        setDataResidency(data.residency);
         if (data.accessMonitoring) setAccessMonitoring(data.accessMonitoring);
         if (data.scanTrend)        setScanTrendData(data.scanTrend);
+        if (data.findings)         setRealFindings(data.findings);
       } catch (err) {
         console.warn('Error fetching data security data:', err);
         setError(err?.message || 'Failed to load data security data');
@@ -167,76 +160,93 @@ export default function DataSecurityPage() {
     fetchData();
   }, [provider, account, region]);
 
-  // ── Derived KPIs ────────────────────────────────────────────────────────────
+  // ── Severity counts from real findings ──────────────────────────────────────
+  const severityCount = useMemo(() => {
+    const counts = { critical: 0, high: 0, medium: 0, low: 0 };
+    for (const f of realFindings) {
+      const s = (f.severity || 'medium').toLowerCase();
+      if (s in counts) counts[s]++;
+    }
+    return counts;
+  }, [realFindings]);
 
-  const scopeFiltered = realCatalog;
+  // ── Category split (encryption vs data_protection) ──────────────────────────
+  const categorySplit = useMemo(() => {
+    let enc = 0, dp = 0, other = 0;
+    for (const f of realFindings) {
+      const cat = (f.posture_category || '').toLowerCase();
+      if (cat === 'encryption')        enc++;
+      else if (cat === 'data_protection') dp++;
+      else other++;
+    }
+    return { encryption: enc, data_protection: dp, other };
+  }, [realFindings]);
 
-  const sensitiveExposed = scopeFiltered.filter(d =>
-    ['PII', 'PHI', 'Sensitive'].includes(d.classification) &&
-    (d.public_access === true || d.encryption === 'None' || d.encryption === false)
-  ).length;
-  const unencryptedCount = scopeFiltered.filter(d =>
-    d.encrypted === false || d.encryption === 'None' || d.encryption_status === 'unencrypted'
-  ).length;
-  const dlpViolationCount = dlpViolations.length;
-  const classifiedPct = Math.round(
-    scopeFiltered.filter(d => d.classification && d.classification !== 'Unknown').length /
-    Math.max(scopeFiltered.length, 1) * 100
-  );
-  const encryptedPct = Math.round(
-    scopeFiltered.filter(d =>
-      d.encrypted === true || (d.encryption && d.encryption !== 'None' && d.encryption !== 'Unknown')
-    ).length / Math.max(scopeFiltered.length, 1) * 100
-  );
+  // ── KPI numbers — derived from real data ────────────────────────────────────
+  const kpiNums = useMemo(() => {
+    const total = realFindings.length;
+    const { critical, high, medium, low } = severityCount;
+    // posture score from severity weights (same formula as BFF)
+    const sevW = { critical: 4, high: 3, medium: 2, low: 1 };
+    const totalW = realFindings.reduce((s, f) => s + (sevW[(f.severity || 'medium').toLowerCase()] || 2), 0);
+    const posture = total ? Math.min(100, Math.round((totalW / (total * 4)) * 100)) : 0;
 
-  const unencryptedStores  = scopeFiltered.filter(d => !d.encryption || d.encryption === 'None' || d.encryption === 'Unknown').length;
-  const publicAccessStores = scopeFiltered.filter(d => d.public_access).length;
+    return {
+      posture_score:   total ? posture : 0,
+      total_findings:  total,
+      critical, high, medium, low,
+      dlp_violations:  dlpViolations.length,
+      encryption_count: categorySplit.encryption,
+      data_protection_count: categorySplit.data_protection,
+    };
+  }, [realFindings, severityCount, dlpViolations.length, categorySplit]);
 
-  // ── KPI numbers with fallback ────────────────────────────────────────────────
-  const kpiNums = useMemo(() => ({
-    posture_score:      100 - Math.min(100, Math.round((unencryptedStores + publicAccessStores * 2) / Math.max(scopeFiltered.length, 1) * 100)) || DS_KPI_FALLBACK.posture_score,
-    total_findings:     dlpViolationCount + unencryptedCount + sensitiveExposed || DS_KPI_FALLBACK.total_findings,
-    critical:           DS_KPI_FALLBACK.critical,
-    high:               DS_KPI_FALLBACK.high,
-    medium:             DS_KPI_FALLBACK.medium,
-    low:                DS_KPI_FALLBACK.low,
-    data_stores:        scopeFiltered.length || DS_KPI_FALLBACK.data_stores,
-    exposed_stores:     sensitiveExposed     || DS_KPI_FALLBACK.exposed_stores,
-    unencrypted_stores: unencryptedCount     || DS_KPI_FALLBACK.unencrypted_stores,
-    dlp_violations:     dlpViolationCount    || DS_KPI_FALLBACK.dlp_violations,
-  }), [scopeFiltered, sensitiveExposed, unencryptedCount, dlpViolationCount, unencryptedStores, publicAccessStores]);
+  // ── Catalog data — use realFindings (full check fields) when catalog lacks them ──
+  const catalogData = useMemo(() => {
+    // normalize_datastore strips rule_id/severity/status; use realFindings directly
+    // when catalog is derived from check engine (both have same length)
+    if (realFindings.length && Math.abs(realCatalog.length - realFindings.length) < 5) {
+      return realFindings;
+    }
+    return realCatalog.length ? realCatalog : realFindings;
+  }, [realCatalog, realFindings]);
 
-  // ── Active scan trend: live from BFF or static fallback ──────────────
-  const activeScanTrend = useMemo(
-    () => {
-      if (scanTrendData?.length >= 2) {
-        return scanTrendData.map(d => ({ ...d, passRate: d.pass_rate ?? d.passRate ?? 0 }));
-      }
-      return DS_SCAN_TREND;
-    },
-    [scanTrendData],
-  );
+  // ── Scan trend ───────────────────────────────────────────────────────────────
+  const activeScanTrend = useMemo(() => {
+    if (scanTrendData?.length >= 2) {
+      return scanTrendData.map(d => ({ ...d, passRate: d.pass_rate ?? d.passRate ?? 0 }));
+    }
+    return DS_SCAN_TREND;
+  }, [scanTrendData]);
 
+  // ── Module scores — derive from category split when available ────────────────
   const activeModuleScores = useMemo(() => {
-    return DS_MODULE_SCORES;
-  }, []);
+    const total = realFindings.length;
+    if (!total) return DS_MODULE_FALLBACK;
+    const { encryption, data_protection } = categorySplit;
+    return [
+      { module: 'Encryption Coverage', pass: encryption,      total: Math.max(encryption, 1),      color: '#3b82f6' },
+      { module: 'Data Protection',     pass: data_protection, total: Math.max(data_protection, 1), color: '#f59e0b' },
+      { module: 'DLP Rules',           pass: dlpViolations.length, total: Math.max(dlpViolations.length, 1), color: '#06b6d4' },
+      { module: 'Data Residency',      pass: dataResidency.length, total: Math.max(dataResidency.length, 1), color: '#10b981' },
+      { module: 'Access Monitoring',   pass: accessMonitoring.length, total: Math.max(accessMonitoring.length, 1), color: '#f59e0b' },
+    ];
+  }, [realFindings.length, categorySplit, dlpViolations.length, dataResidency.length, accessMonitoring.length]);
 
   // ── Insight strip ────────────────────────────────────────────────────────────
   const insightStrip = useMemo(() => {
     const {
       posture_score, total_findings, critical, high, medium, low,
-      data_stores, exposed_stores, unencrypted_stores, dlp_violations,
+      dlp_violations, encryption_count, data_protection_count,
     } = kpiNums;
 
-    // Live sparklines derived from scan trend
-    const sparkPS = activeScanTrend.map(d => d.passRate ?? d.pass_rate ?? 0);
+    const sparkPS = activeScanTrend.map(d => d.passRate ?? 0);
     const sparkTF = activeScanTrend.map(d => d.total ?? 0);
 
     const scoreColor = posture_score >= 70 ? C.emerald
                      : posture_score >= 50 ? C.amber
                      : C.critical;
 
-    // ── KPI tile — inset top accent bar ──
     const tile = (label, value, color, suffix = '', sub = '', sparkData = [], delta = null, deltaGood = 'down') => (
       <KpiSparkCard
         key={label}
@@ -251,7 +261,6 @@ export default function DataSecurityPage() {
       />
     );
 
-    // ── Donut slices ──
     const donutSlices = [
       { label: 'Critical', value: critical, color: C.critical },
       { label: 'High',     value: high,     color: C.high     },
@@ -259,13 +268,12 @@ export default function DataSecurityPage() {
       { label: 'Low',      value: low,      color: C.low      },
     ];
 
-    // ── Trend deltas ──
     const first  = activeScanTrend[0];
     const last   = activeScanTrend[activeScanTrend.length - 1];
     const rateΔ  = last.passRate  - first.passRate;
-    const critΔ  = last.critical  - first.critical;
-    const highΔ  = last.high      - first.high;
-    const totalΔ = last.total     - first.total;
+    const critΔ  = (last.critical ?? 0) - (first.critical ?? 0);
+    const highΔ  = (last.high ?? 0)     - (first.high ?? 0);
+    const totalΔ = (last.total ?? 0)    - (first.total ?? 0);
 
     const statPill = (label, value, delta, goodDir) => {
       const improved = goodDir === 'up' ? delta >= 0 : delta <= 0;
@@ -330,7 +338,7 @@ export default function DataSecurityPage() {
                   fontVariantNumeric: 'tabular-nums' }}>{s.value}</span>
               </div>
               <div style={{ height: 3, borderRadius: 2, backgroundColor: 'var(--bg-tertiary)', overflow: 'hidden' }}>
-                <div style={{ width: `${Math.round((s.value / d.total) * 100)}%`,
+                <div style={{ width: `${Math.round((s.value / (d.total || 1)) * 100)}%`,
                   height: '100%', borderRadius: 2, backgroundColor: s.color, opacity: 0.85 }} />
               </div>
             </div>
@@ -348,247 +356,301 @@ export default function DataSecurityPage() {
     return (
       <div className="flex gap-3 items-stretch" style={{ minHeight: 260 }}>
 
-        {/* ── Row 1: 4 KPI tiles ── */}
+        {/* ── 4 KPI tiles ── */}
         <div style={{
           flex: 1, display: 'grid',
           gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
           gap: 8, minWidth: 0,
         }}>
-          {tile('Posture Score',   posture_score,  scoreColor, '/100', `${medium} medium · ${low} low risk`,   sparkPS, sparkPS[sparkPS.length - 1] - sparkPS[0], 'up'  )}
-          {tile('Total Findings', total_findings, C.high,     '',     `${critical} critical · ${high} high`,   sparkTF, sparkTF[sparkTF.length - 1] - sparkTF[0], 'down')}
-          {tile('Exposed Stores', exposed_stores, C.critical, '',     `${unencrypted_stores} unencrypted · ${data_stores} total stores`, DS_SPARKLINES.exposed_stores, DS_SPARKLINES.exposed_stores[7] - DS_SPARKLINES.exposed_stores[0], 'down')}
-          {tile('DLP Violations', dlp_violations, C.amber,    '',     'Policy violations detected',            DS_SPARKLINES.dlp_violations, DS_SPARKLINES.dlp_violations[7] - DS_SPARKLINES.dlp_violations[0], 'down')}
+          {tile('Posture Score',   posture_score,   scoreColor,  '/100',
+            `${medium} medium · ${low} low risk`, sparkPS,
+            sparkPS.length ? sparkPS[sparkPS.length-1] - sparkPS[0] : null, 'up')}
+          {tile('Total Findings', total_findings,  C.high,      '',
+            `${critical} critical · ${high} high`, sparkTF,
+            sparkTF.length ? sparkTF[sparkTF.length-1] - sparkTF[0] : null, 'down')}
+          {tile('Encryption',     encryption_count, C.indigo,   '',
+            `${encryption_count} encryption findings`, [], null, 'down')}
+          {tile('DLP Violations', dlp_violations,  C.amber,     '',
+            `${data_protection_count} data-protection findings`, [], null, 'down')}
         </div>
 
-          {/* ── Col left: Findings by Severity donut + Module Scores ── */}
-          <div className="flex flex-col flex-1 p-4 rounded-xl" style={{
-            background: 'linear-gradient(160deg, var(--bg-secondary), var(--bg-card))',
-            border: '1px solid var(--border-primary)', minWidth: 0, overflow: 'hidden',
-          }}>
-            {/* Header */}
-            <div className="flex items-center justify-between mb-0.5">
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
-                Findings by Severity
-              </span>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-                {total_findings.toLocaleString()} total
-              </span>
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 10 }}>
-              Data security · severity breakdown
-            </div>
+        {/* ── Findings by Severity donut + Module list ── */}
+        <div className="flex flex-col flex-1 p-4 rounded-xl" style={{
+          background: 'linear-gradient(160deg, var(--bg-secondary), var(--bg-card))',
+          border: '1px solid var(--border-primary)', minWidth: 0, overflow: 'hidden',
+        }}>
+          <div className="flex items-center justify-between mb-0.5">
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+              Findings by Severity
+            </span>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+              {total_findings.toLocaleString()} total
+            </span>
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 10 }}>
+            Data security · severity breakdown
+          </div>
 
-            {/* Donut + progress-bar legend */}
-            <div className="flex items-center gap-4" style={{ flex: 1 }}>
-              <div style={{ position: 'relative', flexShrink: 0 }}>
-                <DsDonut slices={donutSlices} size={160} />
-                <div style={{
-                  position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-                  alignItems: 'center', justifyContent: 'center', pointerEvents: 'none',
-                }}>
-                  <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--text-primary)', lineHeight: 1 }}>
-                    {total_findings.toLocaleString()}
-                  </div>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>findings</div>
+          <div className="flex items-center gap-4" style={{ flex: 1 }}>
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              <DsDonut slices={donutSlices} size={160} />
+              <div style={{
+                position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center', pointerEvents: 'none',
+              }}>
+                <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--text-primary)', lineHeight: 1 }}>
+                  {total_findings.toLocaleString()}
                 </div>
-              </div>
-              <div className="flex-1 space-y-2" style={{ minWidth: 0 }}>
-                {donutSlices.map(s => {
-                  const pct = Math.round((s.value / (total_findings || 1)) * 100);
-                  return (
-                    <div key={s.label}>
-                      <div className="flex items-center justify-between mb-0.5">
-                        <div className="flex items-center gap-1.5">
-                          <div style={{ width: 9, height: 9, borderRadius: 2,
-                            backgroundColor: s.color, flexShrink: 0 }} />
-                          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{s.label}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <span style={{ fontSize: 13, fontWeight: 700, color: s.color }}>
-                            {s.value.toLocaleString()}
-                          </span>
-                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{pct}%</span>
-                        </div>
-                      </div>
-                      <div style={{ height: 3, borderRadius: 2, backgroundColor: 'var(--bg-tertiary)', overflow: 'hidden' }}>
-                        <div style={{ width: `${pct}%`, height: '100%', borderRadius: 2,
-                          backgroundColor: s.color, opacity: 0.85 }} />
-                      </div>
-                    </div>
-                  );
-                })}
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>findings</div>
               </div>
             </div>
-
-            {/* Module Scores — compact 2-col list */}
-            <div style={{
-              display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px',
-              marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border-primary)',
-            }}>
-              {activeModuleScores.map(m => {
-                const pct = Math.round((m.pass / m.total) * 100);
-                const col = pct >= 70 ? C.emerald : pct >= 50 ? C.amber : C.critical;
+            <div className="flex-1 space-y-2" style={{ minWidth: 0 }}>
+              {donutSlices.map(s => {
+                const pct = Math.round((s.value / (total_findings || 1)) * 100);
                 return (
-                  <div key={m.module} style={{ display: 'flex', alignItems: 'center',
-                    gap: 6, padding: '3px 0', borderBottom: '1px solid var(--border-primary)' }}>
-                    <span style={{ width: 7, height: 7, borderRadius: 2,
-                      backgroundColor: col, flexShrink: 0 }} />
-                    <span style={{ fontSize: 11, color: 'var(--text-secondary)', flex: 1,
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {m.module}
-                    </span>
-                    <div style={{ width: 32, height: 3, borderRadius: 2,
-                      backgroundColor: 'var(--bg-tertiary)', flexShrink: 0, overflow: 'hidden' }}>
-                      <div style={{ width: `${pct}%`, height: '100%',
-                        borderRadius: 2, backgroundColor: col }} />
+                  <div key={s.label}>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <div className="flex items-center gap-1.5">
+                        <div style={{ width: 9, height: 9, borderRadius: 2,
+                          backgroundColor: s.color, flexShrink: 0 }} />
+                        <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{s.label}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span style={{ fontSize: 13, fontWeight: 700, color: s.color }}>
+                          {s.value.toLocaleString()}
+                        </span>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{pct}%</span>
+                      </div>
                     </div>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: col,
-                      flexShrink: 0, fontVariantNumeric: 'tabular-nums', width: 28, textAlign: 'right' }}>
-                      {pct}%
-                    </span>
+                    <div style={{ height: 3, borderRadius: 2, backgroundColor: 'var(--bg-tertiary)', overflow: 'hidden' }}>
+                      <div style={{ width: `${pct}%`, height: '100%', borderRadius: 2,
+                        backgroundColor: s.color, opacity: 0.85 }} />
+                    </div>
                   </div>
                 );
               })}
             </div>
           </div>
 
-          {/* ── Col right: Data Security Trend (ComposedChart) ── */}
-          <div className="flex flex-col flex-1 p-4 rounded-xl" style={{
-            background: 'linear-gradient(160deg, var(--bg-secondary), var(--bg-card))',
-            border: '1px solid var(--border-primary)', minWidth: 0, overflow: 'hidden',
+          {/* Module/domain breakdown */}
+          <div style={{
+            display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px',
+            marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border-primary)',
           }}>
-            {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between',
-              alignItems: 'center', marginBottom: 8 }}>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
-                  Data Security Trend
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
-                  {first.date} – {last.date} · {DS_SCAN_TREND.length} scans
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                {[
-                  { label: 'Critical',  color: C.critical },
-                  { label: 'High',      color: C.high     },
-                  { label: 'Medium',    color: C.medium   },
-                  { label: 'Pass Rate', color: C.emerald  },
-                ].map(s => (
-                  <span key={s.label} style={{ display: 'flex', alignItems: 'center',
-                    gap: 4, fontSize: 10, color: 'var(--text-muted)' }}>
-                    <span style={{ width: 8, height: s.label === 'Pass Rate' ? 2 : 8,
-                      borderRadius: s.label === 'Pass Rate' ? 1 : 2,
-                      backgroundColor: s.color, display: 'inline-block' }} />
-                    {s.label}
+            {activeModuleScores.map(m => {
+              const pct = m.total ? Math.round((m.pass / m.total) * 100) : 0;
+              const col = pct >= 70 ? C.emerald : pct >= 50 ? C.amber : C.critical;
+              return (
+                <div key={m.module} style={{ display: 'flex', alignItems: 'center',
+                  gap: 6, padding: '3px 0', borderBottom: '1px solid var(--border-primary)' }}>
+                  <span style={{ width: 7, height: 7, borderRadius: 2,
+                    backgroundColor: m.color, flexShrink: 0 }} />
+                  <span style={{ fontSize: 11, color: 'var(--text-secondary)', flex: 1,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {m.module}
                   </span>
-                ))}
+                  <span style={{ fontSize: 11, fontWeight: 700, color: m.color,
+                    flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
+                    {m.pass.toLocaleString()}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── Scan trend chart ── */}
+        <div className="flex flex-col flex-1 p-4 rounded-xl" style={{
+          background: 'linear-gradient(160deg, var(--bg-secondary), var(--bg-card))',
+          border: '1px solid var(--border-primary)', minWidth: 0, overflow: 'hidden',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between',
+            alignItems: 'center', marginBottom: 8 }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+                Data Security Trend
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
+                {first.date} – {last.date} · {activeScanTrend.length} scans
               </div>
             </div>
-
-            {/* 4-stat summary strip */}
-            <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-              {statPill('Pass Rate', `${last.passRate}%`, rateΔ,  'up'  )}
-              {statPill('Critical',  last.critical,       critΔ,  'down')}
-              {statPill('High',      last.high,           highΔ,  'down')}
-              {statPill('Total',     last.total,          totalΔ, 'down')}
-            </div>
-
-            {/* Composed chart — fills remaining height */}
-            <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
-              <div style={{ position: 'absolute', inset: 0 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={activeScanTrend}
-                    margin={{ top: 6, right: 10, left: -14, bottom: 0 }} barCategoryGap="28%">
-                    <defs>
-                      {[
-                        { id: 'dc', color: C.critical },
-                        { id: 'dh', color: C.high     },
-                        { id: 'dm', color: C.medium   },
-                      ].map(g => (
-                        <linearGradient key={g.id} id={g.id} x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%"   stopColor={g.color} stopOpacity={0.95} />
-                          <stop offset="100%" stopColor={g.color} stopOpacity={0.55} />
-                        </linearGradient>
-                      ))}
-                    </defs>
-                    <CartesianGrid vertical={false} strokeDasharray="3 3"
-                      stroke="var(--border-primary)" opacity={0.5} />
-                    <XAxis dataKey="date"
-                      tick={{ fontSize: 10, fill: 'var(--text-muted)', fontFamily: 'inherit' }}
-                      axisLine={false} tickLine={false} />
-                    <YAxis yAxisId="count"
-                      tick={{ fontSize: 10, fill: 'var(--text-muted)', fontFamily: 'inherit' }}
-                      axisLine={false} tickLine={false} width={24} />
-                    <YAxis yAxisId="rate" orientation="right" domain={[0, 100]}
-                      tick={{ fontSize: 10, fill: C.emerald, fontFamily: 'inherit' }}
-                      axisLine={false} tickLine={false} width={28}
-                      tickFormatter={v => `${v}%`} />
-                    <ReferenceLine yAxisId="rate" y={80} stroke={C.emerald}
-                      strokeDasharray="5 3" strokeOpacity={0.45}
-                      label={{ value: 'Target', position: 'insideTopRight',
-                        fontSize: 9, fill: C.emerald, opacity: 0.7 }} />
-                    <RechartsTip content={<TrendTooltip />} />
-                    <Bar yAxisId="count" dataKey="medium"   name="Medium"   stackId="s" fill="url(#dm)" radius={[0,0,0,0]} />
-                    <Bar yAxisId="count" dataKey="high"     name="High"     stackId="s" fill="url(#dh)" radius={[0,0,0,0]} />
-                    <Bar yAxisId="count" dataKey="critical" name="Critical" stackId="s" fill="url(#dc)" radius={[3,3,0,0]} />
-                    <Line yAxisId="rate" type="monotone" dataKey="passRate" name="Pass Rate"
-                      stroke={C.emerald} strokeWidth={2.5}
-                      dot={{ r: 3, fill: C.emerald, strokeWidth: 0 }}
-                      activeDot={{ r: 5, fill: C.emerald, stroke: 'var(--bg-card)', strokeWidth: 2 }} />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {[
+                { label: 'Critical',  color: C.critical },
+                { label: 'High',      color: C.high     },
+                { label: 'Medium',    color: C.medium   },
+                { label: 'Pass Rate', color: C.emerald  },
+              ].map(s => (
+                <span key={s.label} style={{ display: 'flex', alignItems: 'center',
+                  gap: 4, fontSize: 10, color: 'var(--text-muted)' }}>
+                  <span style={{ width: 8, height: s.label === 'Pass Rate' ? 2 : 8,
+                    borderRadius: s.label === 'Pass Rate' ? 1 : 2,
+                    backgroundColor: s.color, display: 'inline-block' }} />
+                  {s.label}
+                </span>
+              ))}
             </div>
           </div>
 
+          <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+            {statPill('Pass Rate', `${last.passRate}%`, rateΔ, 'up'  )}
+            {statPill('Critical',  last.critical,       critΔ, 'down')}
+            {statPill('High',      last.high,           highΔ, 'down')}
+            {statPill('Total',     last.total,          totalΔ,'down')}
+          </div>
+
+          <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+            <div style={{ position: 'absolute', inset: 0 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={activeScanTrend}
+                  margin={{ top: 6, right: 10, left: -14, bottom: 0 }} barCategoryGap="28%">
+                  <defs>
+                    {[
+                      { id: 'dc', color: C.critical },
+                      { id: 'dh', color: C.high     },
+                      { id: 'dm', color: C.medium   },
+                    ].map(g => (
+                      <linearGradient key={g.id} id={g.id} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%"   stopColor={g.color} stopOpacity={0.95} />
+                        <stop offset="100%" stopColor={g.color} stopOpacity={0.55} />
+                      </linearGradient>
+                    ))}
+                  </defs>
+                  <CartesianGrid vertical={false} strokeDasharray="3 3"
+                    stroke="var(--border-primary)" opacity={0.5} />
+                  <XAxis dataKey="date"
+                    tick={{ fontSize: 10, fill: 'var(--text-muted)', fontFamily: 'inherit' }}
+                    axisLine={false} tickLine={false} />
+                  <YAxis yAxisId="count"
+                    tick={{ fontSize: 10, fill: 'var(--text-muted)', fontFamily: 'inherit' }}
+                    axisLine={false} tickLine={false} width={24} />
+                  <YAxis yAxisId="rate" orientation="right" domain={[0, 100]}
+                    tick={{ fontSize: 10, fill: C.emerald, fontFamily: 'inherit' }}
+                    axisLine={false} tickLine={false} width={28}
+                    tickFormatter={v => `${v}%`} />
+                  <ReferenceLine yAxisId="rate" y={80} stroke={C.emerald}
+                    strokeDasharray="5 3" strokeOpacity={0.45}
+                    label={{ value: 'Target', position: 'insideTopRight',
+                      fontSize: 9, fill: C.emerald, opacity: 0.7 }} />
+                  <RechartsTip content={<TrendTooltip />} />
+                  <Bar yAxisId="count" dataKey="medium"   name="Medium"   stackId="s" fill="url(#dm)" radius={[0,0,0,0]} />
+                  <Bar yAxisId="count" dataKey="high"     name="High"     stackId="s" fill="url(#dh)" radius={[0,0,0,0]} />
+                  <Bar yAxisId="count" dataKey="critical" name="Critical" stackId="s" fill="url(#dc)" radius={[3,3,0,0]} />
+                  <Line yAxisId="rate" type="monotone" dataKey="passRate" name="Pass Rate"
+                    stroke={C.emerald} strokeWidth={2.5}
+                    dot={{ r: 3, fill: C.emerald, strokeWidth: 0 }}
+                    activeDot={{ r: 5, fill: C.emerald, stroke: 'var(--bg-card)', strokeWidth: 2 }} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+
       </div>
     );
-  }, [kpiNums, activeScanTrend]);
+  }, [kpiNums, activeScanTrend, activeModuleScores]);
 
   // ── Column definitions ──────────────────────────────────────────────────────
 
+  const commonCols = {
+    provider: {
+      accessorKey: 'provider', header: 'Provider', size: 75,
+      cell: (info) => <span className="text-xs font-semibold uppercase"
+        style={{ color: 'var(--text-secondary)' }}>{info.getValue() || '—'}</span>,
+    },
+    account: {
+      accessorKey: 'account_id', header: 'Account', size: 130,
+      cell: (info) => <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+        {info.getValue() || info.row.original.account || '—'}</span>,
+    },
+    region: {
+      accessorKey: 'region', header: 'Region', size: 110,
+      cell: (info) => <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{info.getValue() || '—'}</span>,
+    },
+    service: {
+      accessorKey: 'service', header: 'Service', size: 110,
+      cell: (info) => <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+        {info.getValue() || info.row.original.resource_type || '—'}</span>,
+    },
+    ruleId: {
+      accessorKey: 'rule_id', header: 'Rule ID', size: 135,
+      cell: (info) => <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>{info.getValue() || '—'}</span>,
+    },
+    resource: {
+      accessorKey: 'resource_uid', header: 'Resource',
+      cell: (info) => { const v = info.getValue() || info.row.original.resource_id || info.row.original.name || ''; return <span className="font-mono text-xs" style={{ color: 'var(--text-secondary)' }}>{v.split('/').pop() || v.split(':').pop() || v || '—'}</span>; },
+    },
+    severity: {
+      accessorKey: 'severity', header: 'Severity',
+      cell: (info) => <SeverityBadge severity={info.getValue()} />,
+    },
+    status: {
+      accessorKey: 'status', header: 'Status',
+      cell: (info) => { const v = info.getValue(), f = v === 'FAIL'; return <span className={`text-xs px-2 py-0.5 rounded ${f ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{v || '—'}</span>; },
+    },
+    category: {
+      accessorKey: 'posture_category', header: 'Category', size: 140,
+      cell: (info) => <CategoryBadge value={info.getValue()} />,
+    },
+    riskScore: {
+      accessorKey: 'risk_score', header: 'Risk',
+      cell: (info) => { const v = info.getValue(); if (!v) return <span className="text-xs" style={{ color: 'var(--text-muted)' }}>—</span>; const c = v >= 75 ? '#ef4444' : v >= 50 ? '#f97316' : v >= 25 ? '#eab308' : '#22c55e'; return <div className="flex items-center gap-1.5"><div className="w-10 h-1.5 rounded-full" style={{ backgroundColor: 'var(--bg-tertiary)' }}><div className="h-full rounded-full" style={{ width: `${v}%`, backgroundColor: c }} /></div><span className="text-xs font-bold" style={{ color: c }}>{v}</span></div>; },
+    },
+  };
+
+  // Catalog: resource-focused view of check findings
   const catalogColumns = [
-    { accessorKey: 'name', header: 'Name', cell: (info) => <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{info.getValue()}</span> },
-    { accessorKey: 'type', header: 'Type', cell: (info) => <span className="text-xs px-2 py-1 rounded" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>{info.getValue()}</span> },
-    { accessorKey: 'provider', header: 'Provider', cell: (info) => <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{info.getValue()}</span> },
-    { accessorKey: 'region', header: 'Region', cell: (info) => <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{info.getValue()}</span> },
-    { accessorKey: 'classification', header: 'Classification', cell: (info) => {
-      const t = info.getValue();
-      const colorMap = { PII:'bg-red-500/20 text-red-300', PHI:'bg-orange-500/20 text-orange-300', PCI:'bg-yellow-500/20 text-yellow-300', Confidential:'bg-purple-500/20 text-purple-300', Internal:'bg-blue-500/20 text-blue-300', Public:'bg-slate-500/20 text-slate-300' };
-      return <span className={`text-xs px-2 py-1 rounded ${colorMap[t] || 'bg-slate-700 text-slate-300'}`}>{t}</span>;
-    }},
-    { accessorKey: 'encryption', header: 'Encryption', cell: (info) => (
-      <div className="flex items-center gap-2">
-        {info.getValue() !== 'None' ? <Lock className="w-4 h-4 text-green-400" /> : <AlertTriangle className="w-4 h-4 text-red-400" />}
-        <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{info.getValue()}</span>
-      </div>
-    )},
-    { accessorKey: 'owner', header: 'Owner', cell: (info) => <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{info.getValue()}</span> },
+    commonCols.provider,
+    commonCols.account,
+    commonCols.region,
+    commonCols.service,
+    commonCols.ruleId,
+    commonCols.resource,
+    commonCols.category,
+    {
+      accessorKey: 'title', header: 'Finding',
+      cell: (info) => <span className="text-xs" style={{ color: 'var(--text-primary)' }}>{info.getValue() || '—'}</span>,
+    },
+    commonCols.severity,
+    commonCols.status,
+    commonCols.riskScore,
   ];
 
-  const classificationColumns = [
-    { accessorKey: 'name', header: 'Pattern', cell: (info) => <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{info.getValue()}</span> },
-    { accessorKey: 'type', header: 'Type', cell: (info) => {
-      const typeMap = { PII:'bg-red-500/20 text-red-300', PHI:'bg-orange-500/20 text-orange-300', PCI:'bg-yellow-500/20 text-yellow-300', Secrets:'bg-pink-500/20 text-pink-300', Public:'bg-blue-500/20 text-blue-300' };
-      return <span className={`text-xs px-2 py-1 rounded ${typeMap[info.getValue()]}`}>{info.getValue()}</span>;
-    }},
-    { accessorKey: 'count', header: 'Records Found', cell: (info) => <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{info.getValue().toLocaleString()}</span> },
-    { accessorKey: 'locations', header: 'Locations', cell: (info) => <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{info.getValue()} stores</span> },
-    { accessorKey: 'confidence', header: 'Confidence', cell: (info) => <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{info.getValue()}%</span> },
-  ];
+  // Findings: full detail view
+  const findingsColumns = useMemo(() => [
+    commonCols.provider,
+    commonCols.account,
+    commonCols.region,
+    commonCols.service,
+    commonCols.ruleId,
+    {
+      accessorKey: 'title', header: 'Finding',
+      cell: (info) => <span className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>{info.getValue() || info.row.original.rule_id || '—'}</span>,
+    },
+    commonCols.severity,
+    commonCols.status,
+    commonCols.resource,
+    { accessorKey: 'resource_type', header: 'Type', size: 130 },
+    commonCols.category,
+    commonCols.riskScore,
+  ], []);
 
-  const encryptionColumns = [
-    { accessorKey: 'resource', header: 'Resource', cell: (info) => <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{info.getValue()}</span> },
-    { accessorKey: 'type', header: 'Encryption Type', cell: (info) => <span className="text-xs px-2 py-1 rounded" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>{info.getValue()}</span> },
-    { accessorKey: 'rotation', header: 'Key Rotation', cell: (info) => <span className="text-sm">{info.getValue()}</span> },
-    { accessorKey: 'status', header: 'Status', cell: (info) => {
-      const s = info.getValue();
-      return s === 'encrypted'
-        ? <span className="text-xs px-2 py-1 rounded bg-green-500/20 text-green-400">Encrypted</span>
-        : <span className="text-xs px-2 py-1 rounded bg-red-500/20 text-red-400">Unencrypted</span>;
-    }},
-  ];
+  // DLP: data-protection findings with full context columns
+  const dlpColumns = useMemo(() => [
+    commonCols.provider,
+    commonCols.account,
+    commonCols.region,
+    commonCols.service,
+    commonCols.ruleId,
+    commonCols.resource,
+    {
+      accessorKey: 'title', header: 'Policy Violation',
+      cell: (info) => <span className="text-xs" style={{ color: 'var(--text-primary)' }}>{info.getValue() || info.row.original.description || '—'}</span>,
+    },
+    commonCols.severity,
+    commonCols.status,
+    commonCols.riskScore,
+  ], []);
 
   const residencyColumns = [
     { accessorKey: 'region', header: 'Region', cell: (info) => <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{info.getValue()}</span> },
@@ -605,7 +667,7 @@ export default function DataSecurityPage() {
   const accessColumns = [
     { accessorKey: 'timestamp', header: 'Timestamp', cell: (info) => <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{new Date(info.getValue()).toLocaleString()}</span> },
     { accessorKey: 'resource', header: 'Resource', cell: (info) => <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{info.getValue()}</span> },
-    { accessorKey: 'user', header: 'User/Service', cell: (info) => <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{info.getValue()}</span> },
+    { accessorKey: 'user', header: 'User / Service', cell: (info) => <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{info.getValue()}</span> },
     { accessorKey: 'action', header: 'Action', cell: (info) => <span className="text-xs px-2 py-1 rounded" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>{info.getValue()}</span> },
     { accessorKey: 'location', header: 'Location', cell: (info) => <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{info.getValue()}</span> },
     { accessorKey: 'anomaly', header: 'Anomaly', cell: (info) => (
@@ -615,38 +677,99 @@ export default function DataSecurityPage() {
     )},
   ];
 
-  const dlpColumns = [
-    { accessorKey: 'type', header: 'Violation Type', cell: (info) => <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{info.getValue()}</span> },
-    { accessorKey: 'resource', header: 'Resource', cell: (info) => <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{info.getValue()}</span> },
-    { accessorKey: 'data_type', header: 'Data Type', cell: (info) => <span className="text-xs px-2 py-1 rounded" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>{info.getValue()}</span> },
-    { accessorKey: 'severity', header: 'Severity', cell: (info) => <SeverityBadge severity={info.getValue()} /> },
-    { accessorKey: 'action', header: 'Action Taken', cell: (info) => <span className="text-sm">{info.getValue()}</span> },
-    { accessorKey: 'timestamp', header: 'Timestamp', cell: (info) => <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{new Date(info.getValue()).toLocaleDateString()}</span> },
-  ];
+  // ── Filter options derived from real data ───────────────────────────────────
+  const serviceOptions = useMemo(() =>
+    [...new Set((realFindings).map(f => f.service || '').filter(Boolean))].sort(),
+  [realFindings]);
 
-  // ── PageLayout props ────────────────────────────────────────────────────────
+  const dlpServiceOptions = useMemo(() =>
+    [...new Set((dlpViolations).map(f => f.service || '').filter(Boolean))].sort(),
+  [dlpViolations]);
 
+  const categoryOptions = ['encryption', 'data_protection'];
+
+  // ── Empty state ─────────────────────────────────────────────────────────────
+  const EmptyTabState = ({ icon: Icon = FileSearch, message }) => (
+    <div className="flex flex-col items-center justify-center py-16 gap-3" style={{ color: 'var(--text-muted)' }}>
+      <Icon className="w-8 h-8 opacity-40" />
+      <p className="text-sm text-center max-w-md" style={{ color: 'var(--text-secondary)' }}>{message}</p>
+    </div>
+  );
+
+  // ── Page context ────────────────────────────────────────────────────────────
   const pageContext = {
     title: 'Data Security',
-    brief: 'Data catalog, classification, encryption coverage, residency compliance, and DLP violation tracking.',
+    brief: realFindings.length
+      ? `${realFindings.length.toLocaleString()} findings — ${kpiNums.encryption_count} encryption · ${kpiNums.dlp_violations} DLP violations`
+      : 'Data catalog, classification, encryption coverage, residency compliance, and DLP violation tracking.',
     tabs: [
-      { id: 'overview',       label: 'Overview' },
-      { id: 'catalog',        label: 'Data Catalog',     count: realCatalog.length         },
-      { id: 'classification', label: 'Classification',    count: realClassification.length  },
-      { id: 'encryption',     label: 'Encryption',        count: encryptionData.length      },
-      { id: 'residency',      label: 'Data Residency',    count: dataResidency.length       },
-      { id: 'access',         label: 'Access Monitoring', count: accessMonitoring.length    },
-      { id: 'dlp',            label: 'DLP',               count: dlpViolations.length       },
+      { id: 'overview',  label: 'Overview' },
+      { id: 'catalog',   label: 'Data Catalog',     count: catalogData.length       },
+      { id: 'findings',  label: 'Findings',          count: realFindings.length      },
+      { id: 'dlp',       label: 'DLP',               count: dlpViolations.length     },
+      { id: 'residency', label: 'Data Residency',    count: dataResidency.length     },
+      { id: 'access',    label: 'Access Monitoring', count: accessMonitoring.length  },
     ],
   };
 
   const tabData = {
-    catalog:        { data: realCatalog,        columns: catalogColumns        },
-    classification: { data: realClassification, columns: classificationColumns },
-    encryption:     { data: encryptionData,     columns: encryptionColumns     },
-    residency:      { data: dataResidency,      columns: residencyColumns      },
-    access:         { data: accessMonitoring,   columns: accessColumns         },
-    dlp:            { data: dlpViolations,      columns: dlpColumns            },
+    catalog: {
+      data: catalogData,
+      columns: catalogColumns,
+      filters: [
+        { key: 'provider',         label: 'Cloud Platform', options: ['aws', 'azure', 'gcp'] },
+        { key: 'severity',         label: 'Severity',       options: ['critical', 'high', 'medium', 'low'] },
+        { key: 'status',           label: 'Status',         options: ['FAIL', 'PASS'] },
+        { key: 'posture_category', label: 'Category',       options: categoryOptions },
+      ],
+      extraFilters: [
+        { key: 'service',       label: 'Service',       options: serviceOptions },
+        { key: 'region',        label: 'Region',        options: [] },
+        { key: 'account_id',    label: 'Account',       options: [] },
+        { key: 'resource_type', label: 'Resource Type', options: [] },
+      ],
+      searchPlaceholder: 'Search by rule, resource, account...',
+    },
+    findings: {
+      data: realFindings,
+      columns: findingsColumns,
+      filters: [
+        { key: 'provider',         label: 'Cloud Platform', options: ['aws', 'azure', 'gcp'] },
+        { key: 'severity',         label: 'Severity',       options: ['critical', 'high', 'medium', 'low'] },
+        { key: 'status',           label: 'Status',         options: ['FAIL', 'PASS'] },
+        { key: 'posture_category', label: 'Category',       options: categoryOptions },
+        { key: 'service',          label: 'Service',        options: serviceOptions },
+      ],
+      extraFilters: [
+        { key: 'region',        label: 'Region',        options: [] },
+        { key: 'account_id',    label: 'Account',       options: [] },
+        { key: 'resource_type', label: 'Resource Type', options: [] },
+      ],
+      searchPlaceholder: 'Search by rule, resource, title...',
+    },
+    dlp: dlpViolations.length
+      ? {
+          data: dlpViolations,
+          columns: dlpColumns,
+          filters: [
+            { key: 'provider', label: 'Cloud Platform', options: ['aws', 'azure', 'gcp'] },
+            { key: 'severity', label: 'Severity',       options: ['critical', 'high', 'medium', 'low'] },
+            { key: 'status',   label: 'Status',         options: ['FAIL', 'PASS'] },
+            { key: 'service',  label: 'Service',        options: dlpServiceOptions },
+          ],
+          extraFilters: [
+            { key: 'region',     label: 'Region',  options: [] },
+            { key: 'account_id', label: 'Account', options: [] },
+          ],
+          searchPlaceholder: 'Search by rule, resource...',
+        }
+      : { renderTab: () => <EmptyTabState icon={ShieldCheck} message="No DLP policy violations detected. Data Loss Prevention findings appear here after scan analysis completes." /> },
+    residency: dataResidency.length
+      ? { data: dataResidency, columns: residencyColumns }
+      : { renderTab: () => <EmptyTabState message="Data residency findings appear after scan — no residency rules matched for this account." /> },
+    access: accessMonitoring.length
+      ? { data: accessMonitoring, columns: accessColumns }
+      : { renderTab: () => <EmptyTabState message="Access monitoring findings appear here after activity analysis. Enable CloudTrail or equivalent logging to populate this tab." /> },
   };
 
   return (
@@ -660,25 +783,8 @@ export default function DataSecurityPage() {
             <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Data Security</h1>
           </div>
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-            Data catalog, classification, encryption coverage, residency compliance, and DLP violation tracking.
+            {pageContext.brief}
           </p>
-          {pageContext.details?.length > 0 && (
-            <>
-              <button onClick={() => setDetailsOpen(d => !d)}
-                className="flex items-center gap-1 text-xs mt-1 hover:underline"
-                style={{ color: 'var(--accent-primary)' }}>
-                <Info className="w-3.5 h-3.5" />
-                {detailsOpen ? 'Hide' : 'Best practices'}
-                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${detailsOpen ? 'rotate-180' : ''}`} />
-              </button>
-              {detailsOpen && (
-                <ul className="mt-2 ml-4 space-y-1 text-xs list-disc"
-                  style={{ color: 'var(--text-tertiary)' }}>
-                  {pageContext.details.map((d, i) => <li key={i}>{d}</li>)}
-                </ul>
-              )}
-            </>
-          )}
         </div>
         <button onClick={() => window.location.reload()}
           className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-opacity hover:opacity-80"
@@ -693,12 +799,14 @@ export default function DataSecurityPage() {
         pageContext={pageContext}
         kpiGroups={[]}
         tabData={{ overview: { renderTab: () => insightStrip }, ...tabData }}
-        loading={false}
+        loading={loading}
         error={error}
         defaultTab="overview"
         hideHeader
         topNav
+        onRowClick={handleRowClick}
       />
+      <FindingDetailPanel finding={selectedFinding} onClose={() => setSelectedFinding(null)} />
     </div>
   );
 }

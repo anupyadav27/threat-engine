@@ -62,6 +62,15 @@ def save_iam_report_to_db(report: Dict[str, Any]) -> str:
     critical = sum(1 for f in findings if f.get("severity") == "critical")
     high = sum(1 for f in findings if f.get("severity") == "high")
 
+    # Count access keys that need rotation — FAIL findings whose rule_id references
+    # key age / rotation policy (e.g. aws.iam.access_key.rotation, credential.age, etc.)
+    _KEY_ROTATION_TERMS = ("rotation", "key_age", "access_key", "rotate", "credential_age")
+    key_rotation_count = sum(
+        1 for f in findings
+        if f.get("status") == "FAIL"
+        and any(term in (f.get("rule_id") or "").lower() for term in _KEY_ROTATION_TERMS)
+    )
+
     conn = _get_iam_db_connection()
 
     try:
@@ -78,15 +87,17 @@ def save_iam_report_to_db(report: Dict[str, Any]) -> str:
                 INSERT INTO iam_report (
                     scan_run_id, tenant_id, cloud, generated_at,
                     total_findings, iam_relevant_findings, critical_findings, high_findings,
+                    key_rotation_count,
                     findings_by_module, findings_by_status, report_data
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb)
                 ON CONFLICT (scan_run_id) DO UPDATE SET
                     generated_at = EXCLUDED.generated_at,
                     total_findings = EXCLUDED.total_findings,
                     iam_relevant_findings = EXCLUDED.iam_relevant_findings,
                     critical_findings = EXCLUDED.critical_findings,
                     high_findings = EXCLUDED.high_findings,
+                    key_rotation_count = EXCLUDED.key_rotation_count,
                     findings_by_module = EXCLUDED.findings_by_module,
                     findings_by_status = EXCLUDED.findings_by_status,
                     report_data = EXCLUDED.report_data
@@ -99,6 +110,7 @@ def save_iam_report_to_db(report: Dict[str, Any]) -> str:
                 iam_relevant,
                 critical,
                 high,
+                key_rotation_count,
                 json.dumps(findings_by_module),
                 json.dumps(findings_by_status),
                 json.dumps(report, default=str)

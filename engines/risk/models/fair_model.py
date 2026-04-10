@@ -38,7 +38,12 @@ ENGINE_TO_SCENARIO_TYPE = {
     "supplychain": "data_breach",
     "api": "data_breach",
     "check": "compliance_fine",
+    "compliance": "compliance_fine",
     "vulnerability": "data_breach",
+    "encryption": "data_breach",
+    "database": "data_breach",
+    "ai_security": "data_breach",
+    "ciem": "account_takeover",
 }
 
 

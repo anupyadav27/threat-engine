@@ -1,0 +1,198 @@
+- rule_id: network.flow.rejected_traffic
+  engine: network-security
+  source_type: vpc_flow
+  severity: low
+  title: Rejected network traffic
+  condition:
+    field: network.flow_action
+    op: equals
+    value: REJECT
+  l2_scenarios:
+  - network.port_scan
+  - network.lateral_movement
+  domain: network_security
+  service: vpc
+  provider: aws
+  remediation: Review security group and NACL rules. Restrict public access. Enable VPC Flow Logs for monitoring.
+  compliance_frameworks: &id001
+  - CIS
+  - NIST_800-53
+  - PCI-DSS
+  - SOC2
+  risk_score: 25
+- rule_id: network.flow.ssh_from_internet
+  engine: network-security
+  source_type: vpc_flow
+  severity: high
+  title: SSH traffic from external IP
+  condition:
+    all:
+    - field: network.dst_port
+      op: equals
+      value: 22
+    - field: network.src_ip
+      op: not_starts_with
+      value:
+      - '10.'
+      - 172.16.
+      - 172.17.
+      - 172.18.
+      - 172.19.
+      - '172.2'
+      - 172.30.
+      - 172.31.
+      - 192.168.
+  l2_scenarios:
+  - network.brute_force_ssh
+  domain: network_security
+  service: vpc
+  provider: aws
+  remediation: Review security group and NACL rules. Restrict public access. Enable VPC Flow Logs for monitoring.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: network.flow.rdp_from_internet
+  engine: network-security
+  source_type: vpc_flow
+  severity: high
+  title: RDP traffic from external IP
+  condition:
+    all:
+    - field: network.dst_port
+      op: equals
+      value: 3389
+    - field: network.src_ip
+      op: not_starts_with
+      value:
+      - '10.'
+      - 172.16.
+      - 192.168.
+  l2_scenarios:
+  - network.brute_force_rdp
+  domain: network_security
+  service: vpc
+  provider: aws
+  remediation: Review security group and NACL rules. Restrict public access. Enable VPC Flow Logs for monitoring.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: network.flow.dns_exfil
+  engine: network-security
+  source_type: vpc_flow
+  severity: medium
+  title: Unusual DNS traffic volume (potential exfil)
+  condition:
+    all:
+    - field: network.dst_port
+      op: equals
+      value: 53
+    - field: network.bytes_in
+      op: greater_than
+      value: 10000
+  l2_scenarios:
+  - network.dns_exfiltration
+  domain: network_security
+  service: vpc
+  provider: aws
+  remediation: Review security group and NACL rules. Restrict public access. Enable VPC Flow Logs for monitoring.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: network.flow.high_port_scan
+  engine: network-security
+  source_type: vpc_flow
+  severity: medium
+  title: Connection to many ports (port scan indicator)
+  condition:
+    field: network.flow_action
+    op: equals
+    value: REJECT
+  l2_scenarios:
+  - network.port_scan
+  domain: network_security
+  service: vpc
+  provider: aws
+  remediation: Review security group and NACL rules. Restrict public access. Enable VPC Flow Logs for monitoring.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: network.ct.sg_open_to_world
+  engine: network-security
+  source_type: cloudtrail
+  severity: critical
+  title: Security group opened to 0.0.0.0/0
+  condition:
+    field: operation
+    op: equals
+    value: AuthorizeSecurityGroupIngress
+  l2_scenarios:
+  - network.exposure_change
+  domain: network_security
+  service: unknown
+  provider: aws
+  remediation: Investigate the event. Review actor permissions and intent.
+  compliance_frameworks:
+  - CIS
+  - NIST_800-53
+  risk_score: 90
+- rule_id: network.ct.nacl_modified
+  engine: network-security
+  source_type: cloudtrail
+  severity: medium
+  title: Network ACL modified
+  condition:
+    field: operation
+    op: in
+    value:
+    - CreateNetworkAclEntry
+    - ReplaceNetworkAclEntry
+    - DeleteNetworkAclEntry
+  l2_scenarios:
+  - network.exposure_change
+  domain: network_security
+  service: unknown
+  provider: aws
+  remediation: Investigate the event. Review actor permissions and intent.
+  compliance_frameworks:
+  - CIS
+  - NIST_800-53
+  risk_score: 50
+- rule_id: network.ct.route_table_modified
+  engine: network-security
+  source_type: cloudtrail
+  severity: medium
+  title: Route table modified
+  condition:
+    field: operation
+    op: in
+    value:
+    - CreateRoute
+    - ReplaceRoute
+    - DeleteRoute
+  l2_scenarios:
+  - network.exposure_change
+  domain: network_security
+  service: unknown
+  provider: aws
+  remediation: Investigate the event. Review actor permissions and intent.
+  compliance_frameworks:
+  - CIS
+  - NIST_800-53
+  risk_score: 50
+- rule_id: network.ct.vpc_peering_created
+  engine: network-security
+  source_type: cloudtrail
+  severity: high
+  title: VPC peering connection created
+  condition:
+    field: operation
+    op: in
+    value:
+    - CreateVpcPeeringConnection
+    - AcceptVpcPeeringConnection
+  l2_scenarios:
+  - network.lateral_movement
+  domain: network_security
+  service: unknown
+  provider: aws
+  remediation: Investigate the event. Review actor permissions and intent.
+  compliance_frameworks:
+  - CIS
+  - NIST_800-53
+  risk_score: 70

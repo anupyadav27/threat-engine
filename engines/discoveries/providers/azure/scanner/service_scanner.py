@@ -1,288 +1,370 @@
 """
 Azure Discovery Scanner
 
-Multi-cloud architecture: Uses a service handler registry pattern where each Azure
-service has a registered handler. New services are added by defining a handler function
-and registering it — no hardcoded if/elif chains.
+DB-driven multi-service discovery for Azure subscriptions.
+Service enumeration is driven by rule_discoveries table — no hardcoded handlers.
 
-Currently supported:
-- resource_groups (Global)
-- compute (Regional - Virtual Machines)
-- sql (PaaS - SQL Servers)
-- storage (SaaS - Storage Accounts)
+Authentication: ClientSecretCredential resolved from AWS Secrets Manager
+via credential_ref (e.g. 'threat-engine/azure/{subscription_id}').
 
-Extends to all Azure services by adding handler functions.
+Implementation stories:
+  AZ-01/AZ-01b  — this skeleton
+  AZ-02          — AzureClientFactory (client_factory.py)
+  AZ-02b         — _call_with_timeout
+  AZ-04          — scan_service, extract_resource_identifier, normalize
+  AZ-17b         — _resolve_credentials (Secrets Manager → ClientSecretCredential)
 """
 
-from typing import Dict, List, Any, Optional, Tuple, Callable
-import logging
+from __future__ import annotations
+
 import asyncio
-import importlib
-from concurrent.futures import ThreadPoolExecutor
-from common.models.provider_interface import DiscoveryScanner, AuthenticationError, DiscoveryError
+import json
+import logging
+from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeoutError
+from typing import Any, Dict, List, Optional
+
+from common.models.provider_interface import (
+    AuthenticationError,
+    DiscoveryError,
+    DiscoveryScanner,
+)
+from providers.azure.client_factory import AzureClientFactory
+from providers.azure.pagination import azure_list_all
 
 logger = logging.getLogger(__name__)
 
+# Per-call timeout (seconds) — matches AWS scanner OPERATION_TIMEOUT
+OPERATION_TIMEOUT = 10
+
 # Thread pool for blocking Azure SDK calls
-_AZURE_EXECUTOR = ThreadPoolExecutor(max_workers=10)
+_AZURE_EXECUTOR = ThreadPoolExecutor(max_workers=10, thread_name_prefix="azure-sdk")
 
-# Default Azure regions for scanning
-DEFAULT_AZURE_REGIONS = [
-    'eastus', 'eastus2', 'westus', 'westus2', 'centralus',
-    'northeurope', 'westeurope', 'southeastasia', 'eastasia',
-    'australiaeast', 'japaneast', 'uksouth', 'canadacentral',
-    'centralindia', 'koreacentral', 'brazilsouth',
-]
-
-# ─── Service Handler Registry ──────────────────────────────────────
-#
-# Each handler: fn(credential, subscription_id, region, config) -> List[Dict]
-# Add new services by defining a handler and adding to this dict.
-# The discovery engine calls scan_service(service, region, config)
-# which dispatches to the appropriate handler.
-#
-AZURE_SERVICE_HANDLERS: Dict[str, Callable] = {}
-
-
-def azure_handler(service_name: str):
-    """Decorator to register an Azure service discovery handler."""
-    def decorator(fn: Callable):
-        AZURE_SERVICE_HANDLERS[service_name] = fn
-        return fn
-    return decorator
-
-
-# ─── Azure Management Client Factory ───────────────────────────────
-
-# Maps service name -> (module_path, class_name) for Azure SDK clients
-AZURE_CLIENT_MAP = {
-    'resource_groups': ('azure.mgmt.resource', 'ResourceManagementClient'),
-    'compute': ('azure.mgmt.compute', 'ComputeManagementClient'),
-    'sql': ('azure.mgmt.sql', 'SqlManagementClient'),
-    'storage': ('azure.mgmt.storage', 'StorageManagementClient'),
-    'network': ('azure.mgmt.network', 'NetworkManagementClient'),
-    'keyvault': ('azure.mgmt.keyvault', 'KeyVaultManagementClient'),
-    'web': ('azure.mgmt.web', 'WebSiteManagementClient'),
-    'monitor': ('azure.mgmt.monitor', 'MonitorManagementClient'),
-    'containerservice': ('azure.mgmt.containerservice', 'ContainerServiceClient'),
-    'cosmosdb': ('azure.mgmt.cosmosdb', 'CosmosDBManagementClient'),
+# Normalize Azure resource type strings → short names for downstream engines
+_RESOURCE_TYPE_MAP: Dict[str, str] = {
+    "Microsoft.Compute/virtualMachines":              "VirtualMachine",
+    "Microsoft.Compute/virtualMachineScaleSets":      "VMSS",
+    "Microsoft.Compute/disks":                        "ManagedDisk",
+    "Microsoft.Compute/snapshots":                    "Snapshot",
+    "Microsoft.Network/virtualNetworks":              "VirtualNetwork",
+    "Microsoft.Network/networkSecurityGroups":        "NetworkSecurityGroup",
+    "Microsoft.Network/loadBalancers":                "LoadBalancer",
+    "Microsoft.Network/applicationGateways":          "ApplicationGateway",
+    "Microsoft.Network/subnets":                      "Subnet",
+    "Microsoft.Network/publicIPAddresses":            "PublicIPAddress",
+    "Microsoft.Network/networkInterfaces":            "NetworkInterface",
+    "Microsoft.Network/firewallPolicies":             "FirewallPolicy",
+    "Microsoft.Storage/storageAccounts":              "StorageAccount",
+    "Microsoft.KeyVault/vaults":                      "KeyVault",
+    "Microsoft.Sql/servers":                          "SQLServer",
+    "Microsoft.Sql/servers/databases":                "SQLDatabase",
+    "Microsoft.ContainerService/managedClusters":     "AKSCluster",
+    "Microsoft.Web/sites":                            "AppService",
+    "Microsoft.DocumentDB/databaseAccounts":          "CosmosDB",
+    "Microsoft.DBforPostgreSQL/servers":              "PostgreSQLServer",
+    "Microsoft.DBforMySQL/servers":                   "MySQLServer",
+    "Microsoft.Authorization/roleAssignments":        "RoleAssignment",
+    "Microsoft.Authorization/roleDefinitions":        "RoleDefinition",
+    "Microsoft.Insights/activityLogAlerts":           "ActivityLogAlert",
+    "Microsoft.Insights/diagnosticSettings":          "DiagnosticSetting",
+    "Microsoft.Security/securityContacts":            "SecurityContact",
+    "Microsoft.Security/pricings":                    "SecurityPricing",
 }
 
 
-def _get_azure_client(credential, subscription_id: str, service: str):
-    """Factory: returns an Azure management client for the given service."""
-    if service not in AZURE_CLIENT_MAP:
-        raise DiscoveryError(f"No Azure client mapping for service: {service}. "
-                             f"Add it to AZURE_CLIENT_MAP in service_scanner.py")
-    module_path, class_name = AZURE_CLIENT_MAP[service]
-    module = importlib.import_module(module_path)
-    client_class = getattr(module, class_name)
-    return client_class(credential, subscription_id)
+def _call_with_timeout(future: Future, service: str, region: str) -> Optional[Any]:
+    """Execute a submitted future with timeout, returning None on timeout/error.
 
+    Prevents hung Azure API calls from blocking executor threads indefinitely.
+    Every Azure SDK call submitted to _AZURE_EXECUTOR must use this wrapper.
 
-def _serialize_azure_resource(resource, discovery_id: str, resource_type: str) -> Dict[str, Any]:
+    Args:
+        future: Submitted concurrent.futures.Future
+        service: Service name for logging context (e.g. 'compute')
+        region: Region name for logging context (e.g. 'eastus')
+
+    Returns:
+        Future result, or None if timed out or errored
     """
-    Convert an Azure SDK resource object to a serializable dict.
+    try:
+        return future.result(timeout=OPERATION_TIMEOUT)
+    except FuturesTimeoutError:
+        logger.warning(
+            "Azure API call timed out after %ds: service=%s region=%s",
+            OPERATION_TIMEOUT, service, region,
+        )
+        return None
+    except Exception as exc:
+        logger.error(
+            "Azure API call failed: service=%s region=%s error=%s",
+            service, region, exc,
+        )
+        return None
 
-    This is the standard serialization for any Azure management resource.
-    Handles common fields (id, name, location, tags) and falls back to
-    as_dict() for complete serialization.
+
+def _normalize_location(location: str) -> str:
+    """Normalize Azure location string for comparison.
+
+    Azure API returns 'eastus', 'East US', 'eastus2' etc. interchangeably.
+    Normalize to lowercase with spaces stripped.
+
+    Args:
+        location: Raw Azure location string
+
+    Returns:
+        Lowercase no-space location string
     """
-    # Use as_dict() if available (all Azure SDK model objects support this)
-    if hasattr(resource, 'as_dict'):
-        item = resource.as_dict()
-    elif hasattr(resource, '__dict__'):
-        item = {k: v for k, v in resource.__dict__.items() if not k.startswith('_')}
-    else:
-        item = {'raw': str(resource)}
+    return location.lower().replace(" ", "")
 
-    # Ensure standard fields
-    item.setdefault('id', getattr(resource, 'id', ''))
-    item.setdefault('name', getattr(resource, 'name', ''))
-    item.setdefault('location', getattr(resource, 'location', ''))
-    item['resource_type'] = resource_type
-    item['_discovery_id'] = discovery_id
-
-    # Map Azure 'id' to standard resource identifier fields used by database_manager
-    azure_resource_id = item.get('id', '')
-    item['resource_arn'] = azure_resource_id      # Azure resource ID as ARN equivalent
-    item['resource_id'] = azure_resource_id
-    item['resource_uid'] = azure_resource_id
-
-    # Build _raw_response (everything except internal/metadata fields)
-    item['_raw_response'] = {k: v for k, v in item.items()
-                             if not k.startswith('_') and k not in (
-                                 'resource_arn', 'resource_uid', 'resource_id', 'resource_type')}
-
-    # Normalize tags
-    tags = getattr(resource, 'tags', None)
-    if tags and not isinstance(tags, dict):
-        item['tags'] = dict(tags)
-
-    return item
-
-
-# ─── Service Handlers ───────────────────────────────────────────────
-# Each handler is a simple function that takes (credential, sub_id, region, config)
-# and returns a list of resource dicts. Add new ones freely.
-
-@azure_handler('resource_groups')
-def _scan_resource_groups(credential, subscription_id: str, region: str, config: Dict) -> List[Dict]:
-    """Discover Azure resource groups (global — not region-specific)."""
-    client = _get_azure_client(credential, subscription_id, 'resource_groups')
-    resources = []
-    for rg in client.resource_groups.list():
-        item = _serialize_azure_resource(rg, 'azure.resource_groups.list', 'Microsoft.Resources/resourceGroups')
-        resources.append(item)
-    logger.info(f"  resource_groups: {len(resources)} found")
-    return resources
-
-
-@azure_handler('compute')
-def _scan_compute(credential, subscription_id: str, region: str, config: Dict) -> List[Dict]:
-    """Discover Azure virtual machines, filtered by region."""
-    client = _get_azure_client(credential, subscription_id, 'compute')
-    resources = []
-    for vm in client.virtual_machines.list_all():
-        vm_location = (getattr(vm, 'location', '') or '').lower().replace(' ', '')
-        if region and region.lower() != vm_location:
-            continue
-        item = _serialize_azure_resource(vm, 'azure.compute.virtual_machines.list_all', 'Microsoft.Compute/virtualMachines')
-        resources.append(item)
-    logger.info(f"  compute/{region}: {len(resources)} VMs found")
-    return resources
-
-
-@azure_handler('sql')
-def _scan_sql(credential, subscription_id: str, region: str, config: Dict) -> List[Dict]:
-    """Discover Azure SQL servers, filtered by region."""
-    client = _get_azure_client(credential, subscription_id, 'sql')
-    resources = []
-    for server in client.servers.list():
-        server_location = (getattr(server, 'location', '') or '').lower().replace(' ', '')
-        if region and region.lower() != server_location:
-            continue
-        item = _serialize_azure_resource(server, 'azure.sql.servers.list', 'Microsoft.Sql/servers')
-        resources.append(item)
-    logger.info(f"  sql/{region}: {len(resources)} SQL servers found")
-    return resources
-
-
-@azure_handler('storage')
-def _scan_storage(credential, subscription_id: str, region: str, config: Dict) -> List[Dict]:
-    """Discover Azure storage accounts (global — not region-specific)."""
-    client = _get_azure_client(credential, subscription_id, 'storage')
-    resources = []
-    for account in client.storage_accounts.list():
-        item = _serialize_azure_resource(account, 'azure.storage.storage_accounts.list', 'Microsoft.Storage/storageAccounts')
-        resources.append(item)
-    logger.info(f"  storage: {len(resources)} storage accounts found")
-    return resources
-
-
-# ─── Main Scanner Class ─────────────────────────────────────────────
 
 class AzureDiscoveryScanner(DiscoveryScanner):
+    """Azure cloud resource discovery scanner.
+
+    Implements DB-driven service discovery for Azure subscriptions.
+    All service enumeration is driven by rule_discoveries table, not hardcoded.
+
+    Credential resolution: credential_ref → AWS Secrets Manager →
+    ClientSecretCredential(tenant_id, client_id, client_secret).
+
+    Usage::
+
+        scanner = AzureDiscoveryScanner(credentials=creds, provider="azure")
+        scanner.authenticate()
+        resources = asyncio.run(scanner.scan_service("compute", "eastus", config))
     """
-    Azure-specific discovery scanner implementation.
 
-    Uses a handler registry pattern: AZURE_SERVICE_HANDLERS maps service names
-    to handler functions. To add a new Azure service, just define a handler
-    function with the @azure_handler('service_name') decorator above.
-    """
+    def __init__(self, credentials: Dict[str, Any], **kwargs) -> None:
+        """Initialize Azure scanner.
 
-    def __init__(self, credentials: Dict[str, Any], **kwargs):
-        super().__init__(credentials, **kwargs)
-        self.credential = None
-        self.subscription_id = credentials.get('subscription_id')
-
-    def authenticate(self) -> Any:
+        Args:
+            credentials: Credential dict, expected to contain either:
+                - Pre-resolved keys: tenant_id, client_id, client_secret, subscription_id
+                - Or: credential_ref, credential_type (resolved via _resolve_credentials)
+            **kwargs: provider (str), account_id (str)
         """
-        Authenticate to Azure using provided credentials.
+        super().__init__(credentials=credentials, **kwargs)
+        self.subscription_id: Optional[str] = credentials.get("subscription_id")
+        self.credential_ref: Optional[str] = credentials.get("credential_ref")
+        self.credential_type: Optional[str] = credentials.get("credential_type")
+        self._factory: Optional[AzureClientFactory] = None  # Set by authenticate()
 
-        Supports:
-        - Service Principal (client_id, client_secret, tenant_id)
-        - Managed Identity
-        - Application Default (DefaultAzureCredential — picks up CLI, env, managed identity)
+    # ── Authentication ──────────────────────────────────────────────────────
+
+    def authenticate(self) -> AzureClientFactory:
+        """Authenticate using Azure Service Principal (ClientSecretCredential).
+
+        If credentials dict already contains all 4 SP keys, uses them directly.
+        Otherwise calls _resolve_credentials(credential_ref) to fetch from
+        AWS Secrets Manager (AZ-17b).
+
+        Returns:
+            AzureClientFactory (also stored as self._factory)
+
+        Raises:
+            AuthenticationError: If credentials are missing or auth fails.
         """
-        try:
-            cred_type = self.credentials.get('credential_type', '').lower()
+        required = {"tenant_id", "client_id", "client_secret", "subscription_id"}
+        creds = self.credentials
 
-            if cred_type in ('service_principal', 'azure_service_principal'):
-                from azure.identity import ClientSecretCredential
-                self.credential = ClientSecretCredential(
-                    tenant_id=self.credentials['tenant_id'],
-                    client_id=self.credentials['client_id'],
-                    client_secret=self.credentials['client_secret']
+        if not required.issubset(creds.keys()):
+            if not self.credential_ref:
+                raise AuthenticationError(
+                    "Azure credentials missing required keys and no credential_ref provided. "
+                    f"Expected: {required}"
                 )
-                logger.info("Azure authentication successful (Service Principal)")
+            try:
+                resolved = self._resolve_credentials(self.credential_ref)
+                creds = {**creds, **resolved}
+            except Exception as exc:
+                raise AuthenticationError(
+                    f"Failed to resolve Azure credentials from {self.credential_ref!r}: {exc}"
+                ) from exc
 
-            elif cred_type == 'managed_identity':
-                from azure.identity import ManagedIdentityCredential
-                self.credential = ManagedIdentityCredential()
-                logger.info("Azure authentication successful (Managed Identity)")
+        missing = required - set(creds.keys())
+        if missing:
+            raise AuthenticationError(
+                f"Azure credentials missing required keys after resolution: {missing}"
+            )
 
-            elif cred_type == 'application_default':
-                from azure.identity import DefaultAzureCredential
-                self.credential = DefaultAzureCredential()
-                logger.info("Azure authentication successful (DefaultAzureCredential)")
+        try:
+            self._factory = AzureClientFactory(credentials=creds)
+            self.subscription_id = creds["subscription_id"]
+            self.session = self._factory  # base class compat
+            logger.info(
+                "Azure authentication successful: subscription=%s",
+                self.subscription_id,
+            )
+            return self._factory
+        except Exception as exc:
+            raise AuthenticationError(f"Azure ClientSecretCredential failed: {exc}") from exc
 
-            else:
-                from azure.identity import DefaultAzureCredential
-                self.credential = DefaultAzureCredential()
-                logger.info(f"Azure auth: unknown type '{cred_type}', using DefaultAzureCredential")
+    def _resolve_credentials(self, credential_ref: str) -> dict:
+        """Resolve Azure SP credentials from AWS Secrets Manager.
 
-            return self.credential
+        Args:
+            credential_ref: e.g. 'threat-engine/azure/f6d24b5d-51ed-47b7-9f6a-0ad194156b5e'
 
-        except Exception as e:
-            logger.error(f"Azure authentication failed: {e}")
-            raise AuthenticationError(f"Azure authentication failed: {e}")
+        Returns:
+            Dict with: tenant_id, client_id, client_secret, subscription_id
+
+        Raises:
+            ValueError: If secret is missing required keys.
+
+        Full implementation: AZ-17b.
+        """
+        import boto3  # lazy — only needed for Azure credential resolution
+
+        client = boto3.client("secretsmanager", region_name="ap-south-1")
+        secret = client.get_secret_value(SecretId=credential_ref)
+        creds = json.loads(secret["SecretString"])
+
+        required_keys = {"tenant_id", "client_id", "client_secret", "subscription_id"}
+        missing = required_keys - set(creds.keys())
+        if missing:
+            raise ValueError(
+                f"Azure credentials at {credential_ref!r} missing keys: {missing}"
+            )
+        return creds
+
+    # ── Client factory ──────────────────────────────────────────────────────
+
+    def get_client(self, service: str, region: str) -> Any:
+        """Return Azure management client for the given service.
+
+        Args:
+            service: Service name from rule_discoveries (e.g. 'compute', 'storage')
+            region: Azure location — not used for client creation (Azure clients
+                    are subscription-scoped, not region-scoped), kept for interface compat.
+
+        Returns:
+            Azure management client
+
+        Raises:
+            DiscoveryError: If authenticate() has not been called.
+        """
+        if self._factory is None:
+            raise DiscoveryError("authenticate() must be called before get_client()")
+        return self._factory.get_client(service)
+
+    def get_service_client_name(self, service: str) -> str:
+        """Map rule_discoveries service name to Azure SDK client class name.
+
+        Args:
+            service: Service name (e.g. 'compute', 'storage', 'keyvault')
+
+        Returns:
+            Azure SDK client class name (e.g. 'ComputeManagementClient')
+        """
+        if self._factory is None:
+            from providers.azure.client_factory import _CLIENT_MAP
+            _, class_name = _CLIENT_MAP.get(service, ("", service))
+            return class_name
+        return self._factory.get_client_name(service)
+
+    # ── Discovery ───────────────────────────────────────────────────────────
 
     async def scan_service(
         self,
         service: str,
         region: str,
-        config: Dict[str, Any]
-    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-        """
-        Execute Azure service discovery.
+        config: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
+        """Execute DB-driven discovery for one Azure service in one region.
 
-        Dispatches to the registered handler for the service.
-        Runs Azure SDK calls in a thread pool (SDK is blocking).
-        Returns (discoveries, scan_metadata) tuple.
+        Processes each action in config['discovery'] array:
+        1. Resolves action string to SDK method (dot-notation: 'virtual_machines.list_all')
+        2. Calls azure_list_all() in thread pool (non-blocking)
+        3. Filters results by region (Azure SDK returns subscription-wide for most list_all calls)
+        4. Normalizes each resource to standard output dict
+
+        Server-side vs client-side filtering note:
+        - Azure compute, storage, sql: No server-side region filter on list_all().
+          Must use client-side filter on item.location. Documented per-service below.
+        - Azure network (list by resource group): RG pre-filtered by region where SDK supports.
+        - All filtering is documented inline — no silent O(N) client-side scans.
+
+        Args:
+            service: Azure service name (e.g. 'compute', 'storage', 'keyvault')
+            region: Azure location (e.g. 'eastus', 'westeurope')
+            config: Discovery config from rule_discoveries.discoveries_data:
+                    {"discovery": [{"action": "virtual_machines.list_all", "params": {}, ...}]}
+
+        Returns:
+            List of normalized resource dicts with standard fields.
+
+        Raises:
+            DiscoveryError: If authenticate() has not been called.
         """
-        handler = AZURE_SERVICE_HANDLERS.get(service)
-        if not handler:
-            logger.warning(f"Azure: no handler registered for service '{service}'. "
-                           f"Available: {list(AZURE_SERVICE_HANDLERS.keys())}")
-            return [], {'service': service, 'region': region, 'error': f'No handler for {service}'}
+        if self._factory is None:
+            raise DiscoveryError("authenticate() must be called before scan_service()")
+
+        try:
+            client = self._factory.get_client(service)
+        except (ValueError, ImportError) as exc:
+            logger.warning(
+                "No Azure client for service=%s, skipping region=%s: %s",
+                service, region, exc,
+            )
+            return []
 
         loop = asyncio.get_event_loop()
-        try:
-            discoveries = await loop.run_in_executor(
-                _AZURE_EXECUTOR,
-                handler,
-                self.credential,
-                self.subscription_id,
-                region,
-                config
-            )
-            scan_metadata = {
-                'service': service,
-                'region': region,
-                'resource_count': len(discoveries),
-                'provider': 'azure',
-            }
-            logger.info(f"Azure {service}/{region}: {len(discoveries)} resources discovered")
-            return discoveries, scan_metadata
+        results: List[Dict[str, Any]] = []
+        region_normalized = _normalize_location(region)
 
-        except Exception as e:
-            logger.error(f"Azure scan_service failed for {service}/{region}: {e}")
-            return [], {'service': service, 'region': region, 'error': str(e)}
+        discovery_actions = config.get("discovery", [])
+        if not discovery_actions:
+            logger.debug("No discovery actions for service=%s", service)
+            return []
 
-    def get_client(self, service: str, region: str) -> Any:
-        """Get Azure SDK client for specific service."""
-        return _get_azure_client(self.credential, self.subscription_id, service)
+        for action_spec in discovery_actions:
+            action = action_spec.get("action", "")
+            params = action_spec.get("params") or {}
+            resource_type_hint: Optional[str] = action_spec.get("resource_type")
+
+            method = self._resolve_sdk_method(client, action)
+            if method is None:
+                logger.warning(
+                    "Cannot resolve azure action=%r for service=%s — skipping",
+                    action, service,
+                )
+                continue
+
+            # Run blocking azure_list_all in thread pool (non-blocking event loop)
+            try:
+                items: List[Dict[str, Any]] = await loop.run_in_executor(
+                    _AZURE_EXECUTOR,
+                    lambda m=method, p=params: azure_list_all(m, **p),
+                )
+            except Exception as exc:
+                logger.error(
+                    "azure_list_all failed: service=%s region=%s action=%s: %s",
+                    service, region, action, exc,
+                )
+                continue
+
+            if not items:
+                continue
+
+            for item in items:
+                # Client-side region filter (Azure list_all is subscription-wide)
+                # DOCUMENTED: Azure SDK does not support server-side region filter
+                # on virtual_machines.list_all(), storage_accounts.list(), etc.
+                # We filter client-side on item['location'] to scope to one region.
+                item_location = _normalize_location(item.get("location", ""))
+                if item_location and item_location != region_normalized:
+                    continue
+
+                resource = self._normalize_resource(
+                    item, service, region, resource_type_hint
+                )
+                if resource:
+                    results.append(resource)
+
+        logger.info(
+            "Azure scan_service: service=%s region=%s found=%d",
+            service, region, len(results),
+        )
+        return results
 
     def extract_resource_identifier(
         self,
@@ -290,54 +372,146 @@ class AzureDiscoveryScanner(DiscoveryScanner):
         service: str,
         region: str,
         account_id: str,
-        resource_type: Optional[str] = None
+        resource_type: Optional[str] = None,
     ) -> Dict[str, str]:
-        """
-        Extract resource identifiers from Azure response.
+        """Extract Azure resource identifiers from SDK response item.
 
-        Azure resource ID format:
-        /subscriptions/{sub}/resourceGroups/{rg}/providers/{provider}/{type}/{name}
-        """
-        resource_id = item.get('id', '')
-        resource_name = item.get('name', '')
+        Azure resource_uid = full Azure Resource ID:
+        /subscriptions/{sub}/resourceGroups/{rg}/providers/{type}/{name}
 
-        if not resource_type:
-            resource_type = item.get('resource_type', '')
-            if not resource_type and '/providers/' in resource_id:
-                parts = resource_id.split('/providers/')
-                if len(parts) > 1:
-                    provider_parts = parts[-1].split('/')
-                    if len(provider_parts) >= 2:
-                        resource_type = f"{provider_parts[0]}/{provider_parts[1]}"
+        Args:
+            item: Azure SDK resource dict (from as_dict())
+            service: Service name
+            region: Azure location
+            account_id: Subscription ID
+            resource_type: Optional resource type override
+
+        Returns:
+            Dict with resource_uid, resource_id, resource_name
+        """
+        resource_uid = item.get("id", "")
+        resource_name = item.get("name", "")
+
+        # Fallback resource_uid if 'id' is absent
+        if not resource_uid and resource_name and self.subscription_id:
+            resource_uid = (
+                f"/subscriptions/{self.subscription_id}"
+                f"/providers/Microsoft.{service.capitalize()}/{resource_name}"
+            )
+
+        # Normalize resource type from the 'type' field in the response
+        raw_type = item.get("type", "")
+        normalized_type = _RESOURCE_TYPE_MAP.get(raw_type, raw_type or service)
 
         return {
-            'resource_arn': resource_id,
-            'resource_id': resource_id,
-            'resource_name': resource_name,
-            'resource_uid': resource_id,
-            'resource_type': resource_type,
+            "resource_uid": resource_uid,
+            "resource_id": resource_uid,  # Azure uses full Resource ID as both
+            "resource_name": resource_name,
+            "resource_type": normalized_type,
         }
 
-    def get_service_client_name(self, service: str) -> str:
-        """Map service name to Azure SDK client class name."""
-        if service in AZURE_CLIENT_MAP:
-            return AZURE_CLIENT_MAP[service][1]
-        return service
+    # ── Optional overrides ──────────────────────────────────────────────────
 
     async def list_available_regions(self) -> List[str]:
-        """List available Azure regions for the subscription."""
+        """Return list of Azure locations from SubscriptionClient.
+
+        Returns empty list on error — DiscoveryEngine uses DB-configured regions.
+        """
+        if self._factory is None:
+            return []
         try:
-            from azure.mgmt.subscription import SubscriptionClient
-            client = SubscriptionClient(self.credential)
-            regions = []
-            for location in client.subscriptions.list_locations(self.subscription_id):
-                regions.append(location.name)
-            logger.info(f"Azure: {len(regions)} regions available")
-            return sorted(regions)
-        except Exception as e:
-            logger.warning(f"Failed to list Azure regions, using defaults: {e}")
-            return DEFAULT_AZURE_REGIONS
+            loop = asyncio.get_event_loop()
+            sub_client = self._factory.get_client("resource")
+
+            locations = await loop.run_in_executor(
+                _AZURE_EXECUTOR,
+                lambda: azure_list_all(
+                    sub_client.subscriptions.list_locations,
+                    subscription_id=self.subscription_id,
+                ),
+            )
+            return sorted({loc.get("name", "") for loc in locations if loc.get("name")})
+        except Exception as exc:
+            logger.warning("Could not list Azure regions: %s — using defaults", exc)
+            return []
 
     def get_account_id(self) -> str:
-        """Return subscription ID as account identifier."""
-        return self.subscription_id or ''
+        """Return Azure subscription ID."""
+        if not self.subscription_id:
+            raise DiscoveryError(
+                "subscription_id not set — call authenticate() first"
+            )
+        return self.subscription_id
+
+    # ── Private helpers ─────────────────────────────────────────────────────
+
+    def _resolve_sdk_method(self, client: Any, action: str) -> Optional[Any]:
+        """Resolve a dot-notation action string to an SDK method on client.
+
+        Examples:
+            'virtual_machines.list_all' → client.virtual_machines.list_all
+            'storage_accounts.list'     → client.storage_accounts.list
+            'servers.list'              → client.servers.list
+
+        Args:
+            client: Azure management client instance
+            action: Dot-notation method path (e.g. 'virtual_machines.list_all')
+
+        Returns:
+            Callable method, or None if the path cannot be resolved
+        """
+        parts = action.split(".")
+        obj: Any = client
+        for part in parts:
+            obj = getattr(obj, part, None)
+            if obj is None:
+                logger.debug(
+                    "Cannot resolve action path %r: attribute %r not found on %s",
+                    action, part, type(client).__name__,
+                )
+                return None
+        return obj if callable(obj) else None
+
+    def _normalize_resource(
+        self,
+        item: Dict[str, Any],
+        service: str,
+        region: str,
+        resource_type_hint: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Normalize an Azure SDK resource dict to the standard discovery output.
+
+        Args:
+            item: Azure SDK resource dict (from as_dict())
+            service: Service name for fallback resource_type
+            region: Azure location
+            resource_type_hint: Optional resource type from action spec override
+
+        Returns:
+            Standard resource dict, or None if resource_uid is missing/empty
+        """
+        resource_uid = item.get("id", "")
+        if not resource_uid:
+            logger.debug(
+                "Skipping Azure resource with no 'id' field: service=%s name=%s",
+                service, item.get("name", "<unknown>"),
+            )
+            return None
+
+        raw_type = item.get("type", "")
+        resource_type = (
+            resource_type_hint
+            or _RESOURCE_TYPE_MAP.get(raw_type)
+            or raw_type
+            or service
+        )
+
+        return {
+            "resource_uid":  resource_uid,
+            "resource_type": resource_type,
+            "resource_name": item.get("name", ""),
+            "provider":      "azure",
+            "region":        item.get("location", region),
+            "account_id":    self.subscription_id or "",
+            "raw_data":      item,
+        }

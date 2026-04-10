@@ -11,7 +11,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Query
 
-from ._shared import fetch_many, safe_get, mock_fallback, is_empty_or_health
+from ._shared import fetch_many, fetch_all_check_findings, safe_get, mock_fallback, is_empty_or_health
 from ._transforms import apply_global_filters
 from ._page_context import database_security_page_context, database_security_filter_schema
 
@@ -39,11 +39,19 @@ async def view_database_security(
     if not isinstance(dbsec_data, dict):
         dbsec_data = {}
 
-    # Mock fallback when engine data is empty
-    if is_empty_or_health(dbsec_data):
-        m = mock_fallback("database_security")
-        if m is not None:
-            return m
+    # Fallback: check engine (database_security domain) when dedicated engine has no data
+    _has_dbsec = safe_get(dbsec_data, "findings", []) or safe_get(dbsec_data, "databases", [])
+    if is_empty_or_health(dbsec_data) or not _has_dbsec:
+        check_raw = await fetch_all_check_findings({
+            "tenant_id": tenant_id,
+            "domain": "database_security",
+        })
+        if check_raw:
+            dbsec_data = {"findings": check_raw, "databases": [], "summary": {}}
+        else:
+            m = mock_fallback("database_security")
+            if m is not None:
+                return m
 
     summary = safe_get(dbsec_data, "summary", {})
 
@@ -119,18 +127,14 @@ async def view_database_security(
             {
                 "title": "Database Posture",
                 "items": [
-                    {"label": "Posture Score", "value": posture_score, "suffix": "/100"},
-                    {"label": "Total Databases", "value": total_databases},
+                    {"label": "Posture Score",    "value": posture_score,                          "suffix": "/100"},
+                    {"label": "Total Findings",   "value": len(filtered_findings)},
+                    {"label": "Total Databases",  "value": total_databases},
                     {"label": "Public Databases", "value": public_databases},
-                ],
-            },
-            {
-                "title": "Findings by Severity",
-                "items": [
-                    {"label": "Critical", "value": by_severity.get("critical", 0)},
-                    {"label": "High", "value": by_severity.get("high", 0)},
-                    {"label": "Medium", "value": by_severity.get("medium", 0)},
-                    {"label": "Low", "value": by_severity.get("low", 0)},
+                    {"label": "Critical",         "value": by_severity.get("critical", 0)},
+                    {"label": "High",             "value": by_severity.get("high", 0)},
+                    {"label": "Medium",           "value": by_severity.get("medium", 0)},
+                    {"label": "Low",              "value": by_severity.get("low", 0)},
                 ],
             },
         ],
@@ -139,4 +143,6 @@ async def view_database_security(
             "findings": filtered_findings,
             "domain_scores": domain_scores,
         },
+        "domainBreakdown": safe_get(dbsec_data, "domain_breakdown", []),
+        "scanTrend": safe_get(dbsec_data, "scan_trend", []),
     }

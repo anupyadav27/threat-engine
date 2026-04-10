@@ -5,9 +5,13 @@ and returns nodes + links in a UI-ready format for graph visualization.
 
 Combines data from graph summary, attack paths (internet + all entry),
 toxic combinations to build a complete graph with edges.
+
+Two-layer edge model:
+  path        — attacker traversal (ASSUMES, EXPOSES, STORES, CONNECTS_TO, ...)
+  association — context (HAS_FINDING, HAS_THREAT, ENCRYPTED_BY, DEPENDS_ON, ...)
 """
 
-from typing import Dict, List, Set
+from typing import Dict, List, Optional, Set
 
 from fastapi import APIRouter, Query
 
@@ -25,6 +29,16 @@ def _extract_short_name(uid: str) -> str:
     return uid
 
 
+def _infer_edge_kind(rel_type: str) -> str:
+    """Infer edge_kind from relationship type name if not already set."""
+    _ASSOCIATION_TYPES = {
+        "HAS_FINDING", "HAS_THREAT", "AFFECTED_BY", "ENCRYPTED_BY",
+        "LOGS_TO", "PROTECTED_BY", "DEPENDS_ON", "PROTECTS",
+        "OWNS", "MEMBER_OF", "MONITORED_BY",
+    }
+    return "association" if rel_type.upper() in _ASSOCIATION_TYPES else "path"
+
+
 def _build_graph_from_paths(
     internet_paths: List[dict],
     all_paths: List[dict],
@@ -32,7 +46,7 @@ def _build_graph_from_paths(
 ) -> tuple:
     """Build nodes and edges from attack paths + toxic combinations.
 
-    Returns (nodes, edges).
+    Returns (nodes, edges). Edges include edge_kind="path"|"association".
     """
     node_map: Dict[str, dict] = {}
     edges: List[dict] = []
@@ -90,6 +104,7 @@ def _build_graph_from_paths(
                         "source": prev_id,
                         "target": node_id,
                         "type": rel,
+                        "edge_kind": _infer_edge_kind(rel),
                     })
             prev_id = node_id
 
@@ -134,7 +149,7 @@ def _build_graph_from_paths(
                 "threatCount": combo.get("threat_count", 0),
             }
 
-        # Edges from threat details to resource
+        # Edges from threat details to resource — association edges
         details = combo.get("threat_details") or []
         for td in details:
             det_id = td.get("detection_id", "") if isinstance(td, dict) else ""
@@ -155,6 +170,7 @@ def _build_graph_from_paths(
                         "source": det_id,
                         "target": resource_uid,
                         "type": "AFFECTS",
+                        "edge_kind": "association",
                     })
 
     return list(node_map.values()), edges
@@ -163,12 +179,14 @@ def _build_graph_from_paths(
 @router.get("/threats/graph")
 async def view_threat_graph(
     tenant_id: str = Query(...),
-    scan_run_id: str = Query("latest"),
 ):
     """BFF view for the threat graph visualization page.
 
     Primary: Wiz-style subgraph from Neo4j (resource nodes + relationship edges).
     Fallback: builds graph from attack paths if subgraph endpoint is unavailable.
+
+    Edges include edge_kind="path"|"association" for two-layer rendering.
+    Also fetches orca_paths for the Orca-style attack path cards.
     """
 
     results = await fetch_many([
@@ -190,9 +208,14 @@ async def view_threat_graph(
             "min_severity": "low",
             "entry_point": "all",
         }),
+        ("threat", "/api/v1/graph/orca-paths", {
+            "tenant_id": tenant_id,
+            "max_hops": "5",
+            "min_severity": "medium",
+        }),
     ])
 
-    summary_data, subgraph_data, inet_paths_data, all_paths_data = results
+    summary_data, subgraph_data, inet_paths_data, all_paths_data, orca_data = results
 
     if not isinstance(summary_data, dict):
         summary_data = {}
@@ -205,7 +228,12 @@ async def view_threat_graph(
 
     if isinstance(sub_nodes, list) and len(sub_nodes) > 0:
         nodes = sub_nodes
-        edges = sub_edges if isinstance(sub_edges, list) else []
+        # Ensure every edge has edge_kind
+        raw_edges = sub_edges if isinstance(sub_edges, list) else []
+        edges = [
+            {**e, "edge_kind": e.get("edge_kind") or _infer_edge_kind(e.get("type", ""))}
+            for e in raw_edges
+        ]
     else:
         # Fallback: build from attack paths
         if not isinstance(inet_paths_data, dict):
@@ -221,6 +249,13 @@ async def view_threat_graph(
             all_paths = []
 
         nodes, edges = _build_graph_from_paths(inet_paths, all_paths, [])
+
+    # Orca paths for path-card panel
+    orca_paths = []
+    if isinstance(orca_data, dict):
+        orca_paths = orca_data.get("paths") or []
+    if not isinstance(orca_paths, list):
+        orca_paths = []
 
     # KPIs
     node_counts = safe_get(summary_data, "node_counts", {})
@@ -242,13 +277,67 @@ async def view_threat_graph(
         1 for e in edges if e.get("type") == "EXPOSES"
     )
 
+    path_edges = sum(1 for e in edges if e.get("edge_kind") == "path")
+    assoc_edges = sum(1 for e in edges if e.get("edge_kind") == "association")
+
     return {
         "kpi": {
             "nodes": total_nodes,
             "edges": total_edges,
             "avgRisk": avg_risk,
             "internetExposed": internet_exposed,
+            "pathEdges": path_edges,
+            "associationEdges": assoc_edges,
+            "orcaPaths": len(orca_paths),
         },
         "nodes": nodes,
         "links": edges,
+        "orca_paths": orca_paths,
     }
+
+
+@router.get("/threats/graph/filtered")
+async def view_threat_graph_filtered(
+    tenant_id: str = Query(...),
+    resource_type: Optional[str] = Query(None),
+    security_status: Optional[str] = Query(None),
+    connected_to: Optional[str] = Query(None),
+    via_edge: Optional[str] = Query(None),
+    edge_kind: Optional[str] = Query(None, description="path | association | omit for all"),
+    within_hops: int = Query(2, ge=0, le=5),
+    limit: int = Query(300, ge=1, le=1000),
+):
+    """Real-time filtered subgraph proxy → threat engine /graph/explore.
+
+    Called by the frontend Graph Explorer on every filter change (debounced 300ms).
+    Returns {nodes, edges, total_nodes, total_edges, matched_nodes, cypher_summary}
+    with edge_kind on every edge for two-layer rendering.
+    """
+    params: Dict[str, str] = {"tenant_id": tenant_id, "limit": str(limit)}
+    if resource_type:
+        params["resource_type"] = resource_type
+    if security_status:
+        params["security_status"] = security_status
+    if connected_to:
+        params["connected_to"] = connected_to
+    if via_edge:
+        params["via_edge"] = via_edge
+    if edge_kind:
+        params["edge_kind"] = edge_kind
+    params["within_hops"] = str(within_hops)
+
+    results = await fetch_many([
+        ("threat", "/api/v1/graph/explore", params)
+    ])
+    data = results[0] if results else {}
+    if not isinstance(data, dict):
+        data = {}
+
+    # Ensure every edge has edge_kind
+    raw_edges = data.get("edges") or []
+    data["edges"] = [
+        {**e, "edge_kind": e.get("edge_kind") or _infer_edge_kind(e.get("type", ""))}
+        for e in raw_edges
+    ]
+
+    return data

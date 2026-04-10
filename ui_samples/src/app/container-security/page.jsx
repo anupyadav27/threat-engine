@@ -14,6 +14,7 @@ import { useGlobalFilter } from '@/lib/global-filter-context';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import PageLayout from '@/components/shared/PageLayout';
 import KpiSparkCard from '@/components/shared/KpiSparkCard';
+import FindingDetailPanel from '@/components/shared/FindingDetailPanel';
 
 // ── Colour palette ────────────────────────────────────────────────────────────
 const C = {
@@ -154,6 +155,8 @@ export default function ContainerSecurityPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(null);
   const [data, setData]       = useState({});
+  const [selectedFinding, setSelectedFinding] = useState(null);
+  const handleRowClick = (row) => { const f = row?.original || row; if (f) setSelectedFinding(f); };
 
   const { provider, account, region } = useGlobalFilter();
 
@@ -192,15 +195,15 @@ export default function ContainerSecurityPage() {
     const vulnImages = findings.filter(f => f.security_domain === 'image_security' && f.status === 'FAIL').length;
     const privCont   = findings.filter(f => f.security_domain === 'workload_security' && f.status === 'FAIL').length;
     return {
-      posture_score:         get(g0, 'Posture Score') ?? CTR_KPI_FALLBACK.posture_score,
-      total_findings:        findings.length           || CTR_KPI_FALLBACK.total_findings,
-      critical:              CTR_KPI_FALLBACK.critical,
-      high:                  CTR_KPI_FALLBACK.high,
-      medium:                CTR_KPI_FALLBACK.medium,
-      low:                   CTR_KPI_FALLBACK.low,
-      clusters:              clusters.length           || CTR_KPI_FALLBACK.clusters,
-      vulnerable_images:     vulnImages                || CTR_KPI_FALLBACK.vulnerable_images,
-      privileged_containers: privCont                  || CTR_KPI_FALLBACK.privileged_containers,
+      posture_score:         get(g0, 'Posture Score')   ?? CTR_KPI_FALLBACK.posture_score,
+      total_findings:        findings.length             || CTR_KPI_FALLBACK.total_findings,
+      critical:              get(g0, 'Critical')         ?? CTR_KPI_FALLBACK.critical,
+      high:                  get(g0, 'High')             ?? CTR_KPI_FALLBACK.high,
+      medium:                get(g0, 'Medium')           ?? CTR_KPI_FALLBACK.medium,
+      low:                   get(g0, 'Low')              ?? CTR_KPI_FALLBACK.low,
+      clusters:              clusters.length             || CTR_KPI_FALLBACK.clusters,
+      vulnerable_images:     vulnImages                  || CTR_KPI_FALLBACK.vulnerable_images,
+      privileged_containers: privCont                    || CTR_KPI_FALLBACK.privileged_containers,
       exposed_services:      CTR_KPI_FALLBACK.exposed_services,
     };
   }, [data.kpiGroups, clusters, findings]);
@@ -557,134 +560,159 @@ export default function ContainerSecurityPage() {
   // ── Column definitions ──────────────────────────────────────────────────
 
   const inventoryColumns = [
-    { accessorKey: 'resource_name', header: 'Resource' },
     {
-      accessorKey: 'container_service', header: 'Service',
-      cell: (info) => (
-        <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
-          {info.getValue()}
-        </span>
-      ),
-    },
-    { accessorKey: 'cluster_name', header: 'Cluster' },
-    {
-      accessorKey: 'posture_score', header: 'Posture Score',
+      accessorKey: 'cluster_name', header: 'Cluster',
       cell: (info) => {
-        const score = info.getValue();
-        const color = score >= 80 ? '#22c55e' : score >= 60 ? '#eab308' : score >= 40 ? '#f97316' : '#ef4444';
-        return <span className="text-xs font-bold" style={{ color }}>{score ?? '-'}</span>;
+        const v = info.getValue() || info.row.original.resource_name || info.row.original.name || '—';
+        return <span className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>{v}</span>;
       },
     },
     {
-      accessorKey: 'publicly_accessible', header: 'Public',
+      accessorKey: 'type', header: 'Type',
       cell: (info) => {
-        const v = info.getValue();
-        const isPublic = v === true || v === 'true' || v === 'True' || v === 'yes';
+        const v = info.getValue() || info.row.original.container_service || info.row.original.resource_type || '—';
+        return <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'rgba(56,189,248,0.12)', color: '#38bdf8' }}>{v}</span>;
+      },
+    },
+    { accessorKey: 'version', header: 'Version',
+      cell: (info) => <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>{info.getValue() || '—'}</span> },
+    { accessorKey: 'node_count',  header: 'Nodes',  cell: (info) => info.getValue() ?? '—' },
+    { accessorKey: 'pod_count',   header: 'Pods',   cell: (info) => info.getValue() ?? '—' },
+    {
+      accessorKey: 'posture_score', header: 'Posture',
+      cell: (info) => {
+        const score = info.getValue();
+        if (score == null) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
+        const color = score >= 80 ? '#22c55e' : score >= 60 ? '#eab308' : score >= 40 ? '#f97316' : '#ef4444';
+        return (
+          <div className="flex items-center gap-1.5">
+            <div className="w-12 h-1.5 rounded-full" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+              <div className="h-full rounded-full" style={{ width: `${score}%`, backgroundColor: color }} />
+            </div>
+            <span className="text-xs font-bold" style={{ color }}>{score}</span>
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: 'endpoint_public', header: 'Public Endpoint',
+      cell: (info) => {
+        const v = info.getValue() ?? info.row.original.publicly_accessible;
+        const isPublic = v === true || v === 'true' || v === 'True';
         return isPublic
           ? <AlertTriangle className="w-4 h-4 text-red-400" />
           : <CheckCircle className="w-4 h-4 text-green-400" />;
       },
     },
     {
-      accessorKey: 'encryption', header: 'Encryption',
+      accessorKey: 'secrets_encryption', header: 'Secrets Enc.',
       cell: (info) => {
-        const v = info.getValue();
-        const encrypted = v === 'encrypted' || v === 'enabled' || v === true;
-        return encrypted
+        const v = info.getValue() ?? info.row.original.encryption;
+        return (v === true || v === 'encrypted' || v === 'enabled')
           ? <CheckCircle className="w-4 h-4 text-green-400" />
           : <AlertTriangle className="w-4 h-4 text-red-400" />;
       },
     },
     {
       accessorKey: 'logging_enabled', header: 'Logging',
-      cell: (info) => {
-        const v = info.getValue();
-        return v
-          ? <CheckCircle className="w-4 h-4 text-green-400" />
-          : <AlertTriangle className="w-4 h-4 text-yellow-400" />;
-      },
+      cell: (info) => info.getValue()
+        ? <CheckCircle className="w-4 h-4 text-green-400" />
+        : <AlertTriangle className="w-4 h-4 text-yellow-400" />,
     },
-    {
-      accessorKey: 'private_endpoint', header: 'Private Endpoint',
-      cell: (info) => {
-        const v = info.getValue();
-        return v
-          ? <CheckCircle className="w-4 h-4 text-green-400" />
-          : <span className="text-xs" style={{ color: 'var(--text-muted)' }}>-</span>;
-      },
-    },
-  ];
-
-  const findingsColumns = [
-    { accessorKey: 'resource_name', header: 'Resource' },
-    { accessorKey: 'rule_id', header: 'Rule' },
-    {
-      accessorKey: 'severity', header: 'Severity',
-      cell: (info) => <SeverityBadge severity={info.getValue()} />,
-    },
-    {
-      accessorKey: 'status', header: 'Status',
-      cell: (info) => {
-        const v = info.getValue();
-        const isFail = v === 'FAIL';
-        return (
-          <span className={`text-xs px-2 py-0.5 rounded ${isFail ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{v}</span>
-        );
-      },
-    },
-    {
-      accessorKey: 'security_domain', header: 'Domain',
-      cell: (info) => {
-        const v = info.getValue();
-        const meta = DOMAIN_META[v];
-        return (
-          <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'var(--bg-tertiary)', color: meta?.color || 'var(--text-secondary)' }}>
-            {meta?.label || v}
-          </span>
-        );
-      },
-    },
-    { accessorKey: 'container_service', header: 'Service' },
-    { accessorKey: 'account_id', header: 'Account' },
+    { accessorKey: 'account_id', header: 'Account',
+      cell: (info) => <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>{info.getValue() || '—'}</span> },
     { accessorKey: 'region', header: 'Region' },
   ];
+
+  const findingsColumns = useMemo(() => [
+    { accessorKey: 'provider',         header: 'Provider', size: 70,
+      cell: (info) => info.getValue()?.toUpperCase() || '—' },
+    { accessorKey: 'account_id',       header: 'Account', size: 130,
+      cell: (info) => info.getValue() || info.row.original.account || '—' },
+    { accessorKey: 'region',           header: 'Region', size: 110 },
+    { accessorKey: 'service',          header: 'Service', size: 110,
+      cell: (info) => info.getValue() || info.row.original.network_layer || info.row.original.encryption_domain || info.row.original.container_service || info.row.original.db_service || '—' },
+    { accessorKey: 'rule_id',          header: 'Rule ID', size: 130,
+      cell: (info) => <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>{info.getValue() || '—'}</span> },
+    { accessorKey: 'title',            header: 'Finding',
+      cell: (info) => <span className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>{info.getValue() || info.row.original.rule_id || '—'}</span> },
+    { accessorKey: 'severity',         header: 'Severity',
+      cell: (info) => <SeverityBadge severity={info.getValue()} /> },
+    { accessorKey: 'status',           header: 'Status',
+      cell: (info) => { const v = info.getValue(), f = v === 'FAIL'; return <span className={`text-xs px-2 py-0.5 rounded ${f ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{v}</span>; } },
+    { accessorKey: 'resource_uid',     header: 'Resource',
+      cell: (info) => { const v = info.getValue() || ''; return <span className="font-mono text-xs" style={{ color: 'var(--text-secondary)' }}>{v.split('/').pop() || v.split(':').pop() || v}</span>; } },
+    { accessorKey: 'resource_type',    header: 'Type' },
+    { accessorKey: 'container_service',header: 'Container Svc',
+      cell: (info) => { const v = info.getValue(); return v ? <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'rgba(56,189,248,0.12)', color: '#38bdf8' }}>{v}</span> : null; } },
+    { accessorKey: 'cluster_name',     header: 'Cluster' },
+    { accessorKey: 'security_domain',  header: 'Domain',
+      cell: (info) => { const v = info.getValue(); return v ? <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}>{v}</span> : null; } },
+    { accessorKey: 'risk_score',       header: 'Risk',
+      cell: (info) => { const v = info.getValue(); if (!v) return null; const c = v >= 75 ? '#ef4444' : v >= 50 ? '#f97316' : v >= 25 ? '#eab308' : '#22c55e'; return <div className="flex items-center gap-1.5"><div className="w-10 h-1.5 rounded-full" style={{ backgroundColor: 'var(--bg-tertiary)' }}><div className="h-full rounded-full" style={{ width: `${v}%`, backgroundColor: c }} /></div><span className="text-xs font-bold" style={{ color: c }}>{v}</span></div>; } },
+  ], []);
 
   // ── Helper ──
   const uv = (arr, key) => [...new Set(arr.map(r => r[key]).filter(Boolean))].sort();
 
+  const serviceOptions = useMemo(() =>
+    [...new Set((findings || []).map(f => f.service || '').filter(Boolean))].sort(),
+  [findings]);
+
+  const resourceTypeOptions = useMemo(() =>
+    [...new Set((findings || []).map(f => f.resource_type || '').filter(Boolean))].sort(),
+  [findings]);
+
+  const commonFilters = [
+    { key: 'provider', label: 'Cloud Platform', options: ['aws', 'azure', 'gcp'] },
+    { key: 'severity',  label: 'Severity',       options: ['critical', 'high', 'medium', 'low'] },
+    { key: 'status',    label: 'Status',          options: ['FAIL', 'PASS'] },
+    { key: 'service',   label: 'Service',         options: serviceOptions },
+  ];
+  const extraFilters = [
+    { key: 'region',        label: 'Region',        options: [] },
+    { key: 'account_id',    label: 'Account',       options: [] },
+    { key: 'resource_type', label: 'Resource Type', options: resourceTypeOptions },
+  ];
+
   // ── Build tabData ──
   const tabData = useMemo(() => {
-    const clusterSecFindings = findings.filter(f => f.security_domain === 'cluster_security');
-    const imageSecFindings   = findings.filter(f => f.security_domain === 'image_security');
-    const rbacFindings       = findings.filter(f => f.security_domain === 'rbac_access');
+    const matchDomain = (f, ...domains) =>
+      domains.some(d =>
+        (f.security_domain || '').toLowerCase().includes(d) ||
+        (f.posture_category || '').toLowerCase().includes(d) ||
+        (f.rule_id || '').toLowerCase().includes(d)
+      );
+
+    const clusterSecFindings = findings.filter(f => matchDomain(f, 'cluster'));
+    const imageSecFindings   = findings.filter(f => matchDomain(f, 'image', 'cve', 'vuln'));
+    const rbacFindings       = findings.filter(f => matchDomain(f, 'rbac', 'role', 'permission', 'iam'));
+
+    const findingTab = (data) => ({
+      data,
+      columns: findingsColumns,
+      filters: commonFilters,
+      extraFilters,
+      searchPlaceholder: 'Search by rule, resource, title...',
+    });
 
     return {
       overview: {
         data: clusters,
         columns: inventoryColumns,
+        searchPlaceholder: 'Search clusters...',
       },
       inventory: {
         data: clusters,
         columns: inventoryColumns,
+        searchPlaceholder: 'Search clusters...',
       },
-      findings: {
-        data: findings,
-        columns: findingsColumns,
-      },
-      cluster_security: {
-        data: clusterSecFindings,
-        columns: findingsColumns,
-      },
-      image_security: {
-        data: imageSecFindings,
-        columns: findingsColumns,
-      },
-      rbac: {
-        data: rbacFindings,
-        columns: findingsColumns,
-      },
+      findings:         findingTab(findings),
+      cluster_security: findingTab(clusterSecFindings),
+      image_security:   findingTab(imageSecFindings),
+      rbac:             findingTab(rbacFindings),
     };
-  }, [clusters, findings]);
+  }, [clusters, findings, findingsColumns, serviceOptions, resourceTypeOptions]);
 
   return (
     <div className="space-y-5">
@@ -712,8 +740,10 @@ export default function ContainerSecurityPage() {
 
         {/* ── Tabs + table ── */}
         <PageLayout icon={Container} pageContext={pageContext} kpiGroups={[]} insightRow={insightStrip}
-          tabData={tabData} loading={false} error={error} defaultTab="overview" hideHeader topNav />
+          tabData={tabData} loading={false} error={error} defaultTab="overview" hideHeader topNav
+          onRowClick={handleRowClick} />
       </>}
+      <FindingDetailPanel finding={selectedFinding} onClose={() => setSelectedFinding(null)} />
     </div>
   );
 }

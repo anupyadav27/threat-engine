@@ -193,12 +193,10 @@ async def generate_report(request: ScanRequest):
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e))
 
-        # All engines share the same scan_run_id
-        threat_scan_id = orch_id
-
+        # All engines share the same scan_run_id — no per-engine IDs needed
         tenant_id = metadata.get("tenant_id") or request.tenant_id
         csp = (metadata.get("provider") or metadata.get("provider_type", "aws")).lower()
-        logger.info(f"Pipeline mode: orch={orch_id} threat={threat_scan_id} csp={csp}")
+        logger.info(f"Pipeline mode: scan_run_id={orch_id} csp={csp}")
     else:
         # Ad-hoc: scan_run_id is required for Job-based execution
         raise HTTPException(status_code=400, detail="scan_run_id is required for Job-based execution")
@@ -212,7 +210,7 @@ async def generate_report(request: ScanRequest):
                    (scan_run_id, tenant_id, provider, threat_scan_id, status, generated_at, metadata)
                    VALUES (%s, %s, %s, %s, 'running', NOW(), %s)
                    ON CONFLICT (scan_run_id) DO UPDATE SET status = 'running'""",
-                (datasec_scan_id, tenant_id, csp, threat_scan_id,
+                (datasec_scan_id, tenant_id, csp, orch_id,
                  json.dumps({"scan_run_id": orch_id, "mode": "job"})),
             )
         conn.commit()

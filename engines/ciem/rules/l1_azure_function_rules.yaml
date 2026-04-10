@@ -1,0 +1,187 @@
+rules:
+- rule_id: azure.function.error
+  title: Azure Function execution error
+  severity: medium
+  log_source_type: azure_function
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_function
+    - field: outcome
+      op: equals
+      value: FAILURE
+    - field: error_code
+      op: contains
+      value: Exception
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: read
+  mitre_tactics:
+  - execution
+  mitre_techniques:
+  - T1059
+  domain: compute_security
+  provider: azure
+  remediation: Verify the accessor has legitimate need-to-know. Review access patterns for anomalies. Consider restricting
+    read permissions.
+  compliance_frameworks: &id001
+  - CIS
+  - NIST_800-53
+  - SOC2
+  risk_score: 50
+- rule_id: azure.function.permission_denied
+  title: Azure Function permission denied error
+  severity: high
+  log_source_type: azure_function
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_function
+    - field: outcome
+      op: equals
+      value: FAILURE
+    - field: error_code
+      op: in
+      value:
+      - AuthorizationFailure
+      - Forbidden
+      - AccessDenied
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: read
+  mitre_tactics:
+  - privilege-escalation
+  - discovery
+  mitre_techniques:
+  - T1078
+  domain: compute_security
+  provider: azure
+  remediation: Verify the accessor has legitimate need-to-know. Review access patterns for anomalies. Consider restricting
+    read permissions.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: azure.function.timeout
+  title: Azure Function execution timed out
+  severity: medium
+  log_source_type: azure_function
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_function
+    - field: outcome
+      op: equals
+      value: FAILURE
+    - field: error_code
+      op: contains
+      value: Timeout
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: read
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1499
+  description: Repeated timeouts may indicate resource abuse or denial-of-service
+  domain: compute_security
+  provider: azure
+  remediation: Verify the accessor has legitimate need-to-know. Review access patterns for anomalies. Consider restricting
+    read permissions.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: azure.function.high_duration
+  title: Azure Function unusually long execution duration
+  severity: medium
+  log_source_type: azure_function
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_function
+    - field: operation
+      op: contains
+      value: FunctionExecution
+    - field: outcome
+      op: equals
+      value: SUCCESS
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: read
+  mitre_tactics:
+  - execution
+  mitre_techniques:
+  - T1059
+  description: Correlate with execution duration threshold to detect crypto-mining or data exfiltration
+  domain: compute_security
+  provider: azure
+  remediation: Verify the accessor has legitimate need-to-know. Review access patterns for anomalies. Consider restricting
+    read permissions.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: azure.function.runtime_error
+  title: Azure Function runtime error (host-level failure)
+  severity: high
+  log_source_type: azure_function
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_function
+    - field: outcome
+      op: equals
+      value: FAILURE
+    - field: error_code
+      op: in
+      value:
+      - RuntimeError
+      - HostError
+      - ScriptCompilationException
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: read
+  mitre_tactics:
+  - execution
+  mitre_techniques:
+  - T1059
+  domain: compute_security
+  provider: azure
+  remediation: Verify the accessor has legitimate need-to-know. Review access patterns for anomalies. Consider restricting
+    read permissions.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: azure.function.invocation_spike
+  title: Azure Function unusual invocation pattern
+  severity: medium
+  log_source_type: azure_function
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_function
+    - field: operation
+      op: equals
+      value: FunctionExecution
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: read
+  mitre_tactics:
+  - execution
+  - impact
+  mitre_techniques:
+  - T1059
+  description: Baseline invocation rate to detect abuse via high-frequency triggers
+  domain: compute_security
+  provider: azure
+  remediation: Verify the accessor has legitimate need-to-know. Review access patterns for anomalies. Consider restricting
+    read permissions.
+  compliance_frameworks: *id001
+  risk_score: 50

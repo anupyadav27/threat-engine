@@ -51,7 +51,7 @@ ENGINE_TABLES = {
         "dependent_tables": [
             # inventory_findings NOT deleted (UPSERT by resource_uid, latest state)
             ("inventory_relationships", "scan_run_id"),
-            ("inventory_drift", "scan_run_id"),
+            ("inventory_drift", "inventory_scan_id"),
         ],
     },
     "threat": {
@@ -98,6 +98,71 @@ ENGINE_TABLES = {
         "dependent_tables": [
             ("datasec_findings", "scan_run_id"),
             ("datasec_data_stores", "scan_run_id"),
+        ],
+    },
+    "encryption": {
+        "db_env": "ENCRYPTION",
+        "db_name": "threat_engine_encryption",
+        "report_table": "encryption_report",
+        "scan_id_col": "scan_run_id",
+        "tenant_col": "tenant_id",
+        "timestamp_col": "generated_at",
+        "dependent_tables": [
+            ("encryption_findings", "scan_run_id"),
+            ("encryption_key_inventory", "scan_run_id"),
+            ("encryption_cert_inventory", "scan_run_id"),
+            ("encryption_secrets_inventory", "scan_run_id"),
+        ],
+    },
+    "network": {
+        "db_env": "NETWORK",
+        "db_name": "threat_engine_network",
+        "report_table": "network_report",
+        "scan_id_col": "scan_run_id",
+        "tenant_col": "tenant_id",
+        "timestamp_col": "generated_at",
+        "dependent_tables": [
+            ("network_findings", "scan_run_id"),
+            ("network_topology_snapshot", "scan_run_id"),
+            ("network_sg_analysis", "scan_run_id"),
+            ("network_exposure_paths", "scan_run_id"),
+        ],
+    },
+    "database_security": {
+        "db_env": "DBSEC",
+        "db_name": "threat_engine_database_security",
+        "report_table": "dbsec_report",
+        "scan_id_col": "scan_run_id",
+        "tenant_col": "tenant_id",
+        "timestamp_col": "generated_at",
+        "dependent_tables": [
+            ("dbsec_findings", "scan_run_id"),
+            ("dbsec_inventory", "scan_run_id"),
+        ],
+    },
+    "ai_security": {
+        "db_env": "AI_SECURITY",
+        "db_name": "threat_engine_ai_security",
+        "report_table": "ai_security_report",
+        "scan_id_col": "ai_security_scan_id",
+        "tenant_col": "tenant_id",
+        "timestamp_col": "started_at",
+        "dependent_tables": [
+            ("ai_security_findings", "ai_security_scan_id"),
+            ("ai_security_inventory", "ai_security_scan_id"),
+            ("ai_security_input_transformed", "ai_security_scan_id"),
+        ],
+    },
+    "container_security": {
+        "db_env": "CSEC",
+        "db_name": "threat_engine_container_security",
+        "report_table": "container_sec_report",
+        "scan_id_col": "scan_run_id",
+        "tenant_col": "tenant_id",
+        "timestamp_col": "generated_at",
+        "dependent_tables": [
+            ("container_sec_findings", "scan_run_id"),
+            ("container_sec_inventory", "scan_run_id"),
         ],
     },
 }

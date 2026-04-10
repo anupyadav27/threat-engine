@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { ChevronDown, Info, AlertCircle } from 'lucide-react';
 import DataTable from './DataTable';
+import FilterBar from './FilterBar';
 
 /**
  * Standardized page layout for all CSPM pages.
@@ -12,8 +13,9 @@ import DataTable from './DataTable';
  *   pageContext     - { title, brief, details, tabs }
  *   kpiGroups       - [{ title, items: [{ label, value, suffix }] }]
  *   insightRow      - ReactNode (optional) — Slot 3: charts between KPIs and tabs
- *   tabData         - { [tabId]: { data, columns, filters, extraFilters, groupByOptions, renderTab } }
+ *   tabData         - { [tabId]: { data, columns, filters, extraFilters, groupByOptions, renderTab, headerExtra } }
  *                     If renderTab is provided, it is called instead of FilterBar+DataTable.
+ *                     headerExtra: ReactNode rendered above FilterBar (e.g. a filter/notice badge).
  *   loading         - boolean
  *   error           - string | null
  *   defaultTab      - string (default tab id)
@@ -37,12 +39,55 @@ export default function PageLayout({
 
   const [activeTab, setActiveTab] = useState(firstTab);
   const [detailsExpanded, setDetailsExpanded] = useState(false);
+  const [search, setSearch] = useState('');
+  const [activeFilters, setActiveFilters] = useState({});
 
-  const handleTabChange = (id) => setActiveTab(id);
+  const handleTabChange = (id) => {
+    setActiveTab(id);
+    setSearch('');
+    setActiveFilters({});
+  };
+
+  const handleFilterChange = (key, value) => {
+    setActiveFilters(prev => ({ ...prev, [key]: value }));
+  };
 
   const currentTab = tabData[activeTab] || {};
   const rawData = currentTab.data || [];
   const columns = currentTab.columns || [];
+
+  const hasFilters = !!(currentTab.filters);
+
+  const filteredData = useMemo(() => {
+    if (!hasFilters) return rawData;
+
+    const searchFields = ['title', 'rule_id', 'resource_uid', 'resource_type', 'service', 'description'];
+    const lowerSearch = search.toLowerCase();
+
+    return rawData.filter(row => {
+      // Search
+      if (search) {
+        const matchesSearch = searchFields.some(field => {
+          const val = row[field];
+          return val && String(val).toLowerCase().includes(lowerSearch);
+        });
+        if (!matchesSearch) return false;
+      }
+
+      // Active filters
+      for (const [key, value] of Object.entries(activeFilters)) {
+        if (!value) continue;
+        const rowVal = row[key];
+        if (rowVal == null) return false;
+        if (!String(rowVal).toLowerCase().includes(String(value).toLowerCase())) return false;
+      }
+
+      return true;
+    });
+  }, [rawData, search, activeFilters, hasFilters]);
+
+  const displayData = hasFilters ? filteredData : rawData;
+  const isFiltering = hasFilters && (search || Object.values(activeFilters).some(v => v));
 
   if (loading) {
     return (
@@ -157,7 +202,26 @@ export default function PageLayout({
       {currentTab.renderTab ? (
         currentTab.renderTab()
       ) : (
-        <DataTable data={rawData} columns={columns} pageSize={25} onRowClick={onRowClick} />
+        <>
+          {currentTab.headerExtra && currentTab.headerExtra}
+          {hasFilters && (
+            <FilterBar
+              search={search}
+              onSearchChange={setSearch}
+              searchPlaceholder={currentTab.searchPlaceholder || 'Search findings...'}
+              filters={currentTab.filters || []}
+              extraFilters={currentTab.extraFilters || []}
+              activeFilters={activeFilters}
+              onFilterChange={handleFilterChange}
+            />
+          )}
+          {isFiltering && (
+            <div className="text-xs text-right" style={{ color: 'var(--text-muted)' }}>
+              Showing {displayData.length.toLocaleString()} of {rawData.length.toLocaleString()}
+            </div>
+          )}
+          <DataTable data={displayData} columns={columns} pageSize={25} onRowClick={onRowClick} />
+        </>
       )}
     </div>
   );

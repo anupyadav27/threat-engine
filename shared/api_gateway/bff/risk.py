@@ -178,9 +178,9 @@ async def view_risk(
     page_ctx = risk_page_context({"risk_score": risk_score, "risk_level": risk_level})
     page_ctx["tabs"] = [
         {"id": "overview", "label": "Overview", "count": 0},
-        {"id": "categories", "label": "Risk Categories", "count": len(risk_categories)},
+        {"id": "scenarios", "label": "FAIR Scenarios", "count": len(scenarios)},
         {"id": "register", "label": "Risk Register", "count": len(risk_register)},
-        {"id": "scenarios", "label": "Scenarios", "count": len(scenarios)},
+        {"id": "roadmap", "label": "Mitigation Roadmap", "count": len(mitigation_roadmap)},
     ]
 
     accepted = safe_get(risk_data, "accepted_risks") or safe_get(risk_data, "acceptedRisks", 0)

@@ -13,6 +13,7 @@ import { useGlobalFilter } from '@/lib/global-filter-context';
 import PageLayout from '@/components/shared/PageLayout';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import KpiSparkCard from '@/components/shared/KpiSparkCard';
+import FindingDetailPanel from '@/components/shared/FindingDetailPanel';
 
 // ── Colour palette ────────────────────────────────────────────────────────────
 const C = {
@@ -152,6 +153,8 @@ export default function DatabaseSecurityPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [data, setData] = useState({});
+  const [selectedFinding, setSelectedFinding] = useState(null);
+  const handleRowClick = (row) => { const f = row?.original || row; if (f) setSelectedFinding(f); };
 
   const { provider, account, region } = useGlobalFilter();
 
@@ -247,60 +250,51 @@ export default function DatabaseSecurityPage() {
     },
   ];
 
-  const findingsColumns = [
-    { accessorKey: 'resource_name', header: 'Resource' },
-    { accessorKey: 'rule_id', header: 'Rule' },
-    {
-      accessorKey: 'severity', header: 'Severity',
-      cell: (info) => <SeverityBadge severity={info.getValue()} />,
-    },
-    {
-      accessorKey: 'status', header: 'Status',
-      cell: (info) => {
-        const v = info.getValue();
-        const isFail = v === 'FAIL';
-        return (
-          <span className={`text-xs px-2 py-0.5 rounded ${isFail ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{v}</span>
-        );
-      },
-    },
-    {
-      accessorKey: 'security_domain', header: 'Domain',
-      cell: (info) => {
-        const v = info.getValue();
-        const meta = DOMAIN_META[v];
-        return (
-          <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'var(--bg-tertiary)', color: meta?.color || 'var(--text-secondary)' }}>
-            {meta?.label || v}
-          </span>
-        );
-      },
-    },
-    { accessorKey: 'db_service', header: 'DB Service' },
-    { accessorKey: 'account_id', header: 'Account' },
-    { accessorKey: 'region', header: 'Region' },
-  ];
+  const findingsColumns = useMemo(() => [
+    { accessorKey: 'provider',         header: 'Provider', size: 70,
+      cell: (info) => info.getValue()?.toUpperCase() || '—' },
+    { accessorKey: 'account_id',       header: 'Account', size: 130,
+      cell: (info) => info.getValue() || info.row.original.account || '—' },
+    { accessorKey: 'region',           header: 'Region', size: 110 },
+    { accessorKey: 'service',          header: 'Service', size: 110,
+      cell: (info) => info.getValue() || info.row.original.network_layer || info.row.original.encryption_domain || info.row.original.container_service || info.row.original.db_service || '—' },
+    { accessorKey: 'rule_id',          header: 'Rule ID', size: 130,
+      cell: (info) => <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>{info.getValue() || '—'}</span> },
+    { accessorKey: 'title',            header: 'Finding',
+      cell: (info) => <span className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>{info.getValue() || info.row.original.rule_id || '—'}</span> },
+    { accessorKey: 'severity',         header: 'Severity',
+      cell: (info) => <SeverityBadge severity={info.getValue()} /> },
+    { accessorKey: 'status',           header: 'Status',
+      cell: (info) => { const v = info.getValue(), f = v === 'FAIL'; return <span className={`text-xs px-2 py-0.5 rounded ${f ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{v}</span>; } },
+    { accessorKey: 'resource_uid',     header: 'Resource',
+      cell: (info) => { const v = info.getValue() || info.row.original.resource_id || ''; return <span className="font-mono text-xs" style={{ color: 'var(--text-secondary)' }}>{v.split('/').pop() || v.split(':').pop() || v}</span>; } },
+    { accessorKey: 'resource_type',    header: 'Type' },
+    { accessorKey: 'db_service',       header: 'DB Service',
+      cell: (info) => { const v = info.getValue(); return v ? <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'rgba(20,184,166,0.12)', color: '#2dd4bf' }}>{v}</span> : null; } },
+    { accessorKey: 'db_engine',        header: 'Engine' },
+    { accessorKey: 'security_domain',  header: 'Domain',
+      cell: (info) => { const v = info.getValue(); return v ? <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}>{v}</span> : null; } },
+    { accessorKey: 'risk_score',       header: 'Risk',
+      cell: (info) => { const v = info.getValue(); if (!v) return null; const c = v >= 75 ? '#ef4444' : v >= 50 ? '#f97316' : v >= 25 ? '#eab308' : '#22c55e'; return <div className="flex items-center gap-1.5"><div className="w-10 h-1.5 rounded-full" style={{ backgroundColor: 'var(--bg-tertiary)' }}><div className="h-full rounded-full" style={{ width: `${v}%`, backgroundColor: c }} /></div><span className="text-xs font-bold" style={{ color: c }}>{v}</span></div>; } },
+  ], []);
 
   // ── Derive KPI numbers ────────────────────────────────────────────────────
   const kpiNums = useMemo(() => {
     const g0 = data.kpiGroups?.[0]?.items || [];
     const get = (arr, lbl) => arr.find(x => x.label?.toLowerCase() === lbl.toLowerCase())?.value ?? null;
-    const publicCount  = databases.filter(d => d.publicly_accessible === true || d.publicly_accessible === 'true' || d.publicly_accessible === 'True').length;
-    const unencCount   = databases.filter(d => !d.encryption || d.encryption === 'unencrypted' || d.encryption === false).length;
-    const noBackup     = databases.filter(d => !d.backup).length;
     return {
-      posture_score:   get(g0, 'Posture Score') ?? DB_KPI_FALLBACK.posture_score,
-      total_findings:  findings.length           || DB_KPI_FALLBACK.total_findings,
-      critical:        DB_KPI_FALLBACK.critical,
-      high:            DB_KPI_FALLBACK.high,
-      medium:          DB_KPI_FALLBACK.medium,
-      low:             DB_KPI_FALLBACK.low,
-      db_instances:    databases.length          || DB_KPI_FALLBACK.db_instances,
-      public_dbs:      publicCount               || DB_KPI_FALLBACK.public_dbs,
-      unencrypted_dbs: unencCount                || DB_KPI_FALLBACK.unencrypted_dbs,
-      no_backup:       noBackup                  || DB_KPI_FALLBACK.no_backup,
+      posture_score:   get(g0, 'Posture Score')    ?? DB_KPI_FALLBACK.posture_score,
+      total_findings:  get(g0, 'Total Findings')   ?? findings.length ?? DB_KPI_FALLBACK.total_findings,
+      critical:        get(g0, 'Critical')         ?? DB_KPI_FALLBACK.critical,
+      high:            get(g0, 'High')             ?? DB_KPI_FALLBACK.high,
+      medium:          get(g0, 'Medium')           ?? DB_KPI_FALLBACK.medium,
+      low:             get(g0, 'Low')              ?? DB_KPI_FALLBACK.low,
+      db_instances:    get(g0, 'Total Databases')  ?? DB_KPI_FALLBACK.db_instances,
+      public_dbs:      get(g0, 'Public Databases') ?? DB_KPI_FALLBACK.public_dbs,
+      unencrypted_dbs: DB_KPI_FALLBACK.unencrypted_dbs,
+      no_backup:       DB_KPI_FALLBACK.no_backup,
     };
-  }, [data.kpiGroups, databases, findings]);
+  }, [data.kpiGroups, findings]);
 
   // ── Active scan trend: live from BFF or static fallback ──────────────
   const activeScanTrend = useMemo(
@@ -651,70 +645,97 @@ export default function DatabaseSecurityPage() {
     );
   }, [kpiNums, activeScanTrend]);
 
+  const serviceOptions = useMemo(() =>
+    [...new Set((findings || []).map(f => f.service || '').filter(Boolean))].sort(),
+  [findings]);
+
+  const resourceTypeOptions = useMemo(() =>
+    [...new Set((findings || []).map(f => f.resource_type || '').filter(Boolean))].sort(),
+  [findings]);
+
+  // ── Common filter config ──
+  const commonFilters = [
+    { key: 'provider',  label: 'Cloud Platform', options: ['aws', 'azure', 'gcp'] },
+    { key: 'severity',  label: 'Severity',        options: ['critical', 'high', 'medium', 'low'] },
+    { key: 'status',    label: 'Status',           options: ['FAIL', 'PASS'] },
+    { key: 'service',   label: 'Service',          options: serviceOptions },
+  ];
+  const extraFilters = [
+    { key: 'region',        label: 'Region',        options: [] },
+    { key: 'account_id',    label: 'Account',       options: [] },
+    { key: 'resource_type', label: 'Resource Type', options: resourceTypeOptions },
+  ];
+
   // ── Build tabData ──
   const tabData = useMemo(() => {
-    const accessControlFindings = findings.filter(f => f.security_domain === 'access_control');
-    const encryptionFindings = findings.filter(f => f.security_domain === 'encryption');
-    const auditFindings = findings.filter(f => f.security_domain === 'audit_logging');
+    // Domain classification: check both security_domain and posture_category
+    const matchDomain = (f, ...domains) =>
+      domains.some(d =>
+        (f.security_domain || '').toLowerCase().includes(d) ||
+        (f.posture_category || '').toLowerCase().includes(d) ||
+        (f.rule_id || '').toLowerCase().includes(d)
+      );
+
+    const accessFindings    = findings.filter(f => matchDomain(f, 'access', 'iam', 'auth', 'privilege'));
+    const encFindings       = findings.filter(f => matchDomain(f, 'encrypt', 'kms', 'tls', 'ssl'));
+    const auditFindings     = findings.filter(f => matchDomain(f, 'audit', 'log', 'monitor', 'cloudtrail'));
+
+    const findingTab = (data) => ({
+      data,
+      columns: findingsColumns,
+      filters: commonFilters,
+      extraFilters,
+      searchPlaceholder: 'Search by rule, resource, title...',
+    });
 
     return {
       overview: {
-        data: databases,
-        columns: inventoryColumns,
+        data: findings.length ? findings : databases,
+        columns: findings.length ? findingsColumns : inventoryColumns,
+        filters: findings.length ? commonFilters : [],
+        extraFilters: findings.length ? extraFilters : [],
+        searchPlaceholder: 'Search by rule, resource, title...',
       },
       inventory: {
         data: databases,
         columns: inventoryColumns,
+        searchPlaceholder: 'Search databases...',
       },
-      findings: {
-        data: findings,
-        columns: findingsColumns,
-      },
-      access_control: {
-        data: accessControlFindings,
-        columns: findingsColumns,
-      },
-      encryption: {
-        data: encryptionFindings,
-        columns: findingsColumns,
-      },
-      audit_logging: {
-        data: auditFindings,
-        columns: findingsColumns,
-      },
+      findings: findingTab(findings),
+      access_control: findingTab(accessFindings),
+      encryption:     findingTab(encFindings),
+      audit_logging:  findingTab(auditFindings),
     };
-  }, [databases, findings]);
+  }, [databases, findings, findingsColumns, serviceOptions, resourceTypeOptions]);
 
   return (
     <div className="space-y-5">
-      {loading && <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: 'var(--accent-primary)' }} />
-      </div>}
-      {!loading && <>
-        {/* ── Heading ── */}
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="flex items-center gap-3 mb-1">
-              <Database className="w-6 h-6" style={{ color: 'var(--accent-primary)' }} />
-              <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>
-                {pageContext.title || 'Database Security'}
-              </h1>
-            </div>
-            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-              {pageContext.brief || 'Database posture, encryption coverage, access controls, and backup compliance across all connected accounts.'}
-            </p>
+      {/* ── Heading ── */}
+      <div className="flex items-start justify-between">
+        <div>
+          <div className="flex items-center gap-3 mb-1">
+            <Database className="w-6 h-6" style={{ color: 'var(--accent-primary)' }} />
+            <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>
+              {pageContext.title || 'Database Security'}
+            </h1>
           </div>
-          <button onClick={() => window.location.reload()}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-opacity hover:opacity-80"
-            style={{ backgroundColor: 'var(--accent-primary)', color: '#fff' }}>
-            <RefreshCw className="w-3.5 h-3.5" /> Refresh
-          </button>
+          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+            {pageContext.brief || 'Database posture, encryption coverage, access controls, and backup compliance across all connected accounts.'}
+          </p>
         </div>
+        <button onClick={() => window.location.reload()}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-opacity hover:opacity-80"
+          style={{ backgroundColor: 'var(--accent-primary)', color: '#fff' }}>
+          <RefreshCw className="w-3.5 h-3.5" /> Refresh
+        </button>
+      </div>
 
-        {/* ── Tabs + table ── */}
-        <PageLayout icon={Database} pageContext={pageContext} kpiGroups={[]} insightRow={insightStrip}
-          tabData={tabData} loading={false} error={error} defaultTab="overview" hideHeader topNav />
-      </>}
+      {/* ── Tabs + table ── */}
+      <PageLayout icon={Database} pageContext={pageContext} kpiGroups={[]} insightRow={insightStrip}
+        tabData={tabData} loading={loading} error={error} defaultTab="overview" hideHeader topNav
+        onRowClick={handleRowClick} />
+
+      <FindingDetailPanel finding={selectedFinding} onClose={() => setSelectedFinding(null)} />
     </div>
   );
 }

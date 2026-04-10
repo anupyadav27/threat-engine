@@ -129,6 +129,11 @@ async def get_threat_ui_data(
         trend = _query_trend(conn, tenant_id, days)
 
         # ------------------------------------------------------------------ #
+        # 5b. Scan trend (last 8 scan runs — for sparklines / charts)
+        # ------------------------------------------------------------------ #
+        scan_trend = _query_scan_trend(conn, tenant_id)
+
+        # ------------------------------------------------------------------ #
         # 6. Top services / accounts / regions
         # ------------------------------------------------------------------ #
         top_services = _query_top_services(conn, tenant_id, scan_id)
@@ -140,12 +145,17 @@ async def get_threat_ui_data(
         # ------------------------------------------------------------------ #
         threat_intel = _query_intel(conn, tenant_id)
 
+        # ------------------------------------------------------------------ #
+        # 8. Atomic threat findings (up to 1000)
+        # ------------------------------------------------------------------ #
+        findings = _query_findings(conn, tenant_id, scan_id)
+
         # Release DB before graph queries
         conn.close()
         conn = None
 
         # ------------------------------------------------------------------ #
-        # 8. Graph queries (Neo4j)
+        # 9. Graph queries (Neo4j)
         # ------------------------------------------------------------------ #
         graph_data = _query_graph_data(tenant_id)
 
@@ -155,14 +165,17 @@ async def get_threat_ui_data(
             extra={"extra_fields": {
                 "duration_ms": round(duration_ms, 1),
                 "total_detections": summary["total_detections"],
+                "total_findings": len(findings),
             }},
         )
 
         return {
             "summary": summary,
             "threats": threats,
+            "findings": findings,
             "total": total_filtered,
             "trend": trend,
+            "scan_trend": scan_trend,
             "mitre_matrix": mitre_matrix,
             "top_services": top_services,
             "top_accounts": top_accounts,
@@ -198,8 +211,10 @@ def _empty_response() -> dict:
             "by_verdict": {}, "total_findings": 0,
         },
         "threats": [],
+        "findings": [],
         "total": 0,
         "trend": [],
+        "scan_trend": [],
         "mitre_matrix": [],
         "top_services": [],
         "top_accounts": [],
@@ -423,6 +438,11 @@ def _query_threats(
                 "recommendations": _safe_json(row.get("recommendations")) or [],
                 # Evidence (from detection grouping)
                 "evidence": evidence,
+                "source": evidence.get("source", "check") if isinstance(evidence, dict) else "check",
+                # Multi-rule grouping (from evidence JSONB)
+                "contributing_rules": evidence.get("contributing_rules", []) if isinstance(evidence, dict) else [],
+                "remediation": evidence.get("remediation", {}) if isinstance(evidence, dict) else {},
+                "hasAttackPath": bool(_safe_json(row.get("attack_chain"))),
                 # Timestamps
                 "first_seen_at": _ts(row.get("first_seen_at")),
                 "last_seen_at": _ts(row.get("last_seen_at")),
@@ -508,6 +528,91 @@ def _query_trend(conn, tenant_id: str, days: int) -> List[dict]:
     except Exception as e:
         logger.warning(f"Trend query failed: {e}")
     return trend
+
+
+# -- scan trend (by scan run, for sparklines) -------------------------------
+
+def _query_scan_trend(conn, tenant_id: str) -> List[dict]:
+    """Last 8 scan runs from threat_detections — standard scan_trend format.
+
+    Groups detections by scan_id, ordered by most recent detection timestamp.
+    Returns oldest-first so sparklines and charts read left-to-right in time.
+    pass_rate is derived as an inverse-weighted severity ratio (0-100):
+      higher severity weight → lower pass_rate.
+    """
+    result: List[dict] = []
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT
+                    to_char(MAX(detection_timestamp), 'Mon DD')          AS date,
+                    COUNT(*)                                              AS total,
+                    COUNT(*) FILTER (WHERE severity = 'critical')        AS critical,
+                    COUNT(*) FILTER (WHERE severity = 'high')            AS high,
+                    COUNT(*) FILTER (WHERE severity = 'medium')          AS medium,
+                    COUNT(*) FILTER (WHERE severity = 'low')             AS low,
+                    COUNT(DISTINCT resource_type)                        AS services_affected,
+                    COALESCE(AVG(
+                        GREATEST(0,
+                            EXTRACT(EPOCH FROM (detection_timestamp - first_seen_at))
+                        ) / 86400
+                    )::int, 0)                                           AS avg_age_days,
+                    COUNT(*) FILTER (
+                        WHERE EXTRACT(EPOCH FROM
+                            (detection_timestamp - first_seen_at)) < 3600
+                    )                                                    AS new_this_scan,
+                    COUNT(*) FILTER (
+                        WHERE severity = 'critical'
+                          AND first_seen_at <= detection_timestamp - interval '30 days'
+                    ) + COUNT(*) FILTER (
+                        WHERE severity = 'high'
+                          AND first_seen_at <= detection_timestamp - interval '60 days'
+                    ) + COUNT(*) FILTER (
+                        WHERE severity = 'medium'
+                          AND first_seen_at <= detection_timestamp - interval '90 days'
+                    )                                                    AS sla_breached
+                FROM threat_detections
+                WHERE tenant_id = %s
+                  AND scan_id IS NOT NULL
+                GROUP BY scan_id
+                ORDER BY MAX(detection_timestamp) DESC
+                LIMIT 8
+                """,
+                (tenant_id,),
+            )
+            rows = list(reversed(cur.fetchall()))
+            for row in rows:
+                total = int(row["total"] or 0)
+                crit  = int(row["critical"] or 0)
+                high  = int(row["high"] or 0)
+                med   = int(row["medium"] or 0)
+                low   = int(row["low"] or 0)
+                # Weighted risk burden relative to worst-case (all critical)
+                if total > 0:
+                    weight = crit * 4 + high * 3 + med * 2 + low * 1
+                    max_weight = total * 4
+                    pass_rate = max(0, min(100, round(100 - (weight / max_weight) * 100)))
+                else:
+                    pass_rate = 100
+                result.append({
+                    "date":               row["date"] or "",
+                    "total":              total,
+                    "critical":           crit,
+                    "high":               high,
+                    "medium":             med,
+                    "low":                low,
+                    "pass_rate":          pass_rate,
+                    "services_affected":  int(row["services_affected"] or 0),
+                    "avg_age_days":       int(row["avg_age_days"] or 0),
+                    "new_this_scan":      int(row["new_this_scan"] or 0),
+                    "sla_breached":       int(row["sla_breached"] or 0),
+                    # auto_remediable not tracked in threat_detections — derived in BFF
+                    "auto_remediable":    0,
+                })
+    except Exception as e:
+        logger.warning(f"Scan trend query failed: {e}")
+    return result
 
 
 # -- top services / accounts / regions -------------------------------------
@@ -620,6 +725,54 @@ def _query_intel(conn, tenant_id: str) -> List[dict]:
     except Exception as e:
         logger.warning(f"Intel query failed: {e}")
     return intel
+
+
+# -- atomic findings --------------------------------------------------------
+
+def _query_findings(conn, tenant_id: str, scan_id: str, limit: int = 1000) -> List[dict]:
+    """Query atomic threat_findings (individual rule evaluations)."""
+    findings: List[dict] = []
+    try:
+        where_parts = ["tenant_id = %s"]
+        params: list = [tenant_id]
+        if scan_id and scan_id != "__all__":
+            # threat_findings uses scan_run_id (standard column)
+            where_parts.append("scan_run_id = %s")
+            params.append(scan_id)
+        where = " AND ".join(where_parts)
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                f"SELECT finding_id, rule_id, threat_category, severity, status, "
+                f"  resource_type, resource_uid, account_id, region, "
+                f"  mitre_tactics, mitre_techniques, first_seen_at, last_seen_at "
+                f"FROM threat_findings "
+                f"WHERE {where} "
+                f"ORDER BY "
+                f"  CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 "
+                f"  WHEN 'medium' THEN 3 ELSE 4 END, "
+                f"  first_seen_at DESC "
+                f"LIMIT %s",
+                params + [limit],
+            )
+            for row in cur.fetchall():
+                findings.append({
+                    "finding_id":       row["finding_id"],
+                    "rule_id":          row["rule_id"] or "",
+                    "threat_category":  row["threat_category"] or "",
+                    "severity":         (row["severity"] or "medium").lower(),
+                    "status":           (row["status"] or "FAIL").upper(),
+                    "resource_type":    row["resource_type"] or "",
+                    "resource_uid":     row["resource_uid"] or "",
+                    "account_id":       row["account_id"] or "",
+                    "region":           row["region"] or "",
+                    "mitre_tactics":    _safe_json(row["mitre_tactics"]) or [],
+                    "mitre_techniques": _safe_json(row["mitre_techniques"]) or [],
+                    "first_seen_at":    _ts(row["first_seen_at"]),
+                    "last_seen_at":     _ts(row["last_seen_at"]),
+                })
+    except Exception as e:
+        logger.warning(f"Threat findings query failed: {e}")
+    return findings
 
 
 # -- graph queries (Neo4j) --------------------------------------------------

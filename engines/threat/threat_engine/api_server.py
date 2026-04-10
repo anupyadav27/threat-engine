@@ -238,16 +238,12 @@ async def create_threat_scan(request: ThreatReportRequest):
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-    # All engines share the same scan_run_id
-    check_scan_run_id = orch_id
-
+    # All engines share the same scan_run_id — no per-engine IDs
     provider = (meta.get("provider") or meta.get("provider_type", "aws")).lower()
     tenant_id = meta.get("tenant_id") or request.tenant_id or "default-tenant"
 
     logger.info("Creating threat scanner Job", extra={
         "extra_fields": {
-            "scan_run_id": orch_id,
-            "check_scan_run_id": check_scan_run_id,
             "scan_run_id": scan_run_id_val,
             "provider": provider,
         }
@@ -265,11 +261,11 @@ async def create_threat_scan(request: ThreatReportRequest):
             )
             cur.execute(
                 """INSERT INTO threat_report
-                   (scan_run_id, tenant_id, provider,
+                   (threat_scan_id, scan_run_id, tenant_id, provider,
                     status, started_at, report_data)
-                   VALUES (%s, %s, %s, 'running', NOW(), %s)
+                   VALUES (%s, %s, %s, %s, 'running', NOW(), %s)
                    ON CONFLICT (scan_run_id) DO UPDATE SET status = 'running'""",
-                (scan_run_id_val, tenant_id, provider,
+                (scan_run_id_val, scan_run_id_val, tenant_id, provider,
                  json.dumps({"scan_run_id": orch_id, "mode": "job"})),
             )
         conn.commit()
@@ -2587,11 +2583,12 @@ async def get_internet_exposed(
 async def get_toxic_combinations(
     tenant_id: str = Query(...),
     min_threats: int = Query(2, ge=1),
+    provider: Optional[str] = Query(None, description="Filter by CSP: aws, azure, gcp, k8s, oci"),
 ):
     """Find resources with multiple overlapping threat detections."""
     try:
         gq = SecurityGraphQueries()
-        results = gq.toxic_combinations(tenant_id=tenant_id, min_threats=min_threats)
+        results = gq.toxic_combinations(tenant_id=tenant_id, min_threats=min_threats, provider=provider)
         gq.close()
         return {
             "toxic_combinations": results,
@@ -2599,6 +2596,115 @@ async def get_toxic_combinations(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Toxic combination query failed: {str(e)}")
+
+
+@app.get("/api/v1/graph/explore")
+async def explore_graph(
+    tenant_id: str = Query(...),
+    resource_type: Optional[str] = Query(None, description="EC2 | S3 | IAM | Lambda | RDS | KMS | SecurityGroup | EKS | VPC | Subnet | DynamoDB"),
+    security_status: Optional[str] = Query(None, description="has_threat | internet_exposed | high_risk | critical_findings"),
+    connected_to: Optional[str] = Query(None, description="Resource type the match must connect to, or 'Internet'"),
+    via_edge: Optional[str] = Query(None, description="Edge type: ASSUMES | CAN_ACCESS | EXPOSES | ROUTES_TO | ENCRYPTED_BY | CONNECTS_TO | IN_VPC | PROTECTED_BY | ACCESSES | STORES | DEPENDS_ON"),
+    edge_kind: Optional[str] = Query(None, description="Filter edges by kind: 'path' (attack traversal) | 'association' (context only) | omit for all"),
+    within_hops: int = Query(2, ge=0, le=5),
+    limit: int = Query(300, ge=1, le=1000),
+):
+    """
+    Structured graph exploration — converts filter params to Cypher and runs against Neo4j.
+
+    Returns nodes + edges for the matched resources and their 1-hop neighbors,
+    shaped for the graph UI (id, name, type, provider, risk_score, has_threat, matched).
+
+    `matched: true` on nodes that satisfy the filter; neighbors have `matched: false`
+    so the UI can highlight the primary matches vs context nodes.
+
+    `edge_kind=path` returns only attack traversal edges (ASSUMES, EXPOSES, STORES, etc.)
+    `edge_kind=association` returns only context edges (ENCRYPTED_BY, HAS_FINDING, DEPENDS_ON, etc.)
+    """
+    try:
+        gq = SecurityGraphQueries()
+        result = gq.explore_graph(
+            tenant_id=tenant_id,
+            resource_type=resource_type,
+            security_status=security_status,
+            connected_to=connected_to,
+            via_edge=via_edge,
+            edge_kind=edge_kind,
+            within_hops=within_hops,
+            limit=limit,
+        )
+        gq.close()
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Graph exploration failed: {str(e)}")
+
+
+@app.get("/api/v1/graph/orca-paths")
+async def orca_attack_paths(
+    tenant_id: str = Query(...),
+    max_hops: int = Query(5, ge=1, le=7),
+    min_severity: str = Query("medium", description="info | low | medium | high | critical"),
+):
+    """
+    Orca-style attack paths with per-node context.
+
+    Returns structured paths where each node in the chain includes:
+    - risk_score, finding_count, threat_count, threat_severity
+
+    This powers both the Orca-style path cards below the graph and the
+    highlight-path-in-graph interaction (clicking a card highlights its nodes).
+
+    Only traverses PATH edges (edge_kind='path'). Association context (findings,
+    threats) is fetched per node and embedded in the path result.
+    """
+    try:
+        gq = SecurityGraphQueries()
+        paths = gq.orca_attack_paths(
+            tenant_id=tenant_id,
+            max_hops=max_hops,
+            min_severity=min_severity,
+        )
+        gq.close()
+        return {"paths": paths, "total": len(paths)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Orca path query failed: {str(e)}")
+
+
+@app.get("/api/v1/graph/fix-impact")
+async def get_fix_impact(
+    tenant_id: str = Query(...),
+    resource_uid: Optional[str] = Query(None, description="Resource UID to simulate remediation for"),
+    finding_id: Optional[str] = Query(None, description="Threat finding ID (resolves to resource_uid automatically)"),
+    max_hops: int = Query(5, ge=1, le=8),
+):
+    """
+    Fix-Impact Calculator — how many attack paths disappear if you fix one finding?
+
+    Provide either `resource_uid` or `finding_id`. Returns:
+    - total_paths: total Internet-sourced attack paths in the tenant
+    - paths_eliminated: paths that pass through or end at this resource
+    - elimination_pct: percentage of total paths eliminated
+    - remediation_priority: critical / high / medium / low
+    - affected_paths: list of (from, to) pairs for the eliminated paths
+    """
+    if not resource_uid and not finding_id:
+        raise HTTPException(status_code=400, detail="Provide resource_uid or finding_id")
+    try:
+        gq = SecurityGraphQueries()
+        result = gq.fix_impact(
+            tenant_id=tenant_id,
+            resource_uid=resource_uid,
+            finding_id=finding_id,
+            max_hops=max_hops,
+        )
+        gq.close()
+        if "error" in result:
+            raise HTTPException(status_code=404, detail=result["error"])
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Fix-impact calculation failed: {str(e)}")
 
 
 @app.get("/api/v1/graph/resource/{resource_uid:path}")
@@ -2861,13 +2967,15 @@ async def get_threat_findings_for_resource(
         raise HTTPException(status_code=503, detail=f"Database unavailable: {e}")
 
     try:
-        # Severity counts
+        # threat_detections is the live ARN-keyed table populated by the threat
+        # analysis engine (MITRE ATT&CK mapped).  threat_findings contains legacy
+        # short-ID keyed rows and is no longer the source of truth for per-asset views.
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("""
                 SELECT
                     LOWER(COALESCE(severity, 'medium')) AS severity,
                     COUNT(*) AS cnt
-                FROM threat_findings
+                FROM threat_detections
                 WHERE resource_uid = %s
                   AND tenant_id = %s
                 GROUP BY LOWER(COALESCE(severity, 'medium'))
@@ -2880,15 +2988,16 @@ async def get_threat_findings_for_resource(
             if sev in severity_counts:
                 severity_counts[sev] = int(r.get("cnt") or 0)
 
-        # Detailed findings
+        # Detailed detections — detection_id aliased to finding_id for BFF compat
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("""
                 SELECT
-                    finding_id, rule_id, threat_category, severity, status,
+                    detection_id  AS finding_id,
+                    rule_id, rule_name, threat_category, severity, status,
                     resource_type, region, account_id,
                     mitre_tactics, mitre_techniques, evidence,
                     first_seen_at, last_seen_at
-                FROM threat_findings
+                FROM threat_detections
                 WHERE resource_uid = %s
                   AND tenant_id = %s
                 ORDER BY
@@ -2908,6 +3017,7 @@ async def get_threat_findings_for_resource(
             findings.append({
                 "finding_id": r.get("finding_id"),
                 "rule_id": r.get("rule_id"),
+                "rule_name": r.get("rule_name") or "",
                 "threat_category": r.get("threat_category") or "",
                 "severity": (r.get("severity") or "medium").lower(),
                 "status": r.get("status") or "open",

@@ -180,3 +180,51 @@ class RolePermissions(models.Model):
         return f"{self.role.name} -> {self.permission.feature}:{self.permission.action}"
 
 
+class InviteTokens(models.Model):
+    id = models.TextField(primary_key=True, default=uuid.uuid4, editable=False)
+    token = models.TextField(unique=True)
+    email = models.TextField()
+    tenant = models.ForeignKey(
+        'tenant_management.Tenants',
+        on_delete=models.CASCADE,
+        db_column='tenant_id',
+    )
+    role = models.ForeignKey(
+        Roles,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_column='role_id',
+    )
+    invited_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='invites_sent',
+    )
+    expires_at = models.DateTimeField()
+    used = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'invite_tokens'
+        indexes = [models.Index(fields=['token']), models.Index(fields=['email'])]
+
+
+class PasswordResetTokens(models.Model):
+    id = models.TextField(primary_key=True, default=uuid.uuid4, editable=False)
+    token = models.TextField(unique=True)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='password_reset_tokens',
+    )
+    expires_at = models.DateTimeField()
+    used = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'password_reset_tokens'
+        indexes = [models.Index(fields=['token'])]
+
+

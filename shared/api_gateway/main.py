@@ -7,7 +7,7 @@ import os
 import sys
 from fastapi import FastAPI, Request, HTTPException, Depends, Body
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 import httpx
 import json
@@ -140,6 +140,12 @@ SERVICE_ROUTES = {
         "prefix": "/api/v1/secops",
         "prefixes": ["/api/v1/secops"],
         "health_endpoint": "/health"
+    },
+    "ciem": {
+        "url": os.getenv("CIEM_ENGINE_URL", "http://engine-ciem"),
+        "prefix": "/api/v1/ciem",
+        "prefixes": ["/api/v1/ciem", "/api/v1/log-collection"],
+        "health_endpoint": "/api/v1/health/live"
     },
 }
 
@@ -299,12 +305,68 @@ def get_tenant_context(request: Request) -> Dict[str, Any]:
         "correlation_id": request.headers.get("X-Correlation-ID")
     }
 
+ARGO_URL = os.getenv("ARGO_SERVER_URL", "http://argo-server.argo.svc.cluster.local:2746")
+
+
+@app.api_route("/argo/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"])
+async def proxy_argo(request: Request, path: str):
+    """Transparent streaming proxy for the Argo Workflows UI and API.
+
+    Forwards /argo/<path> → argo-server:2746/argo/<path> preserving
+    all content types (HTML, JS, CSS, JSON) without JSON-wrapping.
+    WebSocket upgrade requests (live log streaming) are also forwarded.
+    """
+    target = f"{ARGO_URL}/argo/{path}"
+    if request.url.query:
+        target += f"?{request.url.query}"
+
+    headers = {
+        k: v for k, v in request.headers.items()
+        if k.lower() not in ("host", "content-length")
+    }
+
+    body = await request.body()
+
+    async def _stream(response: httpx.Response):
+        async for chunk in response.aiter_bytes(chunk_size=8192):
+            yield chunk
+
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            req = client.build_request(
+                method=request.method,
+                url=target,
+                headers=headers,
+                content=body or None,
+            )
+            response = await client.send(req, stream=True)
+
+            # Pass all headers through except ones httpx/ASGI manage
+            resp_headers = {
+                k: v for k, v in response.headers.items()
+                if k.lower() not in ("transfer-encoding", "content-encoding")
+            }
+            return StreamingResponse(
+                _stream(response),
+                status_code=response.status_code,
+                headers=resp_headers,
+                media_type=response.headers.get("content-type"),
+            )
+    except httpx.ConnectError:
+        return JSONResponse(status_code=503, content={"error": "Argo server unreachable"})
+    except Exception as exc:
+        logger.error(f"Argo proxy error: {exc}", exc_info=True)
+        return JSONResponse(status_code=502, content={"error": "Argo proxy failed"})
+
+
 @app.middleware("http")
 async def route_requests(request: Request, call_next):
     """Main routing middleware - forwards requests to appropriate services"""
-    
-    # Skip gateway routes and BFF views (handled by FastAPI routers, not proxy)
-    if request.url.path.startswith("/gateway/") or request.url.path.startswith("/api/v1/views/"):
+
+    # Skip gateway routes, BFF views, and Argo proxy (handled by FastAPI routers above)
+    if (request.url.path.startswith("/gateway/")
+            or request.url.path.startswith("/api/v1/views/")
+            or request.url.path.startswith("/argo/")):
         return await call_next(request)
     
     # Handle unified ConfigScan endpoint

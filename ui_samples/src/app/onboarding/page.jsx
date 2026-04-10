@@ -2,21 +2,32 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Plus, Cloud, Globe, HardDrive, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Plus, Cloud, Globe, HardDrive, CheckCircle, AlertTriangle, Play, Loader2 } from 'lucide-react';
 import { getFromEngine, postToEngine } from '@/lib/api';
+import { useTenant } from '@/lib/tenant-context';
 import KpiCard from '@/components/shared/KpiCard';
 import DataTable from '@/components/shared/DataTable';
+import ScanRunDetailModal from '@/components/domain/ScanRunDetailModal';
 
 
 export default function OnboardingPage() {
+  const { customerId, activeTenant } = useTenant();
   const [loading, setLoading] = useState(true);
   const [accounts, setAccounts] = useState([]);
+  const [schedules, setSchedules] = useState([]);
   const [expandedGroup, setExpandedGroup] = useState(null);
+  const [runningFor, setRunningFor] = useState({});    // accountId → true while triggering
+  const [selectedRunId, setSelectedRunId] = useState(null);
 
   useEffect(() => {
-    const fetchAccounts = async () => {
+    const fetchData = async () => {
       try {
-        const accountsData = await getFromEngine('onboarding', '/api/v1/cloud-accounts');
+        const tenantId = activeTenant?.tenant_id;
+        const qp = tenantId ? `?tenant_id=${tenantId}` : '';
+        const [accountsData, schedsData] = await Promise.all([
+          getFromEngine('onboarding', `/api/v1/cloud-accounts${qp}`),
+          getFromEngine('onboarding', `/api/v1/schedules${qp}&limit=200`),
+        ]);
         const raw = accountsData?.accounts || (Array.isArray(accountsData) ? accountsData : []);
         const normalized = raw.map(a => ({
           id: a.account_id,
@@ -27,12 +38,13 @@ export default function OnboardingPage() {
           regions: a.regions_count || 1,
           resources: a.total_resources || 0,
           findings: a.total_findings || 0,
-          lastScan: a.last_scan_at || a.updated_at || new Date().toISOString(),
+          lastScan: a.last_scan_at,
           credStatus: a.credential_validation_status === 'valid' ? 'Valid'
             : a.credential_validation_status === 'expired' ? 'Expired' : 'Expiring Soon',
-          health: a.account_status === 'active' ? 'Healthy' : 'Warning',
+          health: a.credential_validation_status === 'valid' ? 'Healthy' : 'Warning',
         }));
         setAccounts(normalized);
+        setSchedules(schedsData?.schedules || []);
       } catch (error) {
         console.warn('Error fetching accounts:', error);
       } finally {
@@ -40,14 +52,36 @@ export default function OnboardingPage() {
       }
     };
 
-    fetchAccounts();
-  }, []);
+    fetchData();
+  }, [activeTenant]);
+
+  async function handleRunNow(accountId) {
+    const sched = schedules.find(s => s.account_id === accountId);
+    if (!sched) { alert('No schedule found for this account. Add a schedule first.'); return; }
+    setRunningFor(p => ({ ...p, [accountId]: true }));
+    try {
+      const result = await postToEngine('onboarding', `/api/v1/schedules/${sched.schedule_id}/run-now`, {});
+      if (result.scan_run_id) setSelectedRunId(result.scan_run_id);
+    } catch (e) {
+      console.error('run-now failed:', e);
+    } finally {
+      setRunningFor(p => ({ ...p, [accountId]: false }));
+    }
+  }
 
   const accountColumns = [
     {
       accessorKey: 'name',
       header: 'Account Name',
-      cell: (info) => <span style={{ color: 'var(--text-primary)' }} className="font-medium">{info.getValue()}</span>,
+      cell: (info) => (
+        <Link
+          href={`/onboarding/accounts/${info.row.original.id}`}
+          style={{ color: 'var(--accent-primary)' }}
+          className="font-medium hover:underline"
+        >
+          {info.getValue()}
+        </Link>
+      ),
     },
     {
       accessorKey: 'accountId',
@@ -91,7 +125,14 @@ export default function OnboardingPage() {
     {
       accessorKey: 'lastScan',
       header: 'Last Scan',
-      cell: (info) => <span style={{ color: 'var(--text-tertiary)' }} className="text-sm">{new Date(info.getValue()).toLocaleDateString()}</span>,
+      cell: (info) => {
+        const v = info.getValue();
+        if (!v) return <span style={{ color: 'var(--text-muted)' }} className="text-xs">Never</span>;
+        const diff = Date.now() - new Date(v);
+        const m = Math.floor(diff / 60000);
+        const label = m < 60 ? `${m}m ago` : m < 1440 ? `${Math.floor(m/60)}h ago` : new Date(v).toLocaleDateString();
+        return <span style={{ color: 'var(--text-tertiary)' }} className="text-xs">{label}</span>;
+      },
     },
     {
       accessorKey: 'credStatus',
@@ -105,12 +146,31 @@ export default function OnboardingPage() {
     },
     {
       accessorKey: 'health',
-      header: 'Integration Health',
+      header: 'Health',
       cell: (info) => {
         const health = info.getValue();
         const icon = health === 'Healthy' ? <CheckCircle className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />;
-        const color = health === 'Healthy' ? '#10b981' : health === 'Warning' ? '#f97316' : '#ef4444';
-        return <span style={{ color }} className="flex items-center gap-1 text-sm font-medium">{icon} {health}</span>;
+        const color = health === 'Healthy' ? '#10b981' : '#f97316';
+        return <span style={{ color }} className="flex items-center gap-1 text-xs font-medium">{icon} {health}</span>;
+      },
+    },
+    {
+      id: 'actions',
+      header: '',
+      cell: (info) => {
+        const accountId = info.row.original.id;
+        const busy = runningFor[accountId];
+        return (
+          <button
+            onClick={e => { e.stopPropagation(); handleRunNow(accountId); }}
+            disabled={busy}
+            title="Run scan now"
+            className="flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium hover:opacity-80 disabled:opacity-40"
+            style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: 'var(--accent-primary)', border: '1px solid rgba(59,130,246,0.25)' }}>
+            {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+            {busy ? 'Launching…' : 'Run'}
+          </button>
+        );
       },
     },
   ];
@@ -219,6 +279,11 @@ export default function OnboardingPage() {
           ))}
         </div>
       </div>
+
+      {/* Scan run detail modal */}
+      {selectedRunId && (
+        <ScanRunDetailModal scanRunId={selectedRunId} onClose={() => setSelectedRunId(null)} />
+      )}
 
       {/* Credential Management */}
       <div className="space-y-4">

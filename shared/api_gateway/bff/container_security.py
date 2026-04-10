@@ -11,7 +11,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Query
 
-from ._shared import fetch_many, safe_get, mock_fallback, is_empty_or_health
+from ._shared import fetch_many, fetch_all_check_findings, safe_get, mock_fallback, is_empty_or_health
 from ._transforms import apply_global_filters
 from ._page_context import container_security_page_context, container_security_filter_schema
 
@@ -39,11 +39,19 @@ async def view_container_security(
     if not isinstance(csec_data, dict):
         csec_data = {}
 
-    # Mock fallback when engine data is empty
-    if is_empty_or_health(csec_data):
-        m = mock_fallback("container_security")
-        if m is not None:
-            return m
+    # Fallback: check engine (container_and_kubernetes_security domain) when engine has no data
+    _has_csec_data = safe_get(csec_data, "findings", []) or safe_get(csec_data, "clusters", [])
+    if is_empty_or_health(csec_data) or not _has_csec_data:
+        check_raw = await fetch_all_check_findings({
+            "tenant_id": tenant_id,
+            "domain": "container_and_kubernetes_security",
+        })
+        if check_raw:
+            csec_data = {"findings": check_raw, "clusters": [], "summary": {}}
+        else:
+            m = mock_fallback("container_security")
+            if m is not None:
+                return m
 
     summary = safe_get(csec_data, "summary", {})
 
@@ -121,19 +129,14 @@ async def view_container_security(
             {
                 "title": "Container Posture",
                 "items": [
-                    {"label": "Posture Score", "value": posture_score, "suffix": "/100"},
-                    {"label": "Clusters", "value": total_clusters},
+                    {"label": "Posture Score",   "value": posture_score, "suffix": "/100"},
+                    {"label": "Clusters",        "value": total_clusters},
                     {"label": "Public Clusters", "value": public_clusters},
-                    {"label": "Images", "value": total_images},
-                ],
-            },
-            {
-                "title": "Findings by Severity",
-                "items": [
-                    {"label": "Critical", "value": by_severity.get("critical", 0)},
-                    {"label": "High", "value": by_severity.get("high", 0)},
-                    {"label": "Medium", "value": by_severity.get("medium", 0)},
-                    {"label": "Low", "value": by_severity.get("low", 0)},
+                    {"label": "Images",          "value": total_images},
+                    {"label": "Critical",        "value": by_severity.get("critical", 0)},
+                    {"label": "High",            "value": by_severity.get("high", 0)},
+                    {"label": "Medium",          "value": by_severity.get("medium", 0)},
+                    {"label": "Low",             "value": by_severity.get("low", 0)},
                 ],
             },
         ],
@@ -142,4 +145,6 @@ async def view_container_security(
             "findings": filtered_findings,
             "domain_scores": domain_scores,
         },
+        "domainBreakdown": safe_get(csec_data, "domain_breakdown", []),
+        "scanTrend": safe_get(csec_data, "scan_trend", []),
     }

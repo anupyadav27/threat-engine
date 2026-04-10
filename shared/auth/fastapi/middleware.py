@@ -47,6 +47,7 @@ PUBLIC_PREFIXES = (
     "/gateway/",         # Gateway management endpoints (health, services, etc.)
     "/api/v1/views/",    # BFF view endpoints (accessed via ingress rewrite)
     "/api/v1/health",    # Health check endpoints
+    "/argo/",            # Argo Workflows UI (internal tool, no user auth needed)
 )
 
 

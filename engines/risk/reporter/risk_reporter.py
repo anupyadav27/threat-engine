@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -83,7 +83,7 @@ class RiskReporter:
                 )
 
         # 4. Build report
-        completed_at = datetime.utcnow()
+        completed_at = datetime.now(timezone.utc)
         duration_ms = None
         if started_at:
             duration_ms = int((completed_at - started_at).total_seconds() * 1000)

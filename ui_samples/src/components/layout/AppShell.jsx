@@ -36,7 +36,7 @@ export default function AppShell({ children }) {
 
   // Main app layout with sidebar and header
   return (
-    <div className="flex">
+    <div className="flex" style={{ minHeight: '100vh', backgroundColor: 'var(--bg-primary)' }}>
       <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(p => !p)} />
       <div
         className="flex-1 flex flex-col min-h-screen min-w-0"

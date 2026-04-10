@@ -1,0 +1,176 @@
+rules:
+- rule_id: gcp.function.error
+  title: Cloud Function error or exception
+  severity: medium
+  log_source_type: gcp_function
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_function
+    - field: operation
+      op: equals
+      value: error
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: threat_engine
+  action_category: error
+  mitre_tactics:
+  - execution
+  mitre_techniques:
+  - T1059
+  domain: compute_security
+  provider: gcp
+  remediation: Review instance security configurations. Apply security patches. Restrict instance metadata access.
+  compliance_frameworks: &id001
+  - CIS
+  - NIST_800-53
+  - SOC2
+  risk_score: 50
+- rule_id: gcp.function.runtime_crash
+  title: Cloud Function runtime crash or OOM kill
+  severity: high
+  log_source_type: gcp_function
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_function
+    - field: operation
+      op: equals
+      value: error
+    - field: error_code
+      op: contains
+      value: CRASH
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: error
+  mitre_tactics:
+  - impact
+  - execution
+  mitre_techniques:
+  - T1499.004
+  domain: compute_security
+  provider: gcp
+  remediation: Review instance security configurations. Apply security patches. Restrict instance metadata access.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: gcp.function.permission_denied
+  title: Cloud Function received PERMISSION_DENIED error
+  severity: high
+  log_source_type: gcp_function
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_function
+    - field: operation
+      op: equals
+      value: error
+    - field: error_code
+      op: contains
+      value: PERMISSION_DENIED
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: authorization
+  mitre_tactics:
+  - privilege-escalation
+  - discovery
+  mitre_techniques:
+  - T1078
+  domain: compute_security
+  provider: gcp
+  remediation: Review instance security configurations. Apply security patches. Restrict instance metadata access.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: gcp.function.unauthorized_api
+  title: Cloud Function made unauthorized API call
+  severity: high
+  log_source_type: gcp_function
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_function
+    - field: operation
+      op: equals
+      value: error
+    - field: error_code
+      op: contains
+      value: UNAUTHENTICATED
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: authorization
+  mitre_tactics:
+  - initial-access
+  - credential-access
+  mitre_techniques:
+  - T1078
+  domain: compute_security
+  provider: gcp
+  remediation: Review instance security configurations. Apply security patches. Restrict instance metadata access.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: gcp.function.timeout
+  title: Cloud Function execution timed out
+  severity: medium
+  log_source_type: gcp_function
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_function
+    - field: operation
+      op: equals
+      value: error
+    - field: error_code
+      op: contains
+      value: DEADLINE_EXCEEDED
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: error
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1499.004
+  domain: compute_security
+  provider: gcp
+  remediation: Review instance security configurations. Apply security patches. Restrict instance metadata access.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: gcp.function.high_memory
+  title: Cloud Function high memory usage detected
+  severity: medium
+  log_source_type: gcp_function
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_function
+    - field: operation
+      op: equals
+      value: error
+    - field: error_code
+      op: contains
+      value: RESOURCE_EXHAUSTED
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: error
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1496
+  description: High memory may indicate cryptomining or resource abuse
+  domain: compute_security
+  provider: gcp
+  remediation: Review instance security configurations. Apply security patches. Restrict instance metadata access.
+  compliance_frameworks: *id001
+  risk_score: 50

@@ -14,8 +14,8 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY ui_samples/ .
 
 # Bake env at build time (NEXT_PUBLIC_* are client-visible, safe to embed)
-ARG NEXT_PUBLIC_API_BASE=http://a248499a3e9da47248ad0adca7dac106-365a099e4a3b2214.elb.ap-south-1.amazonaws.com
-ARG NEXT_PUBLIC_AUTH_URL=http://a248499a3e9da47248ad0adca7dac106-365a099e4a3b2214.elb.ap-south-1.amazonaws.com/cspm
+ARG NEXT_PUBLIC_API_BASE=http://a6fff2656f8c845e5a2d8effc1b3e56f-1461670384.ap-south-1.elb.amazonaws.com
+ARG NEXT_PUBLIC_AUTH_URL=http://a6fff2656f8c845e5a2d8effc1b3e56f-1461670384.ap-south-1.elb.amazonaws.com/cspm
 ARG NEXT_PUBLIC_TENANT_ID=default-tenant
 
 ENV NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE}

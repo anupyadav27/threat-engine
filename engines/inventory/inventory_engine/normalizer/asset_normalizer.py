@@ -23,15 +23,10 @@ Tables WRITTEN: None (returns Asset objects to callers)
 """
 
 import json
-import hashlib
 import logging
-import os
-import re
 from typing import List, Dict, Any, Optional
 from ..schemas.asset_schema import Asset, Provider, Scope, compute_asset_hash
-from ..schemas.relationship_schema import Relationship, RelationType
 from .resource_classifier import ResourceClassifier, InventoryDecision
-from ..metadata.service_metadata_loader import ServiceMetadataLoader
 
 # ARN normalizer — converts short-form UIDs to canonical ARN format
 try:
@@ -45,330 +40,12 @@ logger = logging.getLogger(__name__)
 class AssetNormalizer:
     """Normalizes raw provider data to canonical assets"""
 
-    def __init__(self, tenant_id: str, scan_run_id: str, db_connection=None):
+    def __init__(self, tenant_id: str, scan_run_id: str):
         self.tenant_id = tenant_id
         self.scan_run_id = scan_run_id
-        self.classifier = ResourceClassifier()  # Initialize classifier with default index
+        self.classifier = ResourceClassifier()
 
-        # Initialize metadata loader for pattern-based ARN/ID generation
-        try:
-            if db_connection:
-                self.metadata_loader = ServiceMetadataLoader(db_connection=db_connection)
-            else:
-                # Build connection config from environment variables (all CSPs use same pythonsdk DB)
-                db_config = {
-                    'host': os.getenv('PYTHONSDK_DB_HOST', os.getenv('DB_HOST', 'localhost')),
-                    'port': int(os.getenv('PYTHONSDK_DB_PORT', os.getenv('DB_PORT', '5432'))),
-                    'database': os.getenv('PYTHONSDK_DB_NAME', 'threat_engine_pythonsdk'),
-                    'user': os.getenv('PYTHONSDK_DB_USER', os.getenv('DB_USER', 'postgres')),
-                    'password': os.getenv('PYTHONSDK_DB_PASSWORD', os.getenv('DB_PASSWORD', '')),
-                }
-                self.metadata_loader = ServiceMetadataLoader(db_config=db_config)
-            logger.info(f"AssetNormalizer: ServiceMetadataLoader initialized with {len(self.metadata_loader._services_cache)} services")
-        except Exception as e:
-            logger.warning(f"Failed to initialize ServiceMetadataLoader: {e}. Falling back to legacy ARN generation.")
-            self.metadata_loader = None
-    
-    def normalize_from_raw(
-        self,
-        raw_data: Dict[str, Any],
-        provider: Provider,
-        account_id: str,
-        region: str,
-        service: str,
-        raw_ref: str
-    ) -> List[Asset]:
-        """
-        Normalize raw provider data to Asset records.
-        
-        Args:
-            raw_data: Raw provider JSON data
-            provider: Cloud provider
-            account_id: Account/subscription/project ID
-            region: Region code
-            service: Service name (e.g., "s3", "ec2")
-            raw_ref: S3 path to raw data
-        
-        Returns:
-            List of normalized Asset records
-        """
-        assets = []
-        
-        # Provider-specific normalization
-        if provider == Provider.AWS:
-            assets.extend(self._normalize_aws(raw_data, account_id, region, service, raw_ref))
-        elif provider == Provider.AZURE:
-            assets.extend(self._normalize_azure(raw_data, account_id, region, service, raw_ref))
-        elif provider == Provider.GCP:
-            assets.extend(self._normalize_gcp(raw_data, account_id, region, service, raw_ref))
-        elif provider == Provider.K8S:
-            assets.extend(self._normalize_k8s(raw_data, account_id, region, service, raw_ref))
-        
-        return assets
-    
-    def _normalize_aws(
-        self,
-        raw_data: Dict[str, Any],
-        account_id: str,
-        region: str,
-        service: str,
-        raw_ref: str
-    ) -> List[Asset]:
-        """Normalize AWS raw data"""
-        assets = []
-        
-        # Extract resources from raw data
-        # Structure depends on service, but typically has a list of resources
-        resources = self._extract_resources(raw_data, service)
-        
-        for resource in resources:
-            # Extract resource identifiers
-            resource_uid = self._extract_aws_resource_uid(resource, service, account_id, region)
-            resource_id = self._extract_aws_resource_id(resource, service)
-            resource_type = f"{service}.{self._extract_aws_resource_type(resource, service)}"
-            name = resource.get("Name") or resource.get("name") or resource_id
-            
-            # Extract tags
-            tags = self._extract_tags(resource)
-            
-            # Determine scope
-            scope = Scope.GLOBAL if service in ["iam", "s3", "cloudfront", "route53"] else Scope.REGIONAL
-            
-            # Build metadata
-            metadata = {
-                "created_at": resource.get("CreationDate") or resource.get("CreateDate"),
-                "labels": {},
-                "raw_refs": [raw_ref]
-            }
-            
-            # Create asset
-            asset = Asset(
-                tenant_id=self.tenant_id,
-                scan_run_id=self.scan_run_id,
-                provider=Provider.AWS,
-                account_id=account_id,
-                region=region,
-                scope=scope,
-                resource_type=resource_type,
-                resource_id=resource_id,
-                resource_uid=resource_uid,
-                name=name,
-                tags=tags,
-                metadata=metadata,
-                hash_sha256=""  # Will be computed
-            )
-            
-            # Compute hash
-            asset.hash_sha256 = compute_asset_hash(asset)
-            
-            assets.append(asset)
-        
-        return assets
-    
-    def _normalize_azure(
-        self,
-        raw_data: Dict[str, Any],
-        account_id: str,
-        region: str,
-        service: str,
-        raw_ref: str
-    ) -> List[Asset]:
-        """Normalize Azure raw data"""
-        assets = []
-        # TODO: Implement Azure normalization
-        return assets
-    
-    def _normalize_gcp(
-        self,
-        raw_data: Dict[str, Any],
-        account_id: str,
-        region: str,
-        service: str,
-        raw_ref: str
-    ) -> List[Asset]:
-        """Normalize GCP raw data"""
-        assets = []
-        # TODO: Implement GCP normalization
-        return assets
-    
-    def _normalize_k8s(
-        self,
-        raw_data: Dict[str, Any],
-        account_id: str,
-        region: str,
-        service: str,
-        raw_ref: str
-    ) -> List[Asset]:
-        """Normalize Kubernetes raw data"""
-        assets = []
-        # TODO: Implement K8s normalization
-        return assets
-    
-    def _extract_resources(self, raw_data: Dict[str, Any], service: str) -> List[Dict[str, Any]]:
-        """Extract resource list from raw data"""
-        # Common patterns: "Resources", "items", "value", or direct list
-        if isinstance(raw_data, list):
-            return raw_data
-        
-        for key in ["Resources", "items", "value", "results"]:
-            if key in raw_data and isinstance(raw_data[key], list):
-                return raw_data[key]
-        
-        # If no list found, treat entire object as single resource
-        return [raw_data]
-    
-    def _extract_aws_resource_uid(self, resource: Dict[str, Any], service: str, account_id: str, region: str) -> str:
-        """
-        Extract AWS resource UID (ARN) using pattern-based generation from database
 
-        This method uses ServiceMetadataLoader to get ARN patterns from the database,
-        replacing hardcoded ARN generation for 20 services with pattern-based generation
-        for all 429+ AWS services.
-        """
-        # Try explicit ARN field first
-        arn = resource.get("Arn") or resource.get("arn") or resource.get("ARN")
-        if arn:
-            return arn
-
-        # Use pattern-based ARN generation from database
-        if self.metadata_loader:
-            try:
-                arn_pattern = self.metadata_loader.get_identifier_pattern('aws', service)
-                if arn_pattern:
-                    generated_arn = self._apply_identifier_pattern(
-                        arn_pattern, resource, region, account_id, 'aws'
-                    )
-                    if generated_arn:
-                        return generated_arn
-            except Exception as e:
-                logger.warning(f"Error generating ARN from pattern for {service}: {e}")
-
-        # Legacy fallback for services without patterns
-        # (These fallbacks are only used if database pattern fails)
-        if service == "s3":
-            bucket_name = resource.get("Name") or resource.get("BucketName")
-            if bucket_name:
-                return f"arn:aws:s3:::{bucket_name}"
-        elif service == "ec2":
-            instance_id = resource.get("InstanceId")
-            if instance_id:
-                return f"arn:aws:ec2:{region}:{account_id}:instance/{instance_id}"
-        elif service == "iam":
-            resource_name = resource.get("UserName") or resource.get("RoleName") or resource.get("GroupName")
-            resource_type = "user" if resource.get("UserName") else "role" if resource.get("RoleName") else "group"
-            if resource_name:
-                return f"arn:aws:iam::{account_id}:{resource_type}/{resource_name}"
-
-        # Final fallback: construct short UID, then try to normalize to ARN
-        resource_id = resource.get("Id") or resource.get("ResourceId") or resource.get("Name")
-        short_uid = f"{service}:{region}:{account_id}:{resource_id}"
-        return normalize_resource_uid(
-            resource_uid=short_uid,
-            resource_type=f"{service}.{resource_id}" if resource_id else "",
-            provider="aws",
-            region=region,
-            account_id=account_id,
-        )
-
-    def _apply_identifier_pattern(
-        self,
-        pattern: str,
-        resource: Dict[str, Any],
-        region: str,
-        account_id: str,
-        csp: str
-    ) -> Optional[str]:
-        """
-        Apply identifier pattern with field substitution
-
-        Pattern examples:
-        - AWS: "arn:aws:s3:::${BucketName}"
-        - Azure: "/subscriptions/${SubscriptionId}/resourceGroups/${ResourceGroup}/..."
-        - GCP: "projects/${ProjectId}/zones/${Zone}/instances/${InstanceName}"
-
-        Args:
-            pattern: Pattern string with ${FieldName} placeholders
-            resource: Resource data dictionary
-            region: Region/location
-            account_id: Account/subscription/project ID
-            csp: Cloud provider (aws, azure, gcp, etc.)
-
-        Returns:
-            Generated identifier string or None if pattern cannot be satisfied
-        """
-        def replace_field(match):
-            field_name = match.group(1)
-
-            # Handle special fields
-            if field_name in ['Region', 'region']:
-                return region
-            elif field_name in ['AccountId', 'account']:
-                return account_id
-            elif field_name in ['SubscriptionId', 'subscription']:
-                return account_id
-            elif field_name in ['ProjectId', 'project']:
-                return account_id
-            else:
-                # Try to get from resource data
-                # Try exact match first
-                value = resource.get(field_name)
-
-                # Try case-insensitive match if not found
-                if value is None:
-                    for key in resource.keys():
-                        if key.lower() == field_name.lower():
-                            value = resource[key]
-                            break
-
-                return str(value) if value is not None else ''
-
-        # Replace all ${FieldName} placeholders
-        try:
-            identifier = re.sub(r'\$\{(\w+)\}', replace_field, pattern)
-
-            # Check if all placeholders were replaced (no empty values)
-            if identifier and '${' not in identifier and identifier != pattern:
-                return identifier
-        except Exception as e:
-            logger.warning(f"Error applying pattern '{pattern}': {e}")
-
-        return None
-    
-    def _extract_aws_resource_id(self, resource: Dict[str, Any], service: str) -> str:
-        """Extract AWS resource ID"""
-        # Service-specific ID extraction
-        if service == "s3":
-            return resource.get("Name") or resource.get("BucketName") or ""
-        elif service == "ec2":
-            return resource.get("InstanceId") or resource.get("VolumeId") or ""
-        elif service == "iam":
-            return resource.get("UserName") or resource.get("RoleName") or resource.get("GroupName") or ""
-        
-        # Generic fallback
-        return resource.get("Id") or resource.get("ResourceId") or resource.get("Name") or ""
-    
-    def _extract_aws_resource_type(self, resource: Dict[str, Any], service: str) -> str:
-        """Extract normalized resource type"""
-        # Service-specific type extraction
-        if service == "s3":
-            return "bucket"
-        elif service == "ec2":
-            if resource.get("InstanceId"):
-                return "instance"
-            elif resource.get("VolumeId"):
-                return "volume"
-            elif resource.get("SecurityGroupId"):
-                return "security-group"
-        elif service == "iam":
-            if resource.get("UserName"):
-                return "user"
-            elif resource.get("RoleName"):
-                return "role"
-            elif resource.get("GroupName"):
-                return "group"
-        
-        return "resource"
-    
     def _extract_tags(self, resource: Dict[str, Any]) -> Dict[str, str]:
         """Extract tags from resource data (supports nested discovery structures)."""
         tags = {}
@@ -594,8 +271,12 @@ class AssetNormalizer:
             return None
 
         # --- Resource Type ---
-        resource_type = self._extract_aws_resource_type_from_discovery(flat, service, resource_arn)
-        resource_type = self._correct_resource_type(resource_type, resource_arn or "")
+        resource_type = self._extract_aws_resource_type_from_discovery(
+            flat, service, resource_arn, discovery_id=discovery_id
+        )
+        # Use resource_uid for type correction (more reliable than resource_arn which may be wrong)
+        resource_uid = discovery_record.get("resource_uid") or resource_arn or ""
+        resource_type = self._correct_resource_type(resource_type, resource_uid)
 
         # --- Name (human-readable) ---
         name = (
@@ -734,9 +415,16 @@ class AssetNormalizer:
         if not uid:
             return None
 
-        # Extract resource type from discovery_id or emitted fields
+        # Extract resource type — prefer the record's own resource_type if set
+        # (e.g. Azure scanner sets ARM type directly on the discovery record)
+        raw_type = discovery_record.get("resource_type", "")
+        if raw_type:
+            # Route through _extract_generic_resource_type with it as emitted field
+            merged_fields = {"resource_type": raw_type, **emitted_fields}
+        else:
+            merged_fields = emitted_fields
         resource_type = self._extract_generic_resource_type(
-            discovery_id, emitted_fields, service, provider
+            discovery_id, merged_fields, service, provider
         )
 
         # Extract name
@@ -789,6 +477,83 @@ class AssetNormalizer:
         asset.hash_sha256 = compute_asset_hash(asset)
         return asset
 
+    # ── GCP API type → canonical type mapping ────────────────────────────────
+    # Maps lowercase GCP API resource type → canonical "gcp.X" resource_type.
+    # GCP API types follow "service.googleapis.com/ResourceKind" format.
+    _GCP_API_TYPE_MAP: Dict[str, str] = {
+        "iam.googleapis.com/serviceaccount": "gcp.iam_service_account",
+        "iam.googleapis.com/role": "gcp.iam_role",
+        "iam.googleapis.com/policy": "gcp.iam_policy",
+        "compute.googleapis.com/instance": "gcp.compute_instance",
+        "compute.googleapis.com/disk": "gcp.compute_disk",
+        "compute.googleapis.com/firewall": "gcp.vpc_firewall_rule",
+        "compute.googleapis.com/network": "gcp.vpc_network",
+        "compute.googleapis.com/subnetwork": "gcp.vpc_subnetwork",
+        "compute.googleapis.com/backendservice": "gcp.backend_service",
+        "compute.googleapis.com/forwardingrule": "gcp.forwarding_rule",
+        "compute.googleapis.com/sslcertificate": "gcp.ssl_certificate",
+        "storage.googleapis.com/bucket": "gcp.gcs_bucket",
+        "bigquery.googleapis.com/dataset": "gcp.bigquery_dataset",
+        "bigquery.googleapis.com/table": "gcp.bigquery_table",
+        "container.googleapis.com/cluster": "gcp.gke_cluster",
+        "container.googleapis.com/nodepools": "gcp.gke_nodepool",
+        "cloudfunctions.googleapis.com/function": "gcp.cloud_function",
+        "run.googleapis.com/service": "gcp.cloud_run_service",
+        "sqladmin.googleapis.com/instance": "gcp.cloud_sql_instance",
+        "cloudkms.googleapis.com/keyring": "gcp.kms_key_ring",
+        "cloudkms.googleapis.com/cryptokey": "gcp.kms_crypto_key",
+        "pubsub.googleapis.com/topic": "gcp.pubsub_topic",
+        "pubsub.googleapis.com/subscription": "gcp.pubsub_subscription",
+        "dns.googleapis.com/managedzone": "gcp.dns_zone",
+        "logging.googleapis.com/logsink": "gcp.log_sink",
+        "monitoring.googleapis.com/alertpolicy": "gcp.alert_policy",
+        "secretmanager.googleapis.com/secret": "gcp.secret",
+        "redis.googleapis.com/instance": "gcp.redis_instance",
+        "spanner.googleapis.com/instance": "gcp.spanner_instance",
+        "bigtable.googleapis.com/instance": "gcp.bigtable_instance",
+    }
+
+    # ── Azure ARM type → canonical type mapping ─────────────────────────────
+    # Maps lowercase ARM type → canonical "azure.X" resource_type stored in inventory_findings.
+    # Add new mappings as Azure scanner expands to more services.
+    _AZURE_ARM_TYPE_MAP: Dict[str, str] = {
+        "microsoft.compute/virtualmachines": "azure.virtual_machine",
+        "microsoft.compute/disks": "azure.disk",
+        "microsoft.compute/snapshots": "azure.snapshot",
+        "microsoft.compute/availabilitysets": "azure.availability_set",
+        "microsoft.compute/virtualmachinescalesets": "azure.vmss",
+        "microsoft.storage/storageaccounts": "azure.storage_account",
+        "microsoft.storage/storageaccounts/blobservices/containers": "azure.blob_container",
+        "microsoft.sql/servers": "azure.sql_server",
+        "microsoft.sql/servers/databases": "azure.sql_database",
+        "microsoft.sql/servers/firewallrules": "azure.sql_firewall_rule",
+        "microsoft.network/networksecuritygroups": "azure.network_security_group",
+        "microsoft.network/virtualnetworks": "azure.virtual_network",
+        "microsoft.network/publicipaddresses": "azure.public_ip",
+        "microsoft.network/networkinterfaces": "azure.network_interface",
+        "microsoft.network/loadbalancers": "azure.load_balancer",
+        "microsoft.network/applicationgateways": "azure.application_gateway",
+        "microsoft.network/dnszones": "azure.dns_zone",
+        "microsoft.keyvault/vaults": "azure.key_vault",
+        "microsoft.web/sites": "azure.app_service",
+        "microsoft.web/serverfarms": "azure.app_service_plan",
+        "microsoft.containerservice/managedclusters": "azure.aks_cluster",
+        "microsoft.containerregistry/registries": "azure.container_registry",
+        "microsoft.msi/userassignedidentities": "azure.managed_identity",
+        "microsoft.resources/resourcegroups": "azure.resource_group",
+        "microsoft.resources/subscriptions": "azure.subscription",
+        "microsoft.authorization/roleassignments": "azure.role_assignment",
+        "microsoft.authorization/roledefinitions": "azure.role_definition",
+        "microsoft.documentdb/databaseaccounts": "azure.cosmosdb",
+        "microsoft.servicebus/namespaces": "azure.servicebus",
+        "microsoft.eventhub/namespaces": "azure.eventhub",
+        "microsoft.logic/workflows": "azure.logic_app",
+        "microsoft.monitor/activitylogalerts": "azure.activity_log_alert",
+        "microsoft.security/pricings": "azure.defender_pricing",
+        "microsoft.security/securitycontacts": "azure.security_contact",
+        "microsoft.insights/diagnosticsettings": "azure.diagnostic_setting",
+    }
+
     def _extract_generic_resource_type(
         self,
         discovery_id: str,
@@ -797,10 +562,48 @@ class AssetNormalizer:
         provider: 'Provider'
     ) -> str:
         """Extract resource type for non-AWS providers from discovery_id or emitted fields."""
+        import re
+        provider_str = str(provider).lower().replace("provider.", "")
+
         # Try emitted fields first
         for field in ["resourceType", "resource_type", "type", "Type", "kind"]:
             if field in emitted_fields and emitted_fields[field]:
                 val = str(emitted_fields[field])
+
+                # Azure ARM type: "Microsoft.Compute/virtualMachines" → "azure.virtual_machine"
+                # ARM types start with "Microsoft." (canonical) or match pattern "Namespace/ResourceKind"
+                # where namespace doesn't start with "http" (to exclude GCP selfLink URLs)
+                is_arm_type = (
+                    val.startswith("Microsoft.") or
+                    (provider_str == "azure" and "/" in val and not val.startswith("http"))
+                )
+                if is_arm_type:
+                    canonical = self._AZURE_ARM_TYPE_MAP.get(val.lower())
+                    if canonical:
+                        return canonical
+                    # Fallback: derive from ARM kind (last path segment), snake_case
+                    kind = val.split("/")[-1] if "/" in val else val.split(".")[-1]
+                    kind = re.sub(r'(?<!^)(?=[A-Z])', '_', kind).lower().rstrip("s")
+                    return f"azure.{kind}"
+
+                # K8s: "kind" field → "k8s.pod", "k8s.deployment", etc.
+                if field == "kind" and provider_str == "k8s":
+                    return f"k8s.{val.lower()}"
+
+                # GCP API type: "compute.googleapis.com/Instance" → "gcp.compute_instance"
+                if provider_str == "gcp" and not val.startswith("gcp."):
+                    canonical = self._GCP_API_TYPE_MAP.get(val.lower())
+                    if canonical:
+                        return canonical
+                    if ".googleapis.com/" in val:
+                        # "service.googleapis.com/ResourceKind" → "gcp.service_resource_kind"
+                        svc = val.split(".googleapis.com/")[0]
+                        kind = val.split("/")[-1]
+                        kind_snake = re.sub(r'(?<!^)(?=[A-Z])', '_', kind).lower()
+                        return f"gcp.{svc}_{kind_snake}"
+                    kind = re.sub(r'(?<!^)(?=[A-Z])', '_', val).lower()
+                    return f"gcp.{kind}"
+
                 return f"{service}.{val}" if not val.startswith(service) else val
 
         # Extract from discovery_id: e.g., azure.compute.list_virtual_machines → compute.virtual_machines
@@ -815,8 +618,8 @@ class AssetNormalizer:
                     if op_name.lower().startswith(prefix):
                         resource = op_name[len(prefix):]
                         if resource:
-                            return f"{service}.{resource}"
-                return f"{service}.{op_name}"
+                            return f"{provider_str}.{svc}_{resource}" if provider_str not in ("aws",) else f"{service}.{resource}"
+                return f"{provider_str}.{svc}_{op_name}" if provider_str not in ("aws",) else f"{service}.{op_name}"
 
         return f"{service}.resource"
 
@@ -856,13 +659,22 @@ class AssetNormalizer:
             # None → junk; return original (let graph query deprioritise)
             return resource_type
 
-        # ARN-based fallback: arn contains :vpc/ but type is wrong
-        if resource_arn and ":vpc/" in resource_arn and not resource_type.startswith("ec2.vpc"):
-            logger.debug(
-                "ARN-based type correction: %s → ec2.vpc (arn=%s)",
-                resource_type, resource_arn[:80]
-            )
-            return "ec2.vpc"
+        # ARN-based correction: extract real type from resource_uid/resource_arn pattern
+        # arn:aws:ec2:region:account:RESOURCE_TYPE/id → use RESOURCE_TYPE
+        if resource_arn and resource_arn.startswith("arn:aws:"):
+            parts = resource_arn.split(":")
+            if len(parts) >= 6:
+                resource_part = parts[5]
+                if "/" in resource_part:
+                    arn_type = resource_part.split("/")[0]
+                    service = parts[2]  # e.g. "ec2", "iam", "s3"
+                    expected = f"{service}.{arn_type}"
+                    if expected != resource_type and arn_type:
+                        logger.debug(
+                            "ARN-based type correction: %s → %s (arn=%s)",
+                            resource_type, expected, resource_arn[:80]
+                        )
+                        return expected
 
         return resource_type
 
@@ -870,18 +682,66 @@ class AssetNormalizer:
         self,
         fields: Dict[str, Any],
         service: str,
-        resource_arn: Optional[str] = None
+        resource_arn: Optional[str] = None,
+        discovery_id: str = "",
     ) -> str:
         """
         Extract resource type from flat emitted fields or ARN.
 
         Uses multiple strategies:
+          0. Discovery_id → type mapping (most reliable)
           1. ARN resource-type segment (e.g. arn:aws:iam::123:role/name → iam.role)
-          2. Known field signatures (RoleName → iam.role, InstanceId → ec2.instance)
-          3. DB-based index resolution
-          4. Fallback to service.resource
+          2. Primary ID field signatures (specific fields like NetworkAclId before generic VpcId)
+          3. Fallback to service.resource
         """
-        # --- ARN-based type extraction ---
+        # --- Strategy 0: Discovery_id → type (most reliable) ---
+        if discovery_id:
+            # aws.ec2.describe_network_acls → network-acl
+            action = discovery_id.split(".")[-1] if "." in discovery_id else ""
+            _DID_TO_TYPE = {
+                "describe_network_acls": "network-acl",
+                "describe_route_tables": "route-table",
+                "describe_network_interfaces": "network-interface",
+                "describe_instances": "instance",
+                "describe_vpcs": "vpc",
+                "describe_subnets": "subnet",
+                "describe_security_groups": "security-group",
+                "describe_security_group_rules": "security-group-rule",
+                "describe_volumes": "volume",
+                "describe_internet_gateways": "internet-gateway",
+                "describe_nat_gateways": "nat-gateway",
+                "describe_transit_gateways": "transit-gateway",
+                "describe_vpc_endpoints": "vpc-endpoint",
+                "describe_addresses": "elastic-ip",
+                "describe_key_pairs": "key-pair",
+                "describe_launch_templates": "launch-template",
+                "describe_images": "image",
+                "describe_snapshots": "snapshot",
+                "describe_dhcp_options": "dhcp-options",
+                "describe_flow_logs": "flow-log",
+                "list_roles": "role",
+                "list_users": "user",
+                "list_policies": "policy",
+                "list_groups": "group",
+                "list_instance_profiles": "instance-profile",
+                "list_functions": "function",
+                "list_buckets": "bucket",
+                "list_tables": "table",
+                "list_queues": "queue",
+                "list_topics": "topic",
+                "list_keys": "key",
+                "describe_db_instances": "db-instance",
+                "describe_clusters": "cluster",
+                "list_clusters": "cluster",
+                "describe_repositories": "repository",
+                "describe_log_groups": "log-group",
+                "describe_alarms": "alarm",
+                "describe_trails": "trail",
+            }
+            if action in _DID_TO_TYPE:
+                return f"{service}.{_DID_TO_TYPE[action]}"
+
+        # --- Strategy 1: ARN-based type extraction ---
         if resource_arn and resource_arn.startswith("arn:"):
             arn_parts = resource_arn.split(":")
             if len(arn_parts) >= 6:
@@ -891,24 +751,28 @@ class AssetNormalizer:
                     if arn_type:
                         return f"{service}.{arn_type}"
                 elif resource_part and ":::" in resource_arn:
-                    # S3-style ARN: arn:aws:s3:::bucket-name
                     return f"{service}.bucket"
 
-        # --- Known field signatures ---
+        # --- Strategy 2: Primary ID field signatures ---
+        # Order matters: specific IDs before generic ones (NetworkAclId before VpcId)
         _FIELD_TO_TYPE = {
-            "BucketName": "bucket", "BucketArn": "bucket",
-            "InstanceId": "instance",
-            "VolumeId": "volume",
-            "SecurityGroupId": "security-group", "GroupId": "security-group",
+            # Specific IDs first
+            "NetworkAclId": "network-acl",
+            "RouteTableId": "route-table",
+            "NetworkInterfaceId": "network-interface",
             "SecurityGroupRuleId": "security-group-rule",
-            "VpcId": "vpc",
-            "SubnetId": "subnet",
+            "SecurityGroupId": "security-group", "GroupId": "security-group",
             "NatGatewayId": "nat-gateway",
             "InternetGatewayId": "internet-gateway",
-            "RouteTableId": "route-table",
-            "NetworkAclId": "network-acl",
             "TransitGatewayId": "transit-gateway",
             "FlowLogId": "flow-log",
+            "InstanceId": "instance",
+            "VolumeId": "volume",
+            # Generic IDs last
+            "SubnetId": "subnet",
+            "VpcId": "vpc",
+            # Service-specific
+            "BucketName": "bucket", "BucketArn": "bucket",
             "UserName": "user",
             "RoleName": "role", "RoleId": "role",
             "GroupName": "group",
@@ -1004,6 +868,29 @@ class AssetNormalizer:
                 asset.tags = {}
             asset.tags.update(enrichment_tags)
 
+        # --- Merge emitted_fields into asset.metadata["emitted_fields"] ---
+        # Critical for relationship builder: it reads fields like IamInstanceProfile,
+        # SecurityGroups, SubnetId from emitted_fields — not from configuration.
+        # Without this merge, enrichment discoveries (describe_instances) have their
+        # fields stored in configuration but invisible to the relationship builder.
+        if "emitted_fields" not in asset.metadata:
+            asset.metadata["emitted_fields"] = {}
+        existing_ef = asset.metadata["emitted_fields"]
+        if isinstance(existing_ef, dict) and isinstance(emitted_fields, dict):
+            for key, val in emitted_fields.items():
+                if key.startswith("_"):
+                    continue  # skip internal fields
+                # Overwrite if key missing OR existing value is None/empty
+                # This ensures describe_instances' IamInstanceProfile overwrites
+                # the None from describe_instance_image_metadata
+                existing_val = existing_ef.get(key)
+                if existing_val is None or existing_val == "" or existing_val == {} or existing_val == []:
+                    if val is not None:
+                        existing_ef[key] = val
+                elif key not in existing_ef:
+                    existing_ef[key] = val
+            asset.metadata["emitted_fields"] = existing_ef
+
         # --- Track enrichment source ---
         if "enriched_from" not in asset.metadata:
             asset.metadata["enriched_from"] = []
@@ -1014,21 +901,49 @@ class AssetNormalizer:
 
     def extract_enrichment_uid(self, discovery_record: Dict[str, Any]) -> Optional[str]:
         """
-        Extract the resource UID that an enrichment record refers to.
+        Extract the canonical resource UID that an enrichment record refers to,
+        normalised to ARN format so it matches assets_by_uid built from Pass 1.
 
-        This is used to match enrichment records to existing assets during two-pass
-        orchestration.
-
-        Args:
-            discovery_record: Enrichment discovery record
+        Discovery enrichment records often carry a short-form resource_uid
+        (e.g. "ec2:ap-south-1:123456:i-0abc123") while the root asset was stored
+        with a full ARN ("arn:aws:ec2:ap-south-1:123456:instance/i-0abc123").
+        We normalise here so the lookup in the orchestrator succeeds.
 
         Returns:
-            Resource UID (ARN or UID) of the parent resource, or None
+            Canonical ARN/UID string, or None
         """
-        # Enrichment records share the same resource_arn/resource_uid as their root
         resource_arn = discovery_record.get("resource_arn")
         resource_uid = discovery_record.get("resource_uid")
-        return resource_arn or resource_uid or None
+
+        # Prefer explicit ARN if already in ARN format
+        if resource_arn and is_arn(resource_arn):
+            return resource_arn
+
+        # Try to normalise short-form UID to canonical ARN
+        uid = resource_arn or resource_uid
+        if uid:
+            if is_arn(uid):
+                return uid
+            # Use the normalizer to convert short-form to ARN
+            try:
+                service = discovery_record.get("service", "")
+                region = discovery_record.get("region", "")
+                account_id = discovery_record.get("account_id", "")
+                resource_type = discovery_record.get("resource_type", "")
+                normalised = normalize_resource_uid(
+                    resource_uid=uid,
+                    resource_type=resource_type,
+                    provider="aws",
+                    region=region or "global",
+                    account_id=account_id,
+                    resource_arn=resource_arn or "",
+                )
+                if normalised and is_arn(normalised):
+                    return normalised
+            except Exception:
+                pass
+            return uid  # fallback: return as-is, orchestrator will also try param_sources
+        return None
 
     def _generate_arn_from_fields(self, fields: Dict[str, Any], service: str, account_id: str, region: str) -> Optional[str]:
         """Generate ARN from flat fields if possible."""

@@ -51,14 +51,14 @@ app.add_middleware(
 # Scanner image (same Docker image, different CMD)
 SCANNER_IMAGE = os.getenv(
     "DISCOVERY_SCANNER_IMAGE",
-    "yadavanup84/engine-discoveries:v-std-cols",
+    "yadavanup84/engine-discoveries:v-scan-upload",
 )
 SCANNER_NAMESPACE = os.getenv("SCANNER_NAMESPACE", "threat-engine-engines")
 SCANNER_SERVICE_ACCOUNT = os.getenv("SCANNER_SERVICE_ACCOUNT", "engine-sa")
-SCANNER_CPU_REQUEST = os.getenv("SCANNER_CPU_REQUEST", "4")
+SCANNER_CPU_REQUEST = os.getenv("SCANNER_CPU_REQUEST", "2")
 SCANNER_MEM_REQUEST = os.getenv("SCANNER_MEM_REQUEST", "8Gi")
-SCANNER_CPU_LIMIT = os.getenv("SCANNER_CPU_LIMIT", "8")
-SCANNER_MEM_LIMIT = os.getenv("SCANNER_MEM_LIMIT", "16Gi")
+SCANNER_CPU_LIMIT = os.getenv("SCANNER_CPU_LIMIT", "2")
+SCANNER_MEM_LIMIT = os.getenv("SCANNER_MEM_LIMIT", "12Gi")
 
 # Shared DatabaseManager for health checks and status queries
 _db_manager = None
@@ -79,6 +79,15 @@ metrics = {
 }
 
 
+def _coerce_list(v):
+    """Accept str (comma-separated), list, or None → List[str] or None."""
+    if v is None or v == "" or v == []:
+        return None
+    if isinstance(v, str):
+        return [s.strip() for s in v.split(",") if s.strip()]
+    return v
+
+
 class DiscoveryRequest(BaseModel):
     """Discovery scan request model (CSP-agnostic)"""
     # Pipeline scan_run_id
@@ -95,6 +104,16 @@ class DiscoveryRequest(BaseModel):
     exclude_regions: Optional[List[str]] = None
     credentials: Optional[Dict[str, Any]] = None
     use_database: Optional[bool] = None  # If None, auto-detect
+
+    from pydantic import model_validator
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_filters(cls, values):
+        for field in ("include_services", "include_regions", "exclude_regions"):
+            if field in values:
+                values[field] = _coerce_list(values[field])
+        return values
 
 
 class DiscoveryResponse(BaseModel):
@@ -113,7 +132,9 @@ def _create_scanner_job(scan_run_id: str, scan_run_id_ref: str, provider: str) -
     from kubernetes import client as k8s_client
 
     extra_env = [
-        k8s_client.V1EnvVar(name="MAX_CONCURRENT_TASKS", value=os.getenv("MAX_CONCURRENT_TASKS", "400")),
+        k8s_client.V1EnvVar(name="MAX_CONCURRENT_TASKS", value=os.getenv("MAX_CONCURRENT_TASKS", "1000")),
+        k8s_client.V1EnvVar(name="OPERATION_TIMEOUT", value=os.getenv("OPERATION_TIMEOUT", "10")),
+        k8s_client.V1EnvVar(name="SERVICE_SCAN_TIMEOUT", value=os.getenv("SERVICE_SCAN_TIMEOUT", "900")),
         k8s_client.V1EnvVar(name="DISCOVERY_MODE", value="database"),
         k8s_client.V1EnvVar(name="DISCOVERY_CONFIG_SOURCE", value="database"),
     ]

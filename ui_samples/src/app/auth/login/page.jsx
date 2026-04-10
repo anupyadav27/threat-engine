@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Shield, Eye, EyeOff, Lock, Globe, Server, ChevronRight, AlertCircle, CheckCircle } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 
@@ -45,6 +46,11 @@ export default function LoginPage() {
   const handleSamlLogin = () => {
     const base = process.env.NEXT_PUBLIC_AUTH_URL || process.env.NEXT_PUBLIC_API_BASE || '';
     window.location.href = `${base}/api/auth/saml/login/`;
+  };
+
+  const handleGoogleLogin = () => {
+    const base = process.env.NEXT_PUBLIC_AUTH_URL || process.env.NEXT_PUBLIC_API_BASE || '';
+    window.location.href = `${base}/api/auth/google/login/`;
   };
 
   return (
@@ -344,12 +350,44 @@ export default function LoginPage() {
             </button>
           </form>
 
+          {/* Forgot password */}
+          <div style={{ textAlign: 'right', marginTop: -8 }}>
+            <Link href="/auth/forgot-password" style={{ fontSize: 13, color: '#6366f1', textDecoration: 'none' }}>
+              Forgot password?
+            </Link>
+          </div>
+
           {/* Divider */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, margin: '26px 0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, margin: '22px 0' }}>
             <div style={{ flex: 1, height: 1, backgroundColor: '#1e2d3d' }} />
             <span style={{ fontSize: 11, color: '#334155', fontWeight: 600, letterSpacing: '0.08em' }}>OR</span>
             <div style={{ flex: 1, height: 1, backgroundColor: '#1e2d3d' }} />
           </div>
+
+          {/* Google button */}
+          <button
+            type="button"
+            onClick={handleGoogleLogin}
+            disabled={isLoading}
+            style={{
+              width: '100%', padding: '13px', borderRadius: 10,
+              backgroundColor: '#0d1117',
+              border: '1.5px solid #1e2d3d',
+              color: '#e2e8f0', fontSize: 14, fontWeight: 600,
+              cursor: isLoading ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+              transition: 'border-color 0.2s', marginBottom: 10,
+            }}
+          >
+            {/* Google G */}
+            <svg width="17" height="17" viewBox="0 0 48 48">
+              <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.2l6.7-6.7C35.8 2.5 30.3 0 24 0 14.6 0 6.5 5.5 2.5 13.5l7.8 6C12.2 13.2 17.6 9.5 24 9.5z"/>
+              <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.2-.4-4.7H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8C43.7 37.7 46.5 31.5 46.5 24.5z"/>
+              <path fill="#FBBC05" d="M10.3 28.5A14.5 14.5 0 0 1 9.5 24c0-1.6.3-3.1.8-4.5l-7.8-6A23.9 23.9 0 0 0 0 24c0 3.9.9 7.5 2.5 10.8l7.8-6.3z"/>
+              <path fill="#34A853" d="M24 48c6.3 0 11.6-2.1 15.4-5.6l-7.5-5.8c-2.1 1.4-4.8 2.3-7.9 2.3-6.4 0-11.8-3.7-13.7-9l-7.8 6C6.5 42.5 14.6 48 24 48z"/>
+            </svg>
+            Continue with Google
+          </button>
 
           {/* SSO button */}
           <button
@@ -370,10 +408,18 @@ export default function LoginPage() {
             Continue with SSO / SAML
           </button>
 
+          {/* Sign up link */}
+          <p style={{ textAlign: 'center', marginTop: 24, fontSize: 14, color: '#475569' }}>
+            Don&apos;t have an account?{' '}
+            <Link href="/auth/signup" style={{ color: '#6366f1', fontWeight: 600, textDecoration: 'none' }}>
+              Create account
+            </Link>
+          </p>
+
           {/* Security note */}
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            gap: 6, marginTop: 32,
+            gap: 6, marginTop: 20,
           }}>
             <CheckCircle size={12} style={{ color: '#22c55e', flexShrink: 0 }} />
             <p style={{ fontSize: 12, color: '#334155', textAlign: 'center' }}>

@@ -7,7 +7,7 @@ import React, {
   useMemo,
   useCallback,
 } from 'react';
-import { fetchView } from '@/lib/api';
+import { fetchView, getFromEngine } from '@/lib/api';
 import { getServiceIcon } from '@/lib/inventory-taxonomy';
 import * as LucideIcons from 'lucide-react';
 import {
@@ -37,6 +37,7 @@ import {
   Scale,
   Box,
 } from 'lucide-react';
+import { TENANT_ID } from '@/lib/constants';
 import MetricStrip from '@/components/shared/MetricStrip';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import EmptyState from '@/components/shared/EmptyState';
@@ -74,6 +75,9 @@ const NODE_TYPE_CONFIG = {
   EKS:             { color: '#326ce5', label: 'EKS',            iconName: 'Ship' },
   ECS:             { color: '#ff9900', label: 'ECS',            iconName: 'Container' },
   threat:          { color: '#dc2626', label: 'Threat',         iconName: 'ShieldAlert' },
+  Account:         { color: '#0ea5e9', label: 'Account',        iconName: 'Building2' },
+  Org:             { color: '#0284c7', label: 'Organization',   iconName: 'Building' },
+  Finding:         { color: '#f97316', label: 'Finding',        iconName: 'AlertTriangle' },
 };
 
 const DEFAULT_NODE_COLOR = '#6b7280';
@@ -81,19 +85,42 @@ const DEFAULT_NODE_COLOR = '#6b7280';
 // ---------------------------------------------------------------------------
 // Edge type configuration
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Edge type configuration — kind: 'path' | 'association'
+// 'path' edges are drawn solid (attacker traversal route)
+// 'association' edges are drawn dashed (context: findings, encryption, etc.)
+// ---------------------------------------------------------------------------
 const EDGE_TYPE_CONFIG = {
-  ROUTES_TO:       { color: '#eab308', label: 'Routes To' },
-  EXPOSES:         { color: '#ef4444', label: 'Exposes' },
-  HAS_ACCESS:      { color: '#a855f7', label: 'Has Access' },
-  ALLOWS_TRAFFIC:  { color: '#22c55e', label: 'Allows Traffic' },
-  HAS_THREAT:      { color: '#ef4444', label: 'Has Threat' },
-  HAS_FINDING:     { color: '#f97316', label: 'Has Finding' },
-  REFERENCES:      { color: '#3b82f6', label: 'References' },
-  CONTAINS:        { color: '#06b6d4', label: 'Contains' },
-  CONNECTS_TO:     { color: '#60a5fa', label: 'Connects To' },
-  ASSUMES:         { color: '#c084fc', label: 'Assumes' },
-  AFFECTS:         { color: '#f87171', label: 'Affects' },
-  RELATES_TO:      { color: '#94a3b8', label: 'Relates To' },
+  // ── PATH edges (attack traversal) ──���───────────────────────────────────
+  EXPOSES:         { color: '#ef4444', label: 'Exposes',        kind: 'path' },
+  ASSUMES:         { color: '#c084fc', label: 'Assumes',        kind: 'path' },
+  CAN_ASSUME:      { color: '#c084fc', label: 'Can Assume',     kind: 'path' },
+  CAN_ACCESS:      { color: '#a855f7', label: 'Can Access',     kind: 'path' },
+  ACCESSES:        { color: '#a855f7', label: 'Accesses',       kind: 'path' },
+  STORES:          { color: '#22c55e', label: 'Stores Data',    kind: 'path' },
+  ROUTES_TO:       { color: '#eab308', label: 'Routes To',      kind: 'path' },
+  CONNECTS_TO:     { color: '#60a5fa', label: 'Connects To',    kind: 'path' },
+  ATTACHED_TO:     { color: '#3b82f6', label: 'Attached To',    kind: 'path' },
+  HOSTED_IN:       { color: '#6366f1', label: 'Hosted In',      kind: 'path' },
+  IN_VPC:          { color: '#8b5cf6', label: 'In VPC',         kind: 'path' },
+  RUNS_ON:         { color: '#06b6d4', label: 'Runs On',        kind: 'path' },
+  ALLOWS_TRAFFIC:  { color: '#22c55e', label: 'Allows Traffic', kind: 'path' },
+  // ── ASSOCIATION edges (context only, dashed) ───────────────────────────
+  HAS_THREAT:      { color: '#ef4444', label: 'Has Threat',     kind: 'association' },
+  HAS_FINDING:     { color: '#f97316', label: 'Has Finding',    kind: 'association' },
+  AFFECTED_BY:     { color: '#f87171', label: 'Affected By',    kind: 'association' },
+  ENCRYPTED_BY:    { color: '#64748b', label: 'Encrypted By',   kind: 'association' },
+  PROTECTED_BY:    { color: '#06b6d4', label: 'Protected By',   kind: 'association' },
+  DEPENDS_ON:      { color: '#64748b', label: 'Depends On',     kind: 'association' },
+  PROTECTS:        { color: '#06b6d4', label: 'Protects',       kind: 'association' },
+  OWNS:            { color: '#fbbf24', label: 'Owns',           kind: 'association' },
+  MEMBER_OF:       { color: '#94a3b8', label: 'Member Of',      kind: 'association' },
+  LOGS_TO:         { color: '#475569', label: 'Logs To',        kind: 'association' },
+  AFFECTS:         { color: '#f87171', label: 'Affects',        kind: 'association' },
+  CONTAINS:        { color: '#06b6d4', label: 'Contains',       kind: 'association' },
+  HAS_ACCESS:      { color: '#a855f7', label: 'Has Access',     kind: 'association' },
+  REFERENCES:      { color: '#3b82f6', label: 'References',     kind: 'association' },
+  RELATES_TO:      { color: '#94a3b8', label: 'Relates To',     kind: 'association' },
 };
 
 const DEFAULT_EDGE_COLOR = '#525252';
@@ -220,6 +247,7 @@ function SecurityGraph({
   visibleNodeTypes,
   visibleEdgeTypes,
   viewPreset,
+  highlightedNodeIds,
   containerWidth,
   containerHeight,
 }) {
@@ -526,57 +554,84 @@ function SecurityGraph({
         />
 
         <g transform={`translate(${transform.x}, ${transform.y}) scale(${transform.k})`}>
-          {/* Edges — Wiz-style: thin lines with arrow, label on hover */}
-          {filteredEdges.map((edge, idx) => {
-            const srcPos = nodePositions[edge.source];
-            const tgtPos = nodePositions[edge.target];
-            if (!srcPos || !tgtPos) return null;
+          {/* Two-layer edge rendering:
+              Pass 1 — ASSOCIATION edges (dashed, behind nodes, subtle)
+              Pass 2 — PATH edges (solid, in front, colored by attack category)
+              This matches Orca's visual model: route is prominent, context is subtle. */}
+          {(() => {
+            // Sort: association edges first (drawn under path edges)
+            const sortedEdges = [
+              ...filteredEdges.filter(e => {
+                const eType = (e.type || e.relationship || '').toUpperCase().replace(/\s+/g, '_');
+                return (e.edge_kind || EDGE_TYPE_CONFIG[eType]?.kind) === 'association';
+              }),
+              ...filteredEdges.filter(e => {
+                const eType = (e.type || e.relationship || '').toUpperCase().replace(/\s+/g, '_');
+                return (e.edge_kind || EDGE_TYPE_CONFIG[eType]?.kind) !== 'association';
+              }),
+            ];
 
-            const isConnected =
-              selectedNodeId &&
-              (edge.source === selectedNodeId || edge.target === selectedNodeId);
-            const opacity = selectedNodeId ? (isConnected ? 1 : 0.06) : 0.5;
-            const edgeColor = getEdgeColor(edge.type || edge.relationship);
+            return sortedEdges.map((edge, idx) => {
+              const srcPos = nodePositions[edge.source];
+              const tgtPos = nodePositions[edge.target];
+              if (!srcPos || !tgtPos) return null;
 
-            // Shorten line so it doesn't overlap the node circle
-            const dx = tgtPos.x - srcPos.x;
-            const dy = tgtPos.y - srcPos.y;
-            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-            const srcR = srcPos._radius || 16;
-            const tgtR = tgtPos._radius || 16;
-            const x1 = srcPos.x + (dx / dist) * (srcR + 2);
-            const y1 = srcPos.y + (dy / dist) * (srcR + 2);
-            const x2 = tgtPos.x - (dx / dist) * (tgtR + 6);
-            const y2 = tgtPos.y - (dy / dist) * (tgtR + 6);
-            const mx = (x1 + x2) / 2;
-            const my = (y1 + y2) / 2;
+              const eType = (edge.type || edge.relationship || '').toUpperCase().replace(/\s+/g, '_');
+              const edgeCfg = EDGE_TYPE_CONFIG[eType];
+              const isAssociation = (edge.edge_kind || edgeCfg?.kind) === 'association';
 
-            return (
-              <g key={`edge-${idx}`}>
-                <line
-                  x1={x1} y1={y1} x2={x2} y2={y2}
-                  stroke={edgeColor}
-                  strokeWidth={isConnected ? 2 : 1}
-                  strokeOpacity={opacity}
-                  markerEnd="url(#arrowhead)"
-                />
-                {/* Edge label shown when connected to selection */}
-                {isConnected && (
-                  <text
-                    x={mx} y={my - 5}
-                    textAnchor="middle"
-                    fill={edgeColor}
-                    fontSize={8}
-                    fontFamily="system-ui, sans-serif"
-                    fontWeight="600"
-                    style={{ pointerEvents: 'none' }}
-                  >
-                    {(edge.type || edge.relationship || '').replace(/_/g, ' ')}
-                  </text>
-                )}
-              </g>
-            );
-          })}
+              const isConnected =
+                selectedNodeId &&
+                (edge.source === selectedNodeId || edge.target === selectedNodeId);
+
+              // Path edges: visible and colored; Association: muted and dashed
+              const opacity = isAssociation
+                ? (selectedNodeId ? (isConnected ? 0.5 : 0.08) : 0.25)
+                : (selectedNodeId ? (isConnected ? 1 : 0.06) : 0.6);
+              const strokeWidth = isAssociation ? 1 : (isConnected ? 2.5 : 1.5);
+              const edgeColor = getEdgeColor(edge.type || edge.relationship);
+
+              // Shorten line so it doesn't overlap the node circle
+              const dx = tgtPos.x - srcPos.x;
+              const dy = tgtPos.y - srcPos.y;
+              const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+              const srcR = srcPos._radius || 16;
+              const tgtR = tgtPos._radius || 16;
+              const x1 = srcPos.x + (dx / dist) * (srcR + 2);
+              const y1 = srcPos.y + (dy / dist) * (srcR + 2);
+              const x2 = tgtPos.x - (dx / dist) * (tgtR + 6);
+              const y2 = tgtPos.y - (dy / dist) * (tgtR + 6);
+              const mx = (x1 + x2) / 2;
+              const my = (y1 + y2) / 2;
+
+              return (
+                <g key={`edge-${idx}`}>
+                  <line
+                    x1={x1} y1={y1} x2={x2} y2={y2}
+                    stroke={edgeColor}
+                    strokeWidth={strokeWidth}
+                    strokeOpacity={opacity}
+                    strokeDasharray={isAssociation ? '5 3' : 'none'}
+                    markerEnd={isAssociation ? undefined : 'url(#arrowhead)'}
+                  />
+                  {/* Edge label shown when connected to selection */}
+                  {isConnected && (
+                    <text
+                      x={mx} y={my - 5}
+                      textAnchor="middle"
+                      fill={edgeColor}
+                      fontSize={8}
+                      fontFamily="system-ui, sans-serif"
+                      fontWeight="600"
+                      style={{ pointerEvents: 'none' }}
+                    >
+                      {(edge.type || edge.relationship || '').replace(/_/g, ' ')}
+                    </text>
+                  )}
+                </g>
+              );
+            });
+          })()}
 
           {/* Nodes — Wiz-style: circle with Lucide icon + label below */}
           {filteredNodes.map((node) => {
@@ -591,9 +646,12 @@ function SecurityGraph({
             const isConnectedToSel =
               selectedNodeId && connectedToSelected.has(node.id);
             const isSearchHit = searchMatch && searchMatch.has(node.id);
+            // Dim when: selection active + not connected; OR search active + no match;
+            // OR a path is highlighted + this node is not in that path
             const isDimmed =
-              (selectedNodeId && !isConnectedToSel) ||
-              (searchMatch && searchMatch.size > 0 && !isSearchHit);
+              (highlightedNodeIds && !highlightedNodeIds.has(node.id)) ||
+              (!highlightedNodeIds && selectedNodeId && !isConnectedToSel) ||
+              (!highlightedNodeIds && searchMatch && searchMatch.size > 0 && !isSearchHit);
             const hasThreat = node.threatCount > 0 || node.has_threat;
             const name =
               node.label ||
@@ -1182,6 +1240,902 @@ function MultiSelectFilter({ label, icon, items, selected, onToggle }) {
 }
 
 // ---------------------------------------------------------------------------
+// Visual Query Builder
+// Structured filter UI that generates Cypher internally — never exposed to user.
+// ---------------------------------------------------------------------------
+
+const RESOURCE_TYPE_OPTIONS = [
+  { value: '', label: 'Any Resource Type' },
+  { value: 'EC2', label: 'EC2 Instance' },
+  { value: 'S3', label: 'S3 Bucket' },
+  { value: 'IAM', label: 'IAM Role / User / Policy' },
+  { value: 'Lambda', label: 'Lambda Function' },
+  { value: 'RDS', label: 'RDS Database' },
+  { value: 'EKS', label: 'EKS Cluster' },
+  { value: 'SecurityGroup', label: 'Security Group' },
+  { value: 'KMS', label: 'KMS Key' },
+  { value: 'VPC', label: 'VPC' },
+  { value: 'Subnet', label: 'Subnet' },
+  { value: 'LoadBalancer', label: 'Load Balancer' },
+  { value: 'DynamoDB', label: 'DynamoDB Table' },
+];
+
+const SECURITY_STATUS_OPTIONS = [
+  { value: '', label: 'Any Status' },
+  { value: 'has_threat', label: 'Has Active Threats' },
+  { value: 'internet_exposed', label: 'Internet Exposed' },
+  { value: 'high_risk', label: 'High Risk Score (≥70)' },
+  { value: 'critical_findings', label: 'Has Critical Findings' },
+];
+
+const CONNECTED_TO_OPTIONS = [
+  { value: '', label: 'Any Resource' },
+  { value: 'Internet', label: 'Internet (directly exposed)' },
+  { value: 'IAM', label: 'IAM Role / Identity' },
+  { value: 'S3', label: 'S3 Bucket' },
+  { value: 'KMS', label: 'KMS Key' },
+  { value: 'RDS', label: 'Database' },
+  { value: 'EC2', label: 'EC2 Instance' },
+  { value: 'SecurityGroup', label: 'Security Group' },
+];
+
+
+function SelectField({ label, value, onChange, options }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="text-[10px] font-semibold uppercase tracking-wider"
+        style={{ color: 'var(--text-secondary)' }}>
+        {label}
+      </label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="px-2.5 py-2 rounded-lg border text-xs outline-none cursor-pointer"
+        style={{
+          backgroundColor: 'var(--bg-primary)',
+          borderColor: 'var(--border-primary)',
+          color: value ? 'var(--text-primary)' : 'var(--text-secondary)',
+          minWidth: '180px',
+        }}
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value} style={{ backgroundColor: 'var(--bg-card)' }}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+/**
+ * Call backend explore endpoint — structured params → Cypher → graph data.
+ * Uses BFF proxy for gateway consistency.
+ */
+async function runExploreQuery(tenantId, qstate) {
+  const { resourceType, securityStatus, connectedTo, viaEdge, edgeKind, withinHops } = qstate;
+  const params = { tenant_id: tenantId };
+  if (resourceType)   params.resource_type    = resourceType;
+  if (securityStatus) params.security_status  = securityStatus;
+  if (connectedTo)    params.connected_to     = connectedTo;
+  if (viaEdge)        params.via_edge         = viaEdge;
+  if (edgeKind)       params.edge_kind        = edgeKind;
+  if (withinHops > 1) params.within_hops      = withinHops;
+
+  // Use BFF proxy (gateway consistency) with fallback to direct engine call
+  const result = await getFromEngine('threat', '/api/v1/graph/explore', params);
+  if (result?.error) throw new Error(result.error);
+  return result;
+}
+
+const VIA_EDGE_OPTIONS_EXTENDED = [
+  { value: '', label: 'Any Relationship' },
+  // Path edges
+  { value: 'ASSUMES',     label: 'ASSUMES (role assumption)' },
+  { value: 'CAN_ACCESS',  label: 'CAN_ACCESS (access grant)' },
+  { value: 'EXPOSES',     label: 'EXPOSES (internet path)' },
+  { value: 'ROUTES_TO',   label: 'ROUTES_TO (network)' },
+  { value: 'STORES',      label: 'STORES (data access)' },
+  { value: 'CONNECTS_TO', label: 'CONNECTS_TO (network)' },
+  { value: 'ATTACHED_TO', label: 'ATTACHED_TO (volume)' },
+  { value: 'IN_VPC',      label: 'IN_VPC (containment)' },
+  // Association edges
+  { value: 'ENCRYPTED_BY', label: 'ENCRYPTED_BY (encryption)' },
+  { value: 'DEPENDS_ON',   label: 'DEPENDS_ON (dependency)' },
+  { value: 'HAS_FINDING',  label: 'HAS_FINDING (misconfig)' },
+  { value: 'AFFECTED_BY',  label: 'AFFECTED_BY (finding)' },
+];
+
+const EDGE_KIND_OPTIONS = [
+  { value: '',            label: 'All Edges' },
+  { value: 'path',        label: 'Path Only (attack traversal)' },
+  { value: 'association', label: 'Association Only (context)' },
+];
+
+function VisualQueryBuilder({ tenantId, onResultChange, activeResult }) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [qstate, setQstate] = useState({
+    resourceType: '',
+    securityStatus: '',
+    connectedTo: '',
+    viaEdge: '',
+    edgeKind: '',
+    withinHops: 2,
+  });
+
+  const hasActiveQuery = qstate.resourceType || qstate.securityStatus || qstate.connectedTo || qstate.viaEdge || qstate.edgeKind;
+
+  // ── Real-time filter: auto-run on every state change (300ms debounce) ──
+  useEffect(() => {
+    if (!hasActiveQuery) {
+      onResultChange(null);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const result = await runExploreQuery(tenantId, qstate);
+        onResultChange(result);
+      } catch (err) {
+        setError(err.message || 'Query failed');
+      } finally {
+        setLoading(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [qstate, hasActiveQuery, tenantId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleClear() {
+    setQstate({ resourceType: '', securityStatus: '', connectedTo: '', viaEdge: '', edgeKind: '', withinHops: 2 });
+    onResultChange(null);
+    setError(null);
+  }
+
+  return (
+    <div
+      className="rounded-xl border overflow-hidden"
+      style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}
+    >
+      {/* Toggle header */}
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => setOpen((v) => !v)}
+        onKeyDown={(e) => e.key === 'Enter' && setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 hover:opacity-80 transition-opacity cursor-pointer"
+      >
+        <div className="flex items-center gap-2">
+          <Filter className="w-4 h-4" style={{ color: activeResult ? '#3b82f6' : 'var(--text-secondary)' }} />
+          <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+            Graph Explorer
+          </span>
+          {/* Live indicator */}
+          {loading && (
+            <span className="animate-pulse text-[10px] font-medium" style={{ color: '#60a5fa' }}>
+              ● Live
+            </span>
+          )}
+          {activeResult && !loading && (
+            <span
+              className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+              style={{ backgroundColor: 'rgba(59,130,246,0.15)', color: '#60a5fa' }}
+            >
+              {activeResult.cypher_summary} — {activeResult.matched_nodes} matched / {activeResult.total_nodes} nodes
+            </span>
+          )}
+          {!activeResult && !loading && (
+            <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+              Filters update the graph in real-time
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {activeResult && (
+            <button
+              onClick={(e) => { e.stopPropagation(); handleClear(); }}
+              className="text-[11px] px-2 py-0.5 rounded hover:opacity-70 transition-opacity"
+              style={{ color: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)' }}
+            >
+              Clear
+            </button>
+          )}
+          <ChevronRight
+            className="w-4 h-4 transition-transform duration-200"
+            style={{ color: 'var(--text-secondary)', transform: open ? 'rotate(90deg)' : 'none' }}
+          />
+        </div>
+      </div>
+
+      {/* Builder body */}
+      {open && (
+        <div className="px-4 pb-4 pt-0 border-t" style={{ borderColor: 'var(--border-primary)' }}>
+          <div className="flex flex-wrap gap-4 mt-4 items-end">
+            <SelectField
+              label="Resource Type"
+              value={qstate.resourceType}
+              onChange={(v) => setQstate((s) => ({ ...s, resourceType: v }))}
+              options={RESOURCE_TYPE_OPTIONS}
+            />
+            <SelectField
+              label="Security Status"
+              value={qstate.securityStatus}
+              onChange={(v) => setQstate((s) => ({ ...s, securityStatus: v }))}
+              options={SECURITY_STATUS_OPTIONS}
+            />
+            <SelectField
+              label="Connected To"
+              value={qstate.connectedTo}
+              onChange={(v) => setQstate((s) => ({ ...s, connectedTo: v }))}
+              options={CONNECTED_TO_OPTIONS}
+            />
+            <SelectField
+              label="Via Edge Type"
+              value={qstate.viaEdge}
+              onChange={(v) => setQstate((s) => ({ ...s, viaEdge: v }))}
+              options={VIA_EDGE_OPTIONS_EXTENDED}
+            />
+            <SelectField
+              label="Edge Layer"
+              value={qstate.edgeKind}
+              onChange={(v) => setQstate((s) => ({ ...s, edgeKind: v }))}
+              options={EDGE_KIND_OPTIONS}
+            />
+
+            {/* Within hops */}
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-semibold uppercase tracking-wider"
+                style={{ color: 'var(--text-secondary)' }}>
+                Within Hops
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="range" min={0} max={5} value={qstate.withinHops}
+                  onChange={(e) => setQstate((s) => ({ ...s, withinHops: Number(e.target.value) }))}
+                  className="w-24 accent-blue-500"
+                />
+                <span className="text-xs font-bold w-12 text-center" style={{ color: 'var(--text-primary)' }}>
+                  {qstate.withinHops === 0 ? 'exact' : qstate.withinHops}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex-1" />
+
+            {/* Result count */}
+            {activeResult && !loading && (
+              <div className="text-xs px-3 py-2 rounded-lg border"
+                style={{ borderColor: 'var(--border-primary)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-secondary)' }}>
+                <span className="font-bold" style={{ color: '#22c55e' }}>{activeResult.matched_nodes}</span>
+                <span> matched · </span>
+                <span className="font-bold" style={{ color: 'var(--text-primary)' }}>{activeResult.total_nodes}</span>
+                <span> nodes</span>
+              </div>
+            )}
+
+            {(hasActiveQuery || activeResult) && (
+              <button
+                onClick={handleClear}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium hover:opacity-80 transition-opacity border"
+                style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)', color: 'var(--text-secondary)' }}
+              >
+                <RotateCcw className="w-3 h-3" />
+                Clear
+              </button>
+            )}
+          </div>
+
+          {/* Error */}
+          {error && (
+            <div className="mt-3 px-3 py-2 rounded-lg text-xs" style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>
+              {error}
+            </div>
+          )}
+
+          {/* Query preview (natural language) */}
+          {hasActiveQuery && !error && (
+            <div className="mt-3 px-3 py-2 rounded-lg text-xs"
+              style={{ backgroundColor: 'rgba(59,130,246,0.08)', color: 'var(--text-secondary)' }}>
+              <span className="font-semibold" style={{ color: '#60a5fa' }}>Live filter: </span>
+              Find {qstate.resourceType || 'all resources'}
+              {qstate.securityStatus ? ` where ${qstate.securityStatus.replace(/_/g, ' ')}` : ''}
+              {qstate.connectedTo ? ` connected to ${qstate.connectedTo}` : ''}
+              {qstate.viaEdge ? ` via ${qstate.viaEdge}` : ''}
+              {qstate.edgeKind ? ` (${qstate.edgeKind} edges only)` : ''}
+              {qstate.connectedTo ? (qstate.withinHops === 0 ? ' (exact match, no traversal)' : ` within ${qstate.withinHops} hop${qstate.withinHops > 1 ? 's' : ''}`) : ''}
+              {!qstate.connectedTo && qstate.withinHops === 0 ? ' (isolated — no neighbors)' : ''}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Orca-style Attack Path Cards
+// Horizontal chip row: Internet → EC2 [risk:72, findings:3] → IAM → S3
+// ---------------------------------------------------------------------------
+const SEVERITY_COLORS = {
+  critical: '#ef4444',
+  high: '#f97316',
+  medium: '#eab308',
+  low: '#22c55e',
+  info: '#64748b',
+};
+
+// ---------------------------------------------------------------------------
+// Orca-style Attack Path Components
+// ---------------------------------------------------------------------------
+
+function NodeDetailTooltip({ node, anchorRect }) {
+  const riskSev =
+    node.risk_score >= 80 ? 'critical'
+    : node.risk_score >= 60 ? 'high'
+    : node.risk_score >= 40 ? 'medium'
+    : node.risk_score > 0 ? 'low'
+    : null;
+  const sevColor = riskSev ? SEVERITY_COLORS[riskSev] : '#64748b';
+  const nType = normalizeType(node.type || '');
+  const typeLabel = NODE_TYPE_CONFIG[nType]?.label || (node.type || '').split('.').pop();
+
+  // Compute findings / threats detail arrays from node data if present
+  const findingDetails = Array.isArray(node.findings) ? node.findings : [];
+  const threatDetails  = Array.isArray(node.threats)  ? node.threats  : [];
+
+  // Position: centred above the chip, clamped to viewport
+  const tooltipW = 248;
+  const rawLeft = anchorRect.left + anchorRect.width / 2 - tooltipW / 2;
+  const left = Math.max(8, Math.min(rawLeft, window.innerWidth - tooltipW - 8));
+  const top  = anchorRect.top - 8; // translate(-100%) moves it above
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        left,
+        top,
+        transform: 'translateY(-100%)',
+        width: tooltipW,
+        zIndex: 9999,
+        pointerEvents: 'none',
+      }}
+    >
+      {/* Arrow */}
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <div style={{
+          width: 0, height: 0,
+          borderLeft: '6px solid transparent',
+          borderRight: '6px solid transparent',
+          borderTop: '6px solid #1e293b',
+          marginBottom: -1,
+        }} />
+      </div>
+
+      <div
+        className="rounded-lg border text-[11px] overflow-hidden"
+        style={{
+          backgroundColor: '#0f172a',
+          borderColor: sevColor + '50',
+          boxShadow: `0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px ${sevColor}20`,
+        }}
+      >
+        {/* Header */}
+        <div
+          className="px-3 py-2 border-b flex items-center gap-2"
+          style={{ borderColor: 'rgba(255,255,255,0.08)', backgroundColor: `${sevColor}0d` }}
+        >
+          <span
+            className="font-bold text-[10px] px-1.5 py-0.5 rounded uppercase tracking-wide"
+            style={{ backgroundColor: `${sevColor}20`, color: sevColor }}
+          >
+            {typeLabel}
+          </span>
+          {riskSev && (
+            <span className="font-semibold" style={{ color: sevColor }}>
+              Risk {node.risk_score}
+            </span>
+          )}
+        </div>
+
+        <div className="px-3 py-2 flex flex-col gap-2">
+          {/* Full resource name */}
+          <div>
+            <span className="text-[9px] uppercase tracking-wide" style={{ color: 'rgba(255,255,255,0.35)' }}>
+              Resource
+            </span>
+            <p className="font-medium mt-0.5 break-all leading-snug" style={{ color: 'rgba(255,255,255,0.9)', fontSize: 10 }}>
+              {node.name || node.uid || '—'}
+            </p>
+            {node.name && node.uid && node.uid !== node.name && (
+              <p className="text-[8px] mt-0.5 break-all" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                {node.uid}
+              </p>
+            )}
+          </div>
+
+          {/* Findings section */}
+          {node.finding_count > 0 && (
+            <div>
+              <div className="flex items-center gap-1 mb-1">
+                <AlertTriangle style={{ width: 9, height: 9, color: '#f97316' }} />
+                <span className="font-semibold text-[10px]" style={{ color: '#f97316' }}>
+                  {node.finding_count} Finding{node.finding_count !== 1 ? 's' : ''}
+                  <span className="font-normal text-[9px] ml-1" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                    (critical / high)
+                  </span>
+                </span>
+              </div>
+              {findingDetails.length > 0 ? (
+                <div className="flex flex-col gap-0.5">
+                  {findingDetails.slice(0, 4).map((f, i) => (
+                    <div key={i} className="flex items-start gap-1.5">
+                      <div
+                        className="w-1.5 h-1.5 rounded-full mt-1 flex-shrink-0"
+                        style={{ backgroundColor: SEVERITY_COLORS[f.severity] || '#f97316' }}
+                      />
+                      <span className="text-[9px] leading-snug" style={{ color: 'rgba(255,255,255,0.7)' }}>
+                        {(f.rule_name || f.title || f.finding_id || '').slice(0, 52)}
+                      </span>
+                    </div>
+                  ))}
+                  {findingDetails.length > 4 && (
+                    <span className="text-[9px] pl-3" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                      +{findingDetails.length - 4} more
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-1">
+                  {node.finding_severity_breakdown && Object.entries(node.finding_severity_breakdown).map(([sev, cnt]) => (
+                    <div key={sev} className="flex items-center gap-1.5">
+                      <div className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: SEVERITY_COLORS[sev] || '#64748b' }} />
+                      <span className="text-[9px] capitalize" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                        {sev}: {cnt}
+                      </span>
+                    </div>
+                  ))}
+                  {!node.finding_severity_breakdown && (
+                    <span className="text-[9px] pl-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                      Click resource in graph for details
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Threats section */}
+          {node.threat_count > 0 && (
+            <div>
+              <div className="flex items-center gap-1 mb-1">
+                <Zap style={{ width: 9, height: 9, color: '#ef4444' }} />
+                <span className="font-semibold text-[10px]" style={{ color: '#ef4444' }}>
+                  {node.threat_count} Active Threat{node.threat_count !== 1 ? 's' : ''}
+                  {node.threat_severity && (
+                    <span
+                      className="ml-1 font-medium capitalize text-[9px] px-1 py-0.5 rounded"
+                      style={{
+                        backgroundColor: `${SEVERITY_COLORS[node.threat_severity] || '#ef4444'}20`,
+                        color: SEVERITY_COLORS[node.threat_severity] || '#ef4444',
+                      }}
+                    >
+                      {node.threat_severity}
+                    </span>
+                  )}
+                </span>
+              </div>
+              {threatDetails.length > 0 ? (
+                <div className="flex flex-col gap-0.5">
+                  {threatDetails.slice(0, 3).map((t, i) => (
+                    <div key={i} className="flex items-start gap-1.5">
+                      <div
+                        className="w-1.5 h-1.5 rounded-full mt-1 flex-shrink-0"
+                        style={{ backgroundColor: SEVERITY_COLORS[t.severity] || '#ef4444' }}
+                      />
+                      <span className="text-[9px] leading-snug" style={{ color: 'rgba(255,255,255,0.7)' }}>
+                        {(t.rule_name || t.technique || t.threat_id || '').slice(0, 52)}
+                      </span>
+                    </div>
+                  ))}
+                  {threatDetails.length > 3 && (
+                    <span className="text-[9px] pl-3" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                      +{threatDetails.length - 3} more
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <span className="text-[9px]" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                  Click resource in graph for details
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Clean node — no findings/threats */}
+          {!node.finding_count && !node.threat_count && (
+            <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#22c55e' }} />
+              <span className="text-[10px]" style={{ color: '#4ade80' }}>No findings detected</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NodeChip({ node, isActive }) {
+  const [hovered, setHovered]       = useState(false);
+  const [pinned, setPinned]         = useState(false);
+  const [anchorRect, setAnchorRect] = useState(null);
+  const chipRef = useRef(null);
+
+  const showTooltip = () => {
+    if (chipRef.current) setAnchorRect(chipRef.current.getBoundingClientRect());
+    setHovered(true);
+  };
+  const hideTooltip = () => { if (!pinned) setHovered(false); };
+  const togglePin   = (e) => {
+    e.stopPropagation();
+    if (chipRef.current) setAnchorRect(chipRef.current.getBoundingClientRect());
+    setPinned(v => !v);
+    setHovered(true);
+  };
+
+  const tooltipVisible = hovered || pinned;
+
+  const riskSev =
+    node.risk_score >= 80 ? 'critical'
+    : node.risk_score >= 60 ? 'high'
+    : node.risk_score >= 40 ? 'medium'
+    : node.risk_score > 0 ? 'low'
+    : null;
+
+  const sevColor = riskSev ? SEVERITY_COLORS[riskSev] : null;
+  const NodeIcon = getNodeIcon(node.type || '');
+  const nType = normalizeType(node.type || '');
+  const typeColor = NODE_TYPE_CONFIG[nType]?.color || DEFAULT_NODE_COLOR;
+  const typeLabel = NODE_TYPE_CONFIG[nType]?.label || (node.type || '').split('.').pop().toUpperCase();
+  const displayName = (node.name || node.uid || 'Unknown').split('/').pop().split(':').pop();
+  const isInternet = node.type === 'Internet' || node.uid === 'Internet';
+
+  return (
+    <>
+      <div
+        ref={chipRef}
+        onClick={togglePin}
+        onMouseEnter={showTooltip}
+        onMouseLeave={hideTooltip}
+        className="flex flex-col rounded-lg border overflow-hidden flex-shrink-0 cursor-pointer"
+        style={{
+          width: 112,
+          backgroundColor: isInternet ? 'rgba(239,68,68,0.06)' : sevColor ? `${sevColor}08` : 'rgba(255,255,255,0.04)',
+          borderColor: pinned ? '#60a5fa' : isActive ? '#3b82f6' : sevColor || 'rgba(255,255,255,0.1)',
+          borderWidth: pinned || isActive ? 1.5 : 1,
+          boxShadow: pinned ? '0 0 0 2px #3b82f640' : isActive ? `0 0 0 1px #3b82f640` : 'none',
+          transition: 'border-color 0.15s, box-shadow 0.15s',
+        }}
+      >
+        {/* Severity accent bar */}
+        {sevColor && <div className="h-0.5 w-full" style={{ backgroundColor: sevColor }} />}
+
+        <div className="flex flex-col items-center gap-1.5 px-2 pt-2.5 pb-2">
+          <div className="relative">
+            {/* Threat pulse ring */}
+            {node.threat_count > 0 && (
+              <div
+                className="absolute inset-0 rounded-full animate-ping"
+                style={{ backgroundColor: SEVERITY_COLORS[node.threat_severity] || '#ef4444', opacity: 0.3, margin: -3 }}
+              />
+            )}
+            <div
+              className="w-8 h-8 rounded-full flex items-center justify-center"
+              style={{ backgroundColor: `${typeColor}18`, border: `1.5px solid ${typeColor}60` }}
+            >
+              <NodeIcon style={{ width: 15, height: 15, color: typeColor }} />
+            </div>
+            {/* Risk badge */}
+            {node.risk_score > 0 && (
+              <div
+                className="absolute -top-1.5 -right-1.5 rounded-full text-white flex items-center justify-center font-bold"
+                style={{ width: 18, height: 18, backgroundColor: sevColor, fontSize: 8, lineHeight: 1 }}
+              >
+                {node.risk_score}
+              </div>
+            )}
+          </div>
+
+          {/* Type pill */}
+          <span
+            className="text-[8px] font-semibold px-1.5 py-0.5 rounded-full tracking-wide"
+            style={{ backgroundColor: `${typeColor}18`, color: typeColor }}
+          >
+            {typeLabel.slice(0, 10)}
+          </span>
+
+          {/* Resource name */}
+          <span
+            className="text-[9px] font-medium text-center leading-tight w-full"
+            style={{ color: 'rgba(255,255,255,0.85)', wordBreak: 'break-all' }}
+          >
+            {displayName.slice(0, 18)}
+          </span>
+
+          {/* Findings + threats badges */}
+          {(node.finding_count > 0 || node.threat_count > 0) && (
+            <div className="flex items-center gap-1 mt-0.5">
+              {node.finding_count > 0 && (
+                <span
+                  className="flex items-center gap-0.5 text-[8px] font-semibold px-1 py-0.5 rounded"
+                  style={{ backgroundColor: 'rgba(249,115,22,0.18)', color: '#f97316', border: '1px solid rgba(249,115,22,0.3)' }}
+                >
+                  <AlertTriangle style={{ width: 8, height: 8 }} />
+                  {node.finding_count}
+                </span>
+              )}
+              {node.threat_count > 0 && (
+                <span
+                  className="flex items-center gap-0.5 text-[8px] font-semibold px-1 py-0.5 rounded"
+                  style={{ backgroundColor: 'rgba(239,68,68,0.18)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' }}
+                >
+                  <Zap style={{ width: 8, height: 8 }} />
+                  {node.threat_count}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Pin hint */}
+          <span className="text-[7px] mt-0.5" style={{ color: 'rgba(255,255,255,0.2)' }}>
+            {pinned ? 'click to close' : 'hover / click'}
+          </span>
+        </div>
+      </div>
+
+      {/* Detail tooltip — fixed position, breaks out of overflow */}
+      {tooltipVisible && anchorRect && (
+        <NodeDetailTooltip node={node} anchorRect={anchorRect} />
+      )}
+    </>
+  );
+}
+
+function EdgeArrow({ edge }) {
+  const cfg = EDGE_TYPE_CONFIG[edge.type?.toUpperCase()] || {};
+  const color = cfg.color || '#475569';
+  const label = (edge.type || '').replace(/_/g, ' ');
+  const isPath = cfg.kind !== 'association';
+
+  return (
+    <div className="flex flex-col items-center justify-center gap-1 flex-shrink-0" style={{ width: 52 }}>
+      <span
+        className="text-[8px] font-semibold text-center leading-tight"
+        style={{ color, maxWidth: 50, wordBreak: 'break-word' }}
+      >
+        {label}
+      </span>
+      <div className="flex items-center w-full">
+        <div
+          className="flex-1 h-px"
+          style={{
+            backgroundColor: color,
+            opacity: isPath ? 0.8 : 0.4,
+            backgroundImage: isPath ? 'none' : `repeating-linear-gradient(90deg, ${color} 0, ${color} 4px, transparent 4px, transparent 8px)`,
+            backgroundSize: isPath ? 'none' : '8px 1px',
+            backgroundRepeat: 'repeat-x',
+            height: 1.5,
+          }}
+        />
+        <svg width="7" height="7" viewBox="0 0 7 7" style={{ flexShrink: 0 }}>
+          <polygon points="0,0 7,3.5 0,7" fill={color} opacity={isPath ? 0.9 : 0.5} />
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+function OrcaPathCard({ path, highlighted, onHighlight }) {
+  const isActive = highlighted === path.path_id;
+  const entryIsInternet = path.entry_type === 'Internet' || path.entry_point === 'Internet';
+
+  const maxSev = (() => {
+    const node = path.nodes?.find(n => n.threat_severity);
+    if (node) return node.threat_severity;
+    const maxRisk = Math.max(...(path.nodes || []).map(n => n.risk_score || 0));
+    if (maxRisk >= 80) return 'critical';
+    if (maxRisk >= 60) return 'high';
+    if (maxRisk >= 40) return 'medium';
+    return null;
+  })();
+  const sevColor = maxSev ? SEVERITY_COLORS[maxSev] : '#475569';
+
+  // Target is the last node
+  const target = path.nodes?.[path.nodes.length - 1];
+  const targetName = target ? (target.name || target.uid || '').split('/').pop().split(':').pop() : '';
+
+  return (
+    <div
+      onClick={() => onHighlight(isActive ? null : path.path_id)}
+      className="rounded-lg border cursor-pointer transition-all duration-150"
+      style={{
+        backgroundColor: isActive ? 'rgba(59,130,246,0.07)' : 'rgba(255,255,255,0.02)',
+        borderColor: isActive ? '#3b82f6' : 'rgba(255,255,255,0.08)',
+        borderLeftWidth: 3,
+        borderLeftColor: sevColor,
+        padding: '10px 12px',
+      }}
+    >
+      {/* Header row */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          {entryIsInternet && (
+            <span
+              className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide"
+              style={{ backgroundColor: 'rgba(239,68,68,0.15)', color: '#ef4444' }}
+            >
+              <Globe style={{ width: 9, height: 9 }} /> Internet
+            </span>
+          )}
+          <span className="text-[9px] font-medium" style={{ color: 'rgba(255,255,255,0.4)' }}>
+            {path.hops} hop{path.hops !== 1 ? 's' : ''}
+          </span>
+          {targetName && (
+            <span className="text-[9px]" style={{ color: 'rgba(255,255,255,0.35)' }}>
+              → {targetName.slice(0, 22)}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5">
+          {maxSev && (
+            <span
+              className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
+              style={{ backgroundColor: `${sevColor}18`, color: sevColor }}
+            >
+              {maxSev}
+            </span>
+          )}
+          {path.total_risk > 0 && (
+            <span
+              className="text-[9px] font-bold px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: `${sevColor}18`, color: sevColor }}
+            >
+              Risk {path.total_risk}
+            </span>
+          )}
+          <span className="text-[8px] font-mono" style={{ color: 'rgba(255,255,255,0.2)' }}>
+            #{(path.path_id || '').slice(0, 8)}
+          </span>
+        </div>
+      </div>
+
+      {/* Node + edge flow */}
+      <div className="flex items-center overflow-x-auto pb-1" style={{ gap: 0 }}>
+        {(path.nodes || []).map((node, i) => (
+          <React.Fragment key={node.uid || i}>
+            <NodeChip node={node} isActive={isActive} />
+            {i < (path.edges || []).length && (
+              <EdgeArrow edge={path.edges[i]} />
+            )}
+          </React.Fragment>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function OrcaPathPanel({ paths, highlightedPath, onHighlight }) {
+  const [showAll, setShowAll] = useState(false);
+  if (!paths || paths.length === 0) return null;
+
+  const displayed = showAll ? paths : paths.slice(0, 6);
+  const criticalCount = paths.filter(p => {
+    const maxRisk = Math.max(...(p.nodes || []).map(n => n.risk_score || 0));
+    return maxRisk >= 80;
+  }).length;
+  const internetCount = paths.filter(p => p.entry_point === 'Internet' || p.entry_type === 'Internet').length;
+
+  return (
+    <div
+      className="rounded-xl border overflow-hidden"
+      style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}
+    >
+      {/* Header */}
+      <div
+        className="flex items-center justify-between px-4 py-3 border-b"
+        style={{ borderColor: 'var(--border-primary)', backgroundColor: 'rgba(239,68,68,0.04)' }}
+      >
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <ShieldAlert className="w-4 h-4" style={{ color: '#ef4444' }} />
+            <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+              Attack Paths
+            </span>
+          </div>
+          <span
+            className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+            style={{ backgroundColor: 'rgba(239,68,68,0.15)', color: '#ef4444' }}
+          >
+            {paths.length}
+          </span>
+          {criticalCount > 0 && (
+            <span
+              className="text-[10px] font-medium px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: '#fca5a5' }}
+            >
+              {criticalCount} critical
+            </span>
+          )}
+          {internetCount > 0 && (
+            <span
+              className="flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)' }}
+            >
+              <Globe style={{ width: 9, height: 9 }} />
+              {internetCount} internet-exposed
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.3)' }}>
+            Click path to highlight in graph
+          </span>
+          {paths.length > 6 && (
+            <button
+              onClick={() => setShowAll(v => !v)}
+              className="text-[11px] font-medium hover:underline"
+              style={{ color: '#60a5fa' }}
+            >
+              {showAll ? 'Show less' : `Show all ${paths.length}`}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Legend */}
+      <div
+        className="flex items-center gap-5 px-4 py-2 border-b"
+        style={{ borderColor: 'var(--border-primary)' }}
+      >
+        {[
+          { color: '#ef4444', label: 'Critical ≥80' },
+          { color: '#f97316', label: 'High ≥60' },
+          { color: '#eab308', label: 'Medium ≥40' },
+        ].map(({ color, label }) => (
+          <div key={label} className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: color, opacity: 0.8 }} />
+            <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.4)' }}>{label}</span>
+          </div>
+        ))}
+        <div className="flex items-center gap-1.5 ml-2">
+          <AlertTriangle style={{ width: 9, height: 9, color: '#f97316' }} />
+          <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.4)' }}>Findings</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Zap style={{ width: 9, height: 9, color: '#ef4444' }} />
+          <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.4)' }}>Active threats</span>
+        </div>
+      </div>
+
+      {/* Path list */}
+      <div className="p-4 flex flex-col gap-2.5 max-h-[480px] overflow-y-auto">
+        {displayed.map((path) => (
+          <OrcaPathCard
+            key={path.path_id}
+            path={path}
+            highlighted={highlightedPath}
+            onHighlight={onHighlight}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main Page
 // ---------------------------------------------------------------------------
 export default function SecurityGraphExplorer() {
@@ -1194,6 +2148,9 @@ export default function SecurityGraphExplorer() {
   const [visibleEdgeTypes, setVisibleEdgeTypes] = useState(null); // null = show all
   // Threat hunting: quick-filter presets
   const [viewPreset, setViewPreset] = useState('all'); // 'all' | 'threats' | 'internet'
+  const [exploreResult, setExploreResult] = useState(null); // result from Graph Explorer query
+  const [orcaPaths, setOrcaPaths] = useState([]);           // Orca-style attack path cards
+  const [highlightedPath, setHighlightedPath] = useState(null); // path_id of highlighted path
   const containerRef = useRef(null);
   const [containerDims, setContainerDims] = useState({ w: 1200, h: 600 });
 
@@ -1210,6 +2167,10 @@ export default function SecurityGraphExplorer() {
           setError(result.error);
         } else {
           setData(result);
+          // Orca paths are included in the graph view response
+          if (Array.isArray(result?.orca_paths)) {
+            setOrcaPaths(result.orca_paths);
+          }
         }
       } catch (err) {
         if (!cancelled) {
@@ -1238,12 +2199,12 @@ export default function SecurityGraphExplorer() {
   }, []);
 
   // Derive nodes and edges from data
-  const nodes = useMemo(() => {
+  const allNodes = useMemo(() => {
     if (!data) return [];
     return Array.isArray(data.nodes) ? data.nodes : [];
   }, [data]);
 
-  const edges = useMemo(() => {
+  const allEdges = useMemo(() => {
     if (!data) return [];
     return Array.isArray(data.edges)
       ? data.edges
@@ -1254,30 +2215,34 @@ export default function SecurityGraphExplorer() {
       : [];
   }, [data]);
 
-  // KPIs
+  // When explore query returns results, use those; otherwise use full graph data
+  const nodes = useMemo(() => exploreResult ? exploreResult.nodes : allNodes, [exploreResult, allNodes]);
+  const edges = useMemo(() => exploreResult ? exploreResult.edges : allEdges, [exploreResult, allEdges]);
+
+  // KPIs — computed from allNodes/allEdges (pre-filter baseline)
   const kpi = useMemo(() => {
     if (data?.kpi) return data.kpi;
-    const totalConns = edges.length * 2; // each edge touches 2 nodes
-    const avgConns = nodes.length > 0 ? (totalConns / nodes.length).toFixed(1) : '0';
-    const highRisk = nodes.filter(
+    const totalConns = allEdges.length * 2; // each edge touches 2 nodes
+    const avgConns = allNodes.length > 0 ? (totalConns / allNodes.length).toFixed(1) : '0';
+    const highRisk = allNodes.filter(
       (n) => (n.risk_score ?? n.riskScore ?? 0) >= 70
     ).length;
-    const internetExposed = nodes.filter(
+    const internetExposed = allNodes.filter(
       (n) => n.internet_exposed ?? n.internetExposed ?? false
     ).length;
     const techniques = new Set();
-    nodes.forEach((n) => {
+    allNodes.forEach((n) => {
       (n.mitre_techniques ?? n.techniques ?? []).forEach((t) => techniques.add(t));
     });
     return {
-      totalNodes: nodes.length,
-      totalEdges: edges.length,
+      totalNodes: allNodes.length,
+      totalEdges: allEdges.length,
       avgConnections: avgConns,
       highRisk,
       internetExposed,
       techniques: techniques.size,
     };
-  }, [data, nodes, edges]);
+  }, [data, allNodes, allEdges]);
 
   // Selected node object
   const selectedNode = useMemo(
@@ -1367,6 +2332,13 @@ export default function SecurityGraphExplorer() {
   const handleNodeClick = useCallback((nodeId) => {
     setSelectedNodeId((prev) => (prev === nodeId ? null : nodeId));
   }, []);
+
+  // Highlighted node IDs from Orca path selection
+  const highlightedNodeIds = useMemo(() => {
+    if (!highlightedPath) return null;
+    const p = orcaPaths.find((op) => op.path_id === highlightedPath);
+    return p ? new Set(p.nodes.map((n) => n.uid)) : null;
+  }, [highlightedPath, orcaPaths]);
 
   // Graph height: fill viewport minus header space
   const graphHeight = typeof window !== 'undefined' ? Math.max(500, window.innerHeight - 340) : 600;
@@ -1584,6 +2556,7 @@ export default function SecurityGraphExplorer() {
             setViewPreset('all');
             setSearchQuery('');
             setSelectedNodeId(null);
+            setExploreResult(null);
           }}
           className="flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium
                      hover:opacity-80 transition-opacity"
@@ -1598,6 +2571,13 @@ export default function SecurityGraphExplorer() {
           Reset
         </button>
       </div>
+
+      {/* Graph Explorer — structured filters → Neo4j Cypher */}
+      <VisualQueryBuilder
+        tenantId={TENANT_ID}
+        onResultChange={setExploreResult}
+        activeResult={exploreResult}
+      />
 
       {/* Graph + Detail Panel */}
       <div
@@ -1617,9 +2597,45 @@ export default function SecurityGraphExplorer() {
           visibleNodeTypes={visibleNodeTypes}
           visibleEdgeTypes={visibleEdgeTypes}
           viewPreset={viewPreset}
+          highlightedNodeIds={highlightedNodeIds}
           containerWidth={containerDims.w}
           containerHeight={graphHeight}
         />
+
+        {/* Empty state overlay when filter returns no nodes */}
+        {exploreResult && nodes.length === 0 && (
+          <div
+            className="absolute inset-0 flex flex-col items-center justify-center gap-4 z-20"
+            style={{ backgroundColor: 'rgba(10,14,23,0.92)', backdropFilter: 'blur(2px)' }}
+          >
+            <div className="flex flex-col items-center gap-3 text-center">
+              <div
+                className="w-14 h-14 rounded-full flex items-center justify-center"
+                style={{ backgroundColor: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)' }}
+              >
+                <Filter className="w-6 h-6" style={{ color: '#60a5fa' }} />
+              </div>
+              <div>
+                <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                  No nodes match these filters
+                </p>
+                <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
+                  {exploreResult.cypher_summary
+                    ? `Query: ${exploreResult.cypher_summary}`
+                    : 'Try broadening the filter criteria'}
+                </p>
+              </div>
+              <button
+                onClick={() => setExploreResult(null)}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-opacity hover:opacity-80"
+                style={{ backgroundColor: '#3b82f6', color: '#fff' }}
+              >
+                <RotateCcw className="w-4 h-4" />
+                Clear Filters — Show Full Graph
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Detail Panel (slides in from right) */}
         {selectedNode && (
@@ -1632,6 +2648,14 @@ export default function SecurityGraphExplorer() {
           />
         )}
       </div>
+
+      {/* Orca-style Attack Path Cards */}
+      <OrcaPathPanel
+        paths={orcaPaths}
+        highlightedPath={highlightedPath}
+        onHighlight={setHighlightedPath}
+        onNodeClick={handleNodeClick}
+      />
 
       {/* Graph Legend */}
       <div
@@ -1667,12 +2691,24 @@ export default function SecurityGraphExplorer() {
           >
             Edges:
           </span>
+          {/* Kind legend */}
+          <div className="flex items-center gap-1.5">
+            <span className="w-5 h-[2px] rounded" style={{ backgroundColor: '#60a5fa' }} />
+            <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>Path (attack route)</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <svg width="20" height="4">
+              <line x1="0" y1="2" x2="20" y2="2" stroke="#475569" strokeWidth="1.5" strokeDasharray="4 2" />
+            </svg>
+            <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>Association (context)</span>
+          </div>
+          <div className="w-px h-4 self-center" style={{ backgroundColor: 'var(--border-primary)' }} />
           {Object.entries(EDGE_TYPE_CONFIG).map(([key, cfg]) => (
             <div key={key} className="flex items-center gap-1.5">
-              <span
-                className="w-4 h-[2px] rounded"
-                style={{ backgroundColor: cfg.color }}
-              />
+              {cfg.kind === 'association'
+                ? <svg width="16" height="4"><line x1="0" y1="2" x2="16" y2="2" stroke={cfg.color} strokeWidth="1.5" strokeDasharray="4 2" /></svg>
+                : <span className="w-4 h-[2px] rounded" style={{ backgroundColor: cfg.color }} />
+              }
               <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
                 {cfg.label}
               </span>

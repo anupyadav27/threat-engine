@@ -33,7 +33,7 @@ spec:
       serviceAccountName: engine-sa
       initContainers:
       - name: migrate
-        image: yadavanup84/cspm-django-backend:latest
+        image: yadavanup84/cspm-django-backend:v-auth
         imagePullPolicy: Always
         command: ["python", "manage.py", "migrate", "--noinput"]
         env:
@@ -61,7 +61,7 @@ spec:
           value: "require"
       containers:
       - name: cspm-backend
-        image: yadavanup84/cspm-django-backend:latest
+        image: yadavanup84/cspm-django-backend:v-auth
         imagePullPolicy: Always
         ports:
         - containerPort: 8000
@@ -120,6 +120,32 @@ spec:
           value: "http://engine-check.threat-engine-engines.svc.cluster.local"
         - name: API_GATEWAY_URL
           value: "http://api-gateway.threat-engine-engines.svc.cluster.local"
+        # ── Google OAuth ─────────────────────────────────────────
+        - name: GOOGLE_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: cspm-oauth-secrets
+              key: GOOGLE_CLIENT_ID
+              optional: true
+        - name: GOOGLE_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: cspm-oauth-secrets
+              key: GOOGLE_CLIENT_SECRET
+              optional: true
+        - name: GOOGLE_REDIRECT_URI
+          valueFrom:
+            configMapKeyRef:
+              name: cspm-portal-config
+              key: GOOGLE_REDIRECT_URI
+              optional: true
+        # ── Email (SES) ──────────────────────────────────────────
+        - name: SES_FROM_EMAIL
+          valueFrom:
+            configMapKeyRef:
+              name: cspm-portal-config
+              key: SES_FROM_EMAIL
+              optional: true
         # ── AWS ──────────────────────────────────────────────────
         - name: AWS_REGION
           valueFrom:
@@ -194,7 +220,7 @@ spec:
       serviceAccountName: engine-sa
       containers:
       - name: cspm-frontend
-        image: yadavanup84/cspm-frontend:v-layout
+        image: yadavanup84/cspm-frontend:v-orca-graph2
         imagePullPolicy: Always
         ports:
         - containerPort: 3000

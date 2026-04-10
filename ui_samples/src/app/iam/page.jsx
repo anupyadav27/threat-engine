@@ -14,6 +14,7 @@ import { useGlobalFilter } from '@/lib/global-filter-context';
 import PageLayout from '@/components/shared/PageLayout';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import KpiSparkCard from '@/components/shared/KpiSparkCard';
+import FindingDetailPanel from '@/components/shared/FindingDetailPanel';
 
 // ── Demo fallback data (shown when backend returns no data) ───────────────────
 const DEMO_IAM_IDENTITIES = [
@@ -139,11 +140,51 @@ function IamDonut({ slices, size = 160 }) {
 }
 
 
+// ── IAM Finding / Identity Detail Panel ─────────────────────────────────────
+const IAM_ISSUE_MAP = {
+  critical: [
+    'No MFA enabled on root or privileged account',
+    'Access key not rotated in 90+ days',
+    'Inline policy grants full administrative privileges (*:*)',
+    'Cross-account trust without condition keys',
+  ],
+  high: [
+    'Console access without MFA enforcement',
+    'Unused credentials active for 45+ days',
+    'Role trust policy allows all principals (*)',
+    'Service account with human-equivalent permissions',
+  ],
+  medium: [
+    'Password policy does not meet minimum requirements',
+    'Permissions boundary not attached to privileged role',
+    'CloudTrail not capturing IAM events in all regions',
+    'Access Analyzer findings unresolved for 30+ days',
+  ],
+  low: [
+    'Access key last used over 60 days ago',
+    'Role has no permission boundary',
+    'User belongs to more than 10 groups',
+  ],
+};
+
+const IAM_REMEDIATION_MAP = {
+  critical: 'Immediately revoke or rotate credentials. Enable MFA on all privileged accounts. Replace wildcard policies with least-privilege alternatives scoped to specific resources and actions.',
+  high: 'Enable MFA for console access. Review and remove unused credentials. Restrict role trust policies to specific principals with condition keys (aws:PrincipalArn, aws:SourceAccount).',
+  medium: 'Update account password policy to enforce complexity and rotation. Attach permission boundaries to all privileged roles. Ensure CloudTrail is enabled across all regions.',
+  low: 'Review and deactivate unused access keys. Consolidate group memberships. Apply permission boundaries to limit effective permissions.',
+};
+
 export default function IamSecurityPage() {
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState(null);
   const [data, setData]           = useState({});
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [selectedIdentity, setSelectedIdentity] = useState(null);
+
+  const handleRowClick = (row) => {
+    const identity = row?.original || row;
+    if (identity) setSelectedIdentity(identity);
+  };
 
   const { provider, account, region } = useGlobalFilter();
 
@@ -168,6 +209,7 @@ export default function IamSecurityPage() {
   }, [provider, account, region]);
 
   const rawIdentities          = data.identities          || [];
+  const rawFindings            = data.findings            || [];
   const rawRoles               = data.roles               || [];
   const rawAccessKeys          = data.accessKeys          || [];
   const rawPrivilegeEscalation = data.privilegeEscalation || [];
@@ -515,10 +557,46 @@ export default function IamSecurityPage() {
     },
   ];
 
-  const findingsColumns = [
-    { accessorKey: 'name',       header: 'Name',     size: 200 },
+  const findingsColumns = useMemo(() => [
     {
-      accessorKey: 'type', header: 'Type', size: 110,
+      accessorKey: 'provider', header: 'Provider', size: 70,
+      cell: (info) => info.getValue()?.toUpperCase() || '—',
+    },
+    { accessorKey: 'account_id', header: 'Account', size: 130,
+      cell: (info) => info.getValue() || info.row.original.account || '—' },
+    { accessorKey: 'region', header: 'Region', size: 110 },
+    {
+      accessorKey: 'service', header: 'Service', size: 110,
+      cell: (info) => info.getValue() || info.row.original.network_layer || info.row.original.encryption_domain || info.row.original.container_service || info.row.original.db_service || '—',
+    },
+    { accessorKey: 'rule_id', header: 'Rule ID', size: 130,
+      cell: (info) => <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>{info.getValue() || '—'}</span> },
+    {
+      accessorKey: 'title', header: 'Finding', size: 260,
+      cell: (info) => {
+        const row = info.row.original;
+        const v = info.getValue() || row.rule_id || '—';
+        return <span className="text-xs leading-tight">{v}</span>;
+      },
+    },
+    { accessorKey: 'severity', header: 'Severity', size: 90,
+      cell: (info) => <SeverityBadge severity={info.getValue()} /> },
+    {
+      accessorKey: 'status', header: 'Status', size: 75,
+      cell: (info) => {
+        const v = info.getValue(), fail = v === 'FAIL';
+        return <span className={`text-xs px-2 py-0.5 rounded ${fail ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{v}</span>;
+      },
+    },
+    {
+      accessorKey: 'resource_uid', header: 'Resource', size: 200,
+      cell: (info) => {
+        const v = info.getValue() || info.row.original.resource_id || '—';
+        return <span className="font-mono text-xs truncate block max-w-[180px]" title={v}>{v.split('/').pop() || v}</span>;
+      },
+    },
+    {
+      accessorKey: 'resource_type', header: 'Type', size: 120,
       cell: (info) => info.getValue() ? (
         <span className="text-xs px-2 py-0.5 rounded"
           style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
@@ -526,19 +604,21 @@ export default function IamSecurityPage() {
         </span>
       ) : null,
     },
-    { accessorKey: 'rule_id',    header: 'Rule',     size: 100 },
-    { accessorKey: 'severity',   header: 'Severity', size: 100,
-      cell: (info) => <SeverityBadge severity={info.getValue()} /> },
     {
-      accessorKey: 'status', header: 'Status', size: 80,
+      accessorKey: 'risk_score', header: 'Risk', size: 80,
       cell: (info) => {
-        const v = info.getValue(), fail = v === 'FAIL';
-        return <span className={`text-xs px-2 py-0.5 rounded ${fail ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{v}</span>;
+        const s = info.getValue(); if (s == null) return '—';
+        const color = s >= 75 ? '#ef4444' : s >= 50 ? '#f97316' : s >= 25 ? '#eab308' : '#22c55e';
+        return <span className="text-xs font-bold" style={{ color }}>{s}</span>;
       },
     },
-    { accessorKey: 'account_id', header: 'Account', size: 140 },
-    { accessorKey: 'region',     header: 'Region',  size: 100 },
-  ];
+    {
+      accessorKey: 'posture_category', header: 'Category', size: 120,
+      cell: (info) => info.getValue()
+        ? <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{info.getValue().replace(/_/g, ' ')}</span>
+        : null,
+    },
+  ], []);
 
   const accessKeyColumns = [
     { accessorKey: 'user',       header: 'Name',     size: 180 },
@@ -565,21 +645,38 @@ export default function IamSecurityPage() {
     { accessorKey: 'region',     header: 'Region',  size: 100 },
   ];
 
-  const tabData = useMemo(() => ({
-    overview:             { data: identities,          columns: overviewColumns    },
-    roles:                { data: roles,               columns: findingsColumns    },
-    access_keys:          { data: accessKeys,          columns: accessKeyColumns   },
-    privilege_escalation: { data: privilegeEscalation, columns: findingsColumns    },
-  }), [identities, roles, accessKeys, privilegeEscalation]);
+  const findingsData = rawFindings.length ? rawFindings : identities;
 
-  const pageContext = data.pageContext || {
-    title: 'IAM Security',
-    brief: 'Identity and access management posture across cloud accounts. Monitors roles, access keys, MFA adoption, and privilege escalation paths.',
+  const serviceOptions = useMemo(() =>
+    [...new Set((rawFindings || []).map(f => f.service || f.network_layer || '').filter(Boolean))].sort(),
+  [rawFindings]);
+
+  const tabData = useMemo(() => ({
+    overview: { renderTab: () => null },
+    findings: {
+      data: findingsData,
+      columns: rawFindings.length ? findingsColumns : overviewColumns,
+      filters: [
+        { key: 'provider', label: 'Cloud Platform', options: ['aws', 'azure', 'gcp'] },
+        { key: 'severity',  label: 'Severity',       options: ['critical', 'high', 'medium', 'low'] },
+        { key: 'status',    label: 'Status',          options: ['FAIL', 'PASS'] },
+        { key: 'service',   label: 'Service',         options: serviceOptions },
+      ],
+      extraFilters: [
+        { key: 'region',        label: 'Region',        options: [] },
+        { key: 'account_id',    label: 'Account',       options: [] },
+        { key: 'resource_type', label: 'Resource Type', options: [] },
+      ],
+      searchPlaceholder: 'Search by rule, resource, title...',
+    },
+  }), [findingsData, rawFindings, findingsColumns, overviewColumns, serviceOptions]);
+
+  const pageContext = {
+    title: (data.pageContext || {}).title || 'IAM Security',
+    brief:  (data.pageContext || {}).brief  || 'Identity and access management posture across cloud accounts. Monitors roles, access keys, MFA adoption, and privilege escalation paths.',
     tabs: [
-      { id: 'overview',             label: 'Overview',             count: identities.length          },
-      { id: 'roles',                label: 'Roles & Policies',     count: roles.length               },
-      { id: 'access_keys',          label: 'Access Control',       count: accessKeys.length          },
-      { id: 'privilege_escalation', label: 'Privilege Escalation', count: privilegeEscalation.length },
+      { id: 'overview', label: 'Overview' },
+      { id: 'findings', label: 'Findings', count: findingsData.length },
     ],
   };
 
@@ -633,9 +730,13 @@ export default function IamSecurityPage() {
         loading={false}
         error={error}
         defaultTab="overview"
+        onRowClick={handleRowClick}
         hideHeader
         topNav
       />
+
+      {/* Identity detail drawer */}
+      <FindingDetailPanel finding={selectedIdentity} onClose={() => setSelectedIdentity(null)} />
     </div>
   );
 }

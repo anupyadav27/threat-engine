@@ -1,0 +1,617 @@
+- rule_id: threat.ct.root_account_usage
+  engine: threat
+  source_type: cloudtrail
+  severity: critical
+  mitre_tactic: initial_access
+  mitre_technique: T1078.004
+  title: Root account API activity detected
+  condition:
+    field: actor.principal_type
+    op: equals
+    value: Root
+  l2_scenarios:
+  - threat.initial_access_chain
+  - threat.privilege_abuse
+  domain: threat_detection
+  service: cloudtrail
+  provider: aws
+  remediation: Investigate the detected threat. Correlate with other security signals. Initiate incident response if confirmed.
+  compliance_frameworks: &id001
+  - NIST_800-53
+  - SOC2
+  - MITRE_ATT&CK
+  risk_score: 90
+- rule_id: threat.ct.console_login_no_mfa
+  engine: threat
+  source_type: cloudtrail
+  severity: high
+  mitre_tactic: initial_access
+  mitre_technique: T1078
+  title: Console login without MFA
+  condition:
+    all:
+    - field: operation
+      op: equals
+      value: ConsoleLogin
+    - field: raw_event.additionalEventData.MFAUsed
+      op: not_equals
+      value: 'Yes'
+  l2_scenarios:
+  - threat.credential_compromise
+  domain: threat_detection
+  service: cloudtrail
+  provider: aws
+  remediation: Investigate the detected threat. Correlate with other security signals. Initiate incident response if confirmed.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: threat.ct.console_login_failure
+  engine: threat
+  source_type: cloudtrail
+  severity: medium
+  mitre_tactic: initial_access
+  mitre_technique: T1110
+  title: Failed console login attempt
+  condition:
+    all:
+    - field: operation
+      op: equals
+      value: ConsoleLogin
+    - field: outcome
+      op: equals
+      value: failure
+  l2_scenarios:
+  - threat.brute_force
+  - threat.credential_stuffing
+  domain: threat_detection
+  service: cloudtrail
+  provider: aws
+  remediation: Investigate the detected threat. Correlate with other security signals. Initiate incident response if confirmed.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: threat.ct.sts_assume_role_from_external
+  engine: threat
+  source_type: cloudtrail
+  severity: medium
+  mitre_tactic: initial_access
+  mitre_technique: T1078.004
+  title: AssumeRole from external account
+  condition:
+    all:
+    - field: operation
+      op: equals
+      value: AssumeRole
+    - field: actor.account_id
+      op: not_equals
+      value: '{{resource.account_id}}'
+  l2_scenarios:
+  - threat.cross_account_abuse
+  domain: threat_detection
+  service: cloudtrail
+  provider: aws
+  remediation: Investigate the detected threat. Correlate with other security signals. Initiate incident response if confirmed.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: threat.ct.create_user
+  engine: threat
+  source_type: cloudtrail
+  severity: high
+  mitre_tactic: persistence
+  mitre_technique: T1136.003
+  title: New IAM user created
+  condition:
+    field: operation
+    op: equals
+    value: CreateUser
+  l2_scenarios:
+  - threat.privilege_escalation_chain
+  - threat.backdoor_account
+  domain: threat_detection
+  service: cloudtrail
+  provider: aws
+  remediation: Investigate the detected threat. Correlate with other security signals. Initiate incident response if confirmed.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: threat.ct.create_access_key
+  engine: threat
+  source_type: cloudtrail
+  severity: high
+  mitre_tactic: persistence
+  mitre_technique: T1098.001
+  title: New access key created
+  condition:
+    field: operation
+    op: equals
+    value: CreateAccessKey
+  l2_scenarios:
+  - threat.privilege_escalation_chain
+  - threat.backdoor_account
+  domain: threat_detection
+  service: cloudtrail
+  provider: aws
+  remediation: Investigate the detected threat. Correlate with other security signals. Initiate incident response if confirmed.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: threat.ct.create_login_profile
+  engine: threat
+  source_type: cloudtrail
+  severity: high
+  mitre_tactic: persistence
+  mitre_technique: T1098
+  title: Console login profile created for IAM user
+  condition:
+    field: operation
+    op: equals
+    value: CreateLoginProfile
+  l2_scenarios:
+  - threat.backdoor_account
+  domain: threat_detection
+  service: cloudtrail
+  provider: aws
+  remediation: Investigate the detected threat. Correlate with other security signals. Initiate incident response if confirmed.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: threat.ct.create_role
+  engine: threat
+  source_type: cloudtrail
+  severity: medium
+  mitre_tactic: persistence
+  mitre_technique: T1098
+  title: New IAM role created
+  condition:
+    field: operation
+    op: equals
+    value: CreateRole
+  l2_scenarios:
+  - threat.privilege_escalation_chain
+  domain: threat_detection
+  service: cloudtrail
+  provider: aws
+  remediation: Investigate the detected threat. Correlate with other security signals. Initiate incident response if confirmed.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: threat.ct.lambda_create_function
+  engine: threat
+  source_type: cloudtrail
+  severity: medium
+  mitre_tactic: persistence
+  mitre_technique: T1525
+  title: Lambda function created (potential backdoor)
+  condition:
+    field: operation
+    op: equals
+    value: CreateFunction20150331
+  l2_scenarios:
+  - threat.backdoor_compute
+  domain: threat_detection
+  service: cloudtrail
+  provider: aws
+  remediation: Investigate the detected threat. Correlate with other security signals. Initiate incident response if confirmed.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: threat.ct.attach_admin_policy
+  engine: threat
+  source_type: cloudtrail
+  severity: critical
+  mitre_tactic: privilege_escalation
+  mitre_technique: T1484
+  title: AdministratorAccess policy attached
+  condition:
+    all:
+    - field: operation
+      op: in
+      value:
+      - AttachUserPolicy
+      - AttachRolePolicy
+      - AttachGroupPolicy
+    - field: raw_event.requestParameters.policyArn
+      op: contains
+      value: AdministratorAccess
+  l2_scenarios:
+  - threat.privilege_escalation_chain
+  domain: threat_detection
+  service: cloudtrail
+  provider: aws
+  remediation: Investigate the detected threat. Correlate with other security signals. Initiate incident response if confirmed.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: threat.ct.put_role_policy
+  engine: threat
+  source_type: cloudtrail
+  severity: high
+  mitre_tactic: privilege_escalation
+  mitre_technique: T1484
+  title: Inline policy added to role
+  condition:
+    field: operation
+    op: equals
+    value: PutRolePolicy
+  l2_scenarios:
+  - threat.privilege_escalation_chain
+  domain: threat_detection
+  service: cloudtrail
+  provider: aws
+  remediation: Investigate the detected threat. Correlate with other security signals. Initiate incident response if confirmed.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: threat.ct.update_assume_role_policy
+  engine: threat
+  source_type: cloudtrail
+  severity: high
+  mitre_tactic: privilege_escalation
+  mitre_technique: T1484
+  title: Role trust policy modified
+  condition:
+    field: operation
+    op: equals
+    value: UpdateAssumeRolePolicy
+  l2_scenarios:
+  - threat.privilege_escalation_chain
+  - threat.cross_account_abuse
+  domain: threat_detection
+  service: cloudtrail
+  provider: aws
+  remediation: Investigate the detected threat. Correlate with other security signals. Initiate incident response if confirmed.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: threat.ct.pass_role
+  engine: threat
+  source_type: cloudtrail
+  severity: medium
+  mitre_tactic: privilege_escalation
+  mitre_technique: T1098
+  title: IAM PassRole used
+  condition:
+    field: operation
+    op: equals
+    value: PassRole
+  l2_scenarios:
+  - threat.privilege_escalation_chain
+  domain: threat_detection
+  service: cloudtrail
+  provider: aws
+  remediation: Investigate the detected threat. Correlate with other security signals. Initiate incident response if confirmed.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: threat.ct.stop_logging
+  engine: threat
+  source_type: cloudtrail
+  severity: critical
+  mitre_tactic: defense_evasion
+  mitre_technique: T1562.008
+  title: CloudTrail logging stopped
+  condition:
+    field: operation
+    op: in
+    value:
+    - StopLogging
+    - DeleteTrail
+    - UpdateTrail
+  l2_scenarios:
+  - threat.cover_tracks
+  domain: threat_detection
+  service: cloudtrail
+  provider: aws
+  remediation: Investigate the detected threat. Correlate with other security signals. Initiate incident response if confirmed.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: threat.ct.delete_flow_logs
+  engine: threat
+  source_type: cloudtrail
+  severity: high
+  mitre_tactic: defense_evasion
+  mitre_technique: T1562.008
+  title: VPC Flow Logs deleted
+  condition:
+    field: operation
+    op: equals
+    value: DeleteFlowLogs
+  l2_scenarios:
+  - threat.cover_tracks
+  domain: threat_detection
+  service: cloudtrail
+  provider: aws
+  remediation: Investigate the detected threat. Correlate with other security signals. Initiate incident response if confirmed.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: threat.ct.disable_guardduty
+  engine: threat
+  source_type: cloudtrail
+  severity: critical
+  mitre_tactic: defense_evasion
+  mitre_technique: T1562.001
+  title: GuardDuty disabled
+  condition:
+    field: operation
+    op: in
+    value:
+    - DeleteDetector
+    - DisassociateFromAdministratorAccount
+    - UpdateDetector
+  l2_scenarios:
+  - threat.cover_tracks
+  domain: threat_detection
+  service: cloudtrail
+  provider: aws
+  remediation: Investigate the detected threat. Correlate with other security signals. Initiate incident response if confirmed.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: threat.ct.modify_security_group
+  engine: threat
+  source_type: cloudtrail
+  severity: medium
+  mitre_tactic: defense_evasion
+  mitre_technique: T1562.007
+  title: Security group ingress modified
+  condition:
+    field: operation
+    op: in
+    value:
+    - AuthorizeSecurityGroupIngress
+    - RevokeSecurityGroupIngress
+  l2_scenarios:
+  - threat.network_manipulation
+  domain: threat_detection
+  service: cloudtrail
+  provider: aws
+  remediation: Investigate the detected threat. Correlate with other security signals. Initiate incident response if confirmed.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: threat.ct.disable_s3_logging
+  engine: threat
+  source_type: cloudtrail
+  severity: high
+  mitre_tactic: defense_evasion
+  mitre_technique: T1562.008
+  title: S3 bucket logging disabled
+  condition:
+    all:
+    - field: operation
+      op: equals
+      value: PutBucketLogging
+    - field: service
+      op: equals
+      value: s3
+  l2_scenarios:
+  - threat.cover_tracks
+  domain: threat_detection
+  service: cloudtrail
+  provider: aws
+  remediation: Investigate the detected threat. Correlate with other security signals. Initiate incident response if confirmed.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: threat.ct.enumerate_iam
+  engine: threat
+  source_type: cloudtrail
+  severity: low
+  mitre_tactic: discovery
+  mitre_technique: T1087.004
+  title: IAM enumeration detected
+  condition:
+    field: operation
+    op: in
+    value:
+    - ListUsers
+    - ListRoles
+    - ListPolicies
+    - GetAccountAuthorizationDetails
+    - ListAccessKeys
+    - ListGroupsForUser
+  l2_scenarios:
+  - threat.recon_then_exploit
+  domain: threat_detection
+  service: cloudtrail
+  provider: aws
+  remediation: Investigate the detected threat. Correlate with other security signals. Initiate incident response if confirmed.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: threat.ct.enumerate_s3
+  engine: threat
+  source_type: cloudtrail
+  severity: low
+  mitre_tactic: discovery
+  mitre_technique: T1083
+  title: S3 bucket enumeration
+  condition:
+    all:
+    - field: operation
+      op: in
+      value:
+      - ListBuckets
+      - GetBucketAcl
+      - GetBucketPolicy
+      - GetBucketLocation
+    - field: service
+      op: equals
+      value: s3
+  l2_scenarios:
+  - threat.recon_then_exploit
+  - threat.data_recon
+  domain: threat_detection
+  service: cloudtrail
+  provider: aws
+  remediation: Investigate the detected threat. Correlate with other security signals. Initiate incident response if confirmed.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: threat.ct.access_denied_spike
+  engine: threat
+  source_type: cloudtrail
+  severity: medium
+  mitre_tactic: discovery
+  mitre_technique: T1580
+  title: AccessDenied error (permission probing)
+  condition:
+    field: error_code
+    op: equals
+    value: AccessDenied
+  l2_scenarios:
+  - threat.recon_then_exploit
+  - threat.credential_compromise
+  domain: threat_detection
+  service: cloudtrail
+  provider: aws
+  remediation: Investigate the detected threat. Correlate with other security signals. Initiate incident response if confirmed.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: threat.ct.s3_make_public
+  engine: threat
+  source_type: cloudtrail
+  severity: critical
+  mitre_tactic: exfiltration
+  mitre_technique: T1537
+  title: S3 bucket made public
+  condition:
+    field: operation
+    op: in
+    value:
+    - PutBucketPolicy
+    - PutBucketAcl
+    - DeleteBucketPolicy
+    - PutPublicAccessBlock
+  l2_scenarios:
+  - threat.data_exfil
+  domain: threat_detection
+  service: cloudtrail
+  provider: aws
+  remediation: Investigate the detected threat. Correlate with other security signals. Initiate incident response if confirmed.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: threat.ct.s3_share_cross_account
+  engine: threat
+  source_type: cloudtrail
+  severity: high
+  mitre_tactic: exfiltration
+  mitre_technique: T1537
+  title: S3 bucket shared with external account
+  condition:
+    field: operation
+    op: equals
+    value: PutBucketPolicy
+  l2_scenarios:
+  - threat.data_exfil
+  - threat.cross_account_abuse
+  domain: threat_detection
+  service: cloudtrail
+  provider: aws
+  remediation: Investigate the detected threat. Correlate with other security signals. Initiate incident response if confirmed.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: threat.ct.rds_snapshot_public
+  engine: threat
+  source_type: cloudtrail
+  severity: critical
+  mitre_tactic: exfiltration
+  mitre_technique: T1537
+  title: RDS snapshot made public
+  condition:
+    field: operation
+    op: equals
+    value: ModifyDBSnapshotAttribute
+  l2_scenarios:
+  - threat.data_exfil
+  domain: threat_detection
+  service: cloudtrail
+  provider: aws
+  remediation: Investigate the detected threat. Correlate with other security signals. Initiate incident response if confirmed.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: threat.ct.ec2_snapshot_shared
+  engine: threat
+  source_type: cloudtrail
+  severity: high
+  mitre_tactic: exfiltration
+  mitre_technique: T1537
+  title: EC2/EBS snapshot shared externally
+  condition:
+    field: operation
+    op: equals
+    value: ModifySnapshotAttribute
+  l2_scenarios:
+  - threat.data_exfil
+  domain: threat_detection
+  service: cloudtrail
+  provider: aws
+  remediation: Investigate the detected threat. Correlate with other security signals. Initiate incident response if confirmed.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: threat.ct.delete_bucket
+  engine: threat
+  source_type: cloudtrail
+  severity: critical
+  mitre_tactic: impact
+  mitre_technique: T1485
+  title: S3 bucket deleted
+  condition:
+    field: operation
+    op: equals
+    value: DeleteBucket
+  l2_scenarios:
+  - threat.data_destruction
+  domain: threat_detection
+  service: cloudtrail
+  provider: aws
+  remediation: Investigate the detected threat. Correlate with other security signals. Initiate incident response if confirmed.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: threat.ct.terminate_instances
+  engine: threat
+  source_type: cloudtrail
+  severity: high
+  mitre_tactic: impact
+  mitre_technique: T1485
+  title: EC2 instances terminated
+  condition:
+    field: operation
+    op: equals
+    value: TerminateInstances
+  l2_scenarios:
+  - threat.data_destruction
+  domain: threat_detection
+  service: cloudtrail
+  provider: aws
+  remediation: Investigate the detected threat. Correlate with other security signals. Initiate incident response if confirmed.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: threat.ct.delete_db
+  engine: threat
+  source_type: cloudtrail
+  severity: critical
+  mitre_tactic: impact
+  mitre_technique: T1485
+  title: Database deleted
+  condition:
+    field: operation
+    op: in
+    value:
+    - DeleteDBInstance
+    - DeleteDBCluster
+    - DeleteTable
+  l2_scenarios:
+  - threat.data_destruction
+  domain: threat_detection
+  service: cloudtrail
+  provider: aws
+  remediation: Investigate the detected threat. Correlate with other security signals. Initiate incident response if confirmed.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: threat.ct.delete_kms_key
+  engine: threat
+  source_type: cloudtrail
+  severity: critical
+  mitre_tactic: impact
+  mitre_technique: T1486
+  title: KMS key scheduled for deletion (ransomware indicator)
+  condition:
+    field: operation
+    op: in
+    value:
+    - ScheduleKeyDeletion
+    - DisableKey
+  l2_scenarios:
+  - threat.ransomware
+  - threat.data_destruction
+  domain: threat_detection
+  service: cloudtrail
+  provider: aws
+  remediation: Investigate the detected threat. Correlate with other security signals. Initiate incident response if confirmed.
+  compliance_frameworks: *id001
+  risk_score: 90

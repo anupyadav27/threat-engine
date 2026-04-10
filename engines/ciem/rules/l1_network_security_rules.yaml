@@ -1,0 +1,843 @@
+rules:
+- rule_id: netsec.ct.vpc_created
+  title: New VPC created
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ec2
+    - field: operation
+      op: equals
+      value: CreateVpc
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: network_engine
+  action_category: create
+  mitre_tactics:
+  - persistence
+  mitre_techniques:
+  - T1578.002
+  description: New VPC may create isolated network for attacker infrastructure.
+  domain: network_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: &id001
+  - CIS
+  - NIST_800-53
+  - PCI-DSS
+  - SOC2
+  risk_score: 50
+- rule_id: netsec.ct.vpc_deleted
+  title: VPC deleted
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ec2
+    - field: operation
+      op: equals
+      value: DeleteVpc
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: network_engine
+  action_category: delete
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1485
+  description: VPC deletion destroys all associated network resources.
+  domain: network_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: netsec.ct.subnet_created
+  title: Subnet created
+  severity: low
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ec2
+    - field: operation
+      op: equals
+      value: CreateSubnet
+  engines:
+  - network_engine
+  primary_engine: network_engine
+  action_category: create
+  mitre_tactics:
+  - persistence
+  mitre_techniques:
+  - T1578.002
+  description: New subnet — verify it is in expected VPC and availability zone.
+  domain: network_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: netsec.ct.subnet_auto_assign_public_ip
+  title: Subnet public IP auto-assign modified
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ec2
+    - field: operation
+      op: equals
+      value: ModifySubnetAttribute
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: network_engine
+  action_category: modify
+  mitre_tactics:
+  - initial-access
+  mitre_techniques:
+  - T1190
+  description: Enabling auto-assign public IP makes all new instances internet-facing.
+  domain: network_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: netsec.ct.internet_gateway_created
+  title: Internet gateway created
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ec2
+    - field: operation
+      op: equals
+      value: CreateInternetGateway
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: network_engine
+  action_category: create
+  mitre_tactics:
+  - initial-access
+  - exfiltration
+  mitre_techniques:
+  - T1190
+  description: Internet gateway creation enables direct internet connectivity for a VPC.
+  domain: network_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: netsec.ct.internet_gateway_attached
+  title: Internet gateway attached to VPC
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ec2
+    - field: operation
+      op: equals
+      value: AttachInternetGateway
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: network_engine
+  action_category: modify
+  mitre_tactics:
+  - initial-access
+  - exfiltration
+  mitre_techniques:
+  - T1190
+  description: Attaching IGW to previously isolated VPC enables internet access.
+  domain: network_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: netsec.ct.nat_gateway_created
+  title: NAT gateway created
+  severity: low
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ec2
+    - field: operation
+      op: equals
+      value: CreateNatGateway
+  engines:
+  - network_engine
+  primary_engine: network_engine
+  action_category: create
+  mitre_tactics:
+  - exfiltration
+  mitre_techniques:
+  - T1048
+  description: NAT gateway enables outbound internet access from private subnets.
+  domain: network_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: netsec.ct.vpc_endpoint_created
+  title: VPC endpoint created
+  severity: low
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ec2
+    - field: operation
+      op: equals
+      value: CreateVpcEndpoint
+  engines:
+  - network_engine
+  primary_engine: network_engine
+  action_category: create
+  mitre_tactics:
+  - lateral-movement
+  mitre_techniques:
+  - T1599
+  description: VPC endpoint provides private access to AWS services — verify endpoint policy.
+  domain: network_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: netsec.ct.security_group_created
+  title: Security group created
+  severity: low
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ec2
+    - field: operation
+      op: equals
+      value: CreateSecurityGroup
+  engines:
+  - network_engine
+  primary_engine: network_engine
+  action_category: create
+  mitre_tactics:
+  - persistence
+  mitre_techniques:
+  - T1578.002
+  description: New security group — monitor subsequent ingress rule additions.
+  domain: network_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: netsec.ct.security_group_egress_modified
+  title: Security group egress rule modified
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ec2
+    - field: operation
+      op: equals
+      value: AuthorizeSecurityGroupEgress
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: network_engine
+  action_category: modify
+  mitre_tactics:
+  - exfiltration
+  mitre_techniques:
+  - T1048
+  description: Egress rule change may enable outbound data exfiltration.
+  domain: network_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: netsec.ct.security_group_deleted
+  title: Security group deleted
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ec2
+    - field: operation
+      op: equals
+      value: DeleteSecurityGroup
+  engines:
+  - network_engine
+  primary_engine: network_engine
+  action_category: delete
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1070
+  description: Security group deletion removes network access controls.
+  domain: network_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: netsec.ct.route53_change_record_sets
+  title: Route 53 DNS records changed
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: route53
+    - field: operation
+      op: equals
+      value: ChangeResourceRecordSets
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - initial-access
+  - lateral-movement
+  mitre_techniques:
+  - T1584.002
+  description: DNS record change — potential domain hijacking or traffic redirection.
+  domain: network_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: netsec.ct.route53_create_hosted_zone
+  title: Route 53 hosted zone created
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: route53
+    - field: operation
+      op: equals
+      value: CreateHostedZone
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: network_engine
+  action_category: create
+  mitre_tactics:
+  - persistence
+  mitre_techniques:
+  - T1584.002
+  description: New hosted zone — may be used for DNS-based C2 or phishing infrastructure.
+  domain: network_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: netsec.ct.route53_delete_hosted_zone
+  title: Route 53 hosted zone deleted
+  severity: critical
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: route53
+    - field: operation
+      op: equals
+      value: DeleteHostedZone
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1485
+  description: Hosted zone deletion breaks all DNS resolution for the domain.
+  domain: network_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: netsec.ct.route53_associate_vpc
+  title: Route 53 private zone associated with VPC
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: route53
+    - field: operation
+      op: equals
+      value: AssociateVPCWithHostedZone
+  engines:
+  - network_engine
+  primary_engine: network_engine
+  action_category: modify
+  mitre_tactics:
+  - lateral-movement
+  mitre_techniques:
+  - T1584.002
+  description: Cross-VPC DNS association enables name resolution across network boundaries.
+  domain: network_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: netsec.ct.cloudfront_create_distribution
+  title: CloudFront distribution created
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: cloudfront
+    - field: operation
+      op: equals
+      value: CreateDistribution
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: network_engine
+  action_category: create
+  mitre_tactics:
+  - exfiltration
+  - initial-access
+  mitre_techniques:
+  - T1090.002
+  description: New CloudFront distribution — verify origin and caching behavior.
+  domain: network_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: netsec.ct.cloudfront_update_distribution
+  title: CloudFront distribution configuration updated
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: cloudfront
+    - field: operation
+      op: equals
+      value: UpdateDistribution
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: network_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1090.002
+  description: Distribution update may change origin, disable WAF, or weaken TLS.
+  domain: network_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: netsec.ct.elb_create_load_balancer
+  title: Load balancer created
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: elasticloadbalancing
+    - field: operation
+      op: equals
+      value: CreateLoadBalancer
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: network_engine
+  action_category: create
+  mitre_tactics:
+  - initial-access
+  mitre_techniques:
+  - T1190
+  description: New load balancer — review scheme (internet-facing vs internal) and listeners.
+  domain: network_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: netsec.ct.elb_modify_load_balancer_attributes
+  title: Load balancer attributes modified
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: elasticloadbalancing
+    - field: operation
+      op: equals
+      value: ModifyLoadBalancerAttributes
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: network_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.008
+  description: Attribute change may disable access logging or modify deletion protection.
+  domain: network_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: netsec.ct.elb_set_security_groups
+  title: Load balancer security groups changed
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: elasticloadbalancing
+    - field: operation
+      op: equals
+      value: SetSecurityGroups
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: network_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.007
+  description: Changing LB security groups alters network access controls.
+  domain: network_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: netsec.ct.waf_delete_web_acl
+  title: WAF Web ACL deleted
+  severity: critical
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: wafv2
+    - field: operation
+      op: equals
+      value: DeleteWebACL
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.001
+  description: WAF ACL deletion removes web application firewall protection.
+  domain: network_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: netsec.ct.waf_update_web_acl
+  title: WAF Web ACL updated
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: wafv2
+    - field: operation
+      op: equals
+      value: UpdateWebACL
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.001
+  description: WAF rule update may weaken protections or add bypass rules.
+  domain: network_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: netsec.ct.waf_delete_rule_group
+  title: WAF rule group deleted
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: wafv2
+    - field: operation
+      op: equals
+      value: DeleteRuleGroup
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.001
+  description: Rule group deletion removes a set of WAF rules.
+  domain: network_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: netsec.ct.waf_disassociate_web_acl
+  title: WAF Web ACL disassociated from resource
+  severity: critical
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: wafv2
+    - field: operation
+      op: equals
+      value: DisassociateWebACL
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.001
+  description: Removing WAF from ALB/CloudFront leaves it unprotected.
+  domain: network_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: netsec.ct.network_firewall_deleted
+  title: Network Firewall deleted
+  severity: critical
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: network-firewall
+    - field: operation
+      op: equals
+      value: DeleteFirewall
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.001
+  description: Network Firewall deletion removes stateful packet inspection.
+  domain: network_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: netsec.ct.network_firewall_policy_deleted
+  title: Network Firewall policy deleted
+  severity: critical
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: network-firewall
+    - field: operation
+      op: equals
+      value: DeleteFirewallPolicy
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.001
+  description: Firewall policy deletion removes all associated rule groups.
+  domain: network_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: netsec.ct.network_firewall_policy_updated
+  title: Network Firewall policy updated
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: network-firewall
+    - field: operation
+      op: equals
+      value: UpdateFirewallPolicy
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.001
+  description: Firewall policy update may weaken inspection rules.
+  domain: network_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: netsec.ct.transit_gateway_created
+  title: Transit Gateway created
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ec2
+    - field: operation
+      op: equals
+      value: CreateTransitGateway
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: network_engine
+  action_category: create
+  mitre_tactics:
+  - lateral-movement
+  mitre_techniques:
+  - T1599
+  description: Transit Gateway enables routing between VPCs and on-premises networks.
+  domain: network_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: netsec.ct.transit_gateway_peering_created
+  title: Transit Gateway peering attachment created
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ec2
+    - field: operation
+      op: equals
+      value: CreateTransitGatewayPeeringAttachment
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: network_engine
+  action_category: create
+  mitre_tactics:
+  - lateral-movement
+  mitre_techniques:
+  - T1599
+  description: TGW peering connects transit gateways across accounts or regions.
+  domain: network_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: netsec.ct.transit_gateway_peering_accepted
+  title: Transit Gateway peering attachment accepted
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ec2
+    - field: operation
+      op: equals
+      value: AcceptTransitGatewayPeeringAttachment
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: network_engine
+  action_category: modify
+  mitre_tactics:
+  - lateral-movement
+  mitre_techniques:
+  - T1599
+  description: Accepting TGW peering enables cross-account network connectivity.
+  domain: network_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70

@@ -1,0 +1,248 @@
+- rule_id: datasec.ct.s3_get_object
+  engine: datasec
+  source_type: cloudtrail
+  severity: info
+  title: S3 object accessed
+  condition:
+    all:
+    - field: service
+      op: equals
+      value: s3
+    - field: operation
+      op: in
+      value:
+      - GetObject
+      - HeadObject
+      - SelectObjectContent
+  l2_scenarios:
+  - datasec.data_access_tracking
+  - datasec.mass_download
+  domain: data_security
+  service: s3
+  provider: aws
+  remediation: Review data access policies. Enable encryption at rest and in transit. Implement DLP controls.
+  compliance_frameworks: &id001
+  - CIS
+  - NIST_800-53
+  - GDPR
+  - PCI-DSS
+  - HIPAA
+  - ISO_27001
+  risk_score: 10
+- rule_id: datasec.ct.s3_put_object
+  engine: datasec
+  source_type: cloudtrail
+  severity: info
+  title: S3 object uploaded
+  condition:
+    all:
+    - field: service
+      op: equals
+      value: s3
+    - field: operation
+      op: in
+      value:
+      - PutObject
+      - CopyObject
+      - UploadPart
+      - CompleteMultipartUpload
+  l2_scenarios:
+  - datasec.data_access_tracking
+  - datasec.data_movement
+  domain: data_security
+  service: s3
+  provider: aws
+  remediation: Review data access policies. Enable encryption at rest and in transit. Implement DLP controls.
+  compliance_frameworks: *id001
+  risk_score: 10
+- rule_id: datasec.ct.s3_delete_object
+  engine: datasec
+  source_type: cloudtrail
+  severity: medium
+  title: S3 object deleted
+  condition:
+    all:
+    - field: service
+      op: equals
+      value: s3
+    - field: operation
+      op: in
+      value:
+      - DeleteObject
+      - DeleteObjects
+  l2_scenarios:
+  - datasec.data_destruction
+  - datasec.data_lifecycle
+  domain: data_security
+  service: s3
+  provider: aws
+  remediation: Review data access policies. Enable encryption at rest and in transit. Implement DLP controls.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: datasec.ct.rds_query_activity
+  engine: datasec
+  source_type: rds_audit
+  severity: info
+  title: Database query executed
+  condition:
+    field: operation
+    op: in
+    value:
+    - QUERY
+    - SELECT
+    - INSERT
+    - UPDATE
+    - DELETE
+  l2_scenarios:
+  - datasec.db_access_tracking
+  domain: data_security
+  service: s3
+  provider: aws
+  remediation: Review data access policies. Enable encryption at rest and in transit. Implement DLP controls.
+  compliance_frameworks: *id001
+  risk_score: 10
+- rule_id: datasec.ct.encryption_disabled
+  engine: datasec
+  source_type: cloudtrail
+  severity: critical
+  title: Encryption removed from data store
+  condition:
+    field: operation
+    op: in
+    value:
+    - DeleteBucketEncryption
+    - DisableKeyRotation
+  l2_scenarios:
+  - datasec.encryption_downgrade
+  domain: data_security
+  service: s3
+  provider: aws
+  remediation: Review data access policies. Enable encryption at rest and in transit. Implement DLP controls.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: datasec.ct.kms_key_grant
+  engine: datasec
+  source_type: cloudtrail
+  severity: high
+  title: KMS key access granted
+  condition:
+    all:
+    - field: service
+      op: equals
+      value: kms
+    - field: operation
+      op: in
+      value:
+      - CreateGrant
+      - PutKeyPolicy
+  l2_scenarios:
+  - datasec.encryption_access_change
+  domain: data_security
+  service: s3
+  provider: aws
+  remediation: Review data access policies. Enable encryption at rest and in transit. Implement DLP controls.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: datasec.ct.bucket_policy_change
+  engine: datasec
+  source_type: cloudtrail
+  severity: high
+  title: S3 bucket policy modified
+  condition:
+    field: operation
+    op: in
+    value:
+    - PutBucketPolicy
+    - DeleteBucketPolicy
+    - PutBucketAcl
+  l2_scenarios:
+  - datasec.data_exposure
+  - datasec.data_sharing
+  domain: data_security
+  service: s3
+  provider: aws
+  remediation: Review data access policies. Enable encryption at rest and in transit. Implement DLP controls.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: datasec.ct.public_access_block_removed
+  engine: datasec
+  source_type: cloudtrail
+  severity: critical
+  title: S3 public access block removed
+  condition:
+    field: operation
+    op: equals
+    value: DeletePublicAccessBlock
+  l2_scenarios:
+  - datasec.data_exposure
+  domain: data_security
+  service: s3
+  provider: aws
+  remediation: Review data access policies. Enable encryption at rest and in transit. Implement DLP controls.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: datasec.ct.snapshot_shared
+  engine: datasec
+  source_type: cloudtrail
+  severity: high
+  title: Data snapshot shared externally
+  condition:
+    field: operation
+    op: in
+    value:
+    - ModifyDBSnapshotAttribute
+    - ModifySnapshotAttribute
+    - ModifyDBClusterSnapshotAttribute
+  l2_scenarios:
+  - datasec.data_exposure
+  - datasec.data_exfil
+  domain: data_security
+  service: s3
+  provider: aws
+  remediation: Review data access policies. Enable encryption at rest and in transit. Implement DLP controls.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: datasec.ct.replication_enabled
+  engine: datasec
+  source_type: cloudtrail
+  severity: medium
+  title: Cross-region data replication configured
+  condition:
+    field: operation
+    op: in
+    value:
+    - PutBucketReplication
+    - CreateReplicationGroup
+  l2_scenarios:
+  - datasec.data_movement
+  - datasec.residency_violation
+  domain: data_security
+  service: s3
+  provider: aws
+  remediation: Review data access policies. Enable encryption at rest and in transit. Implement DLP controls.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: datasec.ct.glue_job_started
+  engine: datasec
+  source_type: cloudtrail
+  severity: info
+  title: Glue ETL job started (data pipeline activity)
+  condition:
+    all:
+    - field: service
+      op: equals
+      value: glue
+    - field: operation
+      op: in
+      value:
+      - StartJobRun
+      - StartCrawler
+  l2_scenarios:
+  - datasec.data_lineage
+  - datasec.data_movement
+  domain: data_security
+  service: s3
+  provider: aws
+  remediation: Review data access policies. Enable encryption at rest and in transit. Implement DLP controls.
+  compliance_frameworks: *id001
+  risk_score: 10

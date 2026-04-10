@@ -53,14 +53,14 @@ async def view_inventory(
     account: Optional[str] = Query(None),
     region: Optional[str] = Query(None),
     scan_run_id: str = Query("latest"),
-    limit: int = Query(500, ge=1, le=2000),
+    limit: int = Query(2000, ge=1, le=5000),
     offset: int = Query(0, ge=0),
 ):
     """Asset list + summary for the inventory page."""
 
     # ── 4 parallel calls: inventory + threat detections + threat summary + onboarding
     results = await fetch_many([
-        ("inventory",  "/api/v1/inventory/ui-data",  {"tenant_id": tenant_id, "scan_run_id": scan_run_id, "limit": str(limit), "offset": str(offset)}),
+        ("inventory",  "/api/v1/inventory/ui-data",  {"tenant_id": tenant_id, "scan_run_id": scan_run_id, "limit": str(min(limit, 2000)), "offset": str(offset)}),
         ("threat",     "/api/v1/threat/ui-data",     {"tenant_id": tenant_id, "scan_run_id": "latest", "limit": str(limit)}),
         ("onboarding", "/api/v1/cloud-accounts", {"tenant_id": tenant_id}),
     ])
@@ -72,8 +72,12 @@ async def view_inventory(
     threat_data = threat_data if isinstance(threat_data, dict) else {}
     onboarding_data = onboarding_data if isinstance(onboarding_data, dict) else {}
 
-    # Mock fallback when engine data is empty
-    if is_empty_or_health(inventory_data):
+    # Mock fallback when engine data is empty or has no assets
+    _has_assets = (
+        isinstance(inventory_data, dict)
+        and bool(inventory_data.get("assets") or inventory_data.get("summary", {}).get("total_assets", 0))
+    )
+    if is_empty_or_health(inventory_data) or not _has_assets:
         m = mock_fallback("inventory")
         if m is not None:
             return m
@@ -334,6 +338,10 @@ def _extract_field_changes(change: Dict[str, Any]) -> List[Dict[str, Any]]:
 
     fields: List[Dict[str, Any]] = []
 
+    raw_type = change.get("change_type", "modified")
+    is_added = "add" in raw_type
+    is_removed = "remov" in raw_type
+
     # Format A: {"changes": [{"path": ..., "before": ..., "after": ...}]}
     if "changes" in summary and isinstance(summary["changes"], list):
         for c in summary["changes"]:
@@ -342,6 +350,27 @@ def _extract_field_changes(change: Dict[str, Any]) -> List[Dict[str, Any]]:
                 "category": _classify_field(c.get("path", "")),
                 "before": c.get("before"),
                 "after": c.get("after"),
+                "context": c.get("context"),
+            })
+    # Format C: {"snapshot": {"name": ..., "resource_type": ..., "region": ..., "account_id": ...}}
+    # Emitted by DriftDetector for ASSET_ADDED and ASSET_REMOVED
+    elif "snapshot" in summary and isinstance(summary["snapshot"], dict):
+        snap = summary["snapshot"]
+        label_map = {
+            "name": "Resource Name",
+            "resource_type": "Resource Type",
+            "region": "Region",
+            "account_id": "Account",
+        }
+        for key in ("name", "resource_type", "region", "account_id"):
+            value = snap.get(key)
+            if not value:
+                continue
+            fields.append({
+                "field": label_map.get(key, key),
+                "category": _classify_field(key),
+                "before": value if is_removed else None,
+                "after": value if is_added else None,
             })
     else:
         # Format B: {"field_name": {"before": x, "after": y}}
@@ -358,15 +387,14 @@ def _extract_field_changes(change: Dict[str, Any]) -> List[Dict[str, Any]]:
     # This covers asset_added (new resource), asset_removed (gone),
     # and asset_changed when the old detector only wrote "metadata changed".
     if not fields:
-        raw_type = change.get("change_type", "modified")
-        if "add" in raw_type:
+        if is_added:
             fields.append({
                 "field": "resource",
                 "category": "config",
                 "before": None,
                 "after": "New resource discovered",
             })
-        elif "remov" in raw_type:
+        elif is_removed:
             fields.append({
                 "field": "resource",
                 "category": "config",
@@ -375,10 +403,10 @@ def _extract_field_changes(change: Dict[str, Any]) -> List[Dict[str, Any]]:
             })
         else:
             fields.append({
-                "field": "configuration",
+                "field": "cloud_configuration",
                 "category": "config",
-                "before": "(previous version)",
-                "after": "(current version)",
+                "before": None,
+                "after": "Configuration properties updated",
             })
 
     return fields
@@ -540,19 +568,25 @@ async def view_asset_detail(
             resource_uid=actual_uid,
             tenant_id=tenant_id,
             scan_run_id=scan_run_id,
+            max_depth=3,
         )
+
+    # Encode resource_uid for use in URL paths — '/' in ARNs must be %2F so
+    # FastAPI's {param:path} routes don't split on them.
+    from urllib.parse import quote as _quote
+    enc_uid = _quote(resource_uid, safe="")
 
     # ── 5 parallel calls (asset + relationships fetched separately) ────
     results = await fetch_many([
-        ("inventory",  f"/api/v1/inventory/assets/{resource_uid}",
+        ("inventory",  f"/api/v1/inventory/assets/{enc_uid}",
          {"tenant_id": tenant_id, "scan_run_id": scan_run_id}),
-        ("check",      f"/api/v1/check/findings/resource/{resource_uid}",
+        ("check",      f"/api/v1/check/findings/resource/{enc_uid}",
          {"tenant_id": tenant_id}),
-        ("threat",     f"/api/v1/threat/findings/resource/{resource_uid}",
+        ("threat",     f"/api/v1/threat/findings/resource/{enc_uid}",
          {"tenant_id": tenant_id}),
-        ("compliance", f"/api/v1/compliance/findings/resource/{resource_uid}",
+        ("compliance", f"/api/v1/compliance/findings/resource/{enc_uid}",
          {"tenant_id": tenant_id, "scan_run_id": scan_run_id}),
-        ("inventory",  f"/api/v1/inventory/assets/{resource_uid}/relationships",
+        ("inventory",  f"/api/v1/inventory/assets/{enc_uid}/relationships",
          {"tenant_id": tenant_id, "scan_run_id": scan_run_id, "depth": "2"}),
     ])
 
@@ -670,65 +704,189 @@ async def view_blast_radius(
     scan_run_id: str = Query("latest"),
     max_depth: int = Query(3, ge=1, le=5),
 ):
-    """Blast-radius graph with per-node posture enrichment.
+    """Blast-radius from Neo4j (threat engine graph).
 
-    Step 1: Get the relationship graph from inventory engine (recursive CTE).
-    Step 2: Collect all unique node resource_uids.
-    Step 3: Fan out to check + threat engines for severity counts per node.
-    Step 4: Merge posture data into each graph node.
+    Calls GET /api/v1/graph/blast-radius/{resource_uid} on the threat engine
+    which queries the Neo4j Aura graph for reachable resources via attack edges.
+    Normalises the Neo4j response into the UI-expected format:
+      nodes[], edges[], origin, total_impacted, impact_summary, toxic_combos
     """
-    # Step 1: Get graph from inventory engine
-    graph_results = await fetch_many([
-        ("inventory",
-         f"/api/v1/inventory/assets/{resource_uid}/blast-radius",
-         {"tenant_id": tenant_id, "scan_run_id": scan_run_id,
-          "max_depth": str(max_depth)}),
-    ])
+    from urllib.parse import quote
+    import httpx as _httpx
+    import json as _json
 
-    graph_data = graph_results[0]
-    if not isinstance(graph_data, dict):
-        graph_data = {"nodes": [], "edges": [], "center": resource_uid,
-                      "max_depth": max_depth, "total_nodes": 0, "total_edges": 0}
+    # Safely resolve max_depth to a plain int — when called from sub-route dispatch
+    # (not via FastAPI dependency injection) the default value is the raw Query()
+    # descriptor object rather than an int, which causes Pydantic serialization errors.
+    depth = max_depth if isinstance(max_depth, int) else 3
 
-    nodes = graph_data.get("nodes", [])
-    edges = graph_data.get("edges", [])
+    _EMPTY = {
+        "nodes": [], "edges": [],
+        "origin": resource_uid, "center": resource_uid,
+        "total_impacted": 0, "total_nodes": 0, "total_edges": 0,
+        "impact_summary": {}, "toxic_combos": [], "toxic_count": 0,
+        "max_depth": depth,
+    }
 
-    if not nodes:
-        return graph_data
+    # ── Call Neo4j blast radius via threat engine ───────────────────────────
+    threat_base = ENGINE_URLS.get("threat", "")
+    safe_uid = quote(resource_uid, safe="/:@!$&'()*+,;=")
+    neo4j_url = f"{threat_base}/api/v1/graph/blast-radius/{safe_uid}"
+    neo4j_params = {"tenant_id": tenant_id, "max_hops": str(depth)}
+    try:
+        async with _httpx.AsyncClient() as _client:
+            _resp = await _client.get(
+                neo4j_url, params=neo4j_params,
+                timeout=ENGINE_TIMEOUTS.get("threat", DEFAULT_TIMEOUT)
+            )
+            if _resp.status_code != 200:
+                logger.warning("Neo4j blast radius %s -> %s", neo4j_url, _resp.status_code)
+                return _EMPTY
+            raw = _resp.json()
+    except Exception as _e:
+        logger.warning("Neo4j blast radius call failed for %s: %s", resource_uid, _e)
+        return _EMPTY
 
-    # Step 2: Collect unique resource_uids from nodes
-    node_uids = list({
-        n.get("resource_uid") or n.get("id", "")
-        for n in nodes
-        if n.get("resource_uid") or n.get("id")
-    })
+    # Ensure plain Python dicts (guard against any serialization issues)
+    try:
+        raw = _json.loads(_json.dumps(raw, default=str))
+    except Exception:
+        pass
 
-    # Step 3: Parallel posture fetch (check + threat per node)
-    posture_map = await _fetch_posture_for_nodes(node_uids, tenant_id)
+    # ── Normalise Neo4j response → UI format ───────────────────────────────
+    # Neo4j response shape:
+    #   { source_resource, reachable_count, reachable_resources[], depth_distribution, resources_with_threats }
+    reachable: List[Dict[str, Any]] = raw.get("reachable_resources", [])
+    if not isinstance(reachable, list):
+        reachable = []
 
-    # Step 4: Enrich nodes with posture badges
-    for node in nodes:
-        uid = node.get("resource_uid") or node.get("id", "")
-        node_posture = posture_map.get(uid, {})
+    depth_dist: Dict = raw.get("depth_distribution", {})
+    reachable_count: int = raw.get("reachable_count", len(reachable))
 
-        check_sev = node_posture.get("check", {})
-        threat_sev = node_posture.get("threat", {})
+    if not reachable:
+        return _EMPTY
 
-        node["posture"] = {
-            "check": check_sev,
-            "threat": threat_sev,
-            "total_critical": check_sev.get("critical", 0) + threat_sev.get("critical", 0),
-            "total_high": check_sev.get("high", 0) + threat_sev.get("high", 0),
+    # Build nodes list (UI expects: id, resource_uid, name, type, hop, category, posture)
+    nodes: List[Dict[str, Any]] = []
+    impact_summary: Dict[str, int] = {}
+
+    for r in reachable:
+        uid = r.get("uid", "")
+        rtype = r.get("resource_type", "")
+        # Derive category from resource_type prefix (e.g. "ec2.instance" → "compute")
+        svc = rtype.split(".")[0].lower() if rtype else ""
+        category = _SERVICE_TO_CATEGORY.get(svc, "other")
+        hop = r.get("hops", 1)
+        finding_count = r.get("finding_count", 0)
+        threats = r.get("threats", [])
+
+        critical_high = int(r.get("critical_high_findings") or 0)
+        node: Dict[str, Any] = {
+            "id": uid,
+            "resource_uid": uid,
+            "name": r.get("name") or uid.rsplit("/", 1)[-1].rsplit(":", 1)[-1],
+            "type": rtype,
+            "resource_type": rtype,
+            "hop": hop,
+            "category": category,
+            "risk_score": r.get("risk_score") or 0,
+            "posture": {
+                "check": {"findings": finding_count, "critical_high": critical_high},
+                "threat": {"detections": len(threats)},
+                "total_critical": len(threats),
+                "total_high": critical_high,
+            },
         }
+        nodes.append(node)
+        impact_summary[category] = impact_summary.get(category, 0) + 1
+
+    # Build minimal edges (origin → each hop-1 node; deeper edges are implied)
+    edges: List[Dict[str, Any]] = []
+    for node in nodes:
+        edges.append({
+            "source": resource_uid if node["hop"] == 1 else "",
+            "target": node["resource_uid"],
+            "relation_type": "reachable",
+            "hop": node["hop"],
+        })
+
+    # ── Toxic combination detection (two-signal model) ────────────────────
+    # A reachable node is only toxic when BOTH sides of the chain carry active
+    # risk — origin AND target must each have their own signal.  Being merely
+    # reachable (e.g. every Lambda has an IAM role) is NOT a toxic combo.
+    #
+    # Origin signal  : origin has active threat detections OR critical/high findings
+    # Target signal  : target has active threat detections OR critical/high findings
+    # Toxic          : origin_has_risk AND target_has_risk
+    #
+    # This prevents the IAM-role noise problem: a properly-configured IAM role
+    # with no findings or threats will never be flagged as toxic regardless of
+    # how many resources can reach it.
+    origin_threats: List = raw.get("origin_threats") or []
+    origin_critical_high: int = int(raw.get("origin_critical_high_findings") or 0)
+    origin_has_risk = bool(origin_threats) or origin_critical_high > 0
+
+    toxic_combos: List[Dict[str, Any]] = []
+    for r in reachable:
+        target_threatened  = bool(r.get("threats"))
+        target_critical    = int(r.get("critical_high_findings") or 0) > 0
+        target_has_risk    = target_threatened or target_critical
+
+        if not (origin_has_risk and target_has_risk):
+            continue
+
+        conditions: List[str] = []
+        if target_threatened:
+            conditions.append(f"{len(r['threats'])} active threat(s)")
+        if target_critical:
+            conditions.append(f"{r['critical_high_findings']} critical/high finding(s)")
+
+        toxic_combos.append({
+            "resource_uid": r.get("uid", ""),
+            "resource_type": r.get("resource_type", ""),
+            "conditions": conditions,
+            "severity": "critical" if target_threatened else "high",
+            "total_critical": len(r.get("threats") or []),
+            "total_high": int(r.get("critical_high_findings") or 0),
+        })
 
     return {
         "nodes": nodes,
         "edges": edges,
+        "origin": resource_uid,
         "center": resource_uid,
-        "max_depth": graph_data.get("max_depth", max_depth),
+        "total_impacted": reachable_count,
         "total_nodes": len(nodes),
         "total_edges": len(edges),
+        "impact_summary": impact_summary,
+        "toxic_combos": toxic_combos,
+        "toxic_count": len(toxic_combos),
+        "resources_with_threats": raw.get("resources_with_threats", 0),
+        "depth_distribution": depth_dist,
+        "max_depth": depth,
+        # Origin risk signals — exposed for UI debug / future use
+        "origin_has_risk": origin_has_risk,
+        "origin_threat_count": len(origin_threats),
+        "origin_critical_high_findings": origin_critical_high,
     }
+
+
+# Service prefix → UI category mapping for blast radius nodes
+_SERVICE_TO_CATEGORY: Dict[str, str] = {
+    "ec2": "compute", "lambda": "compute", "ecs": "compute", "eks": "compute",
+    "fargate": "compute", "lightsail": "compute", "batch": "compute",
+    "s3": "storage", "efs": "storage", "ebs": "storage", "glacier": "storage",
+    "rds": "database", "dynamodb": "database", "elasticache": "database",
+    "redshift": "database", "docdb": "database", "neptune": "database",
+    "opensearch": "database", "elasticsearch": "database",
+    "iam": "identity", "cognito": "identity", "sso": "identity",
+    "kms": "encryption", "secretsmanager": "encryption", "acm": "encryption",
+    "vpc": "network", "elb": "network", "elbv2": "network", "elasticloadbalancingv2": "network",
+    "cloudfront": "network", "apigateway": "network", "wafv2": "network",
+    "sns": "messaging", "sqs": "messaging", "kinesis": "messaging",
+    "cloudtrail": "observability", "guardduty": "observability", "inspector2": "observability",
+    "sagemaker": "ml", "bedrock": "ml",
+}
 
 
 # ── Architecture Graph View (posture-enriched) ───────────────────────────
@@ -847,7 +1005,7 @@ async def view_inventory_taxonomy(
 
 @router.get("/inventory/architecture")
 async def view_inventory_architecture(
-    tenant_id: str = Query(...),
+    tenant_id: Optional[str] = Query(None),
     scan_run_id: str = Query("latest"),
     max_priority: int = Query(3, ge=1, le=5),
     csp: Optional[str] = Query(None),
@@ -859,11 +1017,12 @@ async def view_inventory_architecture(
     Step 3: Merge posture counts into each node
     """
     params: Dict[str, str] = {
-        "tenant_id": tenant_id,
         "scan_run_id": scan_run_id,
         "max_priority": str(max_priority),
         "include_relationships": "true",
     }
+    if tenant_id:
+        params["tenant_id"] = tenant_id
     if csp:
         params["csp"] = csp
 

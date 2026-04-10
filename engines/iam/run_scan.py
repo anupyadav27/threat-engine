@@ -155,7 +155,6 @@ def main():
 
         if discovery_scan_id:
             try:
-                from iam_engine.input.discovery_db_reader import IAMDiscoveryReader
                 from iam_engine.parsers.policy_parser import (
                     extract_managed_policies, extract_inline_policies,
                     extract_trust_policies, policies_to_db_rows,
@@ -163,8 +162,15 @@ def main():
                 from iam_engine.parsers.trust_analyzer import TrustAnalyzer
                 from iam_engine.detectors.policy_detector import run_all_detectors
 
-                logger.info(f"Loading IAM discovery data: scan={discovery_scan_id}")
-                reader = IAMDiscoveryReader()
+                data_source = os.getenv("IAM_DATA_SOURCE", "discovery").lower()
+                if data_source == "inventory":
+                    from iam_engine.input.inventory_reader import IAMInventoryReader
+                    logger.info(f"Loading IAM data from inventory_findings: scan={discovery_scan_id}")
+                    reader = IAMInventoryReader()
+                else:
+                    from iam_engine.input.discovery_db_reader import IAMDiscoveryReader
+                    logger.info(f"Loading IAM discovery data: scan={discovery_scan_id}")
+                    reader = IAMDiscoveryReader()
                 resources = reader.load_iam_resources(discovery_scan_id, tenant_id, account_id or None)
                 reader.close()
 
@@ -217,6 +223,99 @@ def main():
                 logger.error(f"Policy analysis failed (non-fatal): {e}", exc_info=True)
         else:
             logger.warning("No scan_run_id in orchestration — skipping policy analysis")
+
+        # ── CIEM Enrichment: actual usage from CloudTrail logs ──
+        try:
+            from engine_common.ciem_reader import CIEMReader
+            ciem = CIEMReader(tenant_id=tenant_id, account_id=account_id or "", days=30)
+
+            # Get actual usage per identity
+            identity_usage = ciem.get_identity_usage()
+            logger.info(f"CIEM: loaded usage for {len(identity_usage)} identities")
+
+            # Enrich roles with actual usage
+            for role in discovery_roles:
+                role_arn = role.get("_resource_uid", role.get("Arn", ""))
+                # Also check assumed-role pattern
+                for principal, usage in identity_usage.items():
+                    if role_arn and (role_arn in principal or principal.endswith(role.get("RoleName", "---"))):
+                        role["_ciem_usage"] = usage
+                        role["_ciem_last_activity"] = usage.get("last_activity")
+                        role["_ciem_total_calls"] = usage.get("total_api_calls", 0)
+                        role["_ciem_unique_ops"] = usage.get("unique_operations", 0)
+                        role["_ciem_is_active"] = True
+                        break
+                else:
+                    role["_ciem_is_active"] = False
+                    role["_ciem_usage"] = None
+
+            active = sum(1 for r in discovery_roles if r.get("_ciem_is_active"))
+            inactive = len(discovery_roles) - active
+            logger.info(f"CIEM: {active} active roles, {inactive} inactive/stale roles")
+
+            # Get cross-account access
+            cross_account = ciem.get_cross_account_access()
+            if cross_account:
+                logger.info(f"CIEM: {len(cross_account)} cross-account access patterns")
+
+            # Get CIEM findings for IAM and merge into policy_findings
+            ciem_findings = ciem.get_ciem_findings(engine_filter="ciem")
+            if ciem_findings:
+                logger.info(f"CIEM: {len(ciem_findings)} IAM-relevant findings from CIEM")
+                for cf in ciem_findings:
+                    policy_findings.append({
+                        "finding_id": cf.get("finding_id", ""),
+                        "rule_id": cf.get("rule_id", ""),
+                        "severity": cf.get("severity", "medium"),
+                        "status": "FAIL",
+                        "title": cf.get("title", ""),
+                        "resource_uid": cf.get("resource_uid", ""),
+                        "resource_type": cf.get("resource_type", ""),
+                        "account_id": cf.get("account_id", account_id or ""),
+                        "region": cf.get("region", "global"),
+                        "provider": provider or "aws",
+                        "finding_data": {
+                            "source": "ciem",
+                            "title": cf.get("title", ""),
+                            "description": cf.get("description", ""),
+                            "remediation": cf.get("remediation", ""),
+                            "compliance_frameworks": cf.get("compliance_frameworks", []),
+                            "mitre_tactics": cf.get("mitre_tactics", []),
+                            "mitre_techniques": cf.get("mitre_techniques", []),
+                            "risk_score": cf.get("risk_score"),
+                            "domain": cf.get("domain", ""),
+                            "actor_principal": cf.get("actor_principal", ""),
+                            "operation": cf.get("operation", ""),
+                            "action_category": cf.get("action_category", ""),
+                            "event_time": str(cf.get("event_time", "")),
+                        },
+                    })
+
+            ciem.close()
+
+            # Add stale role findings
+            for role in discovery_roles:
+                if not role.get("_ciem_is_active") and role.get("RoleName"):
+                    policy_findings.append({
+                        "finding_id": f"iam_stale_role_{role.get('RoleName', '')}",
+                        "rule_id": "iam.role.stale_inactive",
+                        "severity": "medium",
+                        "status": "FAIL",
+                        "title": f"Stale IAM role: {role.get('RoleName')} — no API activity in 30 days",
+                        "resource_uid": role.get("_resource_uid", role.get("Arn", "")),
+                        "resource_type": "iam.role",
+                        "account_id": account_id,
+                        "provider": "aws",
+                        "finding_data": {
+                            "module": "ciem_usage_analysis",
+                            "role_name": role.get("RoleName"),
+                            "last_activity": None,
+                            "remediation": "Consider deleting or deactivating this role",
+                        },
+                    })
+
+        except Exception as ciem_exc:
+            logger.warning(f"CIEM enrichment failed (non-fatal): {ciem_exc}")
 
         # Merge policy findings with threat-based findings
         if policy_findings:

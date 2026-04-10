@@ -1,0 +1,320 @@
+rules:
+- rule_id: dns.crypto_mining_domain
+  title: DNS query for known cryptocurrency mining pool domain
+  severity: critical
+  log_source_type: dns
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: dns
+    - field: operation
+      op: contains
+      value: pool
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: threat_engine
+  action_category: c2
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1496
+  domain: network_security
+  provider: aws
+  remediation: Review security group and NACL rules. Restrict public access. Enable VPC Flow Logs for monitoring.
+  compliance_frameworks: &id001
+  - CIS
+  - NIST_800-53
+  - PCI-DSS
+  - SOC2
+  risk_score: 90
+- rule_id: dns.crypto_mining_stratum
+  title: DNS query for Stratum mining protocol endpoint
+  severity: critical
+  log_source_type: dns
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: dns
+    - field: operation
+      op: contains
+      value: stratum
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: threat_engine
+  action_category: c2
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1496
+  domain: network_security
+  provider: aws
+  remediation: Review security group and NACL rules. Restrict public access. Enable VPC Flow Logs for monitoring.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: dns.tunneling_long_subdomain
+  title: DNS query with unusually long subdomain — possible DNS tunneling
+  severity: high
+  log_source_type: dns
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: dns
+    - field: operation
+      op: contains
+      value: '.......'
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: threat_engine
+  action_category: exfiltration
+  description: Very long subdomains (many labels) can indicate DNS tunneling for data exfiltration or C2
+  mitre_tactics:
+  - exfiltration
+  - command-and-control
+  mitre_techniques:
+  - T1048.003
+  - T1071.004
+  domain: network_security
+  provider: aws
+  remediation: Review security group and NACL rules. Restrict public access. Enable VPC Flow Logs for monitoring.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: dns.dynamic_dns_provider
+  title: DNS query for dynamic DNS provider (duckdns, no-ip, dynu)
+  severity: high
+  log_source_type: dns
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: dns
+    - field: operation
+      op: contains
+      value: duckdns
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: threat_engine
+  action_category: c2
+  mitre_tactics:
+  - command-and-control
+  mitre_techniques:
+  - T1071.004
+  domain: network_security
+  provider: aws
+  remediation: Review security group and NACL rules. Restrict public access. Enable VPC Flow Logs for monitoring.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: dns.dynamic_dns_noip
+  title: DNS query for no-ip.com dynamic DNS
+  severity: high
+  log_source_type: dns
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: dns
+    - field: operation
+      op: contains
+      value: no-ip
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: threat_engine
+  action_category: c2
+  mitre_tactics:
+  - command-and-control
+  mitre_techniques:
+  - T1071.004
+  domain: network_security
+  provider: aws
+  remediation: Review security group and NACL rules. Restrict public access. Enable VPC Flow Logs for monitoring.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: dns.dynamic_dns_dynu
+  title: DNS query for dynu.com dynamic DNS
+  severity: high
+  log_source_type: dns
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: dns
+    - field: operation
+      op: contains
+      value: dynu
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: threat_engine
+  action_category: c2
+  mitre_tactics:
+  - command-and-control
+  mitre_techniques:
+  - T1071.004
+  domain: network_security
+  provider: aws
+  remediation: Review security group and NACL rules. Restrict public access. Enable VPC Flow Logs for monitoring.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: dns.tor_exit_node
+  title: DNS query for Tor network domain (.onion resolver or torproject)
+  severity: high
+  log_source_type: dns
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: dns
+    - field: operation
+      op: contains
+      value: torproject
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: threat_engine
+  action_category: anonymization
+  mitre_tactics:
+  - command-and-control
+  - defense-evasion
+  mitre_techniques:
+  - T1090.003
+  domain: network_security
+  provider: aws
+  remediation: Review security group and NACL rules. Restrict public access. Enable VPC Flow Logs for monitoring.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: dns.pastebin_access
+  title: DNS query for pastebin service — possible C2 dead-drop
+  severity: medium
+  log_source_type: dns
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: dns
+    - field: operation
+      op: contains
+      value: pastebin
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: c2
+  mitre_tactics:
+  - command-and-control
+  mitre_techniques:
+  - T1102
+  domain: network_security
+  provider: aws
+  remediation: Review security group and NACL rules. Restrict public access. Enable VPC Flow Logs for monitoring.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: dns.reverse_lookup
+  title: Reverse DNS lookup (in-addr.arpa) — network reconnaissance
+  severity: low
+  log_source_type: dns
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: dns
+    - field: operation
+      op: contains
+      value: in-addr.arpa
+  engines:
+  - network_engine
+  primary_engine: network_engine
+  action_category: reconnaissance
+  mitre_tactics:
+  - discovery
+  - reconnaissance
+  mitre_techniques:
+  - T1018
+  domain: network_security
+  provider: aws
+  remediation: Review security group and NACL rules. Restrict public access. Enable VPC Flow Logs for monitoring.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: dns.mx_record_lookup
+  title: MX record lookup — email infrastructure reconnaissance
+  severity: low
+  log_source_type: dns
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: dns
+    - field: resource_type
+      op: equals
+      value: MX
+  engines:
+  - network_engine
+  primary_engine: network_engine
+  action_category: reconnaissance
+  mitre_tactics:
+  - reconnaissance
+  mitre_techniques:
+  - T1589.002
+  domain: network_security
+  provider: aws
+  remediation: Review security group and NACL rules. Restrict public access. Enable VPC Flow Logs for monitoring.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: dns.file_sharing_domain
+  title: DNS query for file sharing service (potential data exfiltration)
+  severity: medium
+  log_source_type: dns
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: dns
+    - field: operation
+      op: contains
+      value: transfer.sh
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: datasec_engine
+  action_category: exfiltration
+  mitre_tactics:
+  - exfiltration
+  mitre_techniques:
+  - T1567
+  domain: network_security
+  provider: aws
+  remediation: Review security group and NACL rules. Restrict public access. Enable VPC Flow Logs for monitoring.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: dns.ngrok_tunnel
+  title: DNS query for ngrok tunnel — potential reverse shell or exfil endpoint
+  severity: high
+  log_source_type: dns
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: dns
+    - field: operation
+      op: contains
+      value: ngrok
+  engines:
+  - threat_engine
+  - network_engine
+  primary_engine: threat_engine
+  action_category: c2
+  mitre_tactics:
+  - command-and-control
+  - exfiltration
+  mitre_techniques:
+  - T1572
+  domain: network_security
+  provider: aws
+  remediation: Review security group and NACL rules. Restrict public access. Enable VPC Flow Logs for monitoring.
+  compliance_frameworks: *id001
+  risk_score: 70

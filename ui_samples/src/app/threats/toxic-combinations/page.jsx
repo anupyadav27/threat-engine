@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { ChevronRight, ChevronDown, ChevronUp, AlertTriangle, Shield, Layers, ExternalLink } from 'lucide-react';
+import { ChevronRight, ChevronDown, ChevronUp, AlertTriangle, Shield, ExternalLink } from 'lucide-react';
 import { fetchView } from '@/lib/api';
 import MetricStrip from '@/components/shared/MetricStrip';
 import DataTable from '@/components/shared/DataTable';
@@ -10,9 +10,6 @@ import LoadingSkeleton from '@/components/shared/LoadingSkeleton';
 import EmptyState from '@/components/shared/EmptyState';
 import ThreatsSubNav from '@/components/shared/ThreatsSubNav';
 import { useGlobalFilter } from '@/lib/global-filter-context';
-
-const TAB_COMBINATIONS = 'combinations';
-const TAB_HEATMAP = 'heatmap';
 
 const toxicColor = (s) => (s >= 80 ? '#ef4444' : s >= 60 ? '#f97316' : s >= 40 ? '#eab308' : '#22c55e');
 
@@ -164,69 +161,6 @@ function useColumns(expandedRows, toggleRow) {
 }
 
 // ---------------------------------------------------------------------------
-// MITRE Heatmap
-// ---------------------------------------------------------------------------
-function MitreHeatmap({ matrixData }) {
-  const categories = matrixData?.categories || [];
-  const data = matrixData?.data || {};
-
-  const maxCount = useMemo(() => {
-    let max = 1;
-    categories.forEach((row) => {
-      categories.forEach((col) => {
-        const v = data?.[row]?.[col] ?? 0;
-        if (v > max) max = v;
-      });
-    });
-    return max;
-  }, [data, categories]);
-
-  if (categories.length === 0) {
-    return (
-      <EmptyState
-        icon={<Layers className="w-12 h-12" />}
-        title="No Heatmap Data"
-        description="Co-occurrence heatmap will appear once toxic combinations with MITRE technique overlaps are detected."
-      />
-    );
-  }
-
-  return (
-    <div className="rounded-xl p-6 border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-      <div className="mb-4">
-        <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>MITRE Technique Co-occurrence</h3>
-        <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>Cell intensity shows how frequently MITRE techniques appear together on the same resource.</p>
-      </div>
-      <div className="overflow-x-auto">
-        <div style={{ display: 'inline-grid', gridTemplateColumns: `120px repeat(${categories.length}, 56px)`, gap: 2 }}>
-          <div />
-          {categories.map((cat) => (
-            <div key={cat} className="text-center py-2" style={{ color: 'var(--text-muted)' }}>
-              <span className="text-[10px] font-mono font-medium">{cat}</span>
-            </div>
-          ))}
-          {categories.map((rowCat, ri) => (
-            <React.Fragment key={rowCat}>
-              <div className="flex items-center text-xs font-mono font-medium py-2 pr-2" style={{ color: 'var(--text-secondary)' }}>{rowCat}</div>
-              {categories.map((colCat, ci) => {
-                const isDiag = ri === ci;
-                const value = data?.[rowCat]?.[colCat] ?? 0;
-                const intensity = isDiag ? 0 : value / maxCount;
-                return (
-                  <div key={`${rowCat}-${colCat}`} className="flex items-center justify-center rounded text-xs font-semibold tabular-nums"
-                    style={{ height: 36, backgroundColor: isDiag ? 'var(--bg-secondary)' : `rgba(239, 68, 68, ${Math.max(intensity * 0.85, 0.03)})`, color: isDiag ? 'var(--text-muted)' : intensity > 0.5 ? '#fff' : 'var(--text-secondary)' }}
-                    title={isDiag ? rowCat : `${value} resources have both ${rowCat} and ${colCat}`}>{isDiag ? '-' : value}</div>
-                );
-              })}
-            </React.Fragment>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
 export default function ToxicCombinationsPage() {
@@ -235,7 +169,6 @@ export default function ToxicCombinationsPage() {
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
   const [expandedRows, setExpandedRows] = useState(new Set());
-  const [activeTab, setActiveTab] = useState(TAB_COMBINATIONS);
 
   useEffect(() => {
     let cancelled = false;
@@ -299,9 +232,9 @@ export default function ToxicCombinationsPage() {
         <div className="flex items-center gap-2 text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
           <a href="/ui/threats" className="hover:underline" style={{ color: 'var(--text-secondary)' }}>Threats</a>
           <ChevronRight className="w-3 h-3" />
-          <span style={{ color: 'var(--text-primary)' }}>Toxic Combinations</span>
+          <span style={{ color: 'var(--text-primary)' }}>Toxic Threat Combos</span>
         </div>
-        <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Toxic Combinations</h1>
+        <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Toxic Threat Combos</h1>
         <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
           Resources with multiple overlapping threats that amplify compound risk.
         </p>
@@ -335,46 +268,18 @@ export default function ToxicCombinationsPage() {
           {combinations.length === 0 ? (
             <EmptyState
               icon={<Shield className="w-12 h-12" />}
-              title="No Toxic Combinations"
+              title="No Toxic Threat Combos"
               description="Run a threat scan to identify compound risk scenarios. Toxic combinations emerge when multiple threats overlap on a single resource."
             />
           ) : (
-            <>
-              {/* Tabs */}
-              <div className="flex border-b" style={{ borderColor: 'var(--border-primary)' }}>
-                {[
-                  { key: TAB_COMBINATIONS, label: 'Combinations' },
-                  { key: TAB_HEATMAP, label: 'MITRE Heatmap' },
-                ].map((tab) => (
-                  <button
-                    key={tab.key}
-                    onClick={() => setActiveTab(tab.key)}
-                    className="px-5 py-3 text-sm font-medium transition-colors duration-150 relative"
-                    style={{ color: activeTab === tab.key ? 'var(--text-primary)' : 'var(--text-muted)' }}
-                  >
-                    {tab.label}
-                    {activeTab === tab.key && (
-                      <div className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full" style={{ backgroundColor: '#3b82f6' }} />
-                    )}
-                  </button>
-                ))}
-              </div>
-
-              {activeTab === TAB_COMBINATIONS && (
-                <DataTable
-                  data={combinations}
-                  columns={columns}
-                  pageSize={15}
-                  onRowClick={handleRowClick}
-                  renderExpandedRow={renderExpandedRow}
-                  emptyMessage="No toxic combinations match your search."
-                />
-              )}
-
-              {activeTab === TAB_HEATMAP && (
-                <MitreHeatmap matrixData={data?.coOccurrenceMatrix} />
-              )}
-            </>
+            <DataTable
+              data={combinations}
+              columns={columns}
+              pageSize={15}
+              onRowClick={handleRowClick}
+              renderExpandedRow={renderExpandedRow}
+              emptyMessage="No toxic combinations match your search."
+            />
           )}
         </>
       )}

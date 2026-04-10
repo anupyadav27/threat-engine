@@ -1,0 +1,98 @@
+# Expose Argo Workflows UI through the existing ELB at /argo/
+#
+# Traffic path:
+#   Browser → ELB → api-gateway (port 8000) → /argo/* route → argo-server.argo:2746
+#
+# Apply AFTER 01-install.sh:
+#   kubectl apply -f deployment/aws/eks/argo/02-argo-ui-expose.yaml
+#   kubectl rollout restart deployment/argo-server -n argo
+#
+# Rebuild and redeploy api-gateway so the /argo/ proxy route is included:
+#   docker build -t yadavanup84/threat-engine-api-gateway:v-argo-ui \
+#     -f shared/api_gateway/Dockerfile .
+#   docker push yadavanup84/threat-engine-api-gateway:v-argo-ui
+#   kubectl set image deployment/api-gateway \
+#     api-gateway=yadavanup84/threat-engine-api-gateway:v-argo-ui \
+#     -n threat-engine-engines
+#
+# UI URL (same ELB you already use):
+#   http://a6fff2656f8c845e5a2d8effc1b3e56f-1461670384.ap-south-1.elb.amazonaws.com/argo/
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── 1. Patch argo-server: HTTP + no-auth + all-namespaces + base-href ─────────
+# --insecure       HTTP only (no TLS); the gateway handles any TLS termination
+# --auth-mode=server  no login prompt (internal tool, VPC-only)
+# --namespaced=false  show workflows from ALL namespaces including threat-engine-engines
+# --base-href=/argo/  makes all UI asset + API paths start with /argo/ so the
+#                     gateway can prefix-match and forward them correctly
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argo-server
+  namespace: argo
+spec:
+  template:
+    spec:
+      containers:
+      - name: argo-server
+        args:
+        - server
+        - --auth-mode=server
+        - --secure=false
+        - --basehref=/argo/
+        env:
+        - name: ARGO_BASE_HREF
+          value: /argo/
+        readinessProbe:
+          httpGet:
+            path: /argo/
+            port: 2746
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /argo/
+            port: 2746
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 30
+---
+# ── 2. RBAC: argo-server reads workflows across all namespaces ────────────────
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argo-server-ui
+rules:
+- apiGroups: ["argoproj.io"]
+  resources:
+  - workflows
+  - workflowtemplates
+  - workflowevents
+  - cronworkflows
+  - clusterworkflowtemplates
+  verbs: ["get", "list", "watch", "create", "delete", "update", "patch"]
+- apiGroups: [""]
+  resources:
+  - pods
+  - pods/log
+  - events
+  - configmaps
+  - serviceaccounts
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: argo-server-ui
+subjects:
+- kind: ServiceAccount
+  name: argo-server
+  namespace: argo
+roleRef:
+  kind: ClusterRole
+  name: argo-server-ui
+  apiGroup: rbac.authorization.k8s.io

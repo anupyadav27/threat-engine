@@ -766,7 +766,7 @@ class DiscoveryDatabaseQueries:
         """
         Get configuration drift events for a scan from discovery_history.
         """
-        where_clauses = ["dh.tenant_id = %s", "dh.scan_run_id = %s", "dh.change_type = 'modified'"]
+        where_clauses = ["dh.tenant_id = %s", "dh.discovery_scan_id = %s", "dh.change_type = 'modified'"]
         params = [tenant_id, current_scan_id]
 
         if account_id:
@@ -802,7 +802,7 @@ class DiscoveryDatabaseQueries:
             prev.scan_run_id as baseline_scan_id
         FROM discovery_history dh
         LEFT JOIN discovery_findings d
-          ON d.scan_run_id = dh.scan_run_id
+          ON d.scan_run_id = dh.discovery_scan_id
          AND d.discovery_id = dh.discovery_id
          AND d.resource_uid = dh.resource_uid
          AND d.tenant_id = dh.tenant_id

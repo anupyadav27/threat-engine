@@ -1,0 +1,811 @@
+rules:
+- rule_id: paas.ct.sqs_set_queue_attributes
+  title: SQS queue attributes modified
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: sqs
+    - field: operation
+      op: equals
+      value: SetQueueAttributes
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - persistence
+  - exfiltration
+  mitre_techniques:
+  - T1098.003
+  description: Queue attribute change may modify resource policy to grant cross-account access.
+  domain: platform_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: &id001
+  - CIS
+  - NIST_800-53
+  - SOC2
+  risk_score: 70
+- rule_id: paas.ct.sqs_create_queue
+  title: SQS queue created
+  severity: low
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: sqs
+    - field: operation
+      op: equals
+      value: CreateQueue
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - collection
+  mitre_techniques:
+  - T1074.002
+  description: New SQS queue — may be used as data staging for exfiltration.
+  domain: platform_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: paas.ct.sqs_delete_queue
+  title: SQS queue deleted
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: sqs
+    - field: operation
+      op: equals
+      value: DeleteQueue
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1489
+  description: Queue deletion destroys all pending messages and disrupts dependent services.
+  domain: platform_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: paas.ct.sqs_purge_queue
+  title: SQS queue purged
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: sqs
+    - field: operation
+      op: equals
+      value: PurgeQueue
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1485
+  description: Queue purge deletes all messages — data destruction or evidence removal.
+  domain: platform_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: paas.ct.sns_create_topic
+  title: SNS topic created
+  severity: low
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: sns
+    - field: operation
+      op: equals
+      value: CreateTopic
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - collection
+  mitre_techniques:
+  - T1074.002
+  description: New SNS topic — may be used for C2 communication or data exfiltration.
+  domain: platform_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: paas.ct.sns_set_topic_attributes
+  title: SNS topic attributes modified
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: sns
+    - field: operation
+      op: equals
+      value: SetTopicAttributes
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - persistence
+  - exfiltration
+  mitre_techniques:
+  - T1098.003
+  description: Topic attribute change may modify access policy for cross-account subscription.
+  domain: platform_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: paas.ct.sns_subscribe
+  title: SNS subscription created
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: sns
+    - field: operation
+      op: equals
+      value: Subscribe
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - collection
+  - exfiltration
+  mitre_techniques:
+  - T1530
+  description: SNS subscription may forward messages to attacker-controlled endpoint.
+  domain: platform_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: paas.ct.sns_delete_topic
+  title: SNS topic deleted
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: sns
+    - field: operation
+      op: equals
+      value: DeleteTopic
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1489
+  description: Topic deletion breaks all subscriptions and notification workflows.
+  domain: platform_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: paas.ct.eventbridge_put_rule
+  title: EventBridge rule created or updated
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: events
+    - field: operation
+      op: equals
+      value: PutRule
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - persistence
+  - execution
+  mitre_techniques:
+  - T1546
+  description: EventBridge rule can trigger Lambda/Step Functions on specific events.
+  domain: platform_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: paas.ct.eventbridge_delete_rule
+  title: EventBridge rule deleted
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: events
+    - field: operation
+      op: equals
+      value: DeleteRule
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - defense-evasion
+  - impact
+  mitre_techniques:
+  - T1562.001
+  description: Deleting event rules breaks automated response and monitoring workflows.
+  domain: platform_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: paas.ct.eventbridge_put_targets
+  title: EventBridge rule targets configured
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: events
+    - field: operation
+      op: equals
+      value: PutTargets
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - persistence
+  - execution
+  mitre_techniques:
+  - T1546
+  description: Target configuration determines what executes when rule matches.
+  domain: platform_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: paas.ct.eventbridge_create_event_bus
+  title: EventBridge custom event bus created
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: events
+    - field: operation
+      op: equals
+      value: CreateEventBus
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - persistence
+  mitre_techniques:
+  - T1546
+  description: Custom event bus may receive cross-account events or provide C2 channel.
+  domain: platform_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: paas.ct.eventbridge_put_permission
+  title: EventBridge event bus policy modified
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: events
+    - field: operation
+      op: equals
+      value: PutPermission
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - persistence
+  - lateral-movement
+  mitre_techniques:
+  - T1098.003
+  description: Event bus permission grants cross-account event delivery.
+  domain: platform_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: paas.ct.apigateway_create_rest_api
+  title: API Gateway REST API created
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: apigateway
+    - field: operation
+      op: equals
+      value: CreateRestApi
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - initial-access
+  - persistence
+  mitre_techniques:
+  - T1190
+  description: New API Gateway — may expose backend services to internet.
+  domain: platform_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: paas.ct.apigateway_create_stage
+  title: API Gateway stage created
+  severity: low
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: apigateway
+    - field: operation
+      op: equals
+      value: CreateStage
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - persistence
+  mitre_techniques:
+  - T1505.003
+  description: New stage deployment — review for authentication and throttling settings.
+  domain: platform_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: paas.ct.apigateway_update_stage
+  title: API Gateway stage configuration updated
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: apigateway
+    - field: operation
+      op: equals
+      value: UpdateStage
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.008
+  description: Stage update may disable logging, change throttling, or modify caching.
+  domain: platform_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: paas.ct.apigateway_delete_rest_api
+  title: API Gateway REST API deleted
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: apigateway
+    - field: operation
+      op: equals
+      value: DeleteRestApi
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1489
+  description: API deletion breaks all client integrations.
+  domain: platform_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: paas.ct.apigateway_create_api_key
+  title: API Gateway API key created
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: apigateway
+    - field: operation
+      op: equals
+      value: CreateApiKey
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - persistence
+  - credential-access
+  mitre_techniques:
+  - T1098.001
+  description: New API key provides persistent access to API endpoints.
+  domain: platform_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: paas.ct.cognito_create_user_pool
+  title: Cognito user pool created
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: cognito-idp
+    - field: operation
+      op: equals
+      value: CreateUserPool
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - persistence
+  mitre_techniques:
+  - T1136
+  description: New Cognito user pool — review password policy and MFA settings.
+  domain: platform_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: paas.ct.cognito_update_user_pool
+  title: Cognito user pool configuration updated
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: cognito-idp
+    - field: operation
+      op: equals
+      value: UpdateUserPool
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  - credential-access
+  mitre_techniques:
+  - T1556
+  description: Pool update may weaken password policy, disable MFA, or change Lambda triggers.
+  domain: platform_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: paas.ct.cognito_admin_create_user
+  title: Cognito user created by admin
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: cognito-idp
+    - field: operation
+      op: equals
+      value: AdminCreateUser
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: create
+  mitre_tactics:
+  - persistence
+  mitre_techniques:
+  - T1136.003
+  description: Admin-created user — verify this is expected onboarding activity.
+  domain: platform_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: paas.ct.cognito_admin_set_user_password
+  title: Cognito user password set by admin
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: cognito-idp
+    - field: operation
+      op: equals
+      value: AdminSetUserPassword
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - credential-access
+  - persistence
+  mitre_techniques:
+  - T1098.001
+  description: Admin password reset — potential account takeover of application users.
+  domain: platform_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: paas.ct.cognito_create_identity_pool
+  title: Cognito identity pool created
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: cognito-identity
+    - field: operation
+      op: equals
+      value: CreateIdentityPool
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - initial-access
+  - persistence
+  mitre_techniques:
+  - T1078
+  description: Identity pool maps federated identities to IAM roles — review unauthenticated access.
+  domain: platform_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: paas.ct.cognito_update_identity_pool
+  title: Cognito identity pool updated
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: cognito-identity
+    - field: operation
+      op: equals
+      value: UpdateIdentityPool
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - privilege-escalation
+  mitre_techniques:
+  - T1078
+  description: Identity pool update may enable unauthenticated access or change IAM role mappings.
+  domain: platform_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: paas.ct.ses_create_email_identity
+  title: SES email identity created
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ses
+    - field: operation
+      op: equals
+      value: CreateEmailIdentity
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - initial-access
+  mitre_techniques:
+  - T1566
+  description: New email identity — may be used for phishing campaigns from trusted domain.
+  domain: platform_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: paas.ct.ses_send_email
+  title: Email sent via SES
+  severity: low
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ses
+    - field: operation
+      op: equals
+      value: SendEmail
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: execute
+  mitre_tactics:
+  - exfiltration
+  - initial-access
+  mitre_techniques:
+  - T1048.002
+  description: SES email sending — monitor for unusual volume or recipients.
+  domain: platform_security
+  provider: aws
+  remediation: Validate function/container execution is authorized. Review execution role permissions. Check for code injection
+    indicators.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: paas.ct.sfn_create_state_machine
+  title: Step Functions state machine created
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: states
+    - field: operation
+      op: equals
+      value: CreateStateMachine
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - execution
+  - persistence
+  mitre_techniques:
+  - T1204.003
+  description: New state machine — review execution role and workflow definition.
+  domain: platform_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: paas.ct.sfn_update_state_machine
+  title: Step Functions state machine updated
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: states
+    - field: operation
+      op: equals
+      value: UpdateStateMachine
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - persistence
+  - execution
+  mitre_techniques:
+  - T1525
+  description: State machine update may inject malicious workflow steps.
+  domain: platform_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: paas.ct.sfn_start_execution
+  title: Step Functions execution started
+  severity: low
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: states
+    - field: operation
+      op: equals
+      value: StartExecution
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: execute
+  mitre_tactics:
+  - execution
+  mitre_techniques:
+  - T1204.003
+  description: Workflow execution — monitor for unexpected state machine invocations.
+  domain: platform_security
+  provider: aws
+  remediation: Validate function/container execution is authorized. Review execution role permissions. Check for code injection
+    indicators.
+  compliance_frameworks: *id001
+  risk_score: 25

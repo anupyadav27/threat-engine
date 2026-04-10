@@ -1,0 +1,498 @@
+# Level 2: Correlation Scenarios (multi-event patterns)
+#
+# Each scenario defines a SEQUENCE of L1 events within a time window.
+# Scenarios are CSP-agnostic where possible — using rule_id patterns
+# that match across AWS/Azure/GCP/OCI/IBM equivalents.
+#
+# The correlation evaluator matches by rule_id prefix, so:
+#   "iam.ct.*" matches iam.ct.create_user, iam.ct.sts_assume_role, etc.
+#   Adding CSP-specific rule_ids alongside generic ones ensures coverage.
+
+# ═══════════════════════════════════════════════════════════════
+# THREAT SCENARIOS (cross-CSP)
+# ═══════════════════════════════════════════════════════════════
+
+- scenario_id: threat.privilege_escalation_chain
+  engine: threat
+  severity: critical
+  title: Privilege escalation chain detected
+  description: Actor creates identity → grants elevated permissions → creates credentials
+  time_window_minutes: 30
+  min_events: 2
+  mitre_tactics: [privilege-escalation, persistence]
+  mitre_techniques: [T1078, T1098]
+  sequence:
+    - any_of:
+        # AWS
+        - threat.ct.create_user
+        - threat.ct.create_role
+        - iam.ct.create_user
+        - iam.ct.create_role
+        # Azure
+        - azure.activity.service_principal_create
+        - azure.activity.managed_identity_assign
+        # GCP
+        - gcp.audit.sa_create
+        # OCI
+        - oci.audit.create_user
+        # IBM
+        - ibm.activity.serviceid_create
+    - any_of:
+        # AWS
+        - threat.ct.attach_admin_policy
+        - threat.ct.put_role_policy
+        - iam.ct.attach_admin_policy
+        # Azure
+        - azure.activity.role_assignment_write
+        - azure.activity.custom_role_write
+        # GCP
+        - gcp.audit.set_iam_policy
+        - gcp.audit.custom_role_create
+        # OCI
+        - oci.audit.create_policy
+        - oci.audit.update_policy
+        # IBM
+        - ibm.activity.iam_policy_create
+    - optional:
+        - threat.ct.create_access_key
+        - iam.ct.create_access_key
+        - gcp.audit.sa_key_create
+        - oci.audit.upload_api_key
+        - ibm.activity.apikey_create
+  match_by: actor.principal
+
+- scenario_id: threat.credential_compromise
+  engine: threat
+  severity: critical
+  title: Possible credential compromise
+  description: Failed login → repeated access denied → enumeration activity
+  time_window_minutes: 60
+  min_events: 3
+  mitre_tactics: [initial-access, discovery]
+  mitre_techniques: [T1078, T1580]
+  sequence:
+    - any_of:
+        - threat.ct.console_login_failure
+        - threat.ct.console_login_no_mfa
+        - azure.activity.failed_login
+    - rule_id: threat.ct.access_denied_spike
+      min_count: 3
+    - any_of:
+        - threat.ct.enumerate_iam
+        - threat.ct.enumerate_s3
+  match_by: actor.ip_address
+
+- scenario_id: threat.cover_tracks
+  engine: threat
+  severity: critical
+  title: Attacker covering tracks — logging disabled
+  description: Disable or delete audit logging across any CSP
+  time_window_minutes: 60
+  min_events: 2
+  mitre_tactics: [defense-evasion]
+  mitre_techniques: [T1562.008]
+  sequence:
+    - any_of:
+        # AWS
+        - threat.ct.stop_logging
+        - threat.ct.delete_flow_logs
+        - threat.ct.disable_guardduty
+        - secsvc.ct.cloudtrail_stop_logging
+        - secsvc.ct.guardduty_delete_detector
+        - secsvc.ct.config_stop_recorder
+        # Azure
+        - azure.activity.diagnostic_settings_delete
+        - azure.activity.activity_log_delete
+        - azure.activity.defender_pricing_write
+        # GCP
+        - gcp.audit.audit_config_change
+        # OCI
+        - oci.audit.update_configuration
+        - oci.cloudguard.disable_cloud_guard
+    - optional:
+        - threat.ct.disable_s3_logging
+        - azure.activity.sentinel_connector_delete
+  match_by: actor.principal
+
+- scenario_id: threat.data_exfil
+  engine: threat
+  severity: critical
+  title: Data exfiltration pattern
+  description: Data store made public or shared externally
+  time_window_minutes: 120
+  min_events: 2
+  mitre_tactics: [exfiltration]
+  mitre_techniques: [T1537]
+  sequence:
+    - any_of:
+        # AWS
+        - storage.ct.s3_public_access_block_delete
+        - storage.ct.s3_bucket_policy_public
+        - storage.ct.rds_snapshot_public
+        - storage.ct.ebs_snapshot_public
+        # Azure
+        - azure.activity.blob_public_access
+        - azure.storage.anonymous_access
+        # GCP
+        - gcp.audit.bucket_iam_public
+        - gcp.storage.public_object_access
+        # OCI
+        - oci.audit.create_preauthenticated_request
+    - optional:
+        - datasec.ct.bucket_policy_change
+  match_by: resource.uid
+
+- scenario_id: threat.ransomware
+  engine: threat
+  severity: critical
+  title: Ransomware-like behavior
+  description: Encryption key deletion + data destruction
+  time_window_minutes: 60
+  min_events: 2
+  mitre_tactics: [impact]
+  mitre_techniques: [T1486, T1485]
+  sequence:
+    - any_of:
+        - secsvc.ct.kms_schedule_key_deletion
+        - secsvc.ct.kms_disable_key
+        - azure.keyvault.key_delete
+        - gcp.audit.kms_destroy_key_version
+        - oci.audit.schedule_vault_deletion
+        - ibm.activity.keyprotect_delete
+    - any_of:
+        - storage.ct.s3_delete_bucket
+        - compute.ct.ec2_terminate_instances
+        - storage.ct.rds_delete_instance
+        - azure.activity.vm_delete
+        - gcp.audit.instance_delete
+        - oci.audit.terminate_instance
+        - ibm.activity.vsi_delete
+  match_by: actor.principal
+
+- scenario_id: threat.brute_force
+  engine: threat
+  severity: high
+  title: Brute force login attempt
+  description: Multiple failed logins from same IP
+  time_window_minutes: 15
+  min_events: 5
+  mitre_tactics: [credential-access]
+  mitre_techniques: [T1110]
+  sequence:
+    - any_of:
+        - threat.ct.console_login_failure
+        - azure.defender.brute_force
+        - gcp.scc.brute_force
+      min_count: 5
+  match_by: actor.ip_address
+
+- scenario_id: threat.recon_then_exploit
+  engine: threat
+  severity: high
+  title: Reconnaissance followed by exploitation
+  description: Enumeration → privilege change or data access
+  time_window_minutes: 60
+  min_events: 3
+  mitre_tactics: [discovery, privilege-escalation]
+  mitre_techniques: [T1580, T1078]
+  sequence:
+    - any_of:
+        - threat.ct.enumerate_iam
+        - threat.ct.enumerate_s3
+        - threat.ct.access_denied_spike
+      min_count: 3
+    - any_of:
+        - threat.ct.attach_admin_policy
+        - threat.ct.create_access_key
+        - azure.activity.role_assignment_write
+        - gcp.audit.set_iam_policy
+  match_by: actor.principal
+
+- scenario_id: threat.data_destruction
+  engine: threat
+  severity: critical
+  title: Mass data destruction
+  description: Multiple delete operations in short time
+  time_window_minutes: 30
+  min_events: 3
+  mitre_tactics: [impact]
+  mitre_techniques: [T1485]
+  sequence:
+    - any_of:
+        # AWS
+        - storage.ct.s3_delete_bucket
+        - storage.ct.rds_delete_instance
+        - compute.ct.ec2_terminate_instances
+        - secsvc.ct.kms_schedule_key_deletion
+        # Azure
+        - azure.activity.vm_delete
+        - azure.activity.storage_key_regen
+        # GCP
+        - gcp.audit.instance_delete
+        - gcp.audit.kms_destroy_key_version
+        # OCI
+        - oci.audit.terminate_instance
+        - oci.audit.delete_bucket
+        # IBM
+        - ibm.activity.vsi_delete
+      min_count: 3
+  match_by: actor.principal
+
+# ═══════════════════════════════════════════════════════════════
+# CIEM SCENARIOS (cross-CSP)
+# ═══════════════════════════════════════════════════════════════
+
+- scenario_id: ciem.privilege_escalation
+  engine: ciem
+  severity: critical
+  title: IAM privilege escalation
+  description: Permission boundary/policy changed → elevated access used
+  time_window_minutes: 30
+  min_events: 2
+  mitre_tactics: [privilege-escalation]
+  mitre_techniques: [T1098]
+  sequence:
+    - any_of:
+        - ciem.ct.permission_boundary_removed
+        - ciem.ct.policy_attached
+        - ciem.ct.policy_created
+        - azure.activity.role_assignment_write
+        - gcp.audit.set_iam_policy
+        - oci.audit.create_policy
+        - ibm.activity.iam_policy_create
+    - optional:
+        - ciem.ct.cross_account_assume_role
+        - gcp.audit.sa_impersonate
+  match_by: actor.principal
+
+- scenario_id: ciem.backdoor_account
+  engine: ciem
+  severity: critical
+  title: Backdoor identity creation
+  description: Create identity → create credentials
+  time_window_minutes: 15
+  min_events: 2
+  mitre_tactics: [persistence]
+  mitre_techniques: [T1136]
+  sequence:
+    - any_of:
+        - threat.ct.create_user
+        - iam.ct.create_user
+        - azure.activity.service_principal_create
+        - gcp.audit.sa_create
+        - oci.audit.create_user
+        - ibm.activity.serviceid_create
+    - any_of:
+        - threat.ct.create_access_key
+        - threat.ct.create_login_profile
+        - iam.ct.create_access_key
+        - gcp.audit.sa_key_create
+        - oci.audit.upload_api_key
+        - oci.audit.create_auth_token
+        - ibm.activity.apikey_create
+  match_by: actor.principal
+
+- scenario_id: ciem.federation_abuse
+  engine: ciem
+  severity: high
+  title: Federation provider manipulation
+  description: New identity provider created + role/trust established
+  time_window_minutes: 60
+  min_events: 2
+  mitre_tactics: [persistence, privilege-escalation]
+  mitre_techniques: [T1484]
+  sequence:
+    - any_of:
+        - ciem.ct.saml_provider_created
+        - ciem.ct.oidc_provider_created
+        - iam.ct.create_saml_provider
+        - iam.ct.create_oidc_provider
+        - azure.activity.conditional_access_write
+        - gcp.audit.workload_identity_create
+        - oci.audit.create_identity_provider
+        - ibm.activity.trusted_profile_create
+    - any_of:
+        - threat.ct.create_role
+        - threat.ct.update_assume_role_policy
+        - azure.activity.role_assignment_write
+        - gcp.audit.set_iam_policy
+  match_by: actor.principal
+
+- scenario_id: ciem.stale_credentials
+  engine: ciem
+  severity: medium
+  title: Stale credentials still in use
+  description: Old credentials used for API calls
+  time_window_minutes: 1440
+  min_events: 1
+  sequence:
+    - any_of:
+        - ciem.ct.access_key_used_after_rotation_due
+  match_by: actor.principal
+
+# ═══════════════════════════════════════════════════════════════
+# DATASEC SCENARIOS (cross-CSP)
+# ═══════════════════════════════════════════════════════════════
+
+- scenario_id: datasec.data_exposure
+  engine: datasec
+  severity: critical
+  title: Data store exposed publicly
+  description: Public access configuration changed on storage
+  time_window_minutes: 30
+  min_events: 1
+  mitre_tactics: [exfiltration]
+  mitre_techniques: [T1537]
+  sequence:
+    - any_of:
+        - storage.ct.s3_public_access_block_delete
+        - datasec.ct.public_access_block_removed
+        - datasec.ct.bucket_policy_change
+        - azure.activity.blob_public_access
+        - gcp.audit.bucket_iam_public
+        - oci.audit.create_preauthenticated_request
+  match_by: resource.uid
+
+- scenario_id: datasec.encryption_downgrade
+  engine: datasec
+  severity: critical
+  title: Encryption protection weakened
+  description: Encryption disabled or keys deleted
+  time_window_minutes: 60
+  min_events: 1
+  mitre_tactics: [impact, defense-evasion]
+  mitre_techniques: [T1486]
+  sequence:
+    - any_of:
+        - datasec.ct.encryption_disabled
+        - secsvc.ct.kms_schedule_key_deletion
+        - secsvc.ct.kms_disable_key
+        - azure.keyvault.key_delete
+        - azure.keyvault.purge
+        - gcp.audit.kms_destroy_key_version
+        - oci.audit.schedule_vault_deletion
+        - ibm.activity.keyprotect_delete
+  match_by: actor.principal
+
+- scenario_id: datasec.residency_violation
+  engine: datasec
+  severity: high
+  title: Data moved to non-compliant region
+  description: Cross-region replication or data transfer configured
+  time_window_minutes: 60
+  min_events: 1
+  sequence:
+    - any_of:
+        - datasec.ct.replication_enabled
+        - storage.ct.s3_put_replication
+  match_by: resource.uid
+
+# ═══════════════════════════════════════════════════════════════
+# KUBERNETES SCENARIOS (cross-CSP: EKS/AKS/GKE/OKE/IKS)
+# ═══════════════════════════════════════════════════════════════
+
+- scenario_id: k8s.privilege_escalation
+  engine: container_engine
+  severity: critical
+  title: K8s privilege escalation — RBAC + privileged workload
+  description: ClusterRoleBinding created → privileged pod or exec
+  time_window_minutes: 30
+  min_events: 2
+  mitre_tactics: [privilege-escalation, execution]
+  mitre_techniques: [T1078.004, T1610]
+  sequence:
+    - any_of:
+        - eks.audit.clusterrole_create
+        - eks.audit.clusterrolebinding_create
+        - azure.aks.clusterrole_create
+        - azure.aks.clusterrolebinding_create
+        - gcp.gke.clusterrole_create
+        - gcp.gke.clusterrolebinding_create
+        - oci.oke.clusterrole_create
+        - ibm.k8s.clusterrole_create
+    - any_of:
+        - eks.audit.privileged_pod
+        - eks.audit.pod_exec
+        - azure.aks.privileged_pod
+        - azure.aks.pod_exec
+        - gcp.gke.privileged_pod
+        - gcp.gke.pod_exec
+        - oci.oke.privileged_pod
+        - ibm.k8s.privileged_pod
+  match_by: actor.principal
+
+- scenario_id: k8s.secret_exfil
+  engine: container_engine
+  severity: high
+  title: K8s secret access followed by credential use
+  description: Secrets listed/read → external API call or token used
+  time_window_minutes: 15
+  min_events: 2
+  mitre_tactics: [credential-access]
+  mitre_techniques: [T1552.007]
+  sequence:
+    - any_of:
+        - eks.audit.secret_access
+        - eks.audit.secret_list
+        - azure.aks.secret_access
+        - azure.aks.secret_list
+        - gcp.gke.secret_access
+        - gcp.gke.secret_list
+        - oci.oke.secret_access
+        - ibm.k8s.secret_access
+    - optional:
+        - eks.audit.token_request
+        - azure.aks.token_request
+        - gcp.gke.token_request
+  match_by: actor.principal
+
+- scenario_id: k8s.namespace_takeover
+  engine: container_engine
+  severity: high
+  title: K8s namespace manipulation
+  description: Namespace created → DaemonSet or webhook deployed
+  time_window_minutes: 30
+  min_events: 2
+  mitre_tactics: [persistence, lateral-movement]
+  mitre_techniques: [T1610]
+  sequence:
+    - any_of:
+        - eks.audit.namespace_create
+        - azure.aks.namespace_create
+        - gcp.gke.namespace_create
+        - oci.oke.namespace_create
+        - ibm.k8s.namespace_create
+    - any_of:
+        - eks.audit.daemonset_create
+        - eks.audit.webhook_modify
+        - azure.aks.daemonset_create
+        - azure.aks.webhook_modify
+        - gcp.gke.daemonset_create
+        - gcp.gke.webhook_modify
+        - oci.oke.daemonset_create
+        - ibm.k8s.daemonset_create
+  match_by: actor.principal
+
+# ═══════════════════════════════════════════════════════════════
+# CROSS-CSP SCENARIOS
+# ═══════════════════════════════════════════════════════════════
+
+- scenario_id: cross_csp.lateral_movement
+  engine: threat
+  severity: critical
+  title: Cross-cloud lateral movement
+  description: Activity from same actor across multiple CSPs within short window
+  time_window_minutes: 60
+  min_events: 2
+  mitre_tactics: [lateral-movement]
+  mitre_techniques: [T1078]
+  sequence:
+    - any_of:
+        - threat.ct.create_access_key
+        - threat.ct.attach_admin_policy
+        - azure.activity.role_assignment_write
+        - gcp.audit.set_iam_policy
+        - oci.audit.create_policy
+        - ibm.activity.iam_policy_create
+      min_count: 2
+  match_by: actor.ip_address

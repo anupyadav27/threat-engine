@@ -1,0 +1,253 @@
+rules:
+- rule_id: oci.db_audit.failed_login
+  title: OCI database login failure detected
+  severity: medium
+  log_source_type: oci_db_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_db_audit
+    - field: operation
+      op: equals
+      value: LOGON
+    - field: outcome
+      op: equals
+      value: failure
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: read
+  mitre_tactics:
+  - credential-access
+  mitre_techniques:
+  - T1110
+  domain: database_security
+  provider: oci
+  remediation: Verify the accessor has legitimate need-to-know. Review access patterns for anomalies. Consider restricting
+    read permissions.
+  compliance_frameworks: &id001
+  - CIS
+  - NIST_800-53
+  - PCI-DSS
+  - HIPAA
+  - GDPR
+  risk_score: 50
+- rule_id: oci.db_audit.ddl_table_change
+  title: OCI database table created, altered, or dropped
+  severity: medium
+  log_source_type: oci_db_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_db_audit
+    - field: operation
+      op: in
+      value:
+      - CREATE TABLE
+      - ALTER TABLE
+      - DROP TABLE
+      - TRUNCATE TABLE
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1485
+  domain: database_security
+  provider: oci
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: oci.db_audit.schema_change
+  title: OCI database schema created or altered
+  severity: high
+  log_source_type: oci_db_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_db_audit
+    - field: operation
+      op: in
+      value:
+      - CREATE SCHEMA
+      - ALTER SCHEMA
+      - DROP SCHEMA
+      - CREATE TABLESPACE
+      - DROP TABLESPACE
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - impact
+  - persistence
+  mitre_techniques:
+  - T1485
+  domain: database_security
+  provider: oci
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: oci.db_audit.grant_privilege
+  title: OCI database privilege granted
+  severity: high
+  log_source_type: oci_db_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_db_audit
+    - field: operation
+      op: in
+      value:
+      - GRANT
+      - GRANT ROLE
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - privilege-escalation
+  - persistence
+  mitre_techniques:
+  - T1098
+  domain: database_security
+  provider: oci
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: oci.db_audit.revoke_privilege
+  title: OCI database privilege revoked
+  severity: medium
+  log_source_type: oci_db_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_db_audit
+    - field: operation
+      op: in
+      value:
+      - REVOKE
+      - REVOKE ROLE
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1098
+  domain: database_security
+  provider: oci
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: oci.db_audit.admin_activity
+  title: OCI database admin operation performed
+  severity: high
+  log_source_type: oci_db_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_db_audit
+    - field: operation
+      op: in
+      value:
+      - ALTER SYSTEM
+      - ALTER DATABASE
+      - SHUTDOWN
+      - STARTUP
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - impact
+  - defense-evasion
+  mitre_techniques:
+  - T1489
+  domain: database_security
+  provider: oci
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: oci.db_audit.user_created
+  title: OCI database user created or altered
+  severity: high
+  log_source_type: oci_db_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_db_audit
+    - field: operation
+      op: in
+      value:
+      - CREATE USER
+      - ALTER USER
+      - DROP USER
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - persistence
+  mitre_techniques:
+  - T1136
+  domain: database_security
+  provider: oci
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: oci.db_audit.audit_policy_change
+  title: OCI database audit policy modified
+  severity: critical
+  log_source_type: oci_db_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_db_audit
+    - field: operation
+      op: in
+      value:
+      - AUDIT
+      - NOAUDIT
+      - ALTER AUDIT POLICY
+      - CREATE AUDIT POLICY
+      - DROP AUDIT POLICY
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.008
+  domain: database_security
+  provider: oci
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 90

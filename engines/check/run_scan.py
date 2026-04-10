@@ -41,34 +41,30 @@ def _update_report_status(db_manager: DatabaseManager, scan_run_id: str, status:
     try:
         conn = db_manager._get_connection()
         with conn.cursor() as cur:
-            if error:
-                cur.execute(
-                    "UPDATE check_report SET status = %s, error_details = %s WHERE scan_run_id = %s",
-                    (status, error, scan_run_id),
-                )
-            else:
-                cur.execute(
-                    "UPDATE check_report SET status = %s WHERE scan_run_id = %s",
-                    (status, scan_run_id),
-                )
+            cur.execute(
+                "UPDATE check_report SET status = %s WHERE scan_run_id = %s",
+                (status, scan_run_id),
+            )
         conn.commit()
         db_manager._return_connection(conn)
+        if error:
+            logger.error(f"Check scan error: {error}")
     except Exception as e:
         logger.error(f"Failed to update report status: {e}")
 
 
 def _create_report_row(db_manager: DatabaseManager, scan_run_id: str, tenant_id: str,
-                       provider: str, discovery_scan_run_id: str, metadata: dict):
+                       provider: str, discovery_scan_id: str, metadata: dict):
     """Pre-create check_report row with status='running'."""
     try:
         conn = db_manager._get_connection()
         with conn.cursor() as cur:
             cur.execute(
                 """INSERT INTO check_report
-                   (scan_run_id, tenant_id, provider, discovery_scan_run_id, status, first_seen_at, metadata)
+                   (scan_run_id, tenant_id, provider, discovery_scan_id, status, first_seen_at, metadata)
                    VALUES (%s, %s, %s, %s, 'running', NOW(), %s)
                    ON CONFLICT (scan_run_id) DO UPDATE SET status = 'running'""",
-                (scan_run_id, tenant_id, provider, discovery_scan_run_id,
+                (scan_run_id, tenant_id, provider, discovery_scan_id,
                  __import__('json').dumps(metadata)),
             )
         conn.commit()
@@ -104,7 +100,7 @@ def main():
             raise ValueError(f"No orchestration metadata for {scan_run_id}")
 
         # All engines share the same scan_run_id
-        discovery_scan_run_id = scan_run_id
+        discovery_scan_id = scan_run_id
 
         tenant_id = metadata.get("tenant_id", "default-tenant")
         customer_id = metadata.get("customer_id", "default")
@@ -113,10 +109,10 @@ def main():
         hierarchy_type = metadata.get("hierarchy_type", "account")
         include_services = metadata.get("include_services")
 
-        logger.info(f"Resolved: tenant={tenant_id} provider={provider} discovery={discovery_scan_run_id}")
+        logger.info(f"Resolved: tenant={tenant_id} provider={provider} discovery={discovery_scan_id}")
 
         # 2. Pre-create report row
-        _create_report_row(db_manager, scan_run_id, tenant_id, provider, discovery_scan_run_id, {
+        _create_report_row(db_manager, scan_run_id, tenant_id, provider, discovery_scan_id, {
             "scan_run_id": scan_run_id,
             "mode": "job",
         })
@@ -138,7 +134,7 @@ def main():
 
         start = datetime.now(timezone.utc)
         results = engine.run_check_scan(
-            discovery_scan_run_id=discovery_scan_run_id,
+            discovery_scan_id=discovery_scan_id,
             scan_run_id=scan_run_id,
             customer_id=customer_id,
             tenant_id=tenant_id,

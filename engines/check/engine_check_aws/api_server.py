@@ -97,56 +97,43 @@ class CheckResponse(BaseModel):
 @app.post("/api/v1/scan", response_model=CheckResponse)
 async def create_check(request: CheckRequest, background_tasks: BackgroundTasks):
     """Run check scan on discoveries - runs compliance checks"""
-    scan_run_id = str(uuid.uuid4())
-
-    # Determine which discovery_scan_run_id to use and get metadata
-    # Priority: direct discovery_scan_run_id (ad-hoc) > orchestration_id (pipeline)
-    discovery_query_scan_id = None
+    # Resolve scan_run_id — use pipeline's scan_run_id (single ID for all engines)
+    # Priority: request.scan_run_id (pipeline) > request.discovery_scan_run_id (ad-hoc) > generate new
     tenant_id = None
     customer_id = None
     provider = None
     account_id = None
 
-    if request.discovery_scan_run_id:
-        # MODE 1: Ad-hoc mode - use provided parameters
-        discovery_query_scan_id = request.discovery_scan_run_id
-        tenant_id = request.tenant_id or "default-tenant"
-        customer_id = request.customer_id or "default"
-        provider = request.provider
-        account_id = request.account_id or discovery_query_scan_id
-        logger.info(f"Ad-hoc mode: Using direct discovery_scan_run_id: {discovery_query_scan_id}")
-
-    elif request.scan_run_id:
-        # MODE 2: Pipeline mode - query scan_orchestration for ALL metadata
-        orchestration_id = request.scan_run_id
-
+    if request.scan_run_id:
+        # Pipeline mode — same scan_run_id used by all engines
+        scan_run_id = request.scan_run_id
         try:
-            metadata = get_orchestration_metadata(orchestration_id)
+            metadata = get_orchestration_metadata(scan_run_id)
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e))
 
-        discovery_query_scan_id = metadata.get("discovery_scan_run_id")
-        if not discovery_query_scan_id:
-            raise HTTPException(status_code=400, detail=f"Discovery not completed yet for orchestration_id={orchestration_id}")
-
-        # Get ALL metadata from orchestration table
         tenant_id = metadata.get("tenant_id")
-        customer_id = request.customer_id or "default"  # Not in orchestration table yet
-        provider = metadata.get("provider_type", "aws")
-        account_id = metadata.get("account_id") or discovery_query_scan_id
+        customer_id = request.customer_id or "default"
+        provider = metadata.get("provider_type", metadata.get("provider", "aws"))
+        account_id = metadata.get("account_id")
 
-        logger.info(f"Pipeline mode: Got metadata from orchestration_id={orchestration_id}", extra={
-            "extra_fields": {
-                "discovery_scan_run_id": discovery_query_scan_id,
-                "tenant_id": tenant_id,
-                "provider": provider
-            }
-        })
+        logger.info(f"Pipeline mode: scan_run_id={scan_run_id} tenant={tenant_id} account={account_id}")
+
+    elif request.discovery_scan_run_id:
+        # Ad-hoc mode — use discovery_scan_run_id as the scan_run_id
+        scan_run_id = request.discovery_scan_run_id
+        tenant_id = request.tenant_id or "default-tenant"
+        customer_id = request.customer_id or "default"
+        provider = request.provider
+        account_id = request.account_id
+        logger.info(f"Ad-hoc mode: scan_run_id={scan_run_id}")
+
     else:
-        raise HTTPException(status_code=400, detail="Either discovery_scan_run_id OR scan_run_id must be provided")
+        raise HTTPException(status_code=400, detail="Either scan_run_id OR discovery_scan_run_id must be provided")
 
     # Update request object with resolved metadata
-    request.discovery_scan_run_id = discovery_query_scan_id
+    request.discovery_scan_run_id = scan_run_id  # Check reads discoveries using this ID
+    request.scan_run_id = scan_run_id
     request.tenant_id = tenant_id
     request.customer_id = customer_id
     request.provider = provider
@@ -155,7 +142,6 @@ async def create_check(request: CheckRequest, background_tasks: BackgroundTasks)
     with LogContext(tenant_id=tenant_id, scan_run_id=scan_run_id):
         logger.info("Received check request", extra={
             "extra_fields": {
-                "discovery_scan_run_id": discovery_query_scan_id,
                 "scan_run_id": scan_run_id,
                 "provider": provider,
                 "tenant_id": tenant_id,
@@ -167,7 +153,7 @@ async def create_check(request: CheckRequest, background_tasks: BackgroundTasks)
     scans[scan_run_id] = {
         "status": "running",
         "type": "check",
-        "discovery_scan_run_id": discovery_query_scan_id,  # Use resolved discovery_scan_run_id
+        "scan_run_id_ref": scan_run_id,
         "results": None,
         "error": None,
         "started_at": datetime.now(timezone.utc),
@@ -270,7 +256,7 @@ async def get_check_status(scan_run_id: str):
         "scan_run_id": scan_run_id,
         "status": scan_data["status"],
         "type": scan_data.get("type", "check"),
-        "discovery_scan_run_id": scan_data.get("discovery_scan_run_id"),
+        "scan_run_id_ref": scan_data.get("scan_run_id_ref"),
         "error": scan_data.get("error"),
         "started_at": scan_data.get("started_at"),
         "completed_at": scan_data.get("completed_at"),
@@ -282,7 +268,7 @@ async def get_check_status(scan_run_id: str):
 async def list_checks(
     tenant_id: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
-    discovery_scan_run_id: Optional[str] = Query(None),
+    scan_run_id_ref: Optional[str] = Query(None),
     limit: int = Query(50, ge=1, le=1000)
 ):
     """List all check scans"""
@@ -294,11 +280,11 @@ async def list_checks(
             continue
         if status and scan_data.get("status") != status:
             continue
-        if discovery_scan_run_id and scan_data.get("discovery_scan_run_id") != discovery_scan_run_id:
+        if scan_run_id_ref and scan_data.get("scan_run_id_ref") != scan_run_id_ref:
             continue
         filtered_scans.append({
             "scan_run_id": scan_id,
-            "discovery_scan_run_id": scan_data.get("discovery_scan_run_id"),
+            "scan_run_id_ref": scan_data.get("scan_run_id_ref"),
             "status": scan_data.get("status"),
             "started_at": scan_data.get("started_at"),
             "completed_at": scan_data.get("completed_at")

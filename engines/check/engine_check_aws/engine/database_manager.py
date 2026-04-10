@@ -155,7 +155,8 @@ class DatabaseManager:
     def store_check_result(self, scan_id: str, customer_id: str, tenant_id: str,
                           provider: str, rule_id: str, resource_arn: str = None,
                           resource_id: str = None, resource_type: str = None,
-                          status: str = 'FAIL', checked_fields: List[str] = None,
+                          status: str = 'FAIL', severity: str = None,
+                          checked_fields: List[str] = None,
                           finding_data: Dict = None, account_id: str = None,
                           hierarchy_type: str = None, resource_uid: str = None,
                           service: str = None, discovery_id: str = None,
@@ -172,14 +173,14 @@ class DatabaseManager:
                     (scan_run_id, customer_id, tenant_id, provider, account_id, hierarchy_type,
                      rule_id, service, discovery_id,
                      resource_arn, resource_uid, resource_id, resource_type, resource_service,
-                     status, checked_fields, finding_data)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                     status, severity, checked_fields, finding_data)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
                     scan_id, customer_id, tenant_id, provider,
                     account_id, hierarchy_type, rule_id,
                     service, discovery_id,
                     resource_arn, resource_uid, resource_id, resource_type, resource_service,
-                    status,
+                    status, severity,
                     json.dumps(checked_fields or []),
                     json.dumps(finding_data or {})
                 ))

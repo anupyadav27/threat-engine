@@ -81,13 +81,30 @@ def _resolve_scan_run_id(
         # Fallback: maybe the value IS a scan_run_id already.
         return scan_run_id
 
-    # "latest" — pick the most recent report for this tenant.
+    # "latest" — pick the most recent completed report for this tenant.
+    # Fall back to any report, then to inventory_findings directly.
     cursor.execute(
         """
         SELECT scan_run_id
         FROM inventory_report
-        WHERE tenant_id = %s
+        WHERE tenant_id = %s AND status = 'completed' AND total_assets > 0
         ORDER BY created_at DESC LIMIT 1
+        """,
+        (tenant_id,),
+    )
+    row = cursor.fetchone()
+    if row:
+        return row["scan_run_id"]
+
+    # Fallback: most recent scan_run_id with actual findings data
+    cursor.execute(
+        """
+        SELECT scan_run_id, COUNT(*) AS cnt
+        FROM inventory_findings
+        WHERE tenant_id = %s
+        GROUP BY scan_run_id
+        ORDER BY MAX(last_seen_at) DESC NULLS LAST, cnt DESC
+        LIMIT 1
         """,
         (tenant_id,),
     )
@@ -243,7 +260,7 @@ async def inventory_ui_data(
             """
             SELECT change_type, COUNT(*) AS cnt
             FROM inventory_drift
-            WHERE scan_run_id = %s AND tenant_id = %s
+            WHERE inventory_scan_id = %s AND tenant_id = %s
             GROUP BY change_type
             ORDER BY cnt DESC
             """,
@@ -259,7 +276,7 @@ async def inventory_ui_data(
         # 6. Paginated asset list -----------------------------------------------
         cursor.execute(
             """
-            SELECT finding_id, scan_run_id, tenant_id, resource_uid,
+            SELECT asset_id, scan_run_id, tenant_id, resource_uid,
                    resource_type, name, provider, account_id,
                    region, tags, configuration, first_seen_at,
                    updated_at
@@ -282,7 +299,7 @@ async def inventory_ui_data(
                 config_val = {}
 
             assets.append({
-                "id": str(r["finding_id"]),
+                "id": str(r["asset_id"]),
                 "resource_uid": r["resource_uid"],
                 "resource_type": r["resource_type"],
                 "resource_name": r["name"],

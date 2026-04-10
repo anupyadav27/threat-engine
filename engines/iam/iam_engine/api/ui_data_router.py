@@ -55,7 +55,7 @@ def _resolve_latest_scan_run_id(
         """
         SELECT scan_run_id
         FROM iam_report
-        WHERE tenant_id = %s
+        WHERE tenant_id = %s AND total_findings > 0
         ORDER BY created_at DESC
         LIMIT 1
         """,
@@ -101,7 +101,7 @@ def _compute_risk_score(
 async def get_iam_ui_data(
     tenant_id: str = Query(..., description="Tenant ID"),
     scan_id: str = Query(default="latest", description="IAM scan ID or 'latest'"),
-    limit: int = Query(default=200, ge=1, le=1000, description="Max findings to return"),
+    limit: int = Query(default=10000, ge=1, le=50000, description="Max findings to return"),
 ) -> Dict[str, Any]:
     """Return aggregated IAM data for the frontend UI page.
 
@@ -254,13 +254,15 @@ async def get_iam_ui_data(
                        status,
                        resource_type,
                        resource_id,
-                       resource_arn,
+                       resource_uid AS resource_arn,
                        account_id,
                        region,
                        finding_data,
                        resource_uid,
                        account_id AS hierarchy_id,
-                       provider
+                       provider,
+                       first_seen_at,
+                       last_seen_at
                 FROM iam_findings
                 WHERE scan_run_id = %s AND tenant_id = %s
                 ORDER BY
@@ -299,14 +301,41 @@ async def get_iam_ui_data(
                     "hierarchy_id": f.get("hierarchy_id"),
                     "provider": f.get("provider"),
                     "finding_data": fd,
+                    "first_seen_at": f.get("first_seen_at").isoformat() if f.get("first_seen_at") else None,
+                    "last_seen_at": f.get("last_seen_at").isoformat() if f.get("last_seen_at") else None,
+                    # ── Rule metadata — unpacked from finding_data JSONB ──────
+                    # finding_data contains the full enriched check finding (written at
+                    # scan time from check_findings LEFT JOIN rule_metadata). Surface
+                    # these as top-level fields so BFF/UI can use them without digging
+                    # into the blob.
+                    "title":                fd.get("title") or fd.get("rule_name") or f.get("rule_id", ""),
+                    "description":          fd.get("description") or fd.get("rationale") or "",
+                    "remediation":          fd.get("remediation") or "",
+                    "posture_category":     fd.get("posture_category") or "",
+                    "domain":               fd.get("domain") or fd.get("security_domain") or "",
+                    "risk_score":           fd.get("risk_score"),
+                    "compliance_frameworks":fd.get("compliance_frameworks") or [],
+                    "mitre_tactics":        fd.get("mitre_tactics") or [],
+                    "mitre_techniques":     fd.get("mitre_techniques") or [],
+                    "checked_fields":       fd.get("checked_fields"),
+                    "actual_values":        fd.get("actual_values"),
+                    "service":              fd.get("service") or f.get("resource_type", ""),
+                    "source":               fd.get("source", "check"),
                 })
 
             # ── 8. Module-grouped finding sections ───────────────────
             # The BFF expects pre-grouped sections for the IAM page tabs.
-            roles = _query_findings_by_module(cur, scan_run_id, tenant_id, "roles", limit)
-            access_keys = _query_findings_by_module(cur, scan_run_id, tenant_id, "access_keys", limit)
-            privilege_escalation = _query_findings_by_module(cur, scan_run_id, tenant_id, "privilege_escalation", limit)
+            # Map actual module names to BFF-expected section names:
+            #   role_management  → roles
+            #   access_control   → access_keys
+            #   least_privilege  → privilege_escalation
+            roles = _query_findings_by_module(cur, scan_run_id, tenant_id, "role_management", limit)
+            access_keys = _query_findings_by_module(cur, scan_run_id, tenant_id, "access_control", limit)
+            privilege_escalation = _query_findings_by_module(cur, scan_run_id, tenant_id, "least_privilege", limit)
             service_accounts = _query_service_account_findings(cur, scan_run_id, tenant_id, limit)
+
+            # ── Scan trend (last 8 scans, oldest-first) ──────────────────
+            scan_trend = _query_scan_trend(cur, tenant_id)
 
         return {
             "summary": {
@@ -327,6 +356,7 @@ async def get_iam_ui_data(
             "service_accounts": service_accounts,
             "total_findings": report_total,
             "scan_id": scan_run_id,
+            "scan_trend": scan_trend,
         }
 
     except Exception:
@@ -528,7 +558,7 @@ def _query_findings_by_module(
         cur.execute(
             """
             SELECT finding_id, rule_id, iam_modules, severity, status,
-                   resource_type, resource_id, resource_arn, account_id,
+                   resource_type, resource_id, resource_uid AS resource_arn, account_id,
                    region, finding_data, resource_uid, account_id AS hierarchy_id, provider
             FROM iam_findings
             WHERE scan_run_id = %s
@@ -552,6 +582,66 @@ def _query_findings_by_module(
         logger.warning(
             "IAM module query failed for %s", module_name, exc_info=True
         )
+        return []
+
+
+def _query_scan_trend(
+    cur: psycopg2.extensions.cursor,
+    tenant_id: str,
+) -> List[Dict[str, Any]]:
+    """Return last 8 scan data points from iam_report for KPI sparklines and trend chart.
+
+    Returns oldest-first so UI charts render left-to-right correctly.
+
+    Args:
+        cur: Database cursor (RealDictCursor).
+        tenant_id: Tenant identifier.
+
+    Returns:
+        List of up to 8 dicts with keys: date, total, critical, high, medium, pass_rate.
+    """
+    try:
+        cur.execute(
+            """
+            SELECT
+                to_char(created_at, 'Mon DD')                          AS date,
+                COALESCE(total_findings, 0)                            AS total,
+                COALESCE(critical_findings, 0)                         AS critical,
+                COALESCE(high_findings, 0)                             AS high,
+                GREATEST(0,
+                    COALESCE(total_findings, 0)
+                    - COALESCE(critical_findings, 0)
+                    - COALESCE(high_findings, 0))                      AS medium,
+                COALESCE((findings_by_module->>'role_management')::int, 0)  AS overprivileged,
+                COALESCE((findings_by_module->>'access_control')::int, 0)   AS identities_at_risk,
+                COALESCE(key_rotation_count, 0)                             AS keys_to_rotate
+            FROM iam_report
+            WHERE tenant_id = %s
+            ORDER BY created_at DESC
+            LIMIT 8
+            """,
+            (tenant_id,),
+        )
+        rows = list(reversed(cur.fetchall()))
+        result = []
+        for r in rows:
+            tot  = r["total"]
+            crit = r["critical"]
+            pass_rate = max(0, min(100, round(100.0 * (tot - crit) / tot))) if tot > 0 else 100
+            result.append({
+                "date":             r["date"],
+                "total":            tot,
+                "critical":         crit,
+                "high":             r["high"],
+                "medium":           r["medium"],
+                "pass_rate":        pass_rate,
+                "overprivileged":     r["overprivileged"],
+                "identities_at_risk": r["identities_at_risk"],
+                "keys_to_rotate":     r["keys_to_rotate"],
+            })
+        return result
+    except Exception:
+        logger.warning("IAM scan_trend query failed", exc_info=True)
         return []
 
 
@@ -580,7 +670,7 @@ def _query_service_account_findings(
         cur.execute(
             """
             SELECT finding_id, rule_id, iam_modules, severity, status,
-                   resource_type, resource_id, resource_arn, account_id,
+                   resource_type, resource_id, resource_uid AS resource_arn, account_id,
                    region, finding_data, resource_uid, account_id AS hierarchy_id, provider
             FROM iam_findings
             WHERE scan_run_id = %s

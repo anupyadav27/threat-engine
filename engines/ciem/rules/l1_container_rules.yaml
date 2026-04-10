@@ -1,0 +1,79 @@
+- rule_id: container.ct.eks_cluster_public
+  engine: container-security
+  source_type: cloudtrail
+  severity: critical
+  title: EKS cluster endpoint made public
+  condition:
+    all:
+    - field: operation
+      op: equals
+      value: UpdateClusterConfig
+    - field: service
+      op: equals
+      value: eks
+  l2_scenarios:
+  - container.cluster_exposure
+  domain: container_security
+  service: eks
+  provider: aws
+  remediation: Review container security policies. Scan images for vulnerabilities. Restrict privileged containers.
+  compliance_frameworks: &id001
+  - CIS
+  - NIST_800-53
+  - SOC2
+  risk_score: 90
+- rule_id: container.ct.ecr_image_scan_finding
+  engine: container-security
+  source_type: cloudtrail
+  severity: medium
+  title: ECR image scan completed (check for vulnerabilities)
+  condition:
+    field: operation
+    op: equals
+    value: DescribeImageScanFindings
+  l2_scenarios:
+  - container.vulnerable_image
+  domain: container_security
+  service: eks
+  provider: aws
+  remediation: Review container security policies. Scan images for vulnerabilities. Restrict privileged containers.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: container.ct.ecs_task_privileged
+  engine: container-security
+  source_type: cloudtrail
+  severity: high
+  title: Privileged ECS task definition registered
+  condition:
+    all:
+    - field: operation
+      op: equals
+      value: RegisterTaskDefinition
+    - field: service
+      op: equals
+      value: ecs
+  l2_scenarios:
+  - container.privilege_abuse
+  domain: container_security
+  service: eks
+  provider: aws
+  remediation: Review container security policies. Scan images for vulnerabilities. Restrict privileged containers.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: container.ct.eks_access_entry_created
+  engine: container-security
+  source_type: cloudtrail
+  severity: medium
+  title: EKS access entry created
+  condition:
+    field: operation
+    op: equals
+    value: CreateAccessEntry
+  l2_scenarios:
+  - container.access_change
+  domain: container_security
+  service: eks
+  provider: aws
+  remediation: Review container security policies. Scan images for vulnerabilities. Restrict privileged containers.
+  compliance_frameworks: *id001
+  risk_score: 50

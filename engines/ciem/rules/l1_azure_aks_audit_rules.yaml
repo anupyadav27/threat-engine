@@ -1,0 +1,528 @@
+rules:
+- rule_id: azure.aks_audit.clusterrole_create
+  title: AKS ClusterRole created
+  severity: high
+  log_source_type: azure_aks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_aks_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource_type
+      op: equals
+      value: clusterroles
+  engines:
+  - container_engine
+  - ciem
+  primary_engine: container_engine
+  action_category: create
+  mitre_tactics:
+  - privilege-escalation
+  - persistence
+  mitre_techniques:
+  - T1078.004
+  domain: container_security
+  provider: azure
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: &id001
+  - CIS
+  - NIST_800-53
+  - SOC2
+  risk_score: 70
+- rule_id: azure.aks_audit.clusterrole_modify
+  title: AKS ClusterRole modified
+  severity: high
+  log_source_type: azure_aks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_aks_audit
+    - field: operation
+      op: in
+      value:
+      - patch
+      - update
+    - field: resource_type
+      op: equals
+      value: clusterroles
+  engines:
+  - container_engine
+  - ciem
+  primary_engine: container_engine
+  action_category: modify
+  mitre_tactics:
+  - privilege-escalation
+  mitre_techniques:
+  - T1078.004
+  domain: container_security
+  provider: azure
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: azure.aks_audit.clusterrolebinding_create
+  title: AKS ClusterRoleBinding created
+  severity: high
+  log_source_type: azure_aks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_aks_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource_type
+      op: equals
+      value: clusterrolebindings
+  engines:
+  - container_engine
+  - ciem
+  primary_engine: container_engine
+  action_category: create
+  mitre_tactics:
+  - privilege-escalation
+  mitre_techniques:
+  - T1078.004
+  domain: container_security
+  provider: azure
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: azure.aks_audit.rolebinding_modify
+  title: AKS RoleBinding created or modified
+  severity: medium
+  log_source_type: azure_aks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_aks_audit
+    - field: operation
+      op: in
+      value:
+      - create
+      - patch
+      - update
+    - field: resource_type
+      op: in
+      value:
+      - rolebindings
+      - clusterrolebindings
+  engines:
+  - container_engine
+  - ciem
+  action_category: modify
+  mitre_tactics:
+  - privilege-escalation
+  - persistence
+  domain: container_security
+  provider: azure
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: azure.aks_audit.secret_access
+  title: AKS Secret accessed
+  severity: medium
+  log_source_type: azure_aks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_aks_audit
+    - field: operation
+      op: equals
+      value: get
+    - field: resource_type
+      op: equals
+      value: secrets
+  engines:
+  - container_engine
+  - ciem
+  primary_engine: container_engine
+  action_category: read
+  mitre_tactics:
+  - credential-access
+  mitre_techniques:
+  - T1552.007
+  domain: container_security
+  provider: azure
+  remediation: Verify the accessor has legitimate need-to-know. Review access patterns for anomalies. Consider restricting
+    read permissions.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: azure.aks_audit.secret_create
+  title: AKS Secret created
+  severity: low
+  log_source_type: azure_aks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_aks_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource_type
+      op: equals
+      value: secrets
+  engines:
+  - container_engine
+  action_category: create
+  domain: container_security
+  provider: azure
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: azure.aks_audit.secret_delete
+  title: AKS Secret deleted
+  severity: medium
+  log_source_type: azure_aks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_aks_audit
+    - field: operation
+      op: equals
+      value: delete
+    - field: resource_type
+      op: equals
+      value: secrets
+  engines:
+  - container_engine
+  action_category: delete
+  mitre_tactics:
+  - impact
+  domain: container_security
+  provider: azure
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: azure.aks_audit.privileged_pod
+  title: AKS privileged pod created
+  severity: high
+  log_source_type: azure_aks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_aks_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource_type
+      op: equals
+      value: pods
+  engines:
+  - container_engine
+  - threat_engine
+  primary_engine: container_engine
+  action_category: create
+  mitre_tactics:
+  - privilege-escalation
+  - execution
+  mitre_techniques:
+  - T1610
+  description: New pod created -- check for privileged, hostNetwork, hostPID flags
+  domain: container_security
+  provider: azure
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: azure.aks_audit.pod_exec
+  title: AKS pod exec session started
+  severity: high
+  log_source_type: azure_aks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_aks_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource_type
+      op: equals
+      value: pods/exec
+  engines:
+  - container_engine
+  - threat_engine
+  primary_engine: container_engine
+  action_category: execute
+  mitre_tactics:
+  - execution
+  mitre_techniques:
+  - T1609
+  domain: container_security
+  provider: azure
+  remediation: Validate function/container execution is authorized. Review execution role permissions. Check for code injection
+    indicators.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: azure.aks_audit.pod_portforward
+  title: AKS pod port-forward created
+  severity: medium
+  log_source_type: azure_aks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_aks_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource_type
+      op: equals
+      value: pods/portforward
+  engines:
+  - container_engine
+  - network_engine
+  action_category: execute
+  mitre_tactics:
+  - command-and-control
+  mitre_techniques:
+  - T1572
+  domain: container_security
+  provider: azure
+  remediation: Validate function/container execution is authorized. Review execution role permissions. Check for code injection
+    indicators.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: azure.aks_audit.namespace_create
+  title: AKS namespace created
+  severity: low
+  log_source_type: azure_aks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_aks_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource_type
+      op: equals
+      value: namespaces
+  engines:
+  - container_engine
+  action_category: create
+  domain: container_security
+  provider: azure
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: azure.aks_audit.namespace_delete
+  title: AKS namespace deleted
+  severity: high
+  log_source_type: azure_aks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_aks_audit
+    - field: operation
+      op: equals
+      value: delete
+    - field: resource_type
+      op: equals
+      value: namespaces
+  engines:
+  - container_engine
+  - threat_engine
+  action_category: delete
+  mitre_tactics:
+  - impact
+  domain: container_security
+  provider: azure
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: azure.aks_audit.daemonset_create
+  title: AKS DaemonSet created -- runs on all nodes
+  severity: medium
+  log_source_type: azure_aks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_aks_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource_type
+      op: equals
+      value: daemonsets
+  engines:
+  - container_engine
+  - threat_engine
+  action_category: create
+  mitre_tactics:
+  - persistence
+  - lateral-movement
+  domain: container_security
+  provider: azure
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: azure.aks_audit.deployment_create
+  title: AKS Deployment created
+  severity: low
+  log_source_type: azure_aks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_aks_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource_type
+      op: equals
+      value: deployments
+  engines:
+  - container_engine
+  action_category: create
+  domain: container_security
+  provider: azure
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: azure.aks_audit.webhook_modify
+  title: AKS admission webhook configuration modified
+  severity: high
+  log_source_type: azure_aks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_aks_audit
+    - field: operation
+      op: in
+      value:
+      - create
+      - patch
+      - update
+    - field: resource_type
+      op: in
+      value:
+      - mutatingwebhookconfigurations
+      - validatingwebhookconfigurations
+  engines:
+  - container_engine
+  - threat_engine
+  action_category: modify
+  mitre_tactics:
+  - persistence
+  - defense-evasion
+  domain: container_security
+  provider: azure
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: azure.aks_audit.serviceaccount_create
+  title: AKS ServiceAccount created
+  severity: medium
+  log_source_type: azure_aks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_aks_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource_type
+      op: equals
+      value: serviceaccounts
+  engines:
+  - container_engine
+  - ciem
+  action_category: create
+  mitre_tactics:
+  - persistence
+  mitre_techniques:
+  - T1136
+  domain: container_security
+  provider: azure
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: azure.aks_audit.token_request
+  title: AKS ServiceAccount token requested
+  severity: medium
+  log_source_type: azure_aks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_aks_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource_type
+      op: equals
+      value: serviceaccounts/token
+  engines:
+  - container_engine
+  - ciem
+  action_category: create
+  mitre_tactics:
+  - credential-access
+  mitre_techniques:
+  - T1552.007
+  domain: container_security
+  provider: azure
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: azure.aks_audit.networkpolicy_modify
+  title: AKS NetworkPolicy modified
+  severity: medium
+  log_source_type: azure_aks_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: azure_aks_audit
+    - field: operation
+      op: in
+      value:
+      - create
+      - patch
+      - update
+      - delete
+    - field: resource_type
+      op: equals
+      value: networkpolicies
+  engines:
+  - container_engine
+  - network_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.007
+  domain: container_security
+  provider: azure
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50

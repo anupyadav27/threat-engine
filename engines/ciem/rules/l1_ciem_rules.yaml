@@ -1,0 +1,229 @@
+- rule_id: ciem.ct.access_key_created
+  engine: ciem
+  source_type: cloudtrail
+  severity: medium
+  title: Access key created for IAM user
+  condition:
+    field: operation
+    op: equals
+    value: CreateAccessKey
+  l2_scenarios:
+  - ciem.credential_lifecycle
+  domain: iam_security
+  service: iam
+  provider: aws
+  remediation: Review IAM policies for least privilege. Enable CloudTrail logging. Enforce MFA for privileged operations.
+  compliance_frameworks: &id001
+  - CIS
+  - NIST_800-53
+  - SOC2
+  - PCI-DSS
+  - ISO_27001
+  risk_score: 50
+- rule_id: ciem.ct.access_key_used_after_rotation_due
+  engine: ciem
+  source_type: cloudtrail
+  severity: high
+  title: Access key used (may be stale — check age)
+  condition:
+    all:
+    - field: actor.principal_type
+      op: equals
+      value: IAMUser
+    - field: operation
+      op: not_in
+      value:
+      - ConsoleLogin
+      - GetSessionToken
+  l2_scenarios:
+  - ciem.stale_credentials
+  domain: iam_security
+  service: iam
+  provider: aws
+  remediation: Review IAM policies for least privilege. Enable CloudTrail logging. Enforce MFA for privileged operations.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: ciem.ct.root_access_key_used
+  engine: ciem
+  source_type: cloudtrail
+  severity: critical
+  title: Root account access key used
+  condition:
+    all:
+    - field: actor.principal_type
+      op: equals
+      value: Root
+    - field: operation
+      op: not_equals
+      value: ConsoleLogin
+  l2_scenarios:
+  - ciem.root_usage
+  domain: iam_security
+  service: iam
+  provider: aws
+  remediation: Review IAM policies for least privilege. Enable CloudTrail logging. Enforce MFA for privileged operations.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: ciem.ct.admin_api_call
+  engine: ciem
+  source_type: cloudtrail
+  severity: medium
+  title: Administrative API call (write/delete operation)
+  condition:
+    field: operation
+    op: starts_with_any
+    value:
+    - Create
+    - Delete
+    - Put
+    - Update
+    - Modify
+    - Attach
+    - Detach
+    - Enable
+    - Disable
+    - Revoke
+    - Grant
+  l2_scenarios:
+  - ciem.admin_activity_tracking
+  domain: iam_security
+  service: iam
+  provider: aws
+  remediation: Review IAM policies for least privilege. Enable CloudTrail logging. Enforce MFA for privileged operations.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: ciem.ct.cross_account_assume_role
+  engine: ciem
+  source_type: cloudtrail
+  severity: medium
+  title: Cross-account role assumption
+  condition:
+    all:
+    - field: operation
+      op: equals
+      value: AssumeRole
+    - field: actor.account_id
+      op: not_equals
+      value: '{{resource.account_id}}'
+  l2_scenarios:
+  - ciem.cross_account_access
+  domain: iam_security
+  service: iam
+  provider: aws
+  remediation: Review IAM policies for least privilege. Enable CloudTrail logging. Enforce MFA for privileged operations.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: ciem.ct.service_role_assumed
+  engine: ciem
+  source_type: cloudtrail
+  severity: info
+  title: Service role assumed (track actual usage)
+  condition:
+    field: operation
+    op: equals
+    value: AssumeRole
+  l2_scenarios:
+  - ciem.role_usage_baseline
+  domain: iam_security
+  service: iam
+  provider: aws
+  remediation: Review IAM policies for least privilege. Enable CloudTrail logging. Enforce MFA for privileged operations.
+  compliance_frameworks: *id001
+  risk_score: 10
+- rule_id: ciem.ct.policy_attached
+  engine: ciem
+  source_type: cloudtrail
+  severity: high
+  title: IAM policy attached to identity
+  condition:
+    field: operation
+    op: in
+    value:
+    - AttachUserPolicy
+    - AttachRolePolicy
+    - AttachGroupPolicy
+  l2_scenarios:
+  - ciem.permission_change_chain
+  domain: iam_security
+  service: iam
+  provider: aws
+  remediation: Review IAM policies for least privilege. Enable CloudTrail logging. Enforce MFA for privileged operations.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: ciem.ct.policy_created
+  engine: ciem
+  source_type: cloudtrail
+  severity: medium
+  title: IAM policy created
+  condition:
+    field: operation
+    op: in
+    value:
+    - CreatePolicy
+    - CreatePolicyVersion
+    - PutUserPolicy
+    - PutRolePolicy
+    - PutGroupPolicy
+  l2_scenarios:
+  - ciem.permission_change_chain
+  domain: iam_security
+  service: iam
+  provider: aws
+  remediation: Review IAM policies for least privilege. Enable CloudTrail logging. Enforce MFA for privileged operations.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: ciem.ct.permission_boundary_removed
+  engine: ciem
+  source_type: cloudtrail
+  severity: critical
+  title: Permission boundary removed from role/user
+  condition:
+    field: operation
+    op: in
+    value:
+    - DeleteRolePermissionsBoundary
+    - DeleteUserPermissionsBoundary
+  l2_scenarios:
+  - ciem.privilege_escalation
+  domain: iam_security
+  service: iam
+  provider: aws
+  remediation: Review IAM policies for least privilege. Enable CloudTrail logging. Enforce MFA for privileged operations.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: ciem.ct.saml_provider_created
+  engine: ciem
+  source_type: cloudtrail
+  severity: high
+  title: SAML identity provider created
+  condition:
+    field: operation
+    op: in
+    value:
+    - CreateSAMLProvider
+    - UpdateSAMLProvider
+  l2_scenarios:
+  - ciem.federation_abuse
+  domain: iam_security
+  service: iam
+  provider: aws
+  remediation: Review IAM policies for least privilege. Enable CloudTrail logging. Enforce MFA for privileged operations.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: ciem.ct.oidc_provider_created
+  engine: ciem
+  source_type: cloudtrail
+  severity: high
+  title: OIDC identity provider created
+  condition:
+    field: operation
+    op: equals
+    value: CreateOpenIDConnectProvider
+  l2_scenarios:
+  - ciem.federation_abuse
+  domain: iam_security
+  service: iam
+  provider: aws
+  remediation: Review IAM policies for least privilege. Enable CloudTrail logging. Enforce MFA for privileged operations.
+  compliance_frameworks: *id001
+  risk_score: 70

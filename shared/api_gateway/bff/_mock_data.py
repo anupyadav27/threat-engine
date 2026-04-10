@@ -351,6 +351,127 @@ def mock_threats() -> dict:
         },
     ]
 
+    # Atomic threat findings (individual rule evaluations)
+    # Rules keyed by (service, threat_category) — mirrors how the engine groups:
+    #   threat_key = threat_category + resource_uid + account + region
+    # So a threat only contains rules that share the SAME service AND threat_category
+    # on the SAME resource. This matches ThreatDetector._create_threat_from_group()
+    _rules_by_svc_cat = {
+        # (service, threat_category): [(rule_id, severity), ...]
+        ("rds",  "data_exposure"):        [("aws.rds.no-encryption",          "high"),
+                                           ("aws.rds.publicly-accessible",     "high"),
+                                           ("aws.rds.no-backup",               "medium"),
+                                           ("aws.rds.default-master-username", "low")],
+        ("rds",  "exfiltration"):         [("aws.rds.snapshot-public",         "critical"),
+                                           ("aws.rds.no-encryption",           "high")],
+        ("s3",   "data_exposure"):        [("aws.s3.no-encryption",            "high"),
+                                           ("aws.s3.public-acl",               "high"),
+                                           ("aws.s3.versioning-disabled",      "low")],
+        ("s3",   "exfiltration"):         [("aws.s3.public-bucket-sensitive",  "critical"),
+                                           ("aws.s3.logging-disabled",         "medium")],
+        ("iam",  "privilege_escalation"): [("aws.iam.privilege-escalation",    "critical"),
+                                           ("aws.iam.overpermissive-role",     "high"),
+                                           ("aws.iam.cross-account-trust",     "high")],
+        ("iam",  "credential_theft"):     [("aws.iam.root-login-no-mfa",       "critical"),
+                                           ("aws.iam.mfa-not-enabled",         "high"),
+                                           ("aws.iam.unused-access-keys",      "medium"),
+                                           ("aws.iam.password-policy-weak",    "medium")],
+        ("ec2",  "lateral_movement"):     [("aws.ec2.sg-unrestricted-ssh",     "high"),
+                                           ("aws.ec2.sg-unrestricted-rdp",     "high"),
+                                           ("aws.ec2.public-ip-assigned",      "medium")],
+        ("ec2",  "credential_theft"):     [("aws.ec2.imds-v1-enabled",         "high"),
+                                           ("aws.ec2.stopped-instance-old",    "low")],
+        ("cloudtrail", "defense_evasion"):[("aws.cloudtrail.disabled",         "critical"),
+                                           ("aws.cloudtrail.no-log-validation","medium"),
+                                           ("aws.cloudtrail.no-s3-delivery",   "medium")],
+        ("lambda", "privilege_escalation"):[("aws.lambda.admin-role",          "critical"),
+                                            ("aws.lambda.env-secrets",         "high")],
+        ("lambda", "execution"):          [("aws.lambda.suspicious-invoke",    "high"),
+                                           ("aws.lambda.eol-runtime",          "medium")],
+        ("kms",  "defense_evasion"):      [("aws.kms.key-rotation-disabled",   "medium"),
+                                           ("aws.kms.permissive-key-policy",   "high")],
+        ("eks",  "lateral_movement"):     [("aws.eks.public-endpoint",         "high"),
+                                           ("aws.eks.no-audit-log",            "medium")],
+        ("ecs",  "lateral_movement"):     [("aws.ecs.host-network-mode",       "high"),
+                                           ("aws.ecs.no-network-config",       "medium")],
+        ("dynamodb", "data_exposure"):    [("aws.dynamodb.no-pitr",            "medium"),
+                                           ("aws.dynamodb.no-encryption",      "high")],
+        ("secretsmanager", "credential_theft"): [("aws.secretsmanager.not-rotated", "high"),
+                                                  ("aws.secretsmanager.no-resource-policy", "medium")],
+        ("sqs",  "lateral_movement"):     [("aws.sqs.cross-account-access",    "high"),
+                                           ("aws.sqs.no-encryption",           "medium")],
+        ("sns",  "data_exposure"):        [("aws.sns.open-subscription",       "medium"),
+                                           ("aws.sns.no-encryption",           "low")],
+        ("elasticache", "data_exposure"): [("aws.elasticache.no-encryption-at-rest", "high")],
+        ("redshift", "data_exposure"):    [("aws.redshift.not-encrypted",      "high"),
+                                           ("aws.redshift.publicly-accessible","high")],
+    }
+    _tech_by_cat = {
+        "data_exposure":       [{"id": "T1530", "tactic": "Collection"}],
+        "exfiltration":        [{"id": "T1537", "tactic": "Exfiltration"}],
+        "privilege_escalation":[{"id": "T1548", "tactic": "Privilege Escalation"}],
+        "credential_theft":    [{"id": "T1552", "tactic": "Credential Access"}],
+        "lateral_movement":    [{"id": "T1021", "tactic": "Lateral Movement"}],
+        "defense_evasion":     [{"id": "T1562", "tactic": "Defense Evasion"}],
+        "execution":           [{"id": "T1059", "tactic": "Execution"}],
+        "persistence":         [{"id": "T1098", "tactic": "Persistence"}],
+    }
+
+    # Generate findings per-threat — rules must match BOTH service AND threat_category
+    # (exactly mirroring ThreatDetector grouping key)
+    threat_findings = []
+    for threat in threats:
+        svc      = threat.get("resourceType", threat.get("resource_type", ""))
+        cat      = threat.get("threat_category", "")
+        acct_id  = threat["account"]
+        rgn      = threat["region"]
+        res_uid  = threat["resource_uid"]
+
+        rules = _rules_by_svc_cat.get((svc, cat), [])
+        if not rules:
+            # Fallback: any rules for this service across categories
+            rules = [r for (s, c), rs in _rules_by_svc_cat.items()
+                     if s == svc for r in rs][:3]
+        if not rules:
+            threat["evidence"] = {"finding_refs": []}
+            threat["contributingFindings"] = []
+            continue
+
+        # Use ALL matching rules (not random sample) — a real threat groups all
+        # FAIL findings for that resource+category. Cap at 5 for readability.
+        picked = rules[:5]
+        finding_refs = []
+        techniques = _tech_by_cat.get(cat, [{"id": "T1562", "tactic": "Defense Evasion"}])
+        for rule_id, rule_sev in picked:
+            fid = _make_finding_id(rule_id, res_uid, acct_id, rgn)
+            threat_findings.append({
+                "finding_id":       fid,
+                "rule_id":          rule_id,
+                "title":            rule_id.replace(".", " ").replace("-", " ").title(),
+                "threat_category":  cat,
+                "severity":         rule_sev,
+                "status":           "FAIL",
+                "resource_type":    svc,
+                "resource_uid":     res_uid,
+                "account_id":       acct_id,
+                "account":          acct_id,
+                "region":           rgn,
+                "provider":         "AWS",
+                "mitre_techniques": [t["id"] for t in techniques],
+                "mitre_tactics":    [t["tactic"] for t in techniques],
+                "first_seen_at":    threat.get("detected", _past_date(30)),
+                "last_seen_at":     threat.get("lastSeen", _past_date(2)),
+            })
+            finding_refs.append(fid)
+
+        # Wire finding_refs + pre-built contributingFindings onto the threat
+        threat["evidence"] = {"finding_refs": finding_refs}
+        threat["finding_count"] = len(finding_refs)
+        # Build index for O(1) lookup
+        _fid_set = set(finding_refs)
+        threat["contributingFindings"] = [f for f in threat_findings
+                                          if f["finding_id"] in _fid_set]
+
     # Account heatmap
     account_heatmap = []
     for acct in ACCOUNTS:
@@ -378,10 +499,11 @@ def mock_threats() -> dict:
                 "Threat timeline shows detection history across scan cycles",
             ],
             "tabs": [
-                {"id": "overview", "label": "Overview", "count": total},
-                {"id": "mitre", "label": "MITRE ATT&CK", "count": mitre_count},
+                {"id": "overview",     "label": "Overview",     "count": total},
+                {"id": "mitre",        "label": "MITRE ATT&CK", "count": mitre_count},
                 {"id": "attack_paths", "label": "Attack Paths", "count": len(attack_chains)},
-                {"id": "timeline", "label": "Timeline", "count": len(trend_data)},
+                {"id": "findings",     "label": "Findings",     "count": len(threat_findings)},
+                {"id": "timeline",     "label": "Timeline",     "count": len(trend_data)},
             ],
         },
         "filterSchema": [
@@ -423,6 +545,7 @@ def mock_threats() -> dict:
             "dataScope": "all_scans",
         },
         "threats": threats,
+        "threatFindings": threat_findings,
         "total": total,
         "trendData": trend_data,
         "mitreMatrix": mitre_matrix,
@@ -2523,23 +2646,16 @@ def mock_database_security() -> dict:
 
     kpi_groups = [
         {
-            "id": "posture",
             "title": "Database Posture",
-            "kpis": [
-                {"id": "posture_score", "label": "Posture Score", "value": 74, "format": "score"},
-                {"id": "total_databases", "label": "Total Databases", "value": 10, "format": "number"},
-                {"id": "publicly_accessible", "label": "Publicly Accessible", "value": 2, "format": "number"},
-                {"id": "unencrypted", "label": "Unencrypted", "value": 1, "format": "number"},
-            ],
-        },
-        {
-            "id": "severity",
-            "title": "Findings by Severity",
-            "kpis": [
-                {"id": "critical", "label": "Critical", "value": 2, "format": "number"},
-                {"id": "high", "label": "High", "value": 4, "format": "number"},
-                {"id": "medium", "label": "Medium", "value": 6, "format": "number"},
-                {"id": "low", "label": "Low", "value": 3, "format": "number"},
+            "items": [
+                {"label": "Posture Score",    "value": 74, "suffix": "/100"},
+                {"label": "Total Findings",   "value": 15},
+                {"label": "Total Databases",  "value": 10},
+                {"label": "Public Databases", "value": 2},
+                {"label": "Critical",         "value": 2},
+                {"label": "High",             "value": 4},
+                {"label": "Medium",           "value": 6},
+                {"label": "Low",              "value": 3},
             ],
         },
     ]
@@ -2575,42 +2691,78 @@ def mock_database_security() -> dict:
             "last_evaluated": _past_date(3),
         })
 
-    # Findings — 15
+    # Findings — 15  (rule_id, title, service, severity, resource, posture_category, risk, description, remediation)
     _db_finding_defs = [
-        ("DBSEC-001", "RDS instance publicly accessible", "rds", "critical", "dev-test-db"),
-        ("DBSEC-002", "RDS instance without encryption at rest", "rds", "critical", "dev-test-db"),
-        ("DBSEC-003", "RDS instance without automated backups", "rds", "high", "dev-test-db"),
-        ("DBSEC-004", "RDS instance with default master username", "rds", "high", "dev-test-db"),
-        ("DBSEC-005", "Redshift cluster audit logging disabled", "redshift", "high", "staging-analytics"),
-        ("DBSEC-006", "DynamoDB table without point-in-time recovery", "dynamodb", "medium", "config-store"),
-        ("DBSEC-007", "ElastiCache cluster without encryption in transit", "elasticache", "medium", "prod-cache-001"),
-        ("DBSEC-008", "RDS instance not using latest engine version", "rds", "medium", "patient-records"),
-        ("DBSEC-009", "Redshift parameter group with require_ssl disabled", "redshift", "high", "staging-analytics"),
-        ("DBSEC-010", "RDS enhanced monitoring not enabled", "rds", "medium", "prod-users-db"),
-        ("DBSEC-011", "DynamoDB table using default encryption", "dynamodb", "low", "session-store"),
-        ("DBSEC-012", "RDS instance not in Multi-AZ", "rds", "medium", "dev-test-db"),
-        ("DBSEC-013", "ElastiCache automatic failover disabled", "elasticache", "medium", "prod-cache-001"),
-        ("DBSEC-014", "RDS deletion protection not enabled", "rds", "low", "dev-test-db"),
-        ("DBSEC-015", "DynamoDB table without server-side encryption with CMK", "dynamodb", "low", "audit-trail"),
+        ("DBSEC-001", "RDS instance publicly accessible",                       "rds",        "critical", "dev-test-db",       "access_control",   92,
+         "RDS instance has PubliclyAccessible=true, exposing the database endpoint to the public internet without VPC protection.",
+         "Set PubliclyAccessible=false on the RDS instance and place it in a private subnet behind a bastion host or VPN."),
+        ("DBSEC-002", "RDS instance without encryption at rest",                "rds",        "critical", "dev-test-db",       "encryption",       88,
+         "RDS storage encryption is disabled. Data at rest is stored in plaintext and may be exposed if storage media is compromised.",
+         "Enable storage encryption when creating the RDS instance using AWS KMS. For existing instances, snapshot, copy with encryption enabled, and restore."),
+        ("DBSEC-003", "RDS instance without automated backups",                 "rds",        "high",     "dev-test-db",       "backup_recovery",  74,
+         "Automated backup retention period is set to 0 days, disabling point-in-time recovery and automated snapshots.",
+         "Set the backup retention period to at least 7 days via ModifyDBInstance. Enable deletion protection to prevent accidental data loss."),
+        ("DBSEC-004", "RDS instance with default master username",              "rds",        "high",     "dev-test-db",       "access_control",   70,
+         "The master username is set to the well-known default value 'admin', making brute-force attacks easier.",
+         "Use a non-default master username. Rotate the master credential via AWS Secrets Manager with automatic rotation enabled."),
+        ("DBSEC-005", "Redshift cluster audit logging disabled",                "redshift",   "high",     "staging-analytics", "audit_logging",    68,
+         "Audit logging is not enabled on this Redshift cluster. Connection attempts, user activity, and DDL/DML operations are not recorded.",
+         "Enable audit logging via EnableLogging and ship logs to S3. Configure log exports to CloudWatch Logs for real-time monitoring."),
+        ("DBSEC-006", "DynamoDB table without point-in-time recovery",         "dynamodb",   "medium",   "config-store",      "backup_recovery",  52,
+         "Point-in-time recovery (PITR) is not enabled. The table cannot be restored to any second within the last 35 days.",
+         "Enable PITR via UpdateContinuousBackups. This provides continuous backups with no performance impact and no additional infrastructure."),
+        ("DBSEC-007", "ElastiCache cluster without encryption in transit",      "elasticache","medium",   "prod-cache-001",    "encryption",       55,
+         "TLS encryption in transit is not enabled on this ElastiCache Redis cluster. Data in transit between clients and cache is unencrypted.",
+         "Enable in-transit encryption when creating the cluster. For existing clusters, create a new cluster with transit encryption enabled and migrate data."),
+        ("DBSEC-008", "RDS instance not using latest engine version",           "rds",        "medium",   "patient-records",   "configuration",    48,
+         "The RDS instance is running an outdated engine version that may contain known security vulnerabilities and missing patches.",
+         "Enable auto minor version upgrade or schedule a maintenance window to upgrade to the latest minor version. Test in staging before applying to production."),
+        ("DBSEC-009", "Redshift parameter group with require_ssl disabled",     "redshift",   "high",     "staging-analytics", "encryption",       72,
+         "The Redshift parameter group has require_ssl=false, allowing unencrypted connections to the cluster.",
+         "Create a custom parameter group with require_ssl=1 and associate it with the cluster. Restart the cluster to apply the change."),
+        ("DBSEC-010", "RDS enhanced monitoring not enabled",                    "rds",        "medium",   "prod-users-db",     "audit_logging",    42,
+         "Enhanced monitoring is disabled. Operating system-level metrics (CPU, memory, disk I/O) are not available for troubleshooting.",
+         "Enable enhanced monitoring with a 60-second granularity. Create an IAM role with CloudWatch Logs permissions and assign it to the instance."),
+        ("DBSEC-011", "DynamoDB table using default AWS-owned encryption",     "dynamodb",   "low",      "session-store",     "encryption",       28,
+         "The table uses AWS-owned keys (SSE-S3) rather than customer-managed KMS keys, limiting key management and audit capabilities.",
+         "Migrate to AWS KMS customer-managed keys (CMK) for full control over key rotation, access policies, and CloudTrail audit of key usage."),
+        ("DBSEC-012", "RDS instance not in Multi-AZ",                          "rds",        "medium",   "dev-test-db",       "backup_recovery",  45,
+         "Single-AZ deployment means a hardware failure in one availability zone could cause significant downtime.",
+         "Enable Multi-AZ deployment via ModifyDBInstance with MultiAZ=true. This creates a synchronous standby replica in a different AZ."),
+        ("DBSEC-013", "ElastiCache automatic failover disabled",                "elasticache","medium",   "prod-cache-001",    "backup_recovery",  50,
+         "Automatic failover is disabled on this Redis cluster. A primary node failure will require manual intervention to promote a replica.",
+         "Enable automatic failover by using a replication group with at least one read replica and AutomaticFailoverEnabled=true."),
+        ("DBSEC-014", "RDS deletion protection not enabled",                    "rds",        "low",      "dev-test-db",       "configuration",    30,
+         "Deletion protection is disabled, allowing the RDS instance to be accidentally or maliciously deleted without additional confirmation.",
+         "Enable deletion protection via ModifyDBInstance with DeletionProtection=true. This prevents deletion until the protection is explicitly removed."),
+        ("DBSEC-015", "DynamoDB table without CMK server-side encryption",     "dynamodb",   "low",      "audit-trail",       "encryption",       25,
+         "The audit trail table uses default AWS-owned keys instead of a customer-managed KMS key, limiting auditability of encryption key usage.",
+         "Enable SSE with a customer-managed KMS key to ensure all encryption operations are logged in CloudTrail and the key lifecycle is under your control."),
     ]
     db_findings = []
-    for rule_id, title, svc, sev, resource in _db_finding_defs:
+    for rule_id, title, svc, sev, resource, cat, risk, desc, rem in _db_finding_defs:
         acct = random.choice(ACCOUNTS)
         region = random.choice(REGIONS)
         db_findings.append({
-            "finding_id": _make_finding_id(rule_id, resource, acct["account_id"], region),
-            "rule_id": rule_id,
-            "title": title,
-            "resource_type": svc,
-            "resource_uid": _random_arn(svc, acct["account_id"], region, resource),
-            "resource_name": resource,
-            "severity": sev,
-            "status": "FAIL",
-            "account_id": acct["account_id"],
-            "region": region,
-            "provider": "aws",
-            "first_seen_at": _past_date(60),
-            "last_seen_at": _past_date(2),
+            "finding_id":       _make_finding_id(rule_id, resource, acct["account_id"], region),
+            "rule_id":          rule_id,
+            "title":            title,
+            "service":          svc,
+            "resource_type":    svc,
+            "resource_uid":     _random_arn(svc, acct["account_id"], region, resource),
+            "resource_name":    resource,
+            "severity":         sev,
+            "status":           "FAIL",
+            "account_id":       acct["account_id"],
+            "region":           region,
+            "provider":         "aws",
+            "posture_category": cat,
+            "security_domain":  cat,
+            "risk_score":       risk,
+            "description":      desc,
+            "remediation":      rem,
+            "first_seen_at":    _past_date(60),
+            "last_seen_at":     _past_date(2),
         })
 
     domain_scores = {
@@ -2622,9 +2774,12 @@ def mock_database_security() -> dict:
     }
 
     page_context["tabs"] = [
-        {"id": "overview", "label": "Overview", "count": len(databases)},
-        {"id": "databases", "label": "Databases", "count": len(databases)},
-        {"id": "findings", "label": "Findings", "count": len(db_findings)},
+        {"id": "overview",        "label": "Overview"},
+        {"id": "inventory",       "label": "Databases",     "count": len(databases)},
+        {"id": "findings",        "label": "Findings",      "count": len(db_findings)},
+        {"id": "access_control",  "label": "Access Control"},
+        {"id": "encryption",      "label": "Encryption"},
+        {"id": "audit_logging",   "label": "Audit Logging"},
     ]
 
     return {
@@ -2656,23 +2811,17 @@ def mock_container_security() -> dict:
 
     kpi_groups = [
         {
-            "id": "posture",
             "title": "Container Posture",
-            "kpis": [
-                {"id": "posture_score", "label": "Posture Score", "value": 68, "format": "score"},
-                {"id": "total_clusters", "label": "Clusters", "value": 5, "format": "number"},
-                {"id": "total_workloads", "label": "Workloads", "value": 42, "format": "number"},
-                {"id": "vulnerable_images", "label": "Vulnerable Images", "value": 8, "format": "number"},
-            ],
-        },
-        {
-            "id": "severity",
-            "title": "Findings by Severity",
-            "kpis": [
-                {"id": "critical", "label": "Critical", "value": 2, "format": "number"},
-                {"id": "high", "label": "High", "value": 3, "format": "number"},
-                {"id": "medium", "label": "Medium", "value": 5, "format": "number"},
-                {"id": "low", "label": "Low", "value": 2, "format": "number"},
+            "items": [
+                {"label": "Posture Score",          "value": 53, "suffix": "/100"},
+                {"label": "Total Findings",         "value": 12},
+                {"label": "Clusters",               "value": 5},
+                {"label": "Vulnerable Images",      "value": 34},
+                {"label": "Privileged Containers",  "value": 18},
+                {"label": "Critical",               "value": 9},
+                {"label": "High",                   "value": 25},
+                {"label": "Medium",                 "value": 28},
+                {"label": "Low",                    "value": 251},
             ],
         },
     ]
@@ -2720,39 +2869,69 @@ def mock_container_security() -> dict:
         },
     ]
 
-    # Findings — 12
+    # Findings — 12  (rule_id, title, service, severity, resource, posture_category, risk, description, remediation)
     _ctr_finding_defs = [
-        ("CTR-001", "EKS cluster endpoint publicly accessible", "eks", "critical", "dev-eks-cluster"),
-        ("CTR-002", "EKS cluster without secrets encryption", "eks", "critical", "dev-eks-cluster"),
-        ("CTR-003", "EKS cluster audit logging disabled", "eks", "high", "staging-eks-cluster"),
-        ("CTR-004", "ECS task definition with host network mode", "ecs", "high", "prod-ecs-cluster"),
-        ("CTR-005", "Container running as root", "eks", "high", "prod-eks-cluster"),
-        ("CTR-006", "Pod with hostPath volume mount", "eks", "medium", "staging-eks-cluster"),
-        ("CTR-007", "Container image with known CVEs", "ecs", "medium", "prod-ecs-cluster"),
-        ("CTR-008", "EKS node group using outdated AMI", "eks", "medium", "prod-eks-cluster"),
-        ("CTR-009", "Privileged container detected", "eks", "medium", "dev-eks-cluster"),
-        ("CTR-010", "ECS task role with excessive permissions", "ecs", "medium", "batch-ecs-cluster"),
-        ("CTR-011", "Pod security policy not enforced", "eks", "low", "staging-eks-cluster"),
-        ("CTR-012", "Container without resource limits", "eks", "low", "dev-eks-cluster"),
+        ("CTR-001", "EKS cluster endpoint publicly accessible",          "eks",  "critical", "dev-eks-cluster",      "cluster_security",  94,
+         "The EKS API server endpoint is publicly accessible. Any internet host can attempt to authenticate against the Kubernetes API, increasing the attack surface.",
+         "Disable public endpoint access via the cluster's Networking settings. Enable private endpoint and use a VPN or AWS Direct Connect for cluster access."),
+        ("CTR-002", "EKS cluster without secrets encryption",            "eks",  "critical", "dev-eks-cluster",      "cluster_security",  88,
+         "Kubernetes Secrets stored in etcd are not encrypted at rest with a KMS key. If etcd storage is compromised, secrets are exposed in plaintext.",
+         "Enable envelope encryption for Kubernetes Secrets by associating a KMS key with the EKS cluster. Enable KMS key rotation for ongoing protection."),
+        ("CTR-003", "EKS cluster audit logging disabled",                "eks",  "high",     "staging-eks-cluster",  "cluster_security",  72,
+         "Kubernetes API server audit logs are not enabled. Unauthorized access, privilege escalation, and lateral movement cannot be detected.",
+         "Enable all EKS control plane log types: api, audit, authenticator, controllerManager, scheduler. Route logs to CloudWatch Logs and set retention."),
+        ("CTR-004", "ECS task definition with host network mode",        "ecs",  "high",     "prod-ecs-cluster",     "workload_security", 70,
+         "The ECS task definition uses host network mode, allowing containers to share the host's network namespace and access all host network interfaces.",
+         "Switch to awsvpc network mode to give each task its own network interface. This isolates container traffic and enables fine-grained security group control."),
+        ("CTR-005", "Container running as root",                         "eks",  "high",     "prod-eks-cluster",     "workload_security", 68,
+         "One or more containers are running as root (UID 0). A container escape would give an attacker root privileges on the underlying node.",
+         "Set securityContext.runAsNonRoot=true and specify a non-root runAsUser in the pod spec. Use a dedicated service account with minimal RBAC permissions."),
+        ("CTR-006", "Pod with hostPath volume mount",                    "eks",  "medium",   "staging-eks-cluster",  "workload_security", 55,
+         "A pod mounts a hostPath volume, giving the container direct access to the node's filesystem. This can be used for container escape or data exfiltration.",
+         "Remove hostPath volume mounts and use PersistentVolumeClaims with appropriate StorageClasses instead. If hostPath is required, restrict the path and mount as readOnly."),
+        ("CTR-007", "Container image with known CVEs",                   "ecs",  "medium",   "prod-ecs-cluster",     "image_security",    58,
+         "The container image contains packages with known Common Vulnerabilities and Exposures (CVEs). Exploitable vulnerabilities may allow code execution or privilege escalation.",
+         "Rebuild the image from an up-to-date base image. Enable Amazon ECR image scanning and block deployments of images with CRITICAL CVEs in your CI/CD pipeline."),
+        ("CTR-008", "EKS node group using outdated AMI",                 "eks",  "medium",   "prod-eks-cluster",     "cluster_security",  52,
+         "The EKS managed node group is using an outdated Amazon Machine Image. The nodes may be missing OS-level security patches and kernel updates.",
+         "Update the node group's launch template to use the latest EKS-optimized AMI. Enable managed node group auto-updates or configure a rolling update strategy."),
+        ("CTR-009", "Privileged container detected",                     "eks",  "medium",   "dev-eks-cluster",      "workload_security", 60,
+         "A container is running in privileged mode (securityContext.privileged=true). This grants the container nearly all capabilities of the host node.",
+         "Remove the privileged flag. Replace with specific Linux capabilities (e.g., NET_ADMIN) using securityContext.capabilities.add only for what is strictly required."),
+        ("CTR-010", "ECS task role with excessive permissions",          "ecs",  "medium",   "batch-ecs-cluster",    "rbac_access",       50,
+         "The ECS task IAM role has overly broad permissions (e.g., s3:*, ec2:*). A compromised container could abuse these permissions to access unrelated resources.",
+         "Apply least-privilege IAM policies to the task role. Use IAM Access Analyzer to identify unused permissions and reduce the policy scope to only required actions."),
+        ("CTR-011", "Pod security policy not enforced",                  "eks",  "low",      "staging-eks-cluster",  "cluster_security",  35,
+         "No Pod Security Policy or Pod Security Admission controller is configured. Pods can be deployed with dangerous security settings without restriction.",
+         "Enable Pod Security Admission with the 'restricted' profile in namespaces. Define namespace labels for 'baseline' profile and enforce 'restricted' for production workloads."),
+        ("CTR-012", "Container without resource limits",                 "eks",  "low",      "dev-eks-cluster",      "workload_security", 28,
+         "Containers are deployed without CPU or memory resource limits. An unbounded container can starve other workloads and potentially cause node-level denial of service.",
+         "Set resource requests and limits for all containers. Use LimitRange objects to enforce defaults at the namespace level. Enable VPA for automatic right-sizing."),
     ]
     ctr_findings = []
-    for rule_id, title, svc, sev, resource in _ctr_finding_defs:
+    for rule_id, title, svc, sev, resource, cat, risk, desc, rem in _ctr_finding_defs:
         acct = random.choice(ACCOUNTS)
         region = random.choice(REGIONS)
         ctr_findings.append({
-            "finding_id": _make_finding_id(rule_id, resource, acct["account_id"], region),
-            "rule_id": rule_id,
-            "title": title,
-            "resource_type": svc,
-            "resource_uid": _random_arn(svc, acct["account_id"], region, f"cluster/{resource}"),
-            "resource_name": resource,
-            "severity": sev,
-            "status": "FAIL",
-            "account_id": acct["account_id"],
-            "region": region,
-            "provider": "aws",
-            "first_seen_at": _past_date(30),
-            "last_seen_at": _past_date(2),
+            "finding_id":       _make_finding_id(rule_id, resource, acct["account_id"], region),
+            "rule_id":          rule_id,
+            "title":            title,
+            "service":          svc,
+            "resource_type":    svc,
+            "resource_uid":     _random_arn(svc, acct["account_id"], region, f"cluster/{resource}"),
+            "resource_name":    resource,
+            "severity":         sev,
+            "status":           "FAIL",
+            "account_id":       acct["account_id"],
+            "region":           region,
+            "provider":         "aws",
+            "posture_category": cat,
+            "security_domain":  cat,
+            "risk_score":       risk,
+            "description":      desc,
+            "remediation":      rem,
+            "first_seen_at":    _past_date(30),
+            "last_seen_at":     _past_date(2),
         })
 
     domain_scores = {
@@ -2764,9 +2943,12 @@ def mock_container_security() -> dict:
     }
 
     page_context["tabs"] = [
-        {"id": "overview", "label": "Overview", "count": len(clusters)},
-        {"id": "clusters", "label": "Clusters", "count": len(clusters)},
-        {"id": "findings", "label": "Findings", "count": len(ctr_findings)},
+        {"id": "overview",          "label": "Overview"},
+        {"id": "inventory",         "label": "Clusters",        "count": len(clusters)},
+        {"id": "findings",          "label": "Findings",        "count": len(ctr_findings)},
+        {"id": "cluster_security",  "label": "Cluster Security"},
+        {"id": "image_security",    "label": "Image Security"},
+        {"id": "rbac",              "label": "RBAC"},
     ]
 
     return {
@@ -2819,20 +3001,51 @@ def mock_ai_security() -> dict:
         },
     ]
 
+    # (rule_id, title, svc, sev, resource, category, risk_score, description, remediation)
     _ai_finding_defs = [
-        ("AI-001", "SageMaker notebook instance with root access", "sagemaker", "critical", "prod-ml-notebook"),
-        ("AI-002", "SageMaker endpoint without encryption", "sagemaker", "high", "fraud-model-endpoint"),
-        ("AI-003", "Bedrock model invocation logging disabled", "bedrock", "high", "claude-integration"),
-        ("AI-004", "SageMaker training job with internet access", "sagemaker", "high", "training-job-v3"),
-        ("AI-005", "Comprehend entity recognizer with public training data", "comprehend", "medium", "pii-detector"),
-        ("AI-006", "SageMaker model artifact stored in unencrypted S3", "sagemaker", "medium", "model-artifacts"),
-        ("AI-007", "Bedrock guardrail not configured", "bedrock", "medium", "chatbot-integration"),
-        ("AI-008", "SageMaker endpoint auto-scaling not configured", "sagemaker", "medium", "recommendation-endpoint"),
-        ("AI-009", "Rekognition collection without access policy", "rekognition", "low", "face-collection"),
-        ("AI-010", "SageMaker notebook lifecycle config missing", "sagemaker", "low", "dev-notebook"),
+        ("AI-001", "SageMaker notebook instance with root access", "sagemaker", "critical", "prod-ml-notebook",
+         "model_security", 94,
+         "The SageMaker notebook instance is running with root access enabled. Root access allows users to install arbitrary system packages and modify OS-level files, creating a significant privilege escalation risk.",
+         "Disable root access on the notebook instance via SageMaker console > Edit. Apply least-privilege IAM execution roles and use lifecycle configurations to enforce security baselines."),
+        ("AI-002", "SageMaker endpoint without encryption", "sagemaker", "high", "fraud-model-endpoint",
+         "endpoint_security", 78,
+         "The SageMaker endpoint does not have KMS encryption enabled for data at rest and in transit. Model inference requests, responses, and stored artifacts may be exposed to unauthorized access.",
+         "Enable KMS encryption by updating the endpoint configuration with a customer-managed KmsKeyId. Rotate keys annually and restrict key policy to authorized IAM roles only."),
+        ("AI-003", "Bedrock model invocation logging disabled", "bedrock", "high", "claude-integration",
+         "ai_governance", 72,
+         "Amazon Bedrock model invocation logging is disabled for this integration. Without logging, there is no audit trail for AI model usage and prompt injection attacks cannot be detected or investigated.",
+         "Enable model invocation logging in the Bedrock console under Model Invocation Logging. Configure CloudWatch Logs or S3 as the destination with a minimum 90-day retention policy."),
+        ("AI-004", "SageMaker training job with internet access", "sagemaker", "high", "training-job-v3",
+         "model_security", 75,
+         "The SageMaker training job has direct internet access enabled. This permits the training container to make outbound connections, risking exfiltration of model weights, training data, or proprietary algorithms.",
+         "Set EnableNetworkIsolation=true on the training job. Place training jobs inside a VPC and use NAT gateway or VPC endpoints (S3, SageMaker) for required external connectivity."),
+        ("AI-005", "Comprehend entity recognizer with public training data", "comprehend", "medium", "pii-detector",
+         "data_pipeline", 55,
+         "Amazon Comprehend entity recognizer is configured to use training data stored in a publicly accessible S3 bucket. This may expose sensitive training patterns, labeling schemas, or PII annotations.",
+         "Move training data to a private S3 bucket with SSE-KMS encryption. Apply a strict bucket policy allowing access only to the Comprehend service role. Audit existing data exposure."),
+        ("AI-006", "SageMaker model artifact stored in unencrypted S3", "sagemaker", "medium", "model-artifacts",
+         "model_security", 52,
+         "SageMaker model artifacts are stored in an S3 bucket without server-side encryption. Model weights represent valuable intellectual property and are subject to data protection regulations.",
+         "Enable SSE-KMS on the S3 bucket storing model artifacts using a customer-managed key. Add a bucket policy condition requiring 's3:x-amz-server-side-encryption': 'aws:kms' on all PutObject calls."),
+        ("AI-007", "Bedrock guardrail not configured", "bedrock", "medium", "chatbot-integration",
+         "prompt_security", 58,
+         "No Amazon Bedrock Guardrail is configured for this model integration. Without guardrails, the model is susceptible to prompt injection attacks, generation of harmful content, and leakage of sensitive data in responses.",
+         "Create a Bedrock Guardrail with content filters (HATE, INSULTS, SEXUAL, VIOLENCE), denied topics relevant to your use case, and PII anonymization for sensitive information types. Associate it with the model invocation."),
+        ("AI-008", "SageMaker endpoint auto-scaling not configured", "sagemaker", "medium", "recommendation-endpoint",
+         "endpoint_security", 45,
+         "The SageMaker endpoint does not have Application Auto Scaling configured. Under high inference load, resource exhaustion can cause latency spikes or availability issues for dependent services.",
+         "Configure Application Auto Scaling for the endpoint using the InvocationsPerInstance metric. Set minimum 2 instances for high-availability. Define scale-out/in cooldown periods to prevent thrashing."),
+        ("AI-009", "Rekognition collection without access policy", "rekognition", "low", "face-collection",
+         "access_control", 28,
+         "Amazon Rekognition collection does not have a resource-based access policy. Without explicit controls, the collection relies solely on broad IAM permissions which may allow unintended cross-account or service access.",
+         "Apply a resource-based policy to the Rekognition collection using the rekognition:PutResourcePolicy API. Restrict access to specific IAM principals and enforce conditions such as aws:SourceAccount."),
+        ("AI-010", "SageMaker notebook lifecycle config missing", "sagemaker", "low", "dev-notebook",
+         "model_security", 22,
+         "SageMaker notebook instance does not have a lifecycle configuration attached. Lifecycle configs enforce critical security baselines including auto-shutdown, package restrictions, and compliance checks.",
+         "Create a SageMaker lifecycle configuration that enforces auto-shutdown after inactivity (e.g., 60 minutes), restricts pip/conda installs to an approved list, and applies required security tooling on startup."),
     ]
     ai_findings = []
-    for rule_id, title, svc, sev, resource in _ai_finding_defs:
+    for rule_id, title, svc, sev, resource, cat, risk, desc, rem in _ai_finding_defs:
         acct = random.choice(ACCOUNTS)
         region = random.choice(REGIONS)
         ai_findings.append({
@@ -2840,6 +3053,7 @@ def mock_ai_security() -> dict:
             "rule_id": rule_id,
             "title": title,
             "resource_type": svc,
+            "service": svc,
             "resource_uid": _random_arn(svc, acct["account_id"], region, resource),
             "resource_name": resource,
             "severity": sev,
@@ -2847,6 +3061,12 @@ def mock_ai_security() -> dict:
             "account_id": acct["account_id"],
             "region": region,
             "provider": "aws",
+            "category": cat,
+            "posture_category": cat,
+            "security_domain": cat,
+            "risk_score": risk,
+            "description": desc,
+            "remediation": rem,
             "first_seen_at": _past_date(30),
             "last_seen_at": _past_date(2),
         })
@@ -2866,20 +3086,122 @@ def mock_ai_security() -> dict:
         {"resource_name": "text-analysis-lambda", "resource_type": "comprehend", "region": "eu-west-1", "account_id": "198765432109", "detected_at": _past_date(3), "owner": "unknown", "risk": "medium", "reason": "Comprehend API calls from unapproved Lambda function"},
     ]
 
+    # Normalize findings to match BFF _normalize_ai_finding output shape
+    normalized_findings = []
+    for f in ai_findings:
+        normalized_findings.append({
+            "id":              f["finding_id"],
+            "finding_id":      f["finding_id"],
+            "severity":        f["severity"],
+            "rule_id":         f["rule_id"],
+            "title":           f["title"],
+            "resource_uid":    f["resource_uid"],
+            "resource_type":   f["resource_type"],
+            "service":         f.get("service", f["resource_type"]),
+            "category":        f.get("category", ""),
+            "posture_category": f.get("posture_category", ""),
+            "security_domain": f.get("security_domain", ""),
+            "status":          f["status"],
+            "frameworks":      [],
+            "provider":        f.get("provider", "").upper(),
+            "account_id":      f["account_id"],
+            "account":         f["account_id"],
+            "region":          f["region"],
+            "description":     f.get("description", ""),
+            "remediation":     f.get("remediation", ""),
+            "risk_score":      f.get("risk_score", 0),
+        })
+
+    normalized_inventory = []
+    for r in inventory:
+        normalized_inventory.append({
+            "resource_uid": r.get("resource_uid", ""),
+            "name": r.get("resource_name", ""),
+            "service": r.get("service", ""),
+            "type": r.get("resource_type", ""),
+            "region": r.get("region", ""),
+            "public": False,
+            "guardrails": False,
+            "risk_score": 0,
+            "provider": "AWS",
+            "account": r.get("account_id", ""),
+        })
+
+    normalized_shadow = []
+    for s in shadow_ai:
+        normalized_shadow.append({
+            "service": s.get("resource_type", ""),
+            "operation": s.get("reason", ""),
+            "actor": s.get("owner", ""),
+            "calls": 0,
+            "last_seen": s.get("detected_at", ""),
+        })
+
+    modules = [
+        {"name": "Model Security", "key": "model_security", "score": 65, "findings": 3, "critical": 1},
+        {"name": "Endpoint Security", "key": "endpoint_security", "score": 72, "findings": 2, "critical": 0},
+        {"name": "Prompt Security", "key": "prompt_security", "score": 55, "findings": 2, "critical": 0},
+        {"name": "Data Pipeline", "key": "data_pipeline", "score": 80, "findings": 1, "critical": 0},
+        {"name": "AI Governance", "key": "ai_governance", "score": 48, "findings": 1, "critical": 0},
+        {"name": "Access Control", "key": "access_control", "score": 70, "findings": 1, "critical": 0},
+    ]
+
     page_context["tabs"] = [
-        {"id": "overview", "label": "Overview", "count": len(ai_findings)},
-        {"id": "findings", "label": "Findings", "count": len(ai_findings)},
-        {"id": "inventory", "label": "ML Resources", "count": len(inventory)},
-        {"id": "shadow_ai", "label": "Shadow AI", "count": len(shadow_ai)},
+        {"id": "overview", "label": "Overview", "count": len(normalized_findings)},
+        {"id": "inventory", "label": "AI Inventory", "count": len(normalized_inventory)},
+        {"id": "findings", "label": "Findings", "count": len(normalized_findings)},
+        {"id": "shadow_ai", "label": "Shadow AI", "count": len(normalized_shadow)},
     ]
 
     return {
         "pageContext": page_context,
-        "kpiGroups": kpi_groups,
-        "findings": ai_findings,
-        "inventory": inventory,
-        "shadowAI": shadow_ai,
-        "modules": [],
+        "filterSchema": [
+            {"field": "severity", "label": "Severity", "type": "enum", "values": ["critical", "high", "medium", "low"]},
+            {"field": "status", "label": "Status", "type": "enum", "values": ["PASS", "FAIL"]},
+            {"field": "module", "label": "Module", "type": "enum", "values": ["model_security", "endpoint_security", "prompt_security", "data_pipeline", "ai_governance", "access_control"]},
+        ],
+        "kpiGroups": [
+            {
+                "title": "AI Risk",
+                "items": [
+                    {"label": "Critical", "value": 1},
+                    {"label": "High", "value": 3},
+                    {"label": "Medium", "value": 4},
+                    {"label": "Risk Score", "value": 38, "suffix": "/100"},
+                    {"label": "Total Findings", "value": 10},
+                ],
+            },
+            {
+                "title": "AI Posture",
+                "items": [
+                    {"label": "Posture Score", "value": 62, "suffix": "/100"},
+                    {"label": "ML Resources", "value": 6},
+                    {"label": "Shadow AI", "value": 3},
+                    {"label": "Guardrails", "value": 33, "suffix": "%"},
+                    {"label": "Modules", "value": 6},
+                ],
+            },
+        ],
+        "modules": modules,
+        "coverage": {
+            "vpc_isolation_pct": 50,
+            "encryption_rest_pct": 67,
+            "encryption_transit_pct": 83,
+            "model_card_pct": 33,
+            "monitoring_pct": 50,
+            "guardrails_pct": 33,
+        },
+        "inventory": normalized_inventory,
+        "shadowAi": {
+            "count": len(normalized_shadow),
+            "items": normalized_shadow,
+        },
+        "findings": normalized_findings,
+        "topFailingRules": [
+            {"rule_id": "AI-001", "title": "SageMaker notebook instance with root access", "count": 2, "severity": "critical"},
+            {"rule_id": "AI-003", "title": "Bedrock model invocation logging disabled", "count": 3, "severity": "high"},
+            {"rule_id": "AI-005", "title": "Comprehend entity recognizer with public training data", "count": 2, "severity": "medium"},
+        ],
     }
 
 
@@ -2967,26 +3289,25 @@ def mock_risk() -> dict:
                 {"id": "scenarios", "label": "FAIR Scenarios", "count": len(scenarios)},
                 {"id": "register", "label": "Risk Register", "count": len(risk_register)},
                 {"id": "roadmap", "label": "Mitigation Roadmap", "count": len(mitigation_roadmap)},
-                {"id": "trend", "label": "Trend", "count": len(trend_data)},
             ],
         },
         "kpiGroups": [
             {
-                "title": "Risk Posture",
+                "title": "Financial Risk Exposure",
                 "items": [
-                    {"label": "Risk Score", "value": risk_score, "suffix": "/100"},
-                    {"label": "Total Expected Loss", "value": f"${total_expected_loss:,.0f}"},
-                    {"label": "Critical Risks", "value": kpi["critical_risks"]},
-                    {"label": "High Risks", "value": kpi["high_risks"]},
+                    {"label": "Risk Exposure Score", "value": risk_score, "suffix": "/100"},
+                    {"label": "Exposure Level", "value": "high"},
+                    {"label": "Critical Scenarios", "value": kpi["critical_risks"]},
+                    {"label": "Risk Domains", "value": len(risk_categories)},
                 ],
             },
             {
-                "title": "Mitigation",
+                "title": "Risk Quantification",
                 "items": [
-                    {"label": "Mitigated (30d)", "value": kpi["risks_mitigated_30d"]},
-                    {"label": "Roadmap Items", "value": len(mitigation_roadmap)},
-                    {"label": "Categories", "value": len(risk_categories)},
+                    {"label": "Accepted Risks", "value": 0},
                     {"label": "Risk Reduction", "value": kpi["risk_reduction_pct"], "suffix": "%"},
+                    {"label": "FAIR Scenarios", "value": len(scenarios)},
+                    {"label": "Top Exposed Assets", "value": 5},
                 ],
             },
         ],

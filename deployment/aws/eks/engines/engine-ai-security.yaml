@@ -5,10 +5,14 @@ metadata:
   namespace: threat-engine-engines
   labels:
     app: engine-ai-security
-    engine: ai-security
-    layer: "2"
+    tier: engine
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: engine-ai-security
@@ -16,122 +20,235 @@ spec:
     metadata:
       labels:
         app: engine-ai-security
-        engine: ai-security
-        layer: "2"
+        tier: engine
     spec:
+      serviceAccountName: engine-sa
       containers:
-        - name: engine-ai-security
-          image: yadavanup84/engine-ai-security:v1.0
-          ports:
-            - containerPort: 8032
-          env:
-            - name: AI_SECURITY_DB_HOST
-              valueFrom:
-                configMapKeyRef:
-                  name: threat-engine-db-config
-                  key: DB_HOST
-            - name: AI_SECURITY_DB_PORT
-              valueFrom:
-                configMapKeyRef:
-                  name: threat-engine-db-config
-                  key: DB_PORT
-            - name: AI_SECURITY_DB_NAME
-              value: "threat_engine_ai_security"
-            - name: AI_SECURITY_DB_USER
-              valueFrom:
-                secretKeyRef:
-                  name: external-secret-db-passwords
-                  key: DB_USER
-            - name: AI_SECURITY_DB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: external-secret-db-passwords
-                  key: DB_PASSWORD
-            - name: DISCOVERY_DB_HOST
-              valueFrom:
-                configMapKeyRef:
-                  name: threat-engine-db-config
-                  key: DB_HOST
-            - name: DISCOVERY_DB_PORT
-              valueFrom:
-                configMapKeyRef:
-                  name: threat-engine-db-config
-                  key: DB_PORT
-            - name: DISCOVERY_DB_NAME
-              value: "threat_engine_discoveries"
-            - name: DISCOVERY_DB_USER
-              valueFrom:
-                secretKeyRef:
-                  name: external-secret-db-passwords
-                  key: DB_USER
-            - name: DISCOVERY_DB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: external-secret-db-passwords
-                  key: DB_PASSWORD
-            - name: LOG_DB_HOST
-              valueFrom:
-                configMapKeyRef:
-                  name: threat-engine-db-config
-                  key: DB_HOST
-            - name: LOG_DB_PORT
-              valueFrom:
-                configMapKeyRef:
-                  name: threat-engine-db-config
-                  key: DB_PORT
-            - name: LOG_DB_NAME
-              value: "threat_engine_logs"
-            - name: LOG_DB_USER
-              valueFrom:
-                secretKeyRef:
-                  name: external-secret-db-passwords
-                  key: DB_USER
-            - name: LOG_DB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: external-secret-db-passwords
-                  key: DB_PASSWORD
-            - name: EXTERNAL_DB_HOST
-              valueFrom:
-                configMapKeyRef:
-                  name: threat-engine-db-config
-                  key: DB_HOST
-            - name: EXTERNAL_DB_PORT
-              valueFrom:
-                configMapKeyRef:
-                  name: threat-engine-db-config
-                  key: DB_PORT
-            - name: EXTERNAL_DB_NAME
-              value: "threat_engine_external"
-            - name: EXTERNAL_DB_USER
-              valueFrom:
-                secretKeyRef:
-                  name: external-secret-db-passwords
-                  key: DB_USER
-            - name: EXTERNAL_DB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: external-secret-db-passwords
-                  key: DB_PASSWORD
-          resources:
-            requests:
-              cpu: "100m"
-              memory: "256Mi"
-            limits:
-              cpu: "500m"
-              memory: "512Mi"
-          livenessProbe:
-            httpGet:
-              path: /api/v1/health/live
-              port: 8032
-            initialDelaySeconds: 10
-            periodSeconds: 30
-          readinessProbe:
-            httpGet:
-              path: /api/v1/health/ready
-              port: 8032
-            initialDelaySeconds: 15
-            periodSeconds: 10
+      - name: engine-ai-security
+        image: yadavanup84/engine-ai-security:v-std-cols
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8032
+          name: http
+        envFrom:
+        - configMapRef:
+            name: threat-engine-db-config
+        - secretRef:
+            name: threat-engine-db-passwords
+        env:
+        - name: PYTHONPATH
+          value: /app
+        - name: LOG_LEVEL
+          value: "INFO"
+        # ── AI Security DB ─────────────────────────────────────────────────
+        - name: AI_SECURITY_DB_HOST
+          value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+        - name: AI_SECURITY_DB_PORT
+          value: "5432"
+        - name: AI_SECURITY_DB_USER
+          value: "postgres"
+        - name: AI_SECURITY_DB_NAME
+          value: "threat_engine_ai_security"
+        - name: AI_SECURITY_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: AI_SECURITY_DB_PASSWORD
+              optional: true
+        # ── Discoveries DB ─────────────────────────────────────────────────
+        - name: DISCOVERIES_DB_HOST
+          value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+        - name: DISCOVERIES_DB_PORT
+          value: "5432"
+        - name: DISCOVERIES_DB_USER
+          value: "postgres"
+        - name: DISCOVERIES_DB_NAME
+          value: "threat_engine_discoveries"
+        - name: DISCOVERIES_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: DISCOVERIES_DB_PASSWORD
+              optional: true
+        # ── Check DB ───────────────────────────────────────────────────────
+        - name: CHECK_DB_HOST
+          value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+        - name: CHECK_DB_PORT
+          value: "5432"
+        - name: CHECK_DB_USER
+          value: "postgres"
+        - name: CHECK_DB_NAME
+          value: "threat_engine_check"
+        - name: CHECK_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: CHECK_DB_PASSWORD
+              optional: true
+        # ── Inventory DB (CIEM log_events stored here) ─────────────────────
+        - name: INVENTORY_DB_HOST
+          value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+        - name: INVENTORY_DB_PORT
+          value: "5432"
+        - name: INVENTORY_DB_USER
+          value: "postgres"
+        - name: INVENTORY_DB_NAME
+          value: "threat_engine_inventory"
+        - name: INVENTORY_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: INVENTORY_DB_PASSWORD
+              optional: true
+        # ── IAM DB ─────────────────────────────────────────────────────────
+        - name: IAM_DB_HOST
+          value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+        - name: IAM_DB_PORT
+          value: "5432"
+        - name: IAM_DB_USER
+          value: "postgres"
+        - name: IAM_DB_NAME
+          value: "threat_engine_iam"
+        - name: IAM_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: IAM_DB_PASSWORD
+              optional: true
+        # ── DataSec DB ─────────────────────────────────────────────────────
+        - name: DATASEC_DB_HOST
+          value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+        - name: DATASEC_DB_PORT
+          value: "5432"
+        - name: DATASEC_DB_USER
+          value: "postgres"
+        - name: DATASEC_DB_NAME
+          value: "threat_engine_datasec"
+        - name: DATASEC_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: DATASEC_DB_PASSWORD
+              optional: true
+        # ── Encryption DB ──────────────────────────────────────────────────
+        - name: ENCRYPTION_DB_HOST
+          value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+        - name: ENCRYPTION_DB_PORT
+          value: "5432"
+        - name: ENCRYPTION_DB_USER
+          value: "postgres"
+        - name: ENCRYPTION_DB_NAME
+          value: "threat_engine_encryption"
+        - name: ENCRYPTION_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: ENCRYPTION_DB_PASSWORD
+              optional: true
+        # ── Onboarding DB (for orchestration queries) ──────────────────────
+        - name: ONBOARDING_DB_HOST
+          value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+        - name: ONBOARDING_DB_PORT
+          value: "5432"
+        - name: ONBOARDING_DB_USER
+          value: "postgres"
+        - name: ONBOARDING_DB_NAME
+          value: "threat_engine_onboarding"
+        - name: ONBOARDING_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: ONBOARDING_DB_PASSWORD
+              optional: true
+        # ── Scanner Job config ─────────────────────────────────────────────
+        - name: AI_SECURITY_SCANNER_IMAGE
+          value: "yadavanup84/engine-ai-security:v1.0"
+        - name: SCANNER_CPU_REQUEST
+          value: "100m"
+        - name: SCANNER_MEM_REQUEST
+          value: "512Mi"
+        - name: SCANNER_CPU_LIMIT
+          value: "500m"
+        - name: SCANNER_MEM_LIMIT
+          value: "1Gi"
+        - name: SCANNER_NAMESPACE
+          value: "threat-engine-engines"
+        - name: SCANNER_SERVICE_ACCOUNT
+          value: "engine-sa"
+        # ── OpenTelemetry ──────────────────────────────────────────────────
+        - name: OTEL_SERVICE_NAME
+          value: "engine-ai-security"
+        - name: OTEL_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_ENABLED
+              optional: true
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_EXPORTER_OTLP_ENDPOINT
+              optional: true
+        - name: OTEL_EXPORTER_OTLP_INSECURE
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_EXPORTER_OTLP_INSECURE
+              optional: true
+        - name: OTEL_TRACES_SAMPLER
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_TRACES_SAMPLER
+              optional: true
+        - name: OTEL_PROPAGATORS
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_PROPAGATORS
+              optional: true
+        - name: S3_BUCKET
+          valueFrom:
+            configMapKeyRef:
+              name: s3-mount-config
+              key: s3-bucket
+        - name: AWS_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: s3-mount-config
+              key: s3-region
+        - name: OUTPUT_DIR
+          value: "/output"
+        - name: ENGINE_NAME
+          value: "ai-security"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "250m"
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health/live
+            port: 8032
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 6
+        readinessProbe:
+          httpGet:
+            path: /api/v1/health/ready
+            port: 8032
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          failureThreshold: 6
+
+      volumes:
+      - name: output
+        emptyDir: {}
+      - name: input
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
@@ -143,8 +260,9 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - port: 8032
-      targetPort: 8032
-      protocol: TCP
+  - port: 80
+    targetPort: 8032
+    protocol: TCP
+    name: http
   selector:
     app: engine-ai-security

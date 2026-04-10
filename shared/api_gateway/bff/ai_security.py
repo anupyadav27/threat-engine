@@ -66,20 +66,28 @@ def _normalize_ai_finding(f: dict) -> dict:
     frameworks = f.get("frameworks") or f.get("compliance_frameworks") or []
     if isinstance(frameworks, str):
         frameworks = [frameworks]
+    account_id = f.get("account_id") or f.get("account", "")
     return {
-        "id": f.get("finding_id") or f.get("id", ""),
-        "severity": severity,
-        "rule_id": f.get("rule_id", ""),
-        "title": f.get("title") or f.get("rule_name", ""),
-        "resource_uid": f.get("resource_uid") or f.get("resource_arn", ""),
-        "resource_type": f.get("resource_type", ""),
-        "category": f.get("category") or f.get("module", ""),
-        "status": (f.get("status") or "FAIL").upper(),
-        "frameworks": frameworks,
-        "provider": (f.get("provider") or "").upper(),
-        "account": f.get("account_id") or f.get("account", ""),
-        "region": f.get("region", ""),
-        "remediation": f.get("remediation", ""),
+        "id":              f.get("finding_id") or f.get("id", ""),
+        "finding_id":      f.get("finding_id") or f.get("id", ""),
+        "severity":        severity,
+        "rule_id":         f.get("rule_id", ""),
+        "title":           f.get("title") or f.get("rule_name", ""),
+        "resource_uid":    f.get("resource_uid") or f.get("resource_arn", ""),
+        "resource_type":   f.get("resource_type", ""),
+        "service":         f.get("service") or f.get("resource_type", ""),
+        "category":        f.get("category") or f.get("module", ""),
+        "posture_category": f.get("posture_category") or f.get("category") or f.get("module", ""),
+        "security_domain": f.get("security_domain") or f.get("category") or f.get("module", ""),
+        "status":          (f.get("status") or "FAIL").upper(),
+        "frameworks":      frameworks,
+        "provider":        (f.get("provider") or "").upper(),
+        "account_id":      account_id,
+        "account":         account_id,
+        "region":          f.get("region", ""),
+        "description":     f.get("description", ""),
+        "remediation":     f.get("remediation", ""),
+        "risk_score":      f.get("risk_score") or f.get("risk", 0),
     }
 
 
@@ -135,15 +143,42 @@ async def view_ai_security(
     if not isinstance(data, dict):
         data = {}
 
-    # Mock fallback when engine data is empty
-    if is_empty_or_health(data):
+    # Mock fallback when engine data is empty or has no scan data
+    summary_check = safe_get(data, "summary", {})
+    no_scan_data = (
+        is_empty_or_health(data)
+        or summary_check.get("status") == "no_data"
+        or summary_check.get("scan_run_id") is None
+    )
+    if no_scan_data:
         m = mock_fallback("ai_security")
         if m is not None:
             return m
 
-    summary = safe_get(data, "summary", {})
+    summary = summary_check
+    # Engine returns critical_findings/high_findings etc., not by_severity dict
     by_severity = safe_get(summary, "by_severity", {})
+    if not by_severity:
+        by_severity = {
+            "critical": summary.get("critical_findings", 0),
+            "high": summary.get("high_findings", 0),
+            "medium": summary.get("medium_findings", 0),
+            "low": summary.get("low_findings", 0),
+        }
     by_module = safe_get(summary, "by_module", {})
+
+    # Engine returns module_breakdown as a list, not a dict in summary.
+    # Convert list [{module, total, pass, fail, score}, ...] → dict for _build_modules
+    if not by_module:
+        raw_module_breakdown = safe_get(data, "module_breakdown", [])
+        if isinstance(raw_module_breakdown, list):
+            for mb in raw_module_breakdown:
+                key = mb.get("module", "")
+                by_module[key] = {
+                    "score": mb.get("score", 0),
+                    "findings": mb.get("total", mb.get("fail", 0)),
+                    "critical": mb.get("critical", 0),
+                }
 
     # ── Findings ──
     raw_findings = safe_get(data, "findings", [])
@@ -157,7 +192,10 @@ async def view_ai_security(
     inventory_rows = apply_global_filters(inventory_rows, provider, account, region)
 
     # ── Shadow AI ──
-    raw_shadow = safe_get(data, "shadow_ai", {})
+    # Engine may return shadow_ai as a list or dict with items key
+    raw_shadow = safe_get(data, "shadow_ai", [])
+    if isinstance(raw_shadow, list):
+        raw_shadow = {"items": raw_shadow, "count": len(raw_shadow)}
     shadow_items = [_normalize_shadow_ai_item(s) for s in safe_get(raw_shadow, "items", [])]
     shadow_count = safe_get(raw_shadow, "count", None)
     if shadow_count is None:

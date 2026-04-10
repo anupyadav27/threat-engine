@@ -1372,9 +1372,6 @@ export default function MisconfigurationsPage() {
     tabs: [
       { id: 'overview',    label: 'Overview' },
       { id: 'findings',    label: 'All Findings', count: allFindings.length },
-      { id: 'quick_wins',  label: '⚡ Quick Wins', count: allFindings.filter(f => f.auto_remediable && f.status === 'FAIL').length },
-      { id: 'by_service',  label: 'By Service',   count: allFindings.length },
-      { id: 'by_category', label: 'By Category',  count: allFindings.length },
     ],
   }), [allFindings]);
 
@@ -1550,13 +1547,9 @@ export default function MisconfigurationsPage() {
   const tabData = useMemo(() => {
     const shared = { columns };
     return {
-      findings:     { ...shared, data: allFindings },
-      quick_wins:   { ...shared, data: quickWinsData,
-        renderTab: () => <QuickWinsPanel findings={allFindings} /> },
-      by_service:   { ...shared, data: byServiceData },
-      by_category:  { ...shared, data: byCategoryData },
+      findings: { ...shared, data: allFindings },
     };
-  }, [allFindings, quickWinsData, byServiceData, byCategoryData, columns]);
+  }, [allFindings, columns]);
 
   // ── Row click handler ─────────────────────────────────────────────────
   const handleRowClick = useCallback((row) => {

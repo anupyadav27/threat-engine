@@ -65,6 +65,7 @@ class DriftDetector:
                     resource_uid=asset.resource_uid,
                     resource_type=asset.resource_type,
                     provider=asset.provider.value if hasattr(asset.provider, 'value') else str(asset.provider),
+                    diff=self._build_identity_snapshot(asset),
                 ))
             return drift_records
 
@@ -88,6 +89,7 @@ class DriftDetector:
                     resource_uid=uid,
                     resource_type=asset.resource_type,
                     provider=asset.provider.value if hasattr(asset.provider, 'value') else str(asset.provider),
+                    diff=self._build_identity_snapshot(asset),
                 ))
             elif uid not in current_by_uid:
                 asset = previous_by_uid[uid]
@@ -98,6 +100,7 @@ class DriftDetector:
                     resource_uid=uid,
                     resource_type=asset.resource_type,
                     provider=asset.provider.value if hasattr(asset.provider, 'value') else str(asset.provider),
+                    diff=self._build_identity_snapshot(asset),
                 ))
             elif current_hashes.get(uid) != previous_hashes.get(uid):
                 prev_asset = previous_by_uid[uid]
@@ -179,35 +182,62 @@ class DriftDetector:
     def _compute_asset_diff(self, previous: Asset, current: Asset) -> Dict[str, Any]:
         """Compute field-level diff between two asset versions.
 
-        Compares tags and metadata key-by-key, filtering out noisy
+        Compares name, tags and metadata key-by-key, filtering out noisy
         scan-transient fields (timestamps, discovery IDs).
         """
         diff: List[Dict[str, Any]] = []
 
+        # Name change (e.g. tag-derived name update)
+        prev_name = previous.name or previous.resource_id or ""
+        curr_name = current.name or current.resource_id or ""
+        if prev_name != curr_name:
+            diff.append({"path": "name", "before": prev_name, "after": curr_name})
+
         # Tags — full key-level diff
         if previous.tags != current.tags:
             diff.extend(self._diff_dicts(
-                previous.tags, current.tags, "tags",
+                previous.tags or {}, current.tags or {}, "tags",
             ))
 
         # Metadata — key-level diff, ignoring scan-transient keys
         if previous.metadata != current.metadata:
             diff.extend(self._diff_dicts(
-                previous.metadata, current.metadata, "metadata",
+                previous.metadata or {}, current.metadata or {}, "metadata",
                 ignore_keys=_METADATA_IGNORE_KEYS,
             ))
 
         # If hash changed but no individual field diffs survived filtering,
-        # record a generic "configuration changed" entry so the drift is
-        # still visible in the timeline.
+        # emit a generic entry that at least identifies the resource so the
+        # drift is still visible in the timeline.
         if not diff:
             diff.append({
-                "path": "configuration",
-                "before": "(hash changed)",
-                "after": "(hash changed)",
+                "path": "cloud_configuration",
+                "before": None,
+                "after": "Properties updated (hash changed)",
+                "context": {
+                    "name": curr_name,
+                    "resource_type": current.resource_type,
+                    "region": current.region,
+                },
             })
 
         return {"changes": diff}
+
+    @staticmethod
+    def _build_identity_snapshot(asset: Asset) -> Dict[str, Any]:
+        """Build a lightweight identity snapshot for ASSET_ADDED / ASSET_REMOVED records.
+
+        Captures the key descriptive fields so the drift timeline can show
+        what was added or removed rather than generic placeholder text.
+        """
+        return {
+            "snapshot": {
+                "name": asset.name or asset.resource_id or asset.resource_uid,
+                "resource_type": asset.resource_type,
+                "region": asset.region or "",
+                "account_id": asset.account_id or "",
+            }
+        }
 
     def _build_edge_set(self, relationships: List[Relationship]) -> set:
         """Build set of edge identifiers."""

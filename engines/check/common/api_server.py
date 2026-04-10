@@ -10,9 +10,9 @@ No cloud API credentials are needed.  The only provider-specific work is
 parsing resource identifiers from the emitted_fields JSON already in the DB.
 
 Request modes:
-  1. Pipeline  — supply orchestration_id; tenant/hierarchy/discovery_scan_run_id
+  1. Pipeline  — supply scan_run_id; tenant/account metadata
                  are fetched from scan_orchestration table.
-  2. Ad-hoc    — supply discovery_scan_run_id + tenant_id + account_id directly.
+  2. Ad-hoc    — supply scan_run_id + tenant_id + account_id directly.
 """
 
 import os
@@ -111,7 +111,7 @@ class CheckRequest(BaseModel):
     scan_run_id: Optional[str] = None
 
     # Ad-hoc mode: supply these directly
-    discovery_scan_run_id: Optional[str] = None
+    discovery_scan_id: Optional[str] = None
     tenant_id: Optional[str] = None
     customer_id: Optional[str] = None
     account_id: Optional[str] = None
@@ -182,8 +182,8 @@ async def create_check(request: CheckRequest):
     **Pipeline mode** — provide `orchestration_id`:
       Fetches metadata from scan_orchestration table.
 
-    **Ad-hoc mode** — provide `discovery_scan_run_id`:
-      Uses the supplied discovery_scan_run_id with optional overrides.
+    **Ad-hoc mode** — provide `discovery_scan_id`:
+      Uses the supplied discovery_scan_id with optional overrides.
     """
     orch_id = request.scan_run_id
     scan_run_id = orch_id
@@ -191,18 +191,18 @@ async def create_check(request: CheckRequest):
     if orch_id:
         meta = await _fetch_orchestration(orch_id)
 
-        discovery_scan_run_id = meta.get("discovery_scan_run_id")
-        if not discovery_scan_run_id:
+        resolved_scan_run_id = meta.get("scan_run_id")
+        if not resolved_scan_run_id:
             raise HTTPException(
                 status_code=400,
-                detail=f"Discovery scan not yet completed for orchestration_id={orch_id}",
+                detail=f"Discovery scan not yet completed for scan_run_id={orch_id}",
             )
 
         provider = meta.get("provider") or meta.get("provider_type", "aws")
-        logger.info("Pipeline mode: orch=%s disc=%s provider=%s", orch_id, discovery_scan_run_id, provider)
+        logger.info("Pipeline mode: scan_run_id=%s provider=%s", resolved_scan_run_id, provider)
 
-    elif request.discovery_scan_run_id:
-        logger.info("Ad-hoc mode: discovery_scan_run_id=%s", request.discovery_scan_run_id)
+    elif request.discovery_scan_id:
+        logger.info("Ad-hoc mode: discovery_scan_id=%s", request.discovery_scan_id)
         if not orch_id:
             raise HTTPException(
                 status_code=400,
@@ -227,7 +227,7 @@ async def create_check(request: CheckRequest):
     # Resolve metadata for report row
     tenant_id = request.tenant_id or "default-tenant"
     customer_id = request.customer_id or "default"
-    disc_scan_id = request.discovery_scan_run_id or ""
+    disc_scan_id = request.discovery_scan_id or ""
     account_id = request.account_id or ""
 
     # Pre-create check_report row in DB (so status endpoint works immediately)
@@ -237,7 +237,7 @@ async def create_check(request: CheckRequest):
         with conn.cursor() as cur:
             cur.execute(
                 """INSERT INTO check_report
-                   (scan_run_id, customer_id, tenant_id, provider, discovery_scan_run_id,
+                   (scan_run_id, customer_id, tenant_id, provider, discovery_scan_id,
                     account_id, status, first_seen_at, metadata)
                    VALUES (%s, %s, %s, %s, %s, %s, 'running', NOW(), %s)
                    ON CONFLICT (scan_run_id) DO UPDATE SET status = 'running'""",
@@ -286,7 +286,7 @@ async def get_check_status(scan_run_id: str):
         conn = _get_check_conn()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
-                "SELECT scan_run_id, status, provider, discovery_scan_run_id, first_seen_at, metadata "
+                "SELECT scan_run_id, status, provider, discovery_scan_id, first_seen_at, metadata "
                 "FROM check_report WHERE scan_run_id = %s",
                 (scan_run_id,),
             )
@@ -302,7 +302,7 @@ async def get_check_status(scan_run_id: str):
         "scan_run_id": row["scan_run_id"],
         "status": row["status"],
         "provider": row.get("provider"),
-        "discovery_scan_run_id": row.get("discovery_scan_run_id"),
+        "discovery_scan_id": row.get("discovery_scan_id"),
         "started_at": str(row.get("first_seen_at", "")),
     }
 
@@ -329,7 +329,7 @@ async def list_checks(
         where = " AND ".join(conditions)
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
-                f"SELECT scan_run_id, status, provider, discovery_scan_run_id, first_seen_at "
+                f"SELECT scan_run_id, status, provider, discovery_scan_id, first_seen_at "
                 f"FROM check_report WHERE {where} ORDER BY first_seen_at DESC LIMIT %s",
                 params + [limit],
             )

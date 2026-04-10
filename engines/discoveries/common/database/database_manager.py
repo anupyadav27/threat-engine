@@ -79,7 +79,7 @@ class DatabaseManager:
         """Initialize connection pool.
 
         Pool sizing rationale:
-          - MAX_SERVICE_WORKERS (10) × MAX_REGION_WORKERS (5) = 50 concurrent scans
+          - MAX_CONCURRENT_TASKS (400) global semaphore, DB executor capped at 50 threads
           - Each scan calls store_discoveries_batch() via a DB executor thread
           - Plus a few extra for config reads and status updates
           - min=5  : keep a few warm connections to avoid cold-start latency
@@ -298,6 +298,7 @@ class DatabaseManager:
                     resource_uid = item.get('resource_uid') or item.get('resource_arn')
                     resource_id = item.get('resource_id')
                     resource_type = item.get('resource_type')
+
                     config_hash = self._calculate_config_hash(item)
                     
                     # Check previous version from batch lookup
@@ -413,6 +414,14 @@ class DatabaseManager:
                     except Exception as hist_err:
                         conn.rollback()
                         logger.warning(f"History insert failed (non-critical): {hist_err}")
+        except Exception:
+            # Roll back so the connection isn't returned to the pool in a
+            # dirty/aborted-transaction state.
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            raise
         finally:
             self._return_connection(conn)
         

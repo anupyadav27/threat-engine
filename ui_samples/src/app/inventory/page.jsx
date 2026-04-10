@@ -153,6 +153,126 @@ const getRiskLevel = (score) => {
   return 'low';
 };
 
+// ── Primary asset types shown in the inventory table ──────────────────────────
+// Infrastructure plumbing (SG rules, route tables, ENIs, etc.) is excluded to
+// keep the table focused on assets that security teams actually investigate.
+// Set showAllTypes=true (toggle below) to reveal all resource types.
+//
+// To add a new service: append its resource_type string to the appropriate group.
+export const PRIMARY_ASSET_TYPES = new Set([
+  // ── Compute ───────────────────────────────────────────────────────────────
+  'ec2.instance', 'ec2.resource',        // ec2.resource is the generic normalized type
+  'lambda.function', 'lambda.resource',
+  'ecs.service', 'ecs.task-definition', 'ecs.cluster', 'ecs.resource',
+  'eks.cluster', 'eks.resource', 'eks.nodegroup',
+  'ecr.repository', 'ecr.resource',
+  'lightsail.instance',
+  'batch.compute-environment', 'batch.resource',
+  'fargate.capacity_provider', 'fargate.resource',
+
+  // ── Storage ───────────────────────────────────────────────────────────────
+  's3.resource', 's3.bucket',
+  'efs.file-system', 'elasticfilesystem.file-system',
+  'ec2.volume', 'ebs.volume',
+  'glacier.vault', 'glacier.vaults',
+  'backup.backup-vault',
+
+  // ── Databases ─────────────────────────────────────────────────────────────
+  'rds.instance', 'rds.db-instance', 'rds.cluster', 'rds.db-cluster', 'rds.resource',
+  'dynamodb.table', 'dynamodb.resource',
+  'elasticache.cluster', 'elasticache.replication-group', 'elasticache.resource',
+  'redshift.cluster', 'redshift.resource',
+  'docdb.cluster', 'docdb.resource',
+  'neptune.cluster', 'neptune.resource',
+  'opensearch.domain', 'opensearch.resource', 'opensearch.application',
+  'elasticsearch.domain', 'es.resource',
+
+  // ── Identity & Access ──────────────────────────────────────────────────────
+  'iam.role',
+  'iam.user',
+  'iam.policy',
+  'iam.instance-profile',
+  'iam.group',
+  'cognito.identity-pool', 'cognito.resource', 'cognito.user-pool',
+
+  // ── Secrets & Encryption ──────────────────────────────────────────────────
+  'kms.key',
+  'secretsmanager.secret', 'secretsmanager.resource',
+  'ssm.parameter',
+  'acm.certificate',
+
+  // ── Network (boundary-level only — not plumbing) ───────────────────────────
+  'ec2.vpc', 'vpc.vpc',
+  'ec2.security-group',
+  'elasticloadbalancingv2.loadbalancer', 'elbv2.loadbalancer',
+  'elb.loadbalancer', 'elasticloadbalancing.loadbalancer',
+  'ec2.internet-gateway', 'vpc.internet-gateway',
+  'wafv2.web-acl',
+  'cloudfront.distribution',
+
+  // ── API & Serverless ──────────────────────────────────────────────────────
+  'apigateway.restapi', 'apigateway.resource', 'apigateway.item_rest_api',
+  'apigatewayv2.api', 'apigatewayv2.item_api',
+  'sqs.queue',
+  'sns.topic',
+  'kinesis.stream',
+  'events.rule',
+  'states.state-machine',
+
+  // ── AI / ML ───────────────────────────────────────────────────────────────
+  'bedrock.foundation-model', 'bedrock.agent', 'bedrock.inference-profile',
+  'sagemaker.endpoint', 'sagemaker.notebook-instance', 'sagemaker.model',
+
+  // ── Analytics ─────────────────────────────────────────────────────────────
+  'redshift.cluster',
+  'glue.database',
+  'athena.workgroup',
+  'emr.cluster',
+
+  // ── Observability & Security ──────────────────────────────────────────────
+  'cloudtrail.trail', 'cloudtrail.channel',
+  'guardduty.detector',
+  'inspector2.resource',
+  'securityhub.hub',
+  'access-analyzer.analyzer',
+
+  // ── Messaging & Integration ───────────────────────────────────────────────
+  'sesv2.resource', 'ses.resource',
+  'codepipeline.pipeline_role', 'codepipeline.resource',
+  'codecommit.repository', 'codebuild.project',
+
+  // ── Catch-all .resource suffix for any service not explicitly listed ─────
+  // These are normalized fallback types from the discovery engine.
+  // Individual services use {service}.resource when a more specific type isn't set.
+  'cognito-idp.user_pool', 'cognito-idp.resource',
+  'appflow.resource', 'appflow.connector_entity_field_parententifier',
+  'mediaconvert.resource',
+
+  // ── Azure ─────────────────────────────────────────────────────────────────
+  'azure.virtual_machine', 'azure.sql_server', 'azure.sql_database',
+  'azure.storage_account', 'azure.blob_container',
+  'azure.key_vault', 'azure.app_service', 'azure.function_app',
+  'azure.aks_cluster', 'azure.managed_identity', 'azure.service_principal',
+  'azure.cosmos_db', 'azure.service_bus', 'azure.container_registry',
+
+  // ── GCP ───────────────────────────────────────────────────────────────────
+  'gcp.compute_instance', 'gcp.gcs_bucket', 'gcp.cloud_function',
+  'gcp.gke_cluster', 'gcp.cloud_sql_instance', 'gcp.bigquery_dataset',
+  'gcp.iam_service_account', 'gcp.cloud_run_service',
+  'gcp.kms_key_ring', 'gcp.artifact_registry',
+
+  // ── OCI ───────────────────────────────────────────────────────────────────
+  'oci.compute_instance', 'oci.object_storage_bucket',
+  'oci.autonomous_database', 'oci.vault',
+]);
+
+// Excluded (infrastructure noise — too granular for security review):
+//   ec2.security-group-rule, ec2.network-interface, ec2.route-table,
+//   ec2.network-acl, ec2.subnet, ec2.snapshot, ec2.image, ec2.key-pair,
+//   ec2.host, ec2.placement-group, lambda.event-source-mapping,
+//   iam.iam-instance-profile-association, logs.group, cloudwatch.alarm,
+//   elbv2.listener, elbv2.target-group (shown via load balancer relationships)
+
 export default function InventoryPage() {
   const router = useRouter();
   const { provider, account, region } = useGlobalFilter();
@@ -160,6 +280,7 @@ export default function InventoryPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [summary, setSummary] = useState(null);
+  const [showAllTypes, setShowAllTypes] = useState(false);
 
   // Fetch assets and summary via BFF
   useEffect(() => {
@@ -185,7 +306,14 @@ export default function InventoryPage() {
   }, [provider, account, region]);
 
   // ── Derived metrics ──
-  const scopeFiltered = assets;
+  // KPI metrics use ALL assets; table uses primary assets only (unless showAllTypes).
+  const scopeFiltered = useMemo(
+    () => showAllTypes
+      ? assets
+      : assets.filter(a => PRIMARY_ASSET_TYPES.has(a.resource_type)),
+    [assets, showAllTypes]
+  );
+  const hiddenCount = assets.length - scopeFiltered.length;
 
   const newThisWeek = scopeFiltered.filter(
     (a) => new Date(a.created_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
@@ -690,8 +818,39 @@ export default function InventoryPage() {
     </div>
   );
 
+  // Toggle row shown above the asset table when infrastructure types are hidden
+  const typeFilterBadge = !showAllTypes && hiddenCount > 0 ? (
+    <div className="flex items-center gap-3 px-4 py-2 rounded-lg border text-xs"
+      style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)', color: 'var(--text-tertiary)' }}>
+      <span>
+        Showing <strong style={{ color: 'var(--text-primary)' }}>{scopeFiltered.length}</strong> primary
+        assets — <strong>{hiddenCount}</strong> infrastructure resources hidden
+        (SG rules, ENIs, route tables, etc.)
+      </span>
+      <button
+        onClick={() => setShowAllTypes(true)}
+        className="underline hover:opacity-80 transition-opacity whitespace-nowrap"
+        style={{ color: 'var(--accent-primary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+      >
+        Show all
+      </button>
+    </div>
+  ) : showAllTypes ? (
+    <div className="flex items-center gap-3 px-4 py-2 rounded-lg border text-xs"
+      style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)', color: 'var(--text-tertiary)' }}>
+      <span>Showing all <strong style={{ color: 'var(--text-primary)' }}>{assets.length}</strong> resource types including infrastructure</span>
+      <button
+        onClick={() => setShowAllTypes(false)}
+        className="underline hover:opacity-80 transition-opacity whitespace-nowrap"
+        style={{ color: 'var(--accent-primary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+      >
+        Show primary only
+      </button>
+    </div>
+  ) : null;
+
   const tabData = {
-    all: { data: scopeFiltered, columns },
+    all: { data: scopeFiltered, columns, headerExtra: typeFilterBadge },
     exposed: { data: exposedAssets, columns },
     unmanaged: { data: unmanagedAssets, columns },
     critical: { data: criticalAssets, columns },

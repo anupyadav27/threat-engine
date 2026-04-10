@@ -1,0 +1,802 @@
+rules:
+- rule_id: oci.audit.create_user
+  title: OCI user account created
+  severity: high
+  log_source_type: oci_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.identitycontrolplane
+    - field: operation
+      op: equals
+      value: CreateUser
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - persistence
+  mitre_techniques:
+  - T1136.003
+  domain: iam_security
+  provider: oci
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: &id001
+  - CIS
+  - NIST_800-53
+  - SOC2
+  - PCI-DSS
+  - ISO_27001
+  risk_score: 70
+- rule_id: oci.audit.create_group
+  title: OCI IAM group created
+  severity: medium
+  log_source_type: oci_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.identitycontrolplane
+    - field: operation
+      op: equals
+      value: CreateGroup
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - persistence
+  mitre_techniques:
+  - T1136.003
+  domain: iam_security
+  provider: oci
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: oci.audit.create_policy
+  title: OCI IAM policy created or modified
+  severity: high
+  log_source_type: oci_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.identitycontrolplane
+    - field: operation
+      op: in
+      value:
+      - CreatePolicy
+      - UpdatePolicy
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - privilege-escalation
+  - persistence
+  mitre_techniques:
+  - T1098
+  domain: iam_security
+  provider: oci
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: oci.audit.create_api_key
+  title: OCI API signing key uploaded for user
+  severity: high
+  log_source_type: oci_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.identitycontrolplane
+    - field: operation
+      op: equals
+      value: UploadApiKey
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - persistence
+  - credential-access
+  mitre_techniques:
+  - T1098.001
+  domain: iam_security
+  provider: oci
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: oci.audit.create_auth_token
+  title: OCI auth token created for user
+  severity: high
+  log_source_type: oci_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.identitycontrolplane
+    - field: operation
+      op: equals
+      value: CreateAuthToken
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - persistence
+  - credential-access
+  mitre_techniques:
+  - T1098.001
+  domain: iam_security
+  provider: oci
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: oci.audit.mfa_totp_device_change
+  title: OCI MFA TOTP device created or deleted
+  severity: critical
+  log_source_type: oci_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.identitycontrolplane
+    - field: operation
+      op: in
+      value:
+      - CreateMfaTotpDevice
+      - DeleteMfaTotpDevice
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - persistence
+  - defense-evasion
+  mitre_techniques:
+  - T1556
+  domain: iam_security
+  provider: oci
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: oci.audit.compartment_change
+  title: OCI compartment created or deleted
+  severity: high
+  log_source_type: oci_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.identitycontrolplane
+    - field: operation
+      op: in
+      value:
+      - CreateCompartment
+      - DeleteCompartment
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1578
+  domain: iam_security
+  provider: oci
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: oci.audit.identity_provider_change
+  title: OCI federation identity provider created or modified
+  severity: critical
+  log_source_type: oci_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.identitycontrolplane
+    - field: operation
+      op: in
+      value:
+      - CreateIdentityProvider
+      - UpdateIdentityProvider
+      - DeleteIdentityProvider
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - persistence
+  - privilege-escalation
+  mitre_techniques:
+  - T1484.002
+  domain: iam_security
+  provider: oci
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: oci.audit.launch_instance
+  title: OCI compute instance launched
+  severity: medium
+  log_source_type: oci_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.computeapi
+    - field: operation
+      op: equals
+      value: LaunchInstance
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - execution
+  mitre_techniques:
+  - T1204
+  domain: iam_security
+  provider: oci
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: oci.audit.terminate_instance
+  title: OCI compute instance terminated
+  severity: high
+  log_source_type: oci_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.computeapi
+    - field: operation
+      op: equals
+      value: TerminateInstance
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1485
+  domain: iam_security
+  provider: oci
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: oci.audit.boot_volume_change
+  title: OCI boot volume created, updated, or deleted
+  severity: medium
+  log_source_type: oci_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.computeapi
+    - field: operation
+      op: in
+      value:
+      - CreateBootVolume
+      - DeleteBootVolume
+      - UpdateBootVolume
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - impact
+  - persistence
+  mitre_techniques:
+  - T1485
+  domain: iam_security
+  provider: oci
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: oci.audit.instance_console_connection
+  title: OCI instance console connection created
+  severity: high
+  log_source_type: oci_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.computeapi
+    - field: operation
+      op: equals
+      value: CreateInstanceConsoleConnection
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - lateral-movement
+  mitre_techniques:
+  - T1021
+  domain: iam_security
+  provider: oci
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: oci.audit.instance_pool_change
+  title: OCI instance pool created or modified
+  severity: medium
+  log_source_type: oci_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.computeapi
+    - field: operation
+      op: in
+      value:
+      - CreateInstancePool
+      - UpdateInstancePool
+      - TerminateInstancePool
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - execution
+  mitre_techniques:
+  - T1204
+  domain: iam_security
+  provider: oci
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: oci.audit.vcn_change
+  title: OCI VCN or subnet created, modified, or deleted
+  severity: high
+  log_source_type: oci_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.virtualnetwork
+    - field: operation
+      op: in
+      value:
+      - CreateVcn
+      - DeleteVcn
+      - UpdateVcn
+      - CreateSubnet
+      - DeleteSubnet
+      - UpdateSubnet
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.007
+  domain: iam_security
+  provider: oci
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: oci.audit.security_list_change
+  title: OCI security list created or modified
+  severity: critical
+  log_source_type: oci_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.virtualnetwork
+    - field: operation
+      op: in
+      value:
+      - CreateSecurityList
+      - UpdateSecurityList
+      - DeleteSecurityList
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.007
+  domain: iam_security
+  provider: oci
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: oci.audit.nsg_rule_change
+  title: OCI network security group rules modified
+  severity: critical
+  log_source_type: oci_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.virtualnetwork
+    - field: operation
+      op: in
+      value:
+      - AddNetworkSecurityGroupSecurityRules
+      - UpdateNetworkSecurityGroupSecurityRules
+      - RemoveNetworkSecurityGroupSecurityRules
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.007
+  domain: iam_security
+  provider: oci
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: oci.audit.route_table_change
+  title: OCI route table created or modified
+  severity: high
+  log_source_type: oci_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.virtualnetwork
+    - field: operation
+      op: in
+      value:
+      - CreateRouteTable
+      - UpdateRouteTable
+      - DeleteRouteTable
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  - lateral-movement
+  mitre_techniques:
+  - T1562.007
+  domain: iam_security
+  provider: oci
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: oci.audit.internet_gateway_change
+  title: OCI internet gateway created or modified
+  severity: high
+  log_source_type: oci_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.virtualnetwork
+    - field: operation
+      op: in
+      value:
+      - CreateInternetGateway
+      - UpdateInternetGateway
+      - DeleteInternetGateway
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  - exfiltration
+  mitre_techniques:
+  - T1562.007
+  domain: iam_security
+  provider: oci
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: oci.audit.bucket_change
+  title: OCI Object Storage bucket created or deleted
+  severity: medium
+  log_source_type: oci_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.objectstorage
+    - field: operation
+      op: in
+      value:
+      - CreateBucket
+      - DeleteBucket
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - collection
+  - impact
+  mitre_techniques:
+  - T1530
+  domain: iam_security
+  provider: oci
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: oci.audit.bucket_policy_change
+  title: OCI Object Storage bucket access policy modified
+  severity: high
+  log_source_type: oci_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.objectstorage
+    - field: operation
+      op: in
+      value:
+      - UpdateBucket
+      - PutBucketPublicAccessType
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  - exfiltration
+  mitre_techniques:
+  - T1537
+  domain: iam_security
+  provider: oci
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: oci.audit.preauthenticated_request_created
+  title: OCI Object Storage pre-authenticated request created
+  severity: high
+  log_source_type: oci_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.objectstorage
+    - field: operation
+      op: equals
+      value: CreatePreauthenticatedRequest
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - exfiltration
+  - persistence
+  mitre_techniques:
+  - T1537
+  domain: iam_security
+  provider: oci
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: oci.audit.object_lifecycle_policy_change
+  title: OCI Object Storage lifecycle policy modified
+  severity: medium
+  log_source_type: oci_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.objectstorage
+    - field: operation
+      op: in
+      value:
+      - PutObjectLifecyclePolicy
+      - DeleteObjectLifecyclePolicy
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1485
+  domain: iam_security
+  provider: oci
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: oci.audit.cloud_guard_disable
+  title: OCI Cloud Guard target disabled or deleted
+  severity: critical
+  log_source_type: oci_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.cloudguard
+    - field: operation
+      op: in
+      value:
+      - DeleteTarget
+      - UpdateTarget
+      - DisableCloudGuard
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.001
+  domain: iam_security
+  provider: oci
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: oci.audit.audit_config_change
+  title: OCI audit configuration modified
+  severity: critical
+  log_source_type: oci_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.identitycontrolplane
+    - field: operation
+      op: equals
+      value: UpdateConfiguration
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.008
+  domain: iam_security
+  provider: oci
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: oci.audit.vault_key_deletion
+  title: OCI Vault key scheduled for deletion
+  severity: critical
+  log_source_type: oci_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.kmsmanagement
+    - field: operation
+      op: in
+      value:
+      - ScheduleKeyDeletion
+      - DisableKey
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1485
+  domain: iam_security
+  provider: oci
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 90

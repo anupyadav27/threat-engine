@@ -1,0 +1,392 @@
+rules:
+- rule_id: monitor.ct.cloudwatch_delete_alarms
+  title: CloudWatch alarms deleted
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: monitoring
+    - field: operation
+      op: equals
+      value: DeleteAlarms
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.001
+  description: Alarm deletion removes automated alerting — may precede attack activity.
+  domain: monitoring
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: &id001
+  - CIS
+  - NIST_800-53
+  - SOC2
+  risk_score: 70
+- rule_id: monitor.ct.cloudwatch_disable_alarm_actions
+  title: CloudWatch alarm actions disabled
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: monitoring
+    - field: operation
+      op: equals
+      value: DisableAlarmActions
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.001
+  description: Disabling alarm actions prevents SNS notifications while alarm still triggers.
+  domain: monitoring
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: monitor.ct.cloudwatch_put_metric_alarm
+  title: CloudWatch metric alarm created or updated
+  severity: low
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: monitoring
+    - field: operation
+      op: equals
+      value: PutMetricAlarm
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.001
+  description: Alarm modification may change thresholds to reduce sensitivity.
+  domain: monitoring
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: monitor.ct.cloudwatch_put_dashboard
+  title: CloudWatch dashboard created or updated
+  severity: info
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: monitoring
+    - field: operation
+      op: equals
+      value: PutDashboard
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562
+  description: Dashboard changes may hide critical metrics from operations teams.
+  domain: monitoring
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 10
+- rule_id: monitor.ct.logs_delete_log_group
+  title: CloudWatch log group deleted
+  severity: critical
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: logs
+    - field: operation
+      op: equals
+      value: DeleteLogGroup
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1070.002
+  description: Log group deletion permanently destroys all log streams and data.
+  domain: monitoring
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: monitor.ct.logs_put_retention_policy
+  title: CloudWatch log retention policy changed
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: logs
+    - field: operation
+      op: equals
+      value: PutRetentionPolicy
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1070.002
+  description: Reducing retention period causes automatic deletion of older log data.
+  domain: monitoring
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: monitor.ct.logs_delete_retention_policy
+  title: CloudWatch log retention policy removed
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: logs
+    - field: operation
+      op: equals
+      value: DeleteRetentionPolicy
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1070.002
+  description: Removing retention policy sets logs to never expire — or may be precursor to deletion.
+  domain: monitoring
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: monitor.ct.logs_put_subscription_filter
+  title: CloudWatch log subscription filter created
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: logs
+    - field: operation
+      op: equals
+      value: PutSubscriptionFilter
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - collection
+  - exfiltration
+  mitre_techniques:
+  - T1530
+  description: Subscription filter streams log data to Lambda/Kinesis — may exfiltrate logs.
+  domain: monitoring
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: monitor.ct.logs_put_resource_policy
+  title: CloudWatch Logs resource policy modified
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: logs
+    - field: operation
+      op: equals
+      value: PutResourcePolicy
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - persistence
+  - exfiltration
+  mitre_techniques:
+  - T1098.003
+  description: Resource policy change may grant cross-account log delivery or access.
+  domain: monitoring
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: monitor.ct.athena_start_query_execution
+  title: Athena query executed
+  severity: low
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: athena
+    - field: operation
+      op: equals
+      value: StartQueryExecution
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: threat_engine
+  action_category: execute
+  mitre_tactics:
+  - collection
+  mitre_techniques:
+  - T1530
+  description: Athena query against S3 data lake — monitor for queries on sensitive tables.
+  domain: monitoring
+  provider: aws
+  remediation: Validate function/container execution is authorized. Review execution role permissions. Check for code injection
+    indicators.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: monitor.ct.athena_create_named_query
+  title: Athena saved query created
+  severity: info
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: athena
+    - field: operation
+      op: equals
+      value: CreateNamedQuery
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - collection
+  mitre_techniques:
+  - T1530
+  description: Saved query for repeated data access — review for sensitive table references.
+  domain: monitoring
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 10
+- rule_id: monitor.ct.glue_create_job
+  title: Glue ETL job created
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: glue
+    - field: operation
+      op: equals
+      value: CreateJob
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - execution
+  - collection
+  mitre_techniques:
+  - T1204.003
+  description: New Glue job — review script location, IAM role, and data targets.
+  domain: monitoring
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: monitor.ct.glue_update_job
+  title: Glue ETL job updated
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: glue
+    - field: operation
+      op: equals
+      value: UpdateJob
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - execution
+  - persistence
+  mitre_techniques:
+  - T1525
+  description: Glue job update may inject malicious data transformation logic.
+  domain: monitoring
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: monitor.ct.glue_create_crawler
+  title: Glue crawler created
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: glue
+    - field: operation
+      op: equals
+      value: CreateCrawler
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - discovery
+  - collection
+  mitre_techniques:
+  - T1083
+  description: Glue crawler catalogs data store schemas — data discovery and reconnaissance.
+  domain: monitoring
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50

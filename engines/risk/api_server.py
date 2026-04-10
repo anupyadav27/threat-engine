@@ -148,13 +148,13 @@ async def run_scan(request: ScanRequest):
 
     try:
         risk_conn = get_risk_conn()
-        discovery_conn = get_discovery_conn()
         onboarding_conn = get_onboarding_conn()
         external_conn = get_external_conn()
 
         # Stage 1: ETL — Transform
+        # ETL opens its own per-engine DB connections internally
         from engines.risk.etl.risk_etl import RiskETL
-        etl = RiskETL(risk_conn, discovery_conn, onboarding_conn, external_conn)
+        etl = RiskETL(risk_conn, onboarding_conn, external_conn)
         transformed_count = etl.run(
             scan_id, request.scan_run_id,
             request.tenant_id, request.account_id, request.provider,
@@ -162,7 +162,7 @@ async def run_scan(request: ScanRequest):
 
         # Stage 2: Evaluate — FAIR model
         from engines.risk.evaluator.risk_evaluator import RiskEvaluator
-        evaluator = RiskEvaluator(risk_conn, discovery_conn)
+        evaluator = RiskEvaluator(risk_conn)
         scenario_count = evaluator.run(
             scan_id, request.scan_run_id,
             request.tenant_id, request.account_id, request.provider,
@@ -180,7 +180,7 @@ async def run_scan(request: ScanRequest):
         # Stage 4: Coordinate — Update orchestration
         from engines.risk.db.risk_db_writer import RiskDBWriter
         writer = RiskDBWriter(risk_conn)
-        writer.update_orchestration(request.scan_run_id, scan_id, discovery_conn)
+        writer.update_orchestration(request.scan_run_id, scan_id, onboarding_conn)
 
         duration_ms = int((time.time() - start_time) * 1000)
         _scan_count += 1
@@ -275,9 +275,9 @@ async def get_report(scan_id: str):
 @app.get("/api/v1/scenarios/{scan_id}")
 async def get_scenarios(
     scan_id: str,
-    tier: Optional[str] = Query(None, description="Filter by risk tier"),
-    engine: Optional[str] = Query(None, description="Filter by source engine"),
-    limit: int = Query(100, ge=1, le=1000),
+    tier: Optional[str] = None,
+    engine: Optional[str] = None,
+    limit: int = 100,
 ):
     """List risk scenarios for a scan with optional filters."""
     conn = get_risk_conn()
@@ -285,12 +285,14 @@ async def get_scenarios(
     try:
         query = """
             SELECT scenario_id::text, source_finding_id, source_engine,
-                   asset_id, asset_arn, scenario_type,
+                   asset_id, asset_arn, asset_type, scenario_type,
+                   title, rule_id,
                    data_records_at_risk, data_sensitivity,
                    loss_event_frequency,
                    primary_loss_likely, regulatory_fine_max,
                    total_exposure_min, total_exposure_max, total_exposure_likely,
-                   risk_tier, account_id, region, csp
+                   risk_tier, calculation_model,
+                   account_id, region, csp
             FROM risk_scenarios
             WHERE risk_scan_id = %s::uuid
         """
@@ -309,29 +311,8 @@ async def get_scenarios(
         cursor.execute(query, params)
         rows = cursor.fetchall()
 
-        return [
-            {
-                "scenario_id": r[0],
-                "source_finding_id": r[1],
-                "source_engine": r[2],
-                "asset_id": r[3],
-                "asset_arn": r[4],
-                "scenario_type": r[5],
-                "data_records_at_risk": r[6],
-                "data_sensitivity": r[7],
-                "loss_event_frequency": float(r[8]) if r[8] else 0,
-                "primary_loss_likely": float(r[9]) if r[9] else 0,
-                "regulatory_fine_max": float(r[10]) if r[10] else 0,
-                "total_exposure_min": float(r[11]) if r[11] else 0,
-                "total_exposure_max": float(r[12]) if r[12] else 0,
-                "total_exposure_likely": float(r[13]) if r[13] else 0,
-                "risk_tier": r[14],
-                "account_id": r[15],
-                "region": r[16],
-                "csp": r[17],
-            }
-            for r in rows
-        ]
+        cols = [desc[0] for desc in cursor.description]
+        return [dict(zip(cols, row)) for row in rows]
     finally:
         cursor.close()
 
@@ -339,7 +320,7 @@ async def get_scenarios(
 @app.get("/api/v1/trends/{tenant_id}")
 async def get_trends(
     tenant_id: str,
-    limit: int = Query(30, ge=1, le=365),
+    limit: int = 30,
 ):
     """Get risk trend data for a tenant."""
     conn = get_risk_conn()
@@ -510,6 +491,77 @@ def _compute_domain_score(critical: int, high: int, medium: int, low: int, total
     return max(0, min(100, int(weighted / max(total, 1) * 10)))
 
 
+def _build_mitigation_roadmap(
+    scenarios: list, overall_risk_score: int = 50
+) -> List[Dict[str, Any]]:
+    """Build a mitigation roadmap from FAIR scenarios.
+
+    Groups scenarios by source_engine, computes reduction estimates,
+    and returns actionable items sorted by priority.
+    """
+    if not scenarios or not isinstance(scenarios, list):
+        return []
+
+    # Group by source_engine
+    by_engine: Dict[str, list] = {}
+    for s in scenarios:
+        if not isinstance(s, dict):
+            continue
+        eng = s.get("source_engine", "general")
+        by_engine.setdefault(eng, []).append(s)
+
+    from datetime import timedelta
+
+    PRIORITY_MAP = {"critical": "P0", "high": "P1", "medium": "P2", "low": "P3"}
+    PRIORITY_DAYS = {"P0": 14, "P1": 30, "P2": 60, "P3": 90}
+    ENGINE_ACTIONS = {
+        "threat": "Remediate threat detections",
+        "iam": "Enforce least-privilege IAM policies",
+        "datasec": "Encrypt data stores and restrict access",
+        "network": "Restrict public exposure and harden security groups",
+        "compliance": "Close compliance control gaps",
+        "container": "Harden container workloads and image scanning",
+        "encryption": "Enable encryption at rest/transit and rotate keys",
+        "database": "Restrict database access and enable audit logging",
+        "ai_security": "Apply guardrails to AI/ML endpoints",
+        "ciem": "Investigate anomalous identity activity",
+        "check": "Remediate misconfigurations",
+    }
+
+    roadmap = []
+    for eng, items in sorted(by_engine.items(), key=lambda x: -len(x[1])):
+        worst_tier = "low"
+        total_exposure = 0
+        for s in items:
+            tier = s.get("risk_tier", "medium")
+            total_exposure += s.get("total_exposure_likely", 0)
+            if {"critical": 4, "high": 3, "medium": 2, "low": 1}.get(tier, 0) > \
+               {"critical": 4, "high": 3, "medium": 2, "low": 1}.get(worst_tier, 0):
+                worst_tier = tier
+
+        current_risk = {"critical": 95, "high": 75, "medium": 50, "low": 25}.get(worst_tier, 50)
+        target_risk = max(10, current_risk - 30)
+        reduction_pct = round((current_risk - target_risk) / max(current_risk, 1) * 100)
+        est_cost = max(5000, int(total_exposure * 0.1))
+
+        roadmap.append({
+            "action": f"{ENGINE_ACTIONS.get(eng, 'Address findings')} ({len(items)} scenarios)",
+            "current_risk": current_risk,
+            "target_risk": target_risk,
+            "reduction": reduction_pct,
+            "cost": f"${est_cost:,}",
+            "priority": PRIORITY_MAP.get(worst_tier, "P2"),
+            "owner": f"{eng.replace('_', ' ').title()} Team",
+            "due_date": (datetime.utcnow() + timedelta(days=PRIORITY_DAYS.get(PRIORITY_MAP.get(worst_tier, "P2"), 60))).strftime("%Y-%m-%d"),
+            "domain": eng,
+            "scenario_count": len(items),
+            "total_exposure": round(total_exposure, 2),
+        })
+
+    roadmap.sort(key=lambda x: {"P0": 0, "P1": 1, "P2": 2, "P3": 3}.get(x["priority"], 9))
+    return roadmap
+
+
 def _compute_live_dashboard(tenant_id: str) -> Dict[str, Any]:
     """Compute a live risk dashboard by aggregating threat + compliance + IAM data."""
     threat_stats = _query_threat_stats(tenant_id)
@@ -543,33 +595,98 @@ def _compute_live_dashboard(tenant_id: str) -> Dict[str, Any]:
     )
     overall_score = max(0, min(100, overall_score))
 
-    # Build risk register from top categories
+    # Build risk register from top categories (UI-expected shape)
     risk_register: List[Dict[str, Any]] = []
+    idx = 0
     for cat in threat_stats.get("top_categories", []):
+        idx += 1
+        tier = "critical" if cat["count"] > 50 else "high" if cat["count"] > 10 else "medium"
+        inherent = {"critical": 95, "high": 75, "medium": 50, "low": 25}.get(tier, 50)
         risk_register.append({
-            "scenario_type": cat["category"],
+            "id": f"RSK-{idx:03d}",
+            "title": f"{cat['category'].replace('_', ' ').title()} — {cat['count']} findings",
+            "category": "Threat Detection",
+            "inherent": inherent,
+            "residual": max(10, inherent - 20),
+            "owner": "Security Team",
+            "status": "open" if tier in ("critical", "high") else "monitoring",
             "source_engine": "threat",
             "finding_count": cat["count"],
-            "risk_tier": "critical" if cat["count"] > 50 else "high" if cat["count"] > 10 else "medium",
+            "risk_tier": tier,
         })
     if compliance_stats["controls_failed"] > 0:
+        idx += 1
+        tier = "high" if comp_pct < 50 else "medium"
+        inherent = {"high": 75, "medium": 50}.get(tier, 50)
         risk_register.append({
-            "scenario_type": "compliance_gap",
+            "id": f"RSK-{idx:03d}",
+            "title": f"Compliance gaps — {compliance_stats['controls_failed']} failing controls",
+            "category": "Compliance",
+            "inherent": inherent,
+            "residual": max(10, inherent - 20),
+            "owner": "GRC Team",
+            "status": "open",
             "source_engine": "compliance",
             "finding_count": compliance_stats["controls_failed"],
-            "risk_tier": "high" if comp_pct < 50 else "medium",
+            "risk_tier": tier,
+        })
+    if iam_stats["critical"] + iam_stats["high"] > 0:
+        idx += 1
+        iam_total_ch = iam_stats["critical"] + iam_stats["high"]
+        tier = "critical" if iam_stats["critical"] > 0 else "high"
+        inherent = {"critical": 95, "high": 75}.get(tier, 75)
+        risk_register.append({
+            "id": f"RSK-{idx:03d}",
+            "title": f"IAM posture — {iam_total_ch} critical/high findings",
+            "category": "Identity & Access",
+            "inherent": inherent,
+            "residual": max(10, inherent - 20),
+            "owner": "IAM Team",
+            "status": "open",
+            "source_engine": "iam",
+            "finding_count": iam_total_ch,
+            "risk_tier": tier,
         })
 
-    # Mitigation roadmap
-    roadmap: List[Dict[str, str]] = []
+    # Mitigation roadmap (UI-expected shape — matches demo data fields)
+    roadmap: List[Dict[str, Any]] = []
     if threat_stats["critical"] > 0:
-        roadmap.append({"priority": "P0", "action": f"Remediate {threat_stats['critical']} critical threat findings", "domain": "threats"})
+        c = threat_stats["critical"] * 25000
+        roadmap.append({
+            "action": f"Remediate {threat_stats['critical']} critical threat findings",
+            "priority": "P0", "domain": "threats",
+            "current_risk": 95, "target_risk": 60,
+            "reduction": 37, "cost": f"${c:,}",
+            "owner": "Security Team", "due_date": "",
+        })
     if iam_stats["critical"] + iam_stats["high"] > 0:
-        roadmap.append({"priority": "P1", "action": f"Fix {iam_stats['critical'] + iam_stats['high']} critical/high IAM findings", "domain": "iam"})
+        ch = iam_stats["critical"] + iam_stats["high"]
+        c = ch * 10000
+        roadmap.append({
+            "action": f"Fix {ch} critical/high IAM findings",
+            "priority": "P1", "domain": "iam",
+            "current_risk": 75, "target_risk": 40,
+            "reduction": 47, "cost": f"${c:,}",
+            "owner": "IAM Team", "due_date": "",
+        })
     if compliance_stats["controls_failed"] > 0:
-        roadmap.append({"priority": "P1", "action": f"Address {compliance_stats['controls_failed']} failing compliance controls", "domain": "compliance"})
+        c = compliance_stats["controls_failed"] * 5000
+        roadmap.append({
+            "action": f"Address {compliance_stats['controls_failed']} failing compliance controls",
+            "priority": "P1", "domain": "compliance",
+            "current_risk": 70, "target_risk": 35,
+            "reduction": 50, "cost": f"${c:,}",
+            "owner": "GRC Team", "due_date": "",
+        })
     if threat_stats["high"] > 0:
-        roadmap.append({"priority": "P2", "action": f"Investigate {threat_stats['high']} high-severity threat findings", "domain": "threats"})
+        c = threat_stats["high"] * 15000
+        roadmap.append({
+            "action": f"Investigate {threat_stats['high']} high-severity threat findings",
+            "priority": "P2", "domain": "threats",
+            "current_risk": 65, "target_risk": 40,
+            "reduction": 38, "cost": f"${c:,}",
+            "owner": "Security Team", "due_date": "",
+        })
 
     estimated_loss = (
         threat_stats["critical"] * 500_000
@@ -661,12 +778,35 @@ async def risk_dashboard(tenant_id: Optional[str] = Query(None)):
             except Exception:
                 top_scenarios = []
 
+        # Transform top_scenarios into risk_register shape
+        risk_register = []
+        for idx, s in enumerate(top_scenarios[:10] if isinstance(top_scenarios, list) else []):
+            tier = s.get("risk_tier", "medium")
+            inherent = {"critical": 95, "high": 75, "medium": 50, "low": 25}.get(tier, 50)
+            risk_register.append({
+                "id": f"RSK-{idx + 1:03d}",
+                "title": s.get("title") or s.get("scenario_type", f"Risk scenario #{idx + 1}"),
+                "category": (s.get("source_engine") or "general").replace("_", " ").title(),
+                "inherent": inherent,
+                "residual": max(10, inherent - 20),
+                "owner": "Security Team",
+                "status": "open" if tier in ("critical", "high") else "monitoring",
+                "scenario_type": s.get("scenario_type", ""),
+                "source_engine": s.get("source_engine", ""),
+                "expected_loss": s.get("total_exposure_likely", 0),
+                "worst_case_loss": s.get("total_exposure_max", 0),
+                "risk_tier": tier,
+            })
+
+        # Build mitigation_roadmap from top scenarios
+        mitigation_roadmap = _build_mitigation_roadmap(top_scenarios, risk_score)
+
         return {
             "risk_score": risk_score,
             "accepted_risks": 0,
             "average_loss": exposure,
-            "risk_register": top_scenarios[:10] if isinstance(top_scenarios, list) else [],
-            "mitigation_roadmap": [],
+            "risk_register": risk_register,
+            "mitigation_roadmap": mitigation_roadmap,
             "source": "risk_scan",
         }
 
@@ -713,16 +853,37 @@ async def risk_scenarios(
     # Normalise to what the UI expects
     data = []
     for r in raw:
+        # Convert Decimal to float (psycopg2 returns NUMERIC as Decimal)
+        for k, v in list(r.items()):
+            if hasattr(v, "as_integer_ratio"):  # Decimal/float duck-type
+                r[k] = float(v)
+        lef = float(r.get("loss_event_frequency") or 0)
+        primary_loss = float(r.get("primary_loss_likely") or 0)
+        calc = r.get("calculation_model") or {}
+        if isinstance(calc, str):
+            import json as _json
+            try:
+                calc = _json.loads(calc)
+            except Exception:
+                calc = {}
+
         data.append({
             **r,
-            "scenario_name": r.get("scenario_type", "Unknown Risk"),
-            "threat_category": r.get("source_engine", "cloud").title(),
-            "probability": round(r.get("loss_event_frequency", 0) * 100, 1),
+            "scenario_name": r.get("title") or r.get("scenario_type", "Unknown Risk").replace("_", " ").title(),
+            "threat_category": (r.get("source_engine") or "cloud").replace("_", " ").title(),
+            "probability": round(lef * 100, 1),
             "expected_loss": r.get("total_exposure_likely", 0),
             "worst_case_loss": r.get("total_exposure_max", 0),
             "risk_rating": r.get("risk_tier", "medium"),
             "risk_level": r.get("risk_tier", "medium"),
             "account": r.get("account_id", ""),
+            # FAIR model fields the UI needs
+            "threat_event_frequency": round(lef, 4),
+            "vulnerability": round(calc.get("exposure_factor", lef), 4),
+            "loss_magnitude": round(primary_loss, 2),
+            "rule_id": r.get("rule_id", ""),
+            "resource_uid": r.get("asset_arn", ""),
+            "resource_type": r.get("asset_type", ""),
         })
     return {"data": data}
 
@@ -773,22 +934,32 @@ async def risk_breakdown(tenant_id: Optional[str] = Query(None)):
         return {
             "tenant_id": tenant_id,
             "breakdown": [
-                {"domain": "IAM", "score": domain_scores.get("iam", 0), "weight": 0.25, "findings": iam_stats.get("total", 0)},
-                {"domain": "Compliance", "score": domain_scores.get("compliance", 0), "weight": 0.20, "findings": compliance_stats.get("controls_failed", 0)},
-                {"domain": "Threats", "score": domain_scores.get("threats", 0), "weight": 0.30, "findings": threat_stats.get("total", 0)},
-                {"domain": "Data Security", "score": domain_scores.get("dataSec", 0), "weight": 0.15, "findings": 0},
-                {"domain": "Vulnerabilities", "score": domain_scores.get("vulnerabilities", 0), "weight": 0.10, "findings": 0},
+                {"domain": "Threat Detection", "score": domain_scores.get("threats", 0), "weight": 0.20, "findings": threat_stats.get("total", 0)},
+                {"domain": "IAM Security", "score": domain_scores.get("iam", 0), "weight": 0.15, "findings": iam_stats.get("total", 0)},
+                {"domain": "Compliance", "score": domain_scores.get("compliance", 0), "weight": 0.15, "findings": compliance_stats.get("controls_failed", 0)},
+                {"domain": "Data Security", "score": domain_scores.get("dataSec", 0), "weight": 0.10, "findings": 0},
+                {"domain": "Network Security", "score": domain_scores.get("network", score), "weight": 0.10, "findings": 0},
+                {"domain": "Container Security", "score": domain_scores.get("container", score), "weight": 0.08, "findings": 0},
+                {"domain": "Encryption", "score": domain_scores.get("encryption", score), "weight": 0.07, "findings": 0},
+                {"domain": "Database Security", "score": domain_scores.get("database", score), "weight": 0.07, "findings": 0},
+                {"domain": "AI Security", "score": domain_scores.get("ai_security", score), "weight": 0.05, "findings": 0},
+                {"domain": "Vulnerabilities", "score": domain_scores.get("vulnerabilities", 0), "weight": 0.03, "findings": 0},
             ]
         }
 
     return {
         "tenant_id": tenant_id,
         "breakdown": [
-            {"domain": "IAM", "score": score, "weight": 0.25, "findings": 0},
-            {"domain": "Compliance", "score": score, "weight": 0.20, "findings": 0},
-            {"domain": "Threats", "score": score, "weight": 0.30, "findings": 0},
-            {"domain": "Data Security", "score": score, "weight": 0.15, "findings": 0},
-            {"domain": "Vulnerabilities", "score": score, "weight": 0.10, "findings": 0},
+            {"domain": "Threat Detection", "score": score, "weight": 0.20, "findings": 0},
+            {"domain": "IAM Security", "score": score, "weight": 0.15, "findings": 0},
+            {"domain": "Compliance", "score": score, "weight": 0.15, "findings": 0},
+            {"domain": "Data Security", "score": score, "weight": 0.10, "findings": 0},
+            {"domain": "Network Security", "score": score, "weight": 0.10, "findings": 0},
+            {"domain": "Container Security", "score": score, "weight": 0.08, "findings": 0},
+            {"domain": "Encryption", "score": score, "weight": 0.07, "findings": 0},
+            {"domain": "Database Security", "score": score, "weight": 0.07, "findings": 0},
+            {"domain": "AI Security", "score": score, "weight": 0.05, "findings": 0},
+            {"domain": "Vulnerabilities", "score": score, "weight": 0.03, "findings": 0},
         ]
     }
 

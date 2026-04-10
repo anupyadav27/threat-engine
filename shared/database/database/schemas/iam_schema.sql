@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS iam_report (
     iam_relevant_findings INTEGER DEFAULT 0,
     critical_findings INTEGER DEFAULT 0,
     high_findings INTEGER DEFAULT 0,
+    key_rotation_count INTEGER DEFAULT 0,  -- access keys exceeding rotation policy
     findings_by_module JSONB,
     findings_by_status JSONB,
     report_data JSONB,

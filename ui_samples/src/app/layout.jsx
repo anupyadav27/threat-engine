@@ -5,6 +5,7 @@ import { AuthProvider } from '@/lib/auth-context';
 import { ToastProvider } from '@/lib/toast-context';
 import { GlobalFilterProvider } from '@/lib/global-filter-context';
 import { SavedFiltersProvider } from '@/lib/saved-filters-context';
+import { TenantProvider } from '@/lib/tenant-context';
 import ToastContainer from '@/components/shared/Toast';
 
 export const metadata = {
@@ -26,14 +27,16 @@ export default function RootLayout({ children }) {
       <body className="min-h-screen font-sans antialiased" suppressHydrationWarning>
         <ThemeProvider>
           <AuthProvider>
-            <ToastProvider>
-              <GlobalFilterProvider>
-                <SavedFiltersProvider>
-                  <AppShell>{children}</AppShell>
-                </SavedFiltersProvider>
-              </GlobalFilterProvider>
-              <ToastContainer />
-            </ToastProvider>
+            <TenantProvider>
+              <ToastProvider>
+                <GlobalFilterProvider>
+                  <SavedFiltersProvider>
+                    <AppShell>{children}</AppShell>
+                  </SavedFiltersProvider>
+                </GlobalFilterProvider>
+                <ToastContainer />
+              </ToastProvider>
+            </TenantProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

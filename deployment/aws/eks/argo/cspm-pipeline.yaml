@@ -8,11 +8,30 @@ metadata:
 spec:
   serviceAccountName: default
   entrypoint: full-pipeline
+  onExit: pipeline-exit-handler
+
+  # ── All workflow step pods run on spot nodes ──────────────────────────────
+  # Spot nodegroup: vulnerability-spot-scanners (taint: spot-scanner=true:NoSchedule)
+  # Cluster autoscaler provisions spot nodes when pods are pending, terminates
+  # them when idle. Each scan gets its own fresh spot capacity.
+  tolerations:
+  - key: spot-scanner
+    operator: Equal
+    value: "true"
+    effect: NoSchedule
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: eks.amazonaws.com/nodegroup
+            operator: In
+            values: [vulnerability-spot-scanners]
 
   arguments:
     parameters:
     - name: scan-run-id
-      description: "Pipeline-wide UUID (from scan_orchestration)"
+      description: "Pipeline-wide UUID (from scan_runs)"
     - name: tenant-id
       description: "Tenant identifier"
     - name: account-id
@@ -24,11 +43,17 @@ spec:
       value: "access_key"
     - name: credential-ref
       value: "threat-engine/account/588989875114"
+    - name: include-services
+      value: ""
+      description: "Comma-separated services to scan (empty = all). e.g. ec2,iam,s3"
+    - name: include-regions
+      value: ""
+      description: "Comma-separated regions (empty = all enabled). e.g. us-east-1,eu-west-1"
 
   # Garbage-collect completed pods after 10 minutes
   podGC:
     strategy: OnPodCompletion
-    deleteDelayDuration: "600s"
+    deleteDelayDuration: "60s"
 
   templates:
 
@@ -39,15 +64,27 @@ spec:
       - name: create-orchestration-record
         template: create-orch-record
 
-      - name: discovery
+      # Scale all engine Deployments to 1 replica on spot nodes.
+      # Cluster autoscaler provisions spot capacity when pods are pending.
+      - name: scale-up-engines
         dependencies: [create-orchestration-record]
+        template: scale-engines
+        arguments:
+          parameters:
+          - name: replicas
+            value: "1"
+          - name: provider
+            value: "{{workflow.parameters.provider}}"
+
+      - name: discovery
+        dependencies: [create-orchestration-record, scale-up-engines]
         template: trigger-and-poll
         arguments:
           parameters:
           - name: engine
             value: discovery
           - name: trigger-url
-            value: "http://engine-discoveries/api/v1/discovery"
+            value: "http://engine-discoveries-{{workflow.parameters.provider}}/api/v1/discovery"
           - name: payload
             value: |
               {
@@ -56,27 +93,14 @@ spec:
                 "account_id": "{{workflow.parameters.account-id}}",
                 "provider": "{{workflow.parameters.provider}}",
                 "credential_type": "{{workflow.parameters.credential-type}}",
-                "credential_ref": "{{workflow.parameters.credential-ref}}"
+                "credential_ref": "{{workflow.parameters.credential-ref}}",
+                "include_services": "{{workflow.parameters.include-services}}",
+                "include_regions": "{{workflow.parameters.include-regions}}"
               }
           - name: poll-url
-            value: "http://engine-discoveries/api/v1/discovery/{{workflow.parameters.scan-run-id}}"
+            value: "http://engine-discoveries-{{workflow.parameters.provider}}/api/v1/discovery/{{workflow.parameters.scan-run-id}}"
           - name: timeout
-            value: "1800"
-
-      - name: check
-        dependencies: [discovery]
-        template: trigger-and-wait
-        arguments:
-          parameters:
-          - name: engine
-            value: check
-          - name: url
-            value: "http://engine-check/api/v1/scan"
-          - name: payload
-            value: |
-              {"scan_run_id": "{{workflow.parameters.scan-run-id}}"}
-          - name: timeout
-            value: "600"
+            value: "7200"
 
       - name: inventory
         dependencies: [discovery]
@@ -91,30 +115,65 @@ spec:
             value: |
               {
                 "scan_run_id": "{{workflow.parameters.scan-run-id}}",
-                "tenant_id": "{{workflow.parameters.tenant-id}}"
+                "tenant_id": "{{workflow.parameters.tenant-id}}",
+                "account_id": "{{workflow.parameters.account-id}}",
+                "provider": "{{workflow.parameters.provider}}",
+                "credential_type": "{{workflow.parameters.credential-type}}",
+                "credential_ref": "{{workflow.parameters.credential-ref}}"
               }
           - name: timeout
             value: "600"
 
+      - name: check
+        dependencies: [inventory]
+        template: trigger-and-poll
+        arguments:
+          parameters:
+          - name: engine
+            value: check
+          - name: trigger-url
+            value: "http://engine-check/api/v1/scan"
+          - name: poll-url
+            value: "http://engine-check/api/v1/check/{{workflow.parameters.scan-run-id}}/status"
+          - name: payload
+            value: |
+              {
+                "scan_run_id": "{{workflow.parameters.scan-run-id}}",
+                "tenant_id": "{{workflow.parameters.tenant-id}}",
+                "account_id": "{{workflow.parameters.account-id}}",
+                "provider": "{{workflow.parameters.provider}}",
+                "credential_type": "{{workflow.parameters.credential-type}}",
+                "credential_ref": "{{workflow.parameters.credential-ref}}"
+              }
+          - name: timeout
+            value: "1800"
+
       - name: threat
         dependencies: [check]
-        template: trigger-and-wait
+        template: trigger-and-poll
         arguments:
           parameters:
           - name: engine
             value: threat
-          - name: url
+          - name: trigger-url
             value: "http://engine-threat/api/v1/scan"
           - name: payload
             value: |
               {
                 "scan_run_id": "{{workflow.parameters.scan-run-id}}",
+                "tenant_id": "{{workflow.parameters.tenant-id}}",
+                "account_id": "{{workflow.parameters.account-id}}",
+                "provider": "{{workflow.parameters.provider}}",
+                "credential_type": "{{workflow.parameters.credential-type}}",
+                "credential_ref": "{{workflow.parameters.credential-ref}}",
                 "cloud": "{{workflow.parameters.provider}}",
                 "trigger_type": "api",
                 "accounts": [],
                 "regions": [],
                 "services": []
               }
+          - name: poll-url
+            value: "http://engine-threat/api/v1/threat/{{workflow.parameters.scan-run-id}}/status"
           - name: timeout
             value: "600"
 
@@ -131,6 +190,11 @@ spec:
             value: |
               {
                 "scan_run_id": "{{workflow.parameters.scan-run-id}}",
+                "tenant_id": "{{workflow.parameters.tenant-id}}",
+                "account_id": "{{workflow.parameters.account-id}}",
+                "provider": "{{workflow.parameters.provider}}",
+                "credential_type": "{{workflow.parameters.credential-type}}",
+                "credential_ref": "{{workflow.parameters.credential-ref}}",
                 "trigger_type": "orchestrated",
                 "export_to_db": true
               }
@@ -139,19 +203,27 @@ spec:
 
       - name: iam
         dependencies: [threat]
-        template: trigger-and-wait
+        template: trigger-and-poll
         arguments:
           parameters:
           - name: engine
             value: iam
-          - name: url
+          - name: trigger-url
             value: "http://engine-iam/api/v1/scan"
           - name: payload
             value: |
               {
                 "scan_run_id": "{{workflow.parameters.scan-run-id}}",
+                "tenant_id": "{{workflow.parameters.tenant-id}}",
+                "account_id": "{{workflow.parameters.account-id}}",
+                "provider": "{{workflow.parameters.provider}}",
+                "credential_type": "{{workflow.parameters.credential-type}}",
+                "credential_ref": "{{workflow.parameters.credential-ref}}",
+                "csp": "{{workflow.parameters.provider}}",
                 "max_findings": 5000
               }
+          - name: poll-url
+            value: "http://engine-iam/api/v1/iam-security/{{workflow.parameters.scan-run-id}}/status"
           - name: timeout
             value: "600"
 
@@ -168,6 +240,12 @@ spec:
             value: |
               {
                 "scan_run_id": "{{workflow.parameters.scan-run-id}}",
+                "tenant_id": "{{workflow.parameters.tenant-id}}",
+                "account_id": "{{workflow.parameters.account-id}}",
+                "provider": "{{workflow.parameters.provider}}",
+                "credential_type": "{{workflow.parameters.credential-type}}",
+                "credential_ref": "{{workflow.parameters.credential-ref}}",
+                "csp": "{{workflow.parameters.provider}}",
                 "include_classification": true,
                 "include_lineage": true,
                 "include_residency": true,
@@ -177,9 +255,214 @@ spec:
           - name: timeout
             value: "600"
 
+      - name: encryption
+        dependencies: [threat]
+        continueOn:
+          failed: true
+        template: trigger-and-wait
+        arguments:
+          parameters:
+          - name: engine
+            value: encryption
+          - name: url
+            value: "http://engine-encryption/api/v1/encryption/scan"
+          - name: payload
+            value: |
+              {
+                "scan_run_id": "{{workflow.parameters.scan-run-id}}",
+                "tenant_id": "{{workflow.parameters.tenant-id}}",
+                "account_id": "{{workflow.parameters.account-id}}",
+                "provider": "{{workflow.parameters.provider}}",
+                "credential_type": "{{workflow.parameters.credential-type}}",
+                "credential_ref": "{{workflow.parameters.credential-ref}}",
+                "csp": "{{workflow.parameters.provider}}",
+                "max_findings": 5000
+              }
+          - name: timeout
+            value: "600"
+
+      - name: database-security
+        dependencies: [threat]
+        continueOn:
+          failed: true
+        template: trigger-and-wait
+        arguments:
+          parameters:
+          - name: engine
+            value: database-security
+          - name: url
+            value: "http://engine-dbsec/api/v1/database-security/scan"
+          - name: payload
+            value: |
+              {
+                "scan_run_id": "{{workflow.parameters.scan-run-id}}",
+                "tenant_id": "{{workflow.parameters.tenant-id}}",
+                "account_id": "{{workflow.parameters.account-id}}",
+                "provider": "{{workflow.parameters.provider}}",
+                "credential_type": "{{workflow.parameters.credential-type}}",
+                "credential_ref": "{{workflow.parameters.credential-ref}}",
+                "csp": "{{workflow.parameters.provider}}",
+                "max_findings": 5000
+              }
+          - name: timeout
+            value: "600"
+
+      - name: container-security
+        dependencies: [threat]
+        continueOn:
+          failed: true
+        template: trigger-and-wait
+        arguments:
+          parameters:
+          - name: engine
+            value: container-security
+          - name: url
+            value: "http://engine-container-sec/api/v1/container-security/scan"
+          - name: payload
+            value: |
+              {
+                "scan_run_id": "{{workflow.parameters.scan-run-id}}",
+                "tenant_id": "{{workflow.parameters.tenant-id}}",
+                "account_id": "{{workflow.parameters.account-id}}",
+                "provider": "{{workflow.parameters.provider}}",
+                "credential_type": "{{workflow.parameters.credential-type}}",
+                "credential_ref": "{{workflow.parameters.credential-ref}}",
+                "csp": "{{workflow.parameters.provider}}",
+                "max_findings": 5000
+              }
+          - name: timeout
+            value: "600"
+
+      - name: ciem
+        dependencies: [threat]
+        continueOn:
+          failed: true
+        template: trigger-and-poll
+        arguments:
+          parameters:
+          - name: engine
+            value: ciem
+          - name: trigger-url
+            value: "http://engine-ciem/api/v1/scan"
+          - name: payload
+            value: |
+              {
+                "scan_run_id": "{{workflow.parameters.scan-run-id}}",
+                "tenant_id": "{{workflow.parameters.tenant-id}}",
+                "account_id": "{{workflow.parameters.account-id}}",
+                "provider": "{{workflow.parameters.provider}}"
+              }
+          - name: poll-url
+            value: "http://engine-ciem/api/v1/ciem/report/{{workflow.parameters.scan-run-id}}"
+          - name: timeout
+            value: "3600"
+
+      - name: ai-security
+        dependencies: [threat]
+        continueOn:
+          failed: true
+        template: trigger-and-wait
+        arguments:
+          parameters:
+          - name: engine
+            value: ai-security
+          - name: url
+            value: "http://engine-ai-security/api/v1/ai-security/scan"
+          - name: payload
+            value: |
+              {
+                "scan_run_id": "{{workflow.parameters.scan-run-id}}",
+                "tenant_id": "{{workflow.parameters.tenant-id}}",
+                "account_id": "{{workflow.parameters.account-id}}",
+                "provider": "{{workflow.parameters.provider}}",
+                "credential_type": "{{workflow.parameters.credential-type}}",
+                "credential_ref": "{{workflow.parameters.credential-ref}}",
+                "csp": "{{workflow.parameters.provider}}",
+                "max_findings": 5000
+              }
+          - name: timeout
+            value: "600"
+
+      - name: network-security
+        dependencies: [threat]
+        continueOn:
+          failed: true
+        template: trigger-and-wait
+        arguments:
+          parameters:
+          - name: engine
+            value: network-security
+          - name: url
+            value: "http://engine-network/api/v1/network-security/scan"
+          - name: payload
+            value: |
+              {
+                "scan_run_id": "{{workflow.parameters.scan-run-id}}",
+                "tenant_id": "{{workflow.parameters.tenant-id}}",
+                "account_id": "{{workflow.parameters.account-id}}",
+                "provider": "{{workflow.parameters.provider}}",
+                "credential_type": "{{workflow.parameters.credential-type}}",
+                "credential_ref": "{{workflow.parameters.credential-ref}}",
+                "csp": "{{workflow.parameters.provider}}",
+                "max_findings": 5000
+              }
+          - name: timeout
+            value: "600"
+
+      # SecOps scans IaC/code — no dependency on cloud discovery, runs in parallel from the start
+      - name: secops
+        dependencies: [create-orchestration-record]
+        continueOn:
+          failed: true
+        template: trigger-and-wait
+        arguments:
+          parameters:
+          - name: engine
+            value: secops
+          - name: url
+            value: "http://engine-secops/api/v1/scan"
+          - name: payload
+            value: |
+              {
+                "scan_run_id": "{{workflow.parameters.scan-run-id}}",
+                "tenant_id": "{{workflow.parameters.tenant-id}}",
+                "account_id": "{{workflow.parameters.account-id}}",
+                "provider": "{{workflow.parameters.provider}}"
+              }
+          - name: timeout
+            value: "1800"
+
+      # Risk is the final aggregator — reads all engine findings, computes FAIR risk scores
+      - name: risk
+        dependencies: [compliance, iam, datasec, encryption, database-security, container-security, ciem, ai-security, network-security]
+        continueOn:
+          failed: true
+        template: trigger-and-wait
+        arguments:
+          parameters:
+          - name: engine
+            value: risk
+          - name: url
+            value: "http://engine-risk/api/v1/scan"
+          - name: payload
+            value: |
+              {
+                "scan_run_id": "{{workflow.parameters.scan-run-id}}",
+                "tenant_id": "{{workflow.parameters.tenant-id}}",
+                "account_id": "{{workflow.parameters.account-id}}",
+                "provider": "{{workflow.parameters.provider}}",
+                "credential_type": "{{workflow.parameters.credential-type}}",
+                "credential_ref": "{{workflow.parameters.credential-ref}}"
+              }
+          - name: timeout
+            value: "600"
+
       - name: mark-complete
-        dependencies: [compliance, iam, datasec, inventory]
+        # risk aggregates all cloud engines; secops runs independently — wait for both
+        dependencies: [risk, secops]
         template: update-orch-status
+        continueOn:
+          failed: true
         arguments:
           parameters:
           - name: status
@@ -188,7 +471,7 @@ spec:
   # ── Create orchestration record in onboarding DB ──────────────────────
   - name: create-orch-record
     script:
-      image: yadavanup84/engine-discoveries:v-std-cols
+      image: python:3.11-slim
       command: [python3]
       envFrom:
       - configMapRef:
@@ -197,6 +480,7 @@ spec:
           name: threat-engine-db-passwords
           optional: true
       source: |
+        import subprocess; subprocess.run(["pip", "install", "-q", "psycopg2-binary", "requests"], check=True)
         import psycopg2, os, json
         host = os.getenv('ONBOARDING_DB_HOST', os.getenv('DB_HOST', 'localhost'))
         port = int(os.getenv('ONBOARDING_DB_PORT', os.getenv('DB_PORT', '5432')))
@@ -210,20 +494,27 @@ spec:
         provider = '{{workflow.parameters.provider}}'
         cred_type = '{{workflow.parameters.credential-type}}'
         cred_ref = '{{workflow.parameters.credential-ref}}'
+        svc_param = '{{workflow.parameters.include-services}}'.strip()
+        include_services = json.dumps([s.strip() for s in svc_param.split(',') if s.strip()]) if svc_param else None
 
-        engines = json.dumps(['discovery','check','inventory','threat','compliance','iam','datasec'])
+        engines = json.dumps([
+            'discovery','check','inventory','threat',
+            'compliance','iam','datasec','encryption',
+            'database-security','container-security','ciem',
+            'ai-security','network-security','risk','secops'
+        ])
 
         conn = psycopg2.connect(host=host, port=port, database=db, user=user, password=pw)
         cur = conn.cursor()
         cur.execute("""
-            INSERT INTO scan_orchestration
+            INSERT INTO scan_runs
                 (scan_run_id, tenant_id, scan_type, trigger_type, engines_requested,
                  engines_completed, overall_status, started_at, provider, account_id,
-                 credential_type, credential_ref, created_at)
+                 credential_type, credential_ref, include_services, created_at)
             VALUES (%s, %s, 'full', 'argo', %s::jsonb,
-                '[]'::jsonb, 'running', NOW(), %s, %s, %s, %s, NOW())
+                '[]'::jsonb, 'running', NOW(), %s, %s, %s, %s, %s::jsonb, NOW())
             ON CONFLICT (scan_run_id) DO UPDATE SET overall_status='running', started_at=NOW()
-        """, (scan_run_id, tenant_id, engines, provider, account_id, cred_type, cred_ref))
+        """, (scan_run_id, tenant_id, engines, provider, account_id, cred_type, cred_ref, include_services))
         conn.commit()
         conn.close()
         print(f'Orchestration record created: {scan_run_id}')
@@ -243,7 +534,7 @@ spec:
       retryPolicy: OnFailure
     timeout: "{{inputs.parameters.timeout}}s"
     script:
-      image: yadavanup84/engine-discoveries:v-std-cols
+      image: python:3.11-slim
       command: [python3]
       envFrom:
       - configMapRef:
@@ -252,6 +543,7 @@ spec:
           name: threat-engine-db-passwords
           optional: true
       source: |
+        import subprocess; subprocess.run(["pip", "install", "-q", "psycopg2-binary", "requests"], check=True)
         import requests, time, os, psycopg2, json
 
         ENGINE = "{{inputs.parameters.engine}}"
@@ -264,6 +556,9 @@ spec:
         print(f"URL: {TRIGGER_URL}")
 
         payload = json.loads('''{{inputs.parameters.payload}}''')
+        # Convert include_services from comma-string to list if needed
+        svc = payload.get("include_services", "")
+        payload["include_services"] = [s.strip() for s in svc.split(",") if s.strip()] if svc else None
         resp = requests.post(TRIGGER_URL, json=payload, timeout=60)
         print(f"HTTP {resp.status_code}")
         print(resp.text[:200])
@@ -294,7 +589,7 @@ spec:
 
             if status == "completed":
                 print(f"=== {ENGINE} COMPLETED ({elapsed}s) ===")
-                # Update engines_completed in scan_orchestration
+                # Update engines_completed in scan_runs
                 try:
                     conn = psycopg2.connect(
                         host=os.getenv('ONBOARDING_DB_HOST', os.getenv('DB_HOST', 'localhost')),
@@ -305,7 +600,7 @@ spec:
                     )
                     cur = conn.cursor()
                     cur.execute("""
-                        UPDATE scan_orchestration
+                        UPDATE scan_runs
                         SET engines_completed = COALESCE(engines_completed, '[]'::jsonb) || to_jsonb(%s::text)
                         WHERE scan_run_id = %s
                     """, (ENGINE, SCAN_RUN_ID))
@@ -340,7 +635,7 @@ spec:
         factor: 2
     timeout: "{{inputs.parameters.timeout}}s"
     script:
-      image: yadavanup84/engine-discoveries:v-std-cols
+      image: python:3.11-slim
       command: [python3]
       envFrom:
       - configMapRef:
@@ -349,6 +644,7 @@ spec:
           name: threat-engine-db-passwords
           optional: true
       source: |
+        import subprocess; subprocess.run(["pip", "install", "-q", "psycopg2-binary", "requests"], check=True)
         import requests, os, psycopg2, json
 
         ENGINE = "{{inputs.parameters.engine}}"
@@ -369,7 +665,7 @@ spec:
             print(f"FAILED: {ENGINE} returned HTTP {resp.status_code}")
             exit(1)
 
-        # Update engines_completed in scan_orchestration
+        # Update engines_completed in scan_runs
         try:
             conn = psycopg2.connect(
                 host=os.getenv('ONBOARDING_DB_HOST', os.getenv('DB_HOST', 'localhost')),
@@ -380,7 +676,7 @@ spec:
             )
             cur = conn.cursor()
             cur.execute("""
-                UPDATE scan_orchestration
+                UPDATE scan_runs
                 SET engines_completed = COALESCE(engines_completed, '[]'::jsonb) || to_jsonb(%s::text)
                 WHERE scan_run_id = %s
             """, (ENGINE, SCAN_RUN_ID))
@@ -398,7 +694,7 @@ spec:
       parameters:
       - name: status
     script:
-      image: yadavanup84/engine-discoveries:v-std-cols
+      image: python:3.11-slim
       command: [python3]
       envFrom:
       - configMapRef:
@@ -407,6 +703,7 @@ spec:
           name: threat-engine-db-passwords
           optional: true
       source: |
+        import subprocess; subprocess.run(["pip", "install", "-q", "psycopg2-binary"], check=True)
         import psycopg2, os
         host = os.getenv('ONBOARDING_DB_HOST', os.getenv('DB_HOST', 'localhost'))
         port = int(os.getenv('ONBOARDING_DB_PORT', os.getenv('DB_PORT', '5432')))
@@ -420,7 +717,7 @@ spec:
         conn = psycopg2.connect(host=host, port=port, database=db, user=user, password=pw)
         cur = conn.cursor()
         cur.execute("""
-            UPDATE scan_orchestration
+            UPDATE scan_runs
             SET overall_status = %s,
                 completed_at = NOW(),
                 engines_completed = engines_requested
@@ -429,6 +726,150 @@ spec:
         conn.commit()
         conn.close()
         print(f'Pipeline {status} for scan_run_id={scan_run_id}')
+
+  # ── Exit handler: marks scan failed + scales down all engine pods ────────
+  # Runs on every workflow exit (success or failure).
+  # Scale-down releases spot nodes back to the autoscaler which terminates them.
+  - name: pipeline-exit-handler
+    script:
+      image: python:3.11-slim
+      command: [python3]
+      envFrom:
+      - configMapRef:
+          name: threat-engine-db-config
+      - secretRef:
+          name: threat-engine-db-passwords
+          optional: true
+      source: |
+        import subprocess; subprocess.run(["pip", "install", "-q", "psycopg2-binary", "kubernetes"], check=True)
+        import psycopg2, os
+        from kubernetes import client, config
+
+        workflow_status = '{{workflow.status}}'
+        scan_run_id = '{{workflow.parameters.scan-run-id}}'
+
+        # ── 1. Mark scan status in DB ─────────────────────────────────────
+        if workflow_status != 'Succeeded':
+            final_status = 'failed'
+            print(f'Pipeline {workflow_status} — marking scan {scan_run_id} as {final_status}')
+            host = os.getenv('ONBOARDING_DB_HOST', os.getenv('DB_HOST', 'localhost'))
+            port = int(os.getenv('ONBOARDING_DB_PORT', os.getenv('DB_PORT', '5432')))
+            db   = os.getenv('ONBOARDING_DB_NAME', 'threat_engine_onboarding')
+            user = os.getenv('ONBOARDING_DB_USER', os.getenv('DB_USER', 'postgres'))
+            pw   = os.getenv('ONBOARDING_DB_PASSWORD', os.getenv('DB_PASSWORD', ''))
+            try:
+                conn = psycopg2.connect(host=host, port=port, database=db, user=user, password=pw)
+                cur = conn.cursor()
+                cur.execute("""
+                    UPDATE scan_runs SET overall_status=%s, completed_at=NOW()
+                    WHERE scan_run_id=%s AND overall_status NOT IN ('completed','failed')
+                """, (final_status, scan_run_id))
+                conn.commit(); conn.close()
+                print(f'scan_run_id={scan_run_id} marked {final_status}')
+            except Exception as e:
+                print(f'Warning: could not update scan status: {e}')
+        else:
+            print(f'Pipeline succeeded — status already set by mark-complete step')
+
+        # ── 2. Scale down all engine Deployments → releases spot nodes ────
+        print('Scaling down engine pods to free spot capacity...')
+        try:
+            config.load_incluster_config()
+            apps = client.AppsV1Api()
+            NS = 'threat-engine-engines'
+            ENGINES = [
+                'engine-discoveries-aws', 'engine-discoveries-azure',
+                'engine-discoveries-gcp', 'engine-check', 'engine-inventory',
+                'engine-threat', 'engine-compliance', 'engine-iam',
+                'engine-datasec', 'engine-encryption', 'engine-dbsec',
+                'engine-container-sec', 'engine-ciem', 'engine-ai-security',
+                'engine-network', 'engine-risk', 'engine-secops',
+            ]
+            for engine in ENGINES:
+                try:
+                    apps.patch_namespaced_deployment_scale(
+                        name=engine, namespace=NS,
+                        body={'spec': {'replicas': 0}}
+                    )
+                    print(f'  scaled down: {engine}')
+                except client.exceptions.ApiException as e:
+                    if e.status == 404:
+                        print(f'  skip (not found): {engine}')
+                    else:
+                        print(f'  warning {engine}: {e.reason}')
+            print('Scale-down complete — spot nodes will be reclaimed by autoscaler')
+        except Exception as e:
+            print(f'Warning: scale-down failed: {e}')
+
+  # ── Scale engines up/down on spot nodes ──────────────────────────────────
+  - name: scale-engines
+    inputs:
+      parameters:
+      - name: replicas    # "1" to scale up, "0" to scale down
+      - name: provider
+        value: "aws"
+    script:
+      image: python:3.11-slim
+      command: [python3]
+      source: |
+        import subprocess; subprocess.run(["pip", "install", "-q", "kubernetes"], check=True)
+        import time
+        from kubernetes import client, config
+
+        REPLICAS = int("{{inputs.parameters.replicas}}")
+        PROVIDER = "{{inputs.parameters.provider}}"
+        NS = "threat-engine-engines"
+
+        # All engines that run on spot during a scan
+        ENGINES = [
+            f'engine-discoveries-{PROVIDER}',   # provider-specific discovery first
+            'engine-check', 'engine-inventory', 'engine-threat',
+            'engine-compliance', 'engine-iam', 'engine-datasec',
+            'engine-encryption', 'engine-dbsec', 'engine-container-sec',
+            'engine-ciem', 'engine-ai-security', 'engine-network',
+            'engine-risk', 'engine-secops',
+        ]
+
+        config.load_incluster_config()
+        apps = client.AppsV1Api()
+
+        action = "up" if REPLICAS > 0 else "down"
+        print(f"=== Scaling engines {action} (replicas={REPLICAS}) ===")
+
+        for engine in ENGINES:
+            try:
+                apps.patch_namespaced_deployment_scale(
+                    name=engine, namespace=NS,
+                    body={'spec': {'replicas': REPLICAS}}
+                )
+                print(f'  {engine} → {REPLICAS}')
+            except client.exceptions.ApiException as e:
+                if e.status == 404:
+                    print(f'  skip (not found): {engine}')
+                else:
+                    print(f'  warning {engine}: {e.reason}')
+
+        if REPLICAS > 0:
+            # Wait for the discovery engine to be ready before Argo proceeds
+            target = f'engine-discoveries-{PROVIDER}'
+            print(f'Waiting for {target} to be ready on spot node...')
+            for i in range(72):   # 6 min max (spot provisioning can take ~2-3 min)
+                time.sleep(5)
+                try:
+                    dep = apps.read_namespaced_deployment(name=target, namespace=NS)
+                    ready = dep.status.ready_replicas or 0
+                    if ready >= 1:
+                        print(f'  {target} ready after {i*5}s')
+                        break
+                    if i % 12 == 0:
+                        print(f'  still waiting... {i*5}s elapsed (spot node provisioning)')
+                except Exception as e:
+                    print(f'  check error: {e}')
+            else:
+                print(f'Timeout waiting for {target} — spot provisioning may have failed')
+                exit(1)
+
+        print(f"=== Scale {action} complete ===")
 
 ---
 # ── Single engine workflow (for running individual engines) ──────────────
@@ -446,7 +887,7 @@ spec:
   arguments:
     parameters:
     - name: engine
-      description: "Engine to run: discovery, check, inventory, threat, compliance, iam, datasec"
+      description: "Engine to run: discovery, check, inventory, threat, compliance, iam, datasec, encryption, database-security, container-security, ciem, ai-security, network-security, risk, secops"
     - name: scan-run-id
       description: "Pipeline-wide UUID"
     - name: tenant-id
@@ -455,6 +896,12 @@ spec:
       value: "588989875114"
     - name: provider
       value: "aws"
+    - name: include-services
+      value: ""
+      description: "Comma-separated services to scan (empty = all). e.g. ec2,iam,s3"
+    - name: include-regions
+      value: ""
+      description: "Comma-separated regions (empty = all enabled). e.g. us-east-1,eu-west-1"
 
   templates:
   - name: run-engine
@@ -473,6 +920,10 @@ spec:
             value: "{{workflow.parameters.account-id}}"
           - name: provider
             value: "{{workflow.parameters.provider}}"
+          - name: include-services
+            value: "{{workflow.parameters.include-services}}"
+          - name: include-regions
+            value: "{{workflow.parameters.include-regions}}"
 
   - name: trigger-engine-direct
     inputs:
@@ -482,37 +933,99 @@ spec:
       - name: tenant-id
       - name: account-id
       - name: provider
+      - name: include-services
+      - name: include-regions
     retryStrategy:
       limit: 2
       retryPolicy: OnFailure
     timeout: "30m"
     script:
-      image: curlimages/curl:8.5.0
-      command: [sh]
+      image: python:3.11-slim
+      command: [python3]
+      envFrom:
+      - configMapRef:
+          name: threat-engine-db-config
+      - secretRef:
+          name: threat-engine-db-passwords
+          optional: true
       source: |
-        ENGINE="{{inputs.parameters.engine}}"
-        SCAN_RUN_ID="{{inputs.parameters.scan-run-id}}"
-        TENANT_ID="{{inputs.parameters.tenant-id}}"
-        ACCOUNT_ID="{{inputs.parameters.account-id}}"
-        PROVIDER="{{inputs.parameters.provider}}"
+        import subprocess; subprocess.run(["pip", "install", "-q", "psycopg2-binary", "requests"], check=True)
+        import requests, os, psycopg2, json, sys
 
-        # Resolve URL
-        case "$ENGINE" in
-          discovery)   URL="http://engine-discoveries/api/v1/discovery" ;;
-          check)       URL="http://engine-check/api/v1/scan" ;;
-          inventory)   URL="http://engine-inventory/api/v1/inventory/scan/discovery" ;;
-          threat)      URL="http://engine-threat/api/v1/scan" ;;
-          compliance)  URL="http://engine-compliance/api/v1/scan" ;;
-          iam)         URL="http://engine-iam/api/v1/scan" ;;
-          datasec)     URL="http://engine-datasec/api/v1/scan" ;;
-          *)           echo "Unknown engine: $ENGINE"; exit 1 ;;
-        esac
+        ENGINE = "{{inputs.parameters.engine}}"
+        SCAN_RUN_ID = "{{inputs.parameters.scan-run-id}}"
+        TENANT_ID = "{{inputs.parameters.tenant-id}}"
+        ACCOUNT_ID = "{{inputs.parameters.account-id}}"
+        PROVIDER = "{{inputs.parameters.provider}}"
+        INCLUDE_SERVICES = "{{inputs.parameters.include-services}}"
+        INCLUDE_REGIONS = "{{inputs.parameters.include-regions}}"
 
-        echo "=== Triggering $ENGINE at $URL ==="
-        curl -sf -X POST "$URL" \
-          -H "Content-Type: application/json" \
-          -d "{\"scan_run_id\": \"$SCAN_RUN_ID\", \"tenant_id\": \"$TENANT_ID\", \"account_id\": \"$ACCOUNT_ID\", \"provider\": \"$PROVIDER\"}" \
-          --max-time 300
+        ENGINE_URLS = {
+            # discovery URL is provider-dynamic — overridden below
+            "discovery":         f"http://engine-discoveries-{PROVIDER}/api/v1/discovery",
+            "check":             "http://engine-check/api/v1/scan",
+            "inventory":         "http://engine-inventory/api/v1/inventory/scan/discovery",
+            "threat":            "http://engine-threat/api/v1/scan",
+            "compliance":        "http://engine-compliance/api/v1/scan",
+            "iam":               "http://engine-iam/api/v1/scan",
+            "datasec":           "http://engine-datasec/api/v1/scan",
+            "encryption":        "http://engine-encryption/api/v1/encryption/scan",
+            "database-security": "http://engine-dbsec/api/v1/database-security/scan",
+            "container-security":"http://engine-container-sec/api/v1/container-security/scan",
+            "ciem":              "http://engine-ciem/api/v1/scan",
+            "ai-security":       "http://engine-ai-security/api/v1/ai-security/scan",
+            "network-security":  "http://engine-network/api/v1/network-security/scan",
+            "risk":              "http://engine-risk/api/v1/scan",
+            "secops":            "http://engine-secops/api/v1/scan",
+        }
 
-        echo ""
-        echo "=== $ENGINE triggered ==="
+        if ENGINE not in ENGINE_URLS:
+            print(f"Unknown engine: {ENGINE}")
+            sys.exit(1)
+
+        URL = ENGINE_URLS[ENGINE]
+        payload = {
+            "scan_run_id": SCAN_RUN_ID,
+            "tenant_id": TENANT_ID,
+            "account_id": ACCOUNT_ID,
+            "provider": PROVIDER,
+            "csp": PROVIDER,
+        }
+
+        # Pass filters if specified (discovery engine uses include_services/include_regions)
+        if INCLUDE_SERVICES:
+            payload["include_services"] = [s.strip() for s in INCLUDE_SERVICES.split(",") if s.strip()]
+        if INCLUDE_REGIONS:
+            payload["include_regions"] = [r.strip() for r in INCLUDE_REGIONS.split(",") if r.strip()]
+
+        print(f"=== Triggering {ENGINE} at {URL} ===")
+        resp = requests.post(URL, json=payload, timeout=1800)
+        print(f"HTTP {resp.status_code}")
+        print(resp.text[:300])
+
+        if resp.status_code >= 400:
+            print(f"FAILED: {ENGINE} returned HTTP {resp.status_code}")
+            sys.exit(1)
+
+        # Update engines_completed in scan_runs
+        try:
+            conn = psycopg2.connect(
+                host=os.getenv('ONBOARDING_DB_HOST', os.getenv('DB_HOST', 'localhost')),
+                port=int(os.getenv('ONBOARDING_DB_PORT', os.getenv('DB_PORT', '5432'))),
+                database=os.getenv('ONBOARDING_DB_NAME', 'threat_engine_onboarding'),
+                user=os.getenv('ONBOARDING_DB_USER', os.getenv('DB_USER', 'postgres')),
+                password=os.getenv('ONBOARDING_DB_PASSWORD', os.getenv('DB_PASSWORD', ''))
+            )
+            cur = conn.cursor()
+            cur.execute("""
+                UPDATE scan_runs
+                SET engines_completed = COALESCE(engines_completed, '[]'::jsonb) || to_jsonb(%s::text)
+                WHERE scan_run_id = %s
+            """, (ENGINE, SCAN_RUN_ID))
+            conn.commit()
+            conn.close()
+            print(f"Updated engines_completed += {ENGINE}")
+        except Exception as e:
+            print(f"Warning: could not update engines_completed: {e}")
+
+        print(f"=== {ENGINE} COMPLETED ===")

@@ -22,20 +22,20 @@ LOCAL FILE OUTPUT (optional):
   Files: assets.ndjson, relationships.ndjson, summary.json, drift.ndjson
 
 === STEP5 CATALOG INTEGRATION ===
-The orchestrator uses Step5CatalogLoader to enhance the two-pass scan:
+The orchestrator uses ResourceCatalogLoader to enhance the two-pass scan:
 
   Pass 1 (root records → create assets):
-    - Classifies operations as root/dependent using step5 "independent" flag
-    - Extracts ARN from emitted_fields using step5 "arn_entity" dot-path when
+    - Classifies operations as root/dependent using catalog "independent" flag
+    - Extracts ARN from emitted_fields using catalog "arn_entity" dot-path when
       resource_arn column is missing in discovery_findings
-    - Resolves resource_type per discovery operation from step5 catalog
+    - Resolves resource_type per discovery operation from catalog catalog
 
   Pass 2 (dependent records → enrich assets):
-    - Uses step5 "inventory_enrich.ops" to understand the dependency chain
+    - Uses catalog "inventory_enrich.ops" to understand the dependency chain
     - Matches enrichment records to existing assets by resource_uid/ARN
 
   Catalog files: {DATA_PYTHONSDK_PATH}/{csp}/{service}/step5_resource_catalog_inventory_enrich.json
-  Fallback: step5 is optional — if catalog missing, original heuristic classifier is used.
+  Fallback: catalog is optional — if catalog missing, original heuristic classifier is used.
 ===
 """
 
@@ -53,7 +53,7 @@ from ..schemas.relationship_schema import Relationship
 from ..schemas.summary_schema import ScanSummary
 from ..schemas.drift_schema import DriftRecord
 from ..connectors.discovery_reader_factory import get_discovery_reader
-from ..connectors.step5_catalog_loader import Step5CatalogLoader
+from ..connectors.resource_catalog_loader import ResourceCatalogLoader
 from ..normalizer.asset_normalizer import AssetNormalizer
 from ..normalizer.relationship_builder import RelationshipBuilder
 from ..drift.drift_detector import DriftDetector
@@ -79,13 +79,13 @@ class ScanOrchestrator:
         self.db_url = db_url
         # DB-first only: no direct cloud API calls (AWSConnector) and no S3 (boto3).
 
-        # Step5 catalog loader for ARN extraction and op classification
+        # Catalog catalog loader for ARN extraction and op classification
         # Passes db_url so it reuses the same inventory DB connection config;
         # falls back to INVENTORY_DB_* env vars when db_url is None.
-        self.step5 = Step5CatalogLoader(db_url=db_url)
+        self.catalog = ResourceCatalogLoader(db_url=db_url)
 
         # Relationship rules are loaded from the inventory DB at scan time —
-        # no startup sync needed (rules live in resource_relationship_rules table).
+        # no startup sync needed (rules live in resource_security_relationship_rules table).
     
     def run_scan(
         self,
@@ -218,9 +218,10 @@ class ScanOrchestrator:
         """
         Load previous scan assets and relationships from inventory DB.
 
-        Reads inventory_findings WHERE latest_scan_run_id = previous_scan_id and
-        inventory_relationships WHERE scan_run_id = previous_scan_id so the
-        drift detector receives the full prior state for every CSP in the tenant.
+        Uses inventory_scan_data (historical snapshots per scan) instead of
+        inventory_findings (which only holds the latest scan_run_id and gets
+        overwritten on every UPSERT, making old scan IDs unfindable).
+        Falls back to inventory_findings if no snapshot rows exist.
         """
         if not self.db_url:
             logger.warning("Cannot load previous scan: no inventory DB URL configured")
@@ -236,20 +237,42 @@ class ScanOrchestrator:
             conn = psycopg2.connect(self.db_url)
             try:
                 with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                    # ── Load assets ──────────────────────────────────────────────
+                    # ── Load assets from scan snapshots (preferred) ──────────────
                     cur.execute(
                         """
                         SELECT resource_uid, provider, account_id, region,
                                resource_type, resource_id, name,
                                tags, labels, properties, configuration,
-                               latest_scan_run_id
-                        FROM   inventory_findings
+                               inventory_scan_id AS latest_scan_run_id
+                        FROM   inventory_scan_data
                         WHERE  tenant_id = %s
-                          AND  latest_scan_run_id = %s
+                          AND  inventory_scan_id = %s
                         """,
                         (self.tenant_id, previous_scan_id),
                     )
-                    for row in cur.fetchall():
+                    rows = cur.fetchall()
+
+                    # Fallback: if no snapshot rows, try inventory_findings
+                    if not rows:
+                        logger.debug(
+                            f"No snapshot rows for scan {previous_scan_id}, "
+                            f"falling back to inventory_findings"
+                        )
+                        cur.execute(
+                            """
+                            SELECT resource_uid, provider, account_id, region,
+                                   resource_type, resource_id, name,
+                                   tags, labels, properties, configuration,
+                                   latest_scan_run_id
+                            FROM   inventory_findings
+                            WHERE  tenant_id = %s
+                              AND  latest_scan_run_id = %s
+                            """,
+                            (self.tenant_id, previous_scan_id),
+                        )
+                        rows = cur.fetchall()
+
+                    for row in rows:
                         try:
                             def _as_dict(v):
                                 if v is None:
@@ -329,17 +352,17 @@ class ScanOrchestrator:
         )
         return assets, relationships
     
-    def _classify_with_step5(
+    def _classify_record(
         self,
         discovery_record: Dict[str, Any],
         csp: str,
     ) -> tuple:
         """
-        Classify a discovery record using step5 catalog.
+        Classify a discovery record using catalog catalog.
 
         Returns:
             (should_inventory: bool,
-             is_root: bool | None,   ← None means "step5 has no info, use heuristic classifier"
+             is_root: bool | None,   ← None means "catalog has no info, use heuristic classifier"
              resource_type: str | None,
              arn: str | None)
         """
@@ -354,21 +377,21 @@ class ScanOrchestrator:
         if not isinstance(emitted_fields, dict):
             emitted_fields = {}
 
-        # Resolve resource_type from step5
-        resource_type = self.step5.get_resource_type_for_operation(csp, service, op_name)
+        # Resolve resource_type from catalog
+        resource_type = self.catalog.get_resource_type_for_operation(csp, service, op_name)
 
-        # Determine root vs dependent from step5 "independent" flag.
+        # Determine root vs dependent from catalog "independent" flag.
         # Returns None when the operation is not found in the catalog (unknown service).
-        is_root: Optional[bool] = self.step5.is_root_operation(csp, service, op_name)
+        is_root: Optional[bool] = self.catalog.is_root_operation(csp, service, op_name)
 
-        # Determine should_inventory and parent from step5 resource info.
+        # Determine should_inventory and parent from catalog resource info.
         # ACTION_ENDPOINT (should_inventory=False) with a known parent_resource_type
         # should still enrich the parent in Pass 2 — only skip when there is no parent
         # (pure utility/write ops with no enrichment value).
         should_inventory = True
         action_endpoint_with_parent = False
         if resource_type:
-            info = self.step5.get_resource_info(csp, service, resource_type)
+            info = self.catalog.get_resource_info(csp, service, resource_type)
             if info is not None:
                 should_inventory = info.get("should_inventory", True)
                 if not should_inventory and info.get("parent_resource_type"):
@@ -376,10 +399,10 @@ class ScanOrchestrator:
                     action_endpoint_with_parent = True
                     should_inventory = True  # allow through the filter below
 
-        # Extract ARN using step5 arn_entity if resource_arn column is missing
+        # Extract ARN using catalog arn_entity if resource_arn column is missing
         arn = None
         if resource_type:
-            arn = self.step5.extract_arn(
+            arn = self.catalog.extract_arn(
                 csp, service, resource_type, emitted_fields, discovery_record
             )
 
@@ -467,12 +490,12 @@ class ScanOrchestrator:
           Pass 1 — Root discoveries (independent ops like list_buckets, list_roles):
                    Create primary Asset records. Root records carry _dependent_data
                    with all enrichment already embedded.
-                   Step5 catalog provides: root classification, ARN extraction via
+                   Catalog catalog provides: root classification, ARN extraction via
                    arn_entity, resource_type resolution.
 
           Pass 2 — Dependent discoveries (get_bucket_versioning, list_source_api_associations, etc.):
                    Merge their operation-specific data into existing assets'
-                   metadata.configuration. Step5 inventory_enrich.ops define
+                   metadata.configuration. Catalog inventory_enrich.ops define
                    the dependency chain and required_params for each operation.
 
         Args:
@@ -491,17 +514,14 @@ class ScanOrchestrator:
         scan_run_id = scan_run_id or str(_uuid.uuid4())
         started_at = datetime.now(timezone.utc)
 
-        # Step 1: Read ALL discovery records and split into root vs dependent
-        #
-        # When a single account is specified (pipeline mode from scan_run_id),
-        # push the account_id filter to the reader for DB-level efficiency.
-        # The in-loop filter below remains as a safety net for multi-account cases.
         discovery_reader = get_discovery_reader(tenant_id=self.tenant_id)
-        normalizer = AssetNormalizer(self.tenant_id, scan_run_id)
-
-        # Push account filter to reader for DB-level efficiency (multi-account supported)
         reader_account_id: Optional[str] = accounts[0] if accounts and len(accounts) == 1 else None
         reader_account_ids: Optional[List[str]] = accounts if accounts and len(accounts) > 1 else None
+
+        # ═══════════════════════════════════════════════════════════════
+        # Catalog-driven two-pass resource extraction
+        # ═══════════════════════════════════════════════════════════════
+        normalizer = AssetNormalizer(self.tenant_id, scan_run_id)
 
         root_records = []
         enrichment_records = []
@@ -524,8 +544,8 @@ class ScanOrchestrator:
             if accounts and account_id not in accounts:
                 continue
 
-            # ── Classification using Step5 catalog (primary) ──
-            should_inventory, is_root, resource_type, step5_arn, action_endpoint_with_parent = self._classify_with_step5(
+            # ── Classification using Catalog catalog (primary) ──
+            should_inventory, is_root, resource_type, catalog_arn, action_endpoint_with_parent = self._classify_record(
                 discovery_record, csp=provider_str
             )
 
@@ -533,14 +553,14 @@ class ScanOrchestrator:
                 filtered_count += 1
                 continue
 
-            # If step5 extracted a better ARN, inject it into the record for the normalizer
-            if step5_arn and not discovery_record.get("resource_arn"):
+            # If catalog extracted a better ARN, inject it into the record for the normalizer
+            if catalog_arn and not discovery_record.get("resource_arn"):
                 # Work on a copy so we don't mutate the DB row dict
                 discovery_record = dict(discovery_record)
-                discovery_record["resource_arn"] = step5_arn
+                discovery_record["resource_arn"] = catalog_arn
                 logger.debug(
-                    f"Step5 ARN extracted for {provider_str}.{discovery_record.get('service')}"
-                    f".{resource_type}: {step5_arn}"
+                    f"Catalog ARN extracted for {provider_str}.{discovery_record.get('service')}"
+                    f".{resource_type}: {catalog_arn}"
                 )
 
             # ACTION_ENDPOINT with a parent: force enrichment-only routing.
@@ -551,7 +571,7 @@ class ScanOrchestrator:
                 enrichment_records.append(discovery_record)
                 continue
 
-            # is_root is None when step5 has no catalog for this service/op.
+            # is_root is None when catalog has no catalog for this service/op.
             # Fall back to the full heuristic classifier in that case.
             if is_root is None:
                 decision = normalizer.classifier.classify_discovery_record(discovery_record)
@@ -559,7 +579,11 @@ class ScanOrchestrator:
                     filtered_count += 1
                     continue
                 if decision == InventoryDecision.ENRICHMENT_ONLY:
-                    is_root = False
+                    # Heuristic index says enrichment-only, but pythonsdk may know better.
+                    # Independent operations (no required params) ARE root even if the
+                    # classification index doesn't list them — e.g. describe_instances.
+                    pythonsdk_root = normalizer.classifier.is_root_operation(discovery_record)
+                    is_root = pythonsdk_root  # True = independent op → Pass 1
                 else:
                     is_root = normalizer.classifier.is_root_operation(discovery_record)
 
@@ -571,7 +595,7 @@ class ScanOrchestrator:
                 # Dependent ops always feed enrichment.
                 # If the resource_type has can_inventory_from_roots=false (only reachable via
                 # dependent ops), we also add it to root_records so it becomes an Asset.
-                if resource_type and not self.step5.can_inventory_from_roots(
+                if resource_type and not self.catalog.can_inventory_from_roots(
                     provider_str, service, resource_type
                 ):
                     root_records.append(discovery_record)
@@ -609,21 +633,32 @@ class ScanOrchestrator:
                 existing_cfg = (existing.metadata or {}).get("configuration", {})
                 new_cfg = (asset.metadata or {}).get("configuration", {})
 
-                # Deep-merge: new_cfg keys fill gaps; existing keys take priority
-                merged_cfg = {**new_cfg, **existing_cfg}
                 if not existing.metadata:
                     existing.metadata = {}
-                existing.metadata["configuration"] = merged_cfg
+
+                # Smart merge: non-empty values win; existing wins when both non-empty
+                def _smart_merge(base: dict, overlay: dict) -> dict:
+                    merged = {}
+                    for k in set(base) | set(overlay):
+                        bv, ov = base.get(k), overlay.get(k)
+                        if bv not in (None, "", {}, []):
+                            merged[k] = bv
+                        elif ov not in (None, "", {}, []):
+                            merged[k] = ov
+                        else:
+                            merged[k] = bv
+                    return merged
+
+                existing.metadata["configuration"] = _smart_merge(existing_cfg, new_cfg)
 
                 # Merge emitted_fields — critical for relationships.
-                # e.g. describe_instances carries VpcId/SubnetId while
-                # describe_instance_credit_specifications carries CpuCredits.
-                # New record fills gaps; existing keys take priority.
-                existing_ef = (existing.metadata or {}).get("emitted_fields", {})
+                # e.g. describe_instances carries IamInstanceProfile/SubnetId while
+                # describe_instance_image_metadata may have None for these fields.
+                # Non-empty values win; existing non-empty takes priority over new non-empty.
+                existing_ef = existing.metadata.get("emitted_fields", {})
                 new_ef = (asset.metadata or {}).get("emitted_fields", {})
                 if new_ef and isinstance(new_ef, dict) and isinstance(existing_ef, dict):
-                    merged_ef = {**new_ef, **existing_ef}
-                    existing.metadata["emitted_fields"] = merged_ef
+                    existing.metadata["emitted_fields"] = _smart_merge(existing_ef, new_ef)
 
                 # Also merge tags — new record may carry additional tags
                 if asset.tags:
@@ -664,16 +699,16 @@ class ScanOrchestrator:
                 continue
 
             # ── Strategy 2: param_sources match ──
-            # Use the step5 catalog's param_sources to find the parent asset
+            # Use the catalog catalog's param_sources to find the parent asset
             # by matching required_param values against parent asset fields.
             csp_str = discovery_record.get("provider", "aws").lower()
             svc = discovery_record.get("service", "unknown")
             op = discovery_record.get("discovery_id", "")
             matched = False
 
-            resource_type_for_op = self.step5.get_resource_type_for_operation(csp_str, svc, op)
+            resource_type_for_op = self.catalog.get_resource_type_for_operation(csp_str, svc, op)
             if resource_type_for_op:
-                enrich_ops = self.step5.get_enrich_ops(csp_str, svc, resource_type_for_op)
+                enrich_ops = self.catalog.get_enrich_ops(csp_str, svc, resource_type_for_op)
                 for enrich_op in enrich_ops:
                     if not self._match_op_name(op, enrich_op.get("operation", "")):
                         continue
@@ -713,7 +748,7 @@ class ScanOrchestrator:
         # moved to the BFF layer where it runs at query time via HTTP fan-out.
 
         # Step 2: Build relationships per CSP using DB-driven rules from
-        # resource_relationship_rules (inventory DB). One shared connection is
+        # resource_security_relationship_rules (inventory DB). One shared connection is
         # opened here and passed to each RelationshipBuilder instance so we
         # avoid reconnecting for every CSP.
         all_relationships: List[Relationship] = []

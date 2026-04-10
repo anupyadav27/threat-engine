@@ -1,840 +1,365 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
-import { Play, Plus, ChevronDown, ChevronRight } from 'lucide-react';
-import { fetchView, postToEngine } from '@/lib/api';
+import { useState, useEffect, useCallback } from 'react';
+import { Play, RefreshCw, ChevronDown, CheckCircle2, XCircle, Loader2, Clock, Calendar, Layers } from 'lucide-react';
+import { getFromEngine, postToEngine } from '@/lib/api';
+import { useTenant } from '@/lib/tenant-context';
 import { useToast } from '@/lib/toast-context';
-import { useGlobalFilter } from '@/lib/global-filter-context';
-import MetricStrip from '@/components/shared/MetricStrip';
-import DataTable from '@/components/shared/DataTable';
-import FilterBar from '@/components/shared/FilterBar';
-import StatusIndicator from '@/components/shared/StatusIndicator';
+import ScanRunDetailModal from '@/components/domain/ScanRunDetailModal';
 
+// ── Status helpers ────────────────────────────────────────────────────────────
 
-export default function ScansPage() {
-  const router = useRouter();
-  const toast = useToast();
-  const [scans, setScans] = useState([]);
-  const [scheduledScans, setScheduledScans] = useState([]);
-  const [loading, setLoading] = useState(false);
+const STATUS_CONFIG = {
+  completed: { color: '#22c55e', bg: 'rgba(34,197,94,0.1)',  icon: CheckCircle2, label: 'Completed' },
+  running:   { color: '#3b82f6', bg: 'rgba(59,130,246,0.1)', icon: Loader2,       label: 'Running',   spin: true },
+  pending:   { color: '#94a3b8', bg: 'rgba(148,163,184,0.1)',icon: Clock,         label: 'Pending' },
+  failed:    { color: '#ef4444', bg: 'rgba(239,68,68,0.1)',  icon: XCircle,       label: 'Failed' },
+  cancelled: { color: '#f97316', bg: 'rgba(249,115,22,0.1)', icon: XCircle,       label: 'Cancelled' },
+};
+
+function StatusBadge({ status }) {
+  const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
+  const Icon = cfg.icon;
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium"
+      style={{ backgroundColor: cfg.bg, color: cfg.color }}>
+      <Icon className={`w-3 h-3 ${cfg.spin ? 'animate-spin' : ''}`} />
+      {cfg.label}
+    </span>
+  );
+}
+
+function EngineBar({ enginesRequested = [], enginesCompleted = [], engineStatuses = {} }) {
+  if (!enginesRequested.length) return null;
+  return (
+    <div className="flex flex-wrap gap-1">
+      {enginesRequested.map(eng => {
+        const done    = enginesCompleted.includes(eng);
+        const status  = engineStatuses?.[eng]?.status || (done ? 'completed' : 'pending');
+        const color   = status === 'completed' ? '#22c55e' : status === 'failed' ? '#ef4444' : status === 'running' ? '#3b82f6' : '#64748b';
+        return (
+          <span key={eng} className="px-1.5 py-0.5 rounded text-[10px] font-mono"
+            style={{ backgroundColor: `${color}18`, color, border: `1px solid ${color}30` }}>
+            {eng}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function fmtDuration(started, completed) {
+  if (!started) return '—';
+  const end = completed ? new Date(completed) : new Date();
+  const sec = Math.floor((end - new Date(started)) / 1000);
+  if (sec < 60) return `${sec}s`;
+  const m = Math.floor(sec / 60), s = sec % 60;
+  if (m < 60) return `${m}m ${s}s`;
+  return `${Math.floor(m / 60)}h ${m % 60}m`;
+}
+
+function fmtRelative(ts) {
+  if (!ts) return '—';
+  const diff = Date.now() - new Date(ts);
+  const m = Math.floor(diff / 60000);
+  if (m < 1)  return 'just now';
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return new Date(ts).toLocaleDateString();
+}
+
+// ── Run Now modal ─────────────────────────────────────────────────────────────
+
+function RunNowModal({ accounts, schedules, onClose, onLaunched }) {
+  const { customerId, activeTenant } = useTenant();
+  const [accountId, setAccountId] = useState('');
+  const [scheduleId, setScheduleId] = useState('');
+  const [launching, setLaunching] = useState(false);
   const [error, setError] = useState(null);
-  const [showRunModal, setShowRunModal] = useState(false);
-  const [selectedAccount, setSelectedAccount] = useState('');
-  const [selectedType, setSelectedType] = useState('full');
-  const [activeFilters, setActiveFilters] = useState({});
-  const [search, setSearch] = useState('');
-  const [groupBy, setGroupBy] = useState('');
-  const [expandedGroups, setExpandedGroups] = useState({});
 
-  const { provider, account, filterSummary } = useGlobalFilter();
+  const filteredSchedules = schedules.filter(s => !accountId || s.account_id === accountId);
 
-  // BFF handles scope filtering — scopeFiltered is now just scans
-  const scopeFiltered = scans;
-
-  // Fetch scan history via BFF
-  useEffect(() => {
-    const loadScans = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await fetchView('scans', {
-          provider: provider || undefined,
-          account: account || undefined,
-        });
-        if (data.error) { setError(data.error); return; }
-        if (data.scans)     setScans(data.scans);
-        if (data.scheduled) setScheduledScans(data.scheduled);
-      } catch (err) {
-        setError(err?.message || 'Failed to load scan history');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadScans();
-  }, [provider, account]);
-
-  const handleRunScan = async () => {
-    if (!selectedAccount || !selectedType) return;
-
+  async function handleRun() {
+    if (!scheduleId) { setError('Select a schedule to run'); return; }
+    setLaunching(true);
+    setError(null);
     try {
-      const result = await postToEngine('gateway', '/api/v1/gateway/orchestrate', {
-        account_id: selectedAccount,
-        scan_type: selectedType,
-      });
-
-      if (result.error) {
-        toast.error(`Error: ${result.error}`);
-      } else {
-        const newScan = {
-          scan_id: result.scan_id || `scan-new-${Date.now()}`,
-          scan_name: `${selectedType.charAt(0).toUpperCase() + selectedType.slice(1)} Scan`,
-          scan_type: selectedType,
-          account_id: selectedAccount,
-          account_name: selectedAccount,
-          status: 'pending',
-          started_at: new Date().toISOString(),
-          completed_at: null,
-          duration: '0m 0s',
-          resources_scanned: 0,
-          total_findings: 0,
-          critical_findings: 0,
-          high_findings: 0,
-          triggered_by: 'manual',
-        };
-        setScans([newScan, ...scans]);
-        setShowRunModal(false);
-        setSelectedAccount('');
-        setSelectedType('full');
-      }
-    } catch (err) {
-      toast.error(`Error triggering scan: ${err.message}`);
+      const result = await postToEngine('onboarding', `/api/v1/schedules/${scheduleId}/run-now`, {});
+      if (result.error) throw new Error(result.error);
+      onLaunched(result.scan_run_id);
+      onClose();
+    } catch (e) {
+      setError(e.message || 'Failed to trigger scan');
+    } finally {
+      setLaunching(false);
     }
-  };
+  }
 
-  const handleFilterChange = (key, value) => {
-    setActiveFilters(prev => ({ ...prev, [key]: value }));
-  };
-
-  // ── Unique values for filter options ──
-  const uniqueVals = (key) => [...new Set(scopeFiltered.map(r => r[key]).filter(Boolean))].sort();
-
-  // Primary filters
-  const primaryFilters = useMemo(() => {
-    const f = [
-      { key: 'scan_type', label: 'Scan Type', options: [
-        { value: 'full', label: 'Full Scan' },
-        { value: 'incremental', label: 'Incremental' },
-        { value: 'compliance', label: 'Compliance' },
-        { value: 'vulnerability', label: 'Vulnerability' },
-        { value: 'iac', label: 'IaC Scan' },
-      ]},
-      { key: 'status', label: 'Status', options: [
-        { value: 'completed', label: 'Completed' },
-        { value: 'running', label: 'Running' },
-        { value: 'pending', label: 'Pending' },
-        { value: 'failed', label: 'Failed' },
-      ]},
-    ];
-    const providers = uniqueVals('provider');
-    if (providers.length > 1) f.push({ key: 'provider', label: 'Provider', options: providers });
-    const accounts = uniqueVals('account_name');
-    if (accounts.length > 1) f.push({ key: 'account_name', label: 'Account', options: accounts });
-    return f;
-  }, [scopeFiltered]);
-
-  // Group-by options
-  const groupByOptions = useMemo(() => [
-    { key: 'scan_type', label: 'Scan Type' },
-    { key: 'status', label: 'Status' },
-    { key: 'provider', label: 'Provider' },
-    { key: 'account_name', label: 'Account' },
-    { key: 'triggered_by', label: 'Triggered By' },
-  ], []);
-
-  // Apply search + filters
-  const filtered = useMemo(() => {
-    let result = scopeFiltered;
-    if (search) {
-      const q = search.toLowerCase();
-      result = result.filter(row =>
-        Object.values(row).some(v => v && String(v).toLowerCase().includes(q))
-      );
-    }
-    Object.entries(activeFilters).forEach(([key, value]) => {
-      if (!value) return;
-      result = result.filter(row => {
-        const rowVal = row[key];
-        if (!rowVal) return false;
-        return String(rowVal).toLowerCase() === value.toLowerCase();
-      });
-    });
-    return result;
-  }, [scopeFiltered, search, activeFilters]);
-
-  // Group data
-  const grouped = useMemo(() => {
-    if (!groupBy || !filtered.length) return null;
-    const groups = {};
-    filtered.forEach(row => {
-      const key = String(row[groupBy] || 'Other');
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(row);
-    });
-    return Object.entries(groups)
-      .sort(([, a], [, b]) => b.length - a.length)
-      .map(([key, items]) => ({ key, items, count: items.length }));
-  }, [filtered, groupBy]);
-
-  // Auto-expand all groups when groupBy changes
-  useEffect(() => {
-    if (grouped) {
-      const expanded = {};
-      grouped.forEach(g => { expanded[g.key] = true; });
-      setExpandedGroups(expanded);
-    }
-  }, [groupBy]);
-
-  const toggleGroup = (key) => {
-    setExpandedGroups(prev => ({ ...prev, [key]: !prev[key] }));
-  };
-
-  // Calculate KPI metrics from scopeFiltered
-  const activeScans = scopeFiltered.filter((s) => s.status === 'running').length;
-  const activeScanCount = scopeFiltered.filter((s) => s.status === 'running' || s.status === 'pending').length;
-  const totalScansCompleted = scopeFiltered.filter((s) => s.status === 'completed').length;
-  const failedScans = scopeFiltered.filter((s) => s.status === 'failed').length;
-  const coverage = scopeFiltered.length > 0
-    ? ((totalScansCompleted / scopeFiltered.length) * 100).toFixed(1)
-    : '0.0';
-  const totalFindings = scopeFiltered.reduce((sum, s) => sum + (s.total_findings || 0), 0);
-  const criticalAssets = scopeFiltered.reduce((sum, s) => sum + (s.critical_findings || 0), 0);
-  const avgDuration = totalScansCompleted > 0
-    ? (
-        scopeFiltered
-          .filter((s) => s.status === 'completed')
-          .reduce((sum, s) => {
-            const match = s.duration.match(/(\d+)m (\d+)s/);
-            if (match) {
-              return sum + parseInt(match[1]) * 60 + parseInt(match[2]);
-            }
-            return sum;
-          }, 0) / totalScansCompleted / 60
-      ).toFixed(0)
-    : 0;
-
-  // Table columns
-  const columns = [
-    {
-      accessorKey: 'scan_name',
-      header: 'Scan Name',
-      cell: (info) => (
-        <span className="font-medium" style={{ color: 'var(--text-primary)' }}>
-          {info.getValue()}
-        </span>
-      ),
-    },
-    {
-      accessorKey: 'scan_type',
-      header: 'Type',
-      cell: (info) => (
-        <span
-          className="inline-block px-2 py-1 rounded text-xs font-medium"
-          style={{ color: 'var(--text-secondary)', backgroundColor: 'var(--bg-tertiary)' }}
-        >
-          {(info.getValue() || '').toUpperCase()}
-        </span>
-      ),
-    },
-    {
-      accessorKey: 'provider',
-      header: 'Provider',
-      cell: (info) => {
-        const providers = { aws: '🟠', azure: '🔵', gcp: '🔴', multi: '🌐' };
-        return (
-          <span className="font-medium text-sm" style={{ color: 'var(--text-secondary)' }}>
-            {providers[info.getValue()] || ''} {info.getValue().toUpperCase()}
-          </span>
-        );
-      },
-    },
-    {
-      accessorKey: 'account_name',
-      header: 'Account',
-      cell: (info) => (
-        <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-          {info.getValue()}
-        </span>
-      ),
-    },
-    {
-      accessorKey: 'status',
-      header: 'Status',
-      cell: (info) => <StatusIndicator status={info.getValue()} />,
-    },
-    {
-      accessorKey: 'started_at',
-      header: 'Started',
-      cell: (info) => {
-        const date = new Date(info.getValue());
-        return (
-          <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-            {date.toLocaleDateString()} {date.toLocaleTimeString()}
-          </span>
-        );
-      },
-    },
-    {
-      accessorKey: 'duration',
-      header: 'Duration',
-      cell: (info) => (
-        <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-          {info.getValue()}
-        </span>
-      ),
-    },
-    {
-      accessorKey: 'resources_scanned',
-      header: 'Resources',
-      cell: (info) => (
-        <span className="font-medium" style={{ color: 'var(--text-primary)' }}>
-          {info.getValue()}
-        </span>
-      ),
-    },
-    {
-      accessorKey: 'total_findings',
-      header: 'Findings',
-      cell: (info) => {
-        const total = info.getValue();
-        return (
-          <div className="flex items-center gap-1">
-            <span style={{ color: 'var(--text-primary)' }} className="font-semibold">
-              {total}
-            </span>
-            {total > 0 && (
-              <span style={{ color: 'var(--text-tertiary)' }} className="text-xs">
-                (
-                {info.row.original.critical_findings > 0 && `${info.row.original.critical_findings}C `}
-                {info.row.original.high_findings > 0 && `${info.row.original.high_findings}H`})
-              </span>
-            )}
-          </div>
-        );
-      },
-    },
-    {
-      accessorKey: 'triggered_by',
-      header: 'Triggered By',
-      cell: (info) => (
-        <span
-          className="text-xs px-2 py-1 rounded"
-          style={{
-            backgroundColor: (info.getValue() || '') === 'scheduler' ? 'var(--bg-tertiary)' : 'var(--accent-primary)',
-            color: (info.getValue() || '') === 'scheduler' ? 'var(--text-secondary)' : 'white',
-          }}
-        >
-          {((info.getValue() || '').charAt(0).toUpperCase() + (info.getValue() || '').slice(1))}
-        </span>
-      ),
-    },
-  ];
+  const inputStyle = { backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-primary)', color: 'var(--text-primary)' };
 
   return (
-    <div className="space-y-6">
-      {error && (
-        <div className="rounded-xl p-4 border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--accent-danger)' }}>
-          <p className="text-sm font-medium" style={{ color: 'var(--accent-danger)' }}>Error: {error}</p>
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
+      <div className="rounded-xl w-full max-w-md shadow-2xl" style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-primary)' }}>
+        <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--border-primary)' }}>
+          <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Run Scan Now</h2>
+          <button onClick={onClose} className="text-xs px-2 py-1 rounded hover:opacity-70" style={{ color: 'var(--text-muted)' }}>✕</button>
         </div>
-      )}
+        <div className="px-5 py-4 space-y-4">
+          {/* Account filter */}
+          <div>
+            <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Filter by Account (optional)</label>
+            <div className="relative">
+              <select value={accountId} onChange={e => { setAccountId(e.target.value); setScheduleId(''); }}
+                className="w-full px-3 py-2 rounded-lg text-sm outline-none appearance-none" style={inputStyle}>
+                <option value="">All accounts</option>
+                {accounts.map(a => <option key={a.account_id} value={a.account_id}>{a.account_name} ({a.provider})</option>)}
+              </select>
+              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: 'var(--text-muted)' }} />
+            </div>
+          </div>
+
+          {/* Schedule */}
+          <div>
+            <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
+              Schedule <span className="text-red-400">*</span>
+            </label>
+            <div className="relative">
+              <select value={scheduleId} onChange={e => setScheduleId(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg text-sm outline-none appearance-none" style={inputStyle}>
+                <option value="">Select schedule…</option>
+                {filteredSchedules.map(s => (
+                  <option key={s.schedule_id} value={s.schedule_id}>
+                    {s.account_name} — {s.cron_expression} ({s.enabled ? 'enabled' : 'disabled'})
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: 'var(--text-muted)' }} />
+            </div>
+          </div>
+
+          {error && <p className="text-xs text-red-400">{error}</p>}
+        </div>
+        <div className="flex justify-end gap-2 px-5 py-4 border-t" style={{ borderColor: 'var(--border-primary)' }}>
+          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-primary)' }}>Cancel</button>
+          <button onClick={handleRun} disabled={!scheduleId || launching}
+            className="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-40 flex items-center gap-2"
+            style={{ backgroundColor: 'var(--accent-primary)' }}>
+            {launching && <Loader2 className="w-4 h-4 animate-spin" />}
+            {launching ? 'Launching…' : '▶ Run Now'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
+
+const POLL_INTERVAL_MS = 8000;
+
+export default function ScansPage() {
+  const { customerId, activeTenant } = useTenant();
+  const toast = useToast();
+
+  const [runs, setRuns]         = useState([]);
+  const [accounts, setAccounts] = useState([]);
+  const [schedules, setSchedules] = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [showRunModal, setShowRunModal] = useState(false);
+  const [selectedRunId, setSelectedRunId] = useState(null);
+
+  const tenantId = activeTenant?.tenant_id;
+
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    try {
+      const params = new URLSearchParams({ limit: '100' });
+      if (tenantId)   params.set('tenant_id',   tenantId);
+      if (customerId) params.set('customer_id',  customerId);
+      if (statusFilter) params.set('status', statusFilter);
+
+      const [runsData, accsData, schedsData] = await Promise.all([
+        getFromEngine('onboarding', `/api/v1/scan-runs?${params}`),
+        getFromEngine('onboarding', `/api/v1/cloud-accounts?limit=200${tenantId ? `&tenant_id=${tenantId}` : ''}`),
+        getFromEngine('onboarding', `/api/v1/schedules?limit=200${tenantId ? `&tenant_id=${tenantId}` : ''}`),
+      ]);
+
+      setRuns(runsData?.scan_runs || []);
+      setAccounts(accsData?.accounts || []);
+      setSchedules(schedsData?.schedules || []);
+    } catch (e) {
+      if (!silent) console.error('Failed to load scans:', e);
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  }, [tenantId, customerId, statusFilter]);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Poll every 8s to refresh running scans
+  useEffect(() => {
+    const hasRunning = runs.some(r => r.overall_status === 'running' || r.overall_status === 'pending');
+    if (!hasRunning) return;
+    const t = setInterval(() => load(true), POLL_INTERVAL_MS);
+    return () => clearInterval(t);
+  }, [runs, load]);
+
+  function handleLaunched(scanRunId) {
+    toast?.success?.(`Scan triggered — ID: ${scanRunId.slice(0, 8)}…`);
+    setTimeout(() => load(), 1500);
+  }
+
+  // Summary stats
+  const stats = {
+    total:     runs.length,
+    running:   runs.filter(r => r.overall_status === 'running').length,
+    completed: runs.filter(r => r.overall_status === 'completed').length,
+    failed:    runs.filter(r => r.overall_status === 'failed').length,
+  };
+
+  return (
+    <div className="space-y-5">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold" style={{ color: 'var(--text-primary)' }}>
-            Scan Management
-          </h1>
-          {filterSummary && (
-            <p className="text-xs mt-0.5 mb-2" style={{ color: 'var(--text-tertiary)' }}>
-              <span style={{ color: 'var(--accent-primary)' }}>Filtered to:</span>{' '}
-              <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{filterSummary}</span>
-            </p>
-          )}
-          <p className="mt-1" style={{ color: 'var(--text-tertiary)' }}>
-            Monitor and manage cloud discovery and compliance scans
+          <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Scan Runs</h1>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+            Scheduled and manual scan history — pipeline-level tracking
           </p>
         </div>
-        <button
-          onClick={() => setShowRunModal(true)}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors text-white"
-          style={{ backgroundColor: 'var(--accent-primary)' }}
-        >
-          <Play className="w-4 h-4" />
-          Run New Scan
-        </button>
-      </div>
-
-      {/* Metric Strip */}
-      <MetricStrip groups={[
-        {
-          label: '🔵 SCAN HEALTH',
-          color: 'var(--accent-primary)',
-          cells: [
-            { label: 'ACTIVE SCANS', value: activeScans, context: 'currently running' },
-            { label: 'COVERAGE', value: coverage + '%', valueColor: 'var(--accent-success)', context: 'assets covered' },
-            { label: 'FAILED SCANS', value: failedScans, valueColor: 'var(--accent-danger)', deltaGoodDown: true, context: 'last 30 days' },
-          ],
-        },
-        {
-          label: '🔴 FINDINGS',
-          color: 'var(--accent-danger)',
-          cells: [
-            { label: 'TOTAL FOUND', value: totalFindings, delta: +34, deltaGoodDown: true, context: 'vs prev scan' },
-            { label: 'CRITICAL ASSETS', value: criticalAssets, valueColor: 'var(--severity-critical)', noTrend: true, context: 'from last scan' },
-            { label: 'AVG DURATION', value: avgDuration + 'm', noTrend: true, context: 'last 30 scans' },
-          ],
-        },
-      ]} />
-
-      {/* Scan Pipeline Stepper */}
-      <div className="rounded-xl p-6 border transition-colors duration-200" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-        <h2 className="text-lg font-semibold mb-5" style={{ color: 'var(--text-primary)' }}>Scan Pipeline</h2>
-        {(() => {
-          const pipelineSteps = [
-            { name: 'Discovery', desc: 'Enumerate cloud resources' },
-            { name: 'Check',     desc: 'Evaluate compliance rules' },
-            { name: 'Inventory', desc: 'Normalize & relate assets' },
-            { name: 'Threat',    desc: 'Detect threats & map MITRE' },
-            { name: 'Compliance',desc: 'Build framework reports' },
-          ];
-          // Derive pipeline status from latest running/pending scan
-          const activeScan = scans.find(s => s.status === 'running' || s.status === 'pending');
-          const latestCompleted = scans.find(s => s.status === 'completed');
-          return (
-            <div className="flex items-start gap-0 overflow-x-auto">
-              {pipelineSteps.map((step, idx, arr) => {
-                let status = 'queued';
-                let color = '#6b7280';
-                let time = '—';
-                if (activeScan) {
-                  // If there's an active scan, show pipeline in progress
-                  if (idx < 3) { status = 'done'; color = '#22c55e'; }
-                  else if (idx === 3) { status = 'running'; color = '#f97316'; }
-                } else if (latestCompleted) {
-                  status = 'done'; color = '#22c55e';
-                  time = latestCompleted.duration || '—';
-                }
-                return (
-                  <div key={step.name} className="flex items-start flex-shrink-0" style={{ minWidth: 160 }}>
-                    <div className="flex flex-col items-center" style={{ width: 160 }}>
-                      <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border-2 flex-shrink-0"
-                        style={{ backgroundColor: color + '20', borderColor: color, color: color }}>
-                        {status === 'done' ? '✓' : status === 'running' ? '⟳' : idx + 1}
-                      </div>
-                      <p className="text-xs font-bold mt-2 text-center" style={{ color: 'var(--text-primary)' }}>{step.name}</p>
-                      <p className="text-xs mt-0.5 text-center" style={{ color: 'var(--text-tertiary)' }}>{step.desc}</p>
-                      {status !== 'queued' && (
-                        <span className="text-xs mt-1 px-2 py-0.5 rounded-full"
-                          style={{ backgroundColor: color + '20', color: color }}>{status === 'running' ? 'In Progress' : 'Done'}</span>
-                      )}
-                    </div>
-                    {idx < arr.length - 1 && (
-                      <div className="flex-1 h-0.5 mt-5 mx-1 flex-shrink-0" style={{ backgroundColor: arr[idx + 1] && status === 'done' && (idx + 1 < 3 || !activeScan) ? '#22c55e' : 'var(--bg-tertiary)', minWidth: 20 }} />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          );
-        })()}
-      </div>
-
-      {/* Coverage Summary by Provider */}
-      <div className="rounded-xl p-6 border transition-colors duration-200" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-        <h2 className="text-lg font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>Scan Coverage by Provider</h2>
-        <p className="text-sm mb-5" style={{ color: 'var(--text-tertiary)' }}>Scan success rates by cloud provider</p>
-        {(() => {
-          // Derive coverage from actual scan data grouped by provider
-          const providerStats = {};
-          scans.forEach(s => {
-            const p = (s.provider || 'unknown').toUpperCase();
-            if (!providerStats[p]) providerStats[p] = { total: 0, completed: 0, failed: 0, findings: 0, resources: 0 };
-            providerStats[p].total += 1;
-            if (s.status === 'completed') providerStats[p].completed += 1;
-            if (s.status === 'failed') providerStats[p].failed += 1;
-            providerStats[p].findings += s.total_findings || 0;
-            providerStats[p].resources += s.resources_scanned || 0;
-          });
-          const providers = Object.entries(providerStats);
-          if (providers.length === 0) {
-            return <p className="text-sm text-center py-4" style={{ color: 'var(--text-tertiary)' }}>No scan data available to compute coverage</p>;
-          }
-          const cellBg = (pct) => pct >= 80 ? '#22c55e20' : pct >= 50 ? '#eab30820' : '#ef444420';
-          const cellText = (pct) => pct >= 80 ? '#22c55e' : pct >= 50 ? '#eab308' : '#ef4444';
-          return (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm border-collapse">
-                <thead>
-                  <tr>
-                    <th className="text-left py-2 px-3 text-xs font-semibold" style={{ color: 'var(--text-tertiary)' }}>Provider</th>
-                    <th className="py-2 px-3 text-center text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>Total Scans</th>
-                    <th className="py-2 px-3 text-center text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>Completed</th>
-                    <th className="py-2 px-3 text-center text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>Failed</th>
-                    <th className="py-2 px-3 text-center text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>Success Rate</th>
-                    <th className="py-2 px-3 text-center text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>Resources</th>
-                    <th className="py-2 px-3 text-center text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>Findings</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {providers.map(([name, stats]) => {
-                    const successRate = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
-                    return (
-                      <tr key={name}>
-                        <td className="py-2 px-3 font-semibold text-xs" style={{ color: 'var(--text-primary)' }}>{name}</td>
-                        <td className="py-2 px-3 text-center text-xs" style={{ color: 'var(--text-secondary)' }}>{stats.total}</td>
-                        <td className="py-2 px-3 text-center text-xs" style={{ color: '#22c55e' }}>{stats.completed}</td>
-                        <td className="py-2 px-3 text-center text-xs" style={{ color: stats.failed > 0 ? '#ef4444' : 'var(--text-secondary)' }}>{stats.failed}</td>
-                        <td className="py-2 px-3 text-center">
-                          <span className="text-xs font-bold px-2 py-1 rounded" style={{ backgroundColor: cellBg(successRate), color: cellText(successRate) }}>
-                            {successRate}%
-                          </span>
-                        </td>
-                        <td className="py-2 px-3 text-center text-xs" style={{ color: 'var(--text-secondary)' }}>{stats.resources}</td>
-                        <td className="py-2 px-3 text-center text-xs" style={{ color: 'var(--text-secondary)' }}>{stats.findings}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          );
-        })()}
-      </div>
-
-      {/* Scheduled Scans */}
-      <div
-        className="rounded-lg p-6 border"
-        style={{
-          backgroundColor: 'var(--bg-card)',
-          borderColor: 'var(--border-primary)',
-        }}
-      >
-        <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
-          Scheduled Scans
-        </h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ borderBottomColor: 'var(--border-primary)' }} className="border-b">
-                <th
-                  className="text-left py-3 px-4 font-semibold"
-                  style={{ color: 'var(--text-secondary)' }}
-                >
-                  Scan Name
-                </th>
-                <th
-                  className="text-left py-3 px-4 font-semibold"
-                  style={{ color: 'var(--text-secondary)' }}
-                >
-                  Type
-                </th>
-                <th
-                  className="text-left py-3 px-4 font-semibold"
-                  style={{ color: 'var(--text-secondary)' }}
-                >
-                  Frequency
-                </th>
-                <th
-                  className="text-left py-3 px-4 font-semibold"
-                  style={{ color: 'var(--text-secondary)' }}
-                >
-                  Next Run
-                </th>
-                <th
-                  className="text-left py-3 px-4 font-semibold"
-                  style={{ color: 'var(--text-secondary)' }}
-                >
-                  Providers
-                </th>
-                <th
-                  className="text-left py-3 px-4 font-semibold"
-                  style={{ color: 'var(--text-secondary)' }}
-                >
-                  Status
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {scheduledScans.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="py-8 text-center text-sm" style={{ color: 'var(--text-tertiary)' }}>
-                    No scheduled scans found
-                  </td>
-                </tr>
-              )}
-              {scheduledScans.map((schedule) => (
-                <tr
-                  key={schedule.id}
-                  style={{ borderBottomColor: 'var(--border-primary)' }}
-                  className="border-b"
-                >
-                  <td className="py-3 px-4" style={{ color: 'var(--text-secondary)' }}>
-                    {schedule.name}
-                  </td>
-                  <td
-                    className="py-3 px-4 text-xs px-2 py-1 rounded font-medium inline-block"
-                    style={{
-                      backgroundColor: 'var(--bg-tertiary)',
-                      color: 'var(--text-secondary)',
-                    }}
-                  >
-                    {(schedule.type || '').toUpperCase()}
-                  </td>
-                  <td className="py-3 px-4" style={{ color: 'var(--text-tertiary)' }}>
-                    {schedule.frequency}
-                  </td>
-                  <td className="py-3 px-4" style={{ color: 'var(--text-secondary)' }}>
-                    {schedule.next_run ? new Date(schedule.next_run).toLocaleString() : 'N/A'}
-                  </td>
-                  <td className="py-3 px-4">
-                    <div className="flex gap-1">
-                      {(schedule.providers || []).map((p) => (
-                        <span
-                          key={p}
-                          className="px-2 py-1 rounded text-xs font-medium"
-                          style={{
-                            backgroundColor: 'var(--bg-tertiary)',
-                            color: 'var(--text-secondary)',
-                          }}
-                        >
-                          {p.toUpperCase()}
-                        </span>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="py-3 px-4">
-                    <input
-                      type="checkbox"
-                      checked={schedule.enabled}
-                      readOnly
-                      className="rounded"
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="flex items-center gap-2">
+          <button onClick={() => load()} className="p-2 rounded-lg hover:opacity-70" style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-primary)' }} title="Refresh">
+            <RefreshCw className="w-4 h-4" />
+          </button>
+          <button onClick={() => setShowRunModal(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white"
+            style={{ backgroundColor: 'var(--accent-primary)' }}>
+            <Play className="w-3.5 h-3.5" /> Run Now
+          </button>
         </div>
       </div>
 
-      {/* Active Scans */}
-      {activeScanCount > 0 && (
-        <div
-          className="rounded-lg p-6 border"
-          style={{
-            backgroundColor: 'var(--bg-card)',
-            borderColor: 'var(--border-primary)',
-          }}
-        >
-          <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
-            Active Scans
-          </h2>
-          <div className="space-y-4">
-            {scans
-              .filter((s) => s.status === 'running' || s.status === 'pending')
-              .map((scan) => (
-                <div
-                  key={scan.scan_id}
-                  className="rounded-lg p-4 border"
-                  style={{
-                    backgroundColor: 'var(--bg-tertiary)',
-                    borderColor: 'var(--border-primary)',
-                  }}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <h3 className="font-semibold" style={{ color: 'var(--text-primary)' }}>
-                        {scan.scan_name}
-                      </h3>
-                      <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
-                        Started {scan.started_at ? new Date(scan.started_at).toLocaleString() : 'N/A'}
-                      </p>
-                    </div>
-                    <StatusIndicator status={scan.status} />
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <span style={{ color: 'var(--text-secondary)' }}>
-                        {scan.resources_scanned} / ~{Math.floor(scan.resources_scanned * 1.3)} resources
-                      </span>
-                      <span style={{ color: 'var(--text-tertiary)' }}>{scan.duration}</span>
-                    </div>
-                    <div
-                      className="w-full h-2 rounded-full overflow-hidden"
-                      style={{ backgroundColor: 'var(--bg-secondary)' }}
-                    >
-                      <div
-                        className="h-full bg-blue-500"
-                        style={{
-                          width: `${(scan.resources_scanned / (scan.resources_scanned * 1.3)) * 100}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-          </div>
-        </div>
-      )}
-
-      {/* Scan History Table */}
-      <div
-        className="rounded-lg p-6 border"
-        style={{
-          backgroundColor: 'var(--bg-card)',
-          borderColor: 'var(--border-primary)',
-        }}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-            Scan History
-          </h2>
-          <span style={{ color: 'var(--text-tertiary)' }} className="text-sm">
-            {filtered.length} of {scans.length} scans
-          </span>
-        </div>
-
-        {/* Filter Bar (search + filters + group by) */}
-        <FilterBar
-          search={search}
-          onSearchChange={setSearch}
-          searchPlaceholder="Search scans..."
-          filters={primaryFilters}
-          onFilterChange={handleFilterChange}
-          activeFilters={activeFilters}
-          groupByOptions={groupByOptions}
-          groupBy={groupBy}
-          onGroupByChange={setGroupBy}
-        />
-
-        <div className="mt-4">
-          {/* Grouped or flat table */}
-          {grouped ? (
-            <div className="space-y-3">
-              {grouped.map(({ key, items, count }) => (
-                <div key={key} className="rounded-lg border" style={{ borderColor: 'var(--border-primary)' }}>
-                  <button
-                    onClick={() => toggleGroup(key)}
-                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-medium"
-                    style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
-                  >
-                    {expandedGroups[key] ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                    <span>{key}</span>
-                    <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>{count}</span>
-                  </button>
-                  {expandedGroups[key] && (
-                    <DataTable data={items} columns={columns} pageSize={25} hideToolbar onRowClick={(scan) => router.push(`/scans/${scan.scan_id}`)} />
-                  )}
-                </div>
-              ))}
-              <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                {grouped.length} groups, {filtered.length} total rows
-              </div>
-            </div>
-          ) : (
-            <DataTable
-              data={filtered}
-              columns={columns}
-              pageSize={15}
-              onRowClick={(scan) => router.push(`/scans/${scan.scan_id}`)}
-              loading={loading}
-              emptyMessage="No scans found matching your filters"
-            />
-          )}
-        </div>
-      </div>
-
-      {/* Run Scan Modal */}
-      {showRunModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div
-            className="rounded-lg border p-6 max-w-md w-full mx-4"
+      {/* Stats strip */}
+      <div className="grid grid-cols-4 gap-3">
+        {[
+          { label: 'Total',     value: stats.total,     color: 'var(--text-secondary)' },
+          { label: 'Running',   value: stats.running,   color: '#3b82f6' },
+          { label: 'Completed', value: stats.completed, color: '#22c55e' },
+          { label: 'Failed',    value: stats.failed,    color: '#ef4444' },
+        ].map(s => (
+          <button key={s.label}
+            onClick={() => setStatusFilter(s.label === 'Total' ? '' : s.label.toLowerCase())}
+            className="rounded-lg p-3 text-left transition-all hover:opacity-80"
             style={{
               backgroundColor: 'var(--bg-card)',
-              borderColor: 'var(--border-primary)',
-            }}
-          >
-            <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
-              Run New Scan
-            </h3>
+              border: `1px solid ${statusFilter === s.label.toLowerCase() ? s.color : 'var(--border-primary)'}`,
+            }}>
+            <div className="text-xl font-bold" style={{ color: s.color }}>{s.value}</div>
+            <div className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{s.label}</div>
+          </button>
+        ))}
+      </div>
 
-            <div className="space-y-4">
-              <div>
-                <label
-                  className="block text-sm font-medium mb-2"
-                  style={{ color: 'var(--text-secondary)' }}
-                >
-                  Scan Type
-                </label>
-                <select
-                  value={selectedType}
-                  onChange={(e) => setSelectedType(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
-                  style={{
-                    backgroundColor: 'var(--bg-tertiary)',
-                    borderColor: 'var(--border-primary)',
-                    color: 'var(--text-primary)',
-                  }}
-                >
-                  <option value="full">Full Scan</option>
-                  <option value="incremental">Incremental Scan</option>
-                  <option value="compliance">Compliance Scan</option>
-                  <option value="vulnerability">Vulnerability Scan</option>
-                  <option value="iac">IaC Scan</option>
-                </select>
-              </div>
+      {/* Filters */}
+      <div className="flex items-center gap-3">
+        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Status:</span>
+        {['', 'running', 'completed', 'failed', 'pending'].map(s => (
+          <button key={s} onClick={() => setStatusFilter(s)}
+            className="px-3 py-1 rounded-full text-xs transition-all"
+            style={{
+              backgroundColor: statusFilter === s ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+              color: statusFilter === s ? 'white' : 'var(--text-secondary)',
+            }}>
+            {s || 'All'}
+          </button>
+        ))}
+        {runs.some(r => r.overall_status === 'running') && (
+          <span className="flex items-center gap-1 text-xs text-blue-400 ml-auto">
+            <Loader2 className="w-3 h-3 animate-spin" /> Live
+          </span>
+        )}
+      </div>
 
-              <div>
-                <label
-                  className="block text-sm font-medium mb-2"
-                  style={{ color: 'var(--text-secondary)' }}
-                >
-                  Select Account
-                </label>
-                <select
-                  value={selectedAccount}
-                  onChange={(e) => setSelectedAccount(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
-                  style={{
-                    backgroundColor: 'var(--bg-tertiary)',
-                    borderColor: 'var(--border-primary)',
-                    color: 'var(--text-primary)',
-                  }}
-                >
-                  <option value="">Choose an account...</option>
-                  {Array.from(new Set(scans.map((s) => s.account_id).filter(Boolean)))
-                    .filter((a) => a && a !== 'all')
-                    .map((account) => (
-                      <option key={account} value={account}>
-                        {account}
-                      </option>
-                    ))}
-                </select>
-              </div>
+      {/* Table */}
+      <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border-primary)', backgroundColor: 'var(--bg-card)' }}>
+        <table className="w-full text-sm">
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--border-primary)', backgroundColor: 'var(--bg-secondary)' }}>
+              {['Scan Run ID', 'Account', 'Provider', 'Trigger', 'Status', 'Engines', 'Duration', 'Started'].map(h => (
+                <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={8} className="px-4 py-8 text-center">
+                <Loader2 className="w-5 h-5 animate-spin mx-auto" style={{ color: 'var(--text-muted)' }} />
+              </td></tr>
+            ) : runs.length === 0 ? (
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
+                No scan runs found. Click <strong>Run Now</strong> to trigger your first scan.
+              </td></tr>
+            ) : runs.map(run => (
+              <tr key={run.scan_run_id}
+                onClick={() => setSelectedRunId(run.scan_run_id)}
+                className="cursor-pointer hover:opacity-80 transition-opacity"
+                style={{ borderBottom: '1px solid var(--border-primary)' }}>
+                <td className="px-4 py-3">
+                  <span className="font-mono text-xs" style={{ color: 'var(--text-secondary)' }}>
+                    {run.scan_run_id?.slice(0, 8)}…
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-secondary)' }}>
+                  {run.account_name || run.account_id?.slice(0, 8) || '—'}
+                </td>
+                <td className="px-4 py-3">
+                  <span className="text-xs font-medium px-1.5 py-0.5 rounded"
+                    style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
+                    {run.provider?.toUpperCase() || '—'}
+                  </span>
+                </td>
+                <td className="px-4 py-3">
+                  <span className="text-xs px-1.5 py-0.5 rounded"
+                    style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}>
+                    {run.trigger_type || 'manual'}
+                  </span>
+                </td>
+                <td className="px-4 py-3"><StatusBadge status={run.overall_status} /></td>
+                <td className="px-4 py-3">
+                  <EngineBar
+                    enginesRequested={run.engines_requested || []}
+                    enginesCompleted={run.engines_completed || []}
+                    engineStatuses={run.engine_statuses || {}}
+                  />
+                </td>
+                <td className="px-4 py-3 text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
+                  {fmtDuration(run.started_at, run.completed_at)}
+                </td>
+                <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+                  {fmtRelative(run.started_at)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
-              <div>
-                <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                  This will trigger discovery, checks, inventory, threat detection, and compliance evaluation across all selected accounts and resources.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => setShowRunModal(false)}
-                className="flex-1 px-4 py-2 rounded-lg font-medium transition-colors"
-                style={{
-                  backgroundColor: 'var(--bg-tertiary)',
-                  color: 'var(--text-primary)',
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleRunScan}
-                disabled={!selectedAccount}
-                className="flex-1 px-4 py-2 text-white rounded-lg font-medium transition-colors"
-                style={{
-                  backgroundColor: !selectedAccount ? 'var(--text-tertiary)' : 'var(--accent-primary)',
-                  opacity: !selectedAccount ? 0.5 : 1,
-                  cursor: !selectedAccount ? 'not-allowed' : 'pointer',
-                }}
-              >
-                Start Scan
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Modals */}
+      {showRunModal && (
+        <RunNowModal
+          accounts={accounts}
+          schedules={schedules}
+          onClose={() => setShowRunModal(false)}
+          onLaunched={handleLaunched}
+        />
+      )}
+      {selectedRunId && (
+        <ScanRunDetailModal
+          scanRunId={selectedRunId}
+          onClose={() => setSelectedRunId(null)}
+        />
       )}
     </div>
   );

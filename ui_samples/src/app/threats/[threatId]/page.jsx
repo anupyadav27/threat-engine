@@ -493,6 +493,13 @@ export default function ThreatDetailPage() {
 
   const { threat, exposure, mitre, affectedResources, supportingFindings, attackPath, blastRadius, remediation, timeline, evidence, riskBreakdown } = data;
 
+  const [activeTab, setActiveTab] = useState('overview');
+
+  const TABS = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'timeline', label: 'Timeline', badge: timeline?.length || 0 },
+  ];
+
   return (
     <div className="space-y-6 p-6">
       {/* Toast notification */}
@@ -653,13 +660,41 @@ export default function ThreatDetailPage() {
         </div>
       </div>
 
-      {/* ── DETAIL CONTENT (no tabs — direct layout) ── */}
-      <SafeSection fallbackMessage="Failed to load detail data">
-        <OverviewTab
-          supportingFindings={supportingFindings}
-          router={router}
-        />
-      </SafeSection>
+      {/* ── TAB BAR ── */}
+      <div className="flex gap-1 border-b" style={{ borderColor: 'var(--border-primary)' }}>
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+              activeTab === tab.id ? 'border-current' : 'border-transparent hover:border-gray-600'
+            }`}
+            style={{ color: activeTab === tab.id ? 'var(--accent-primary)' : 'var(--text-tertiary)' }}
+          >
+            {tab.label}
+            {tab.badge > 0 && (
+              <span
+                className="text-xs px-1.5 py-0.5 rounded-full"
+                style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}
+              >
+                {tab.badge}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* ── TAB CONTENT ── */}
+      {activeTab === 'overview' && (
+        <SafeSection fallbackMessage="Failed to load detail data">
+          <OverviewTab supportingFindings={supportingFindings} router={router} />
+        </SafeSection>
+      )}
+      {activeTab === 'timeline' && (
+        <SafeSection fallbackMessage="Failed to load timeline">
+          <TimelineTab timeline={timeline} />
+        </SafeSection>
+      )}
     </div>
   );
 }

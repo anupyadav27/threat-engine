@@ -6,6 +6,7 @@ from rest_framework.views import APIView
 from user_auth.models import UserSessions
 from user_auth.utils.auth_utils import generate_token, hash_token
 from user_auth.utils.cookie_utils import set_auth_cookies
+from user_auth.utils.tenant_utils import provision_first_tenant
 
 
 class SamlSuccessBridgeView(APIView):
@@ -22,6 +23,9 @@ class SamlSuccessBridgeView(APIView):
 
         user_obj.last_login = timezone.now()
         user_obj.save(update_fields=['sso_provider', 'status', 'last_login'])
+
+        # Auto-provision tenant on very first SAML login
+        provision_first_tenant(user_obj)
 
         UserSessions.objects.filter(user=user_obj).delete()
 

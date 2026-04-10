@@ -1,0 +1,1283 @@
+rules:
+- rule_id: iam.ct.delete_access_key
+  title: IAM access key deleted
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: iam
+    - field: operation
+      op: equals
+      value: DeleteAccessKey
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: delete
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1070.004
+  description: Deletion of IAM access key — may indicate credential rotation or evidence destruction.
+  domain: iam_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: &id001
+  - CIS
+  - NIST_800-53
+  - SOC2
+  - PCI-DSS
+  - ISO_27001
+  risk_score: 50
+- rule_id: iam.ct.update_access_key_disable
+  title: IAM access key deactivated
+  severity: low
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: iam
+    - field: operation
+      op: equals
+      value: UpdateAccessKey
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1070
+  description: Access key status changed — could be deactivation before rotation or disabling compromised key.
+  domain: iam_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: iam.ct.get_access_key_last_used
+  title: Access key last-used info queried
+  severity: info
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: iam
+    - field: operation
+      op: equals
+      value: GetAccessKeyLastUsed
+  engines:
+  - ciem
+  primary_engine: ciem
+  action_category: read
+  mitre_tactics:
+  - discovery
+  mitre_techniques:
+  - T1087.004
+  description: Querying access key last-used metadata — reconnaissance for stale credentials.
+  domain: iam_security
+  provider: aws
+  remediation: Verify the accessor has legitimate need-to-know. Review access patterns for anomalies. Consider restricting
+    read permissions.
+  compliance_frameworks: *id001
+  risk_score: 10
+- rule_id: iam.ct.attach_user_policy
+  title: Managed policy attached to IAM user
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: iam
+    - field: operation
+      op: equals
+      value: AttachUserPolicy
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: modify
+  mitre_tactics:
+  - privilege-escalation
+  - persistence
+  mitre_techniques:
+  - T1098.003
+  description: Managed policy attached directly to user — review for over-permissive grants.
+  domain: iam_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: iam.ct.attach_group_policy
+  title: Managed policy attached to IAM group
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: iam
+    - field: operation
+      op: equals
+      value: AttachGroupPolicy
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: modify
+  mitre_tactics:
+  - privilege-escalation
+  mitre_techniques:
+  - T1098.003
+  description: Managed policy attached to group — affects all group members.
+  domain: iam_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: iam.ct.put_user_policy
+  title: Inline policy added to IAM user
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: iam
+    - field: operation
+      op: equals
+      value: PutUserPolicy
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: modify
+  mitre_tactics:
+  - privilege-escalation
+  - persistence
+  mitre_techniques:
+  - T1484.002
+  description: Inline policy on user bypasses managed policy governance.
+  domain: iam_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: iam.ct.put_group_policy
+  title: Inline policy added to IAM group
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: iam
+    - field: operation
+      op: equals
+      value: PutGroupPolicy
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: modify
+  mitre_tactics:
+  - privilege-escalation
+  mitre_techniques:
+  - T1484.002
+  description: Inline policy on group — broad privilege expansion.
+  domain: iam_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: iam.ct.create_policy_version
+  title: New IAM policy version created
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: iam
+    - field: operation
+      op: equals
+      value: CreatePolicyVersion
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: modify
+  mitre_tactics:
+  - privilege-escalation
+  mitre_techniques:
+  - T1484.002
+  description: New policy version may silently escalate permissions on existing attachments.
+  domain: iam_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: iam.ct.set_default_policy_version
+  title: Default IAM policy version changed
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: iam
+    - field: operation
+      op: equals
+      value: SetDefaultPolicyVersion
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: modify
+  mitre_tactics:
+  - privilege-escalation
+  - defense-evasion
+  mitre_techniques:
+  - T1484.002
+  description: Switching default policy version can reactivate previously revoked permissions.
+  domain: iam_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: iam.ct.delete_policy
+  title: IAM managed policy deleted
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: iam
+    - field: operation
+      op: equals
+      value: DeletePolicy
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: delete
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1070
+  description: Policy deletion may remove audit trail of privilege grants.
+  domain: iam_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: iam.ct.delete_role
+  title: IAM role deleted
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: iam
+    - field: operation
+      op: equals
+      value: DeleteRole
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: delete
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1531
+  description: Role deletion disrupts services and may indicate sabotage or cleanup.
+  domain: iam_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: iam.ct.attach_role_policy
+  title: Managed policy attached to IAM role
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: iam
+    - field: operation
+      op: equals
+      value: AttachRolePolicy
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: modify
+  mitre_tactics:
+  - privilege-escalation
+  - persistence
+  mitre_techniques:
+  - T1098.003
+  description: Managed policy attached to role — review for admin or wildcard grants.
+  domain: iam_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: iam.ct.delete_user
+  title: IAM user deleted
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: iam
+    - field: operation
+      op: equals
+      value: DeleteUser
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: delete
+  mitre_tactics:
+  - impact
+  - defense-evasion
+  mitre_techniques:
+  - T1531
+  description: User deletion — cleanup after compromise or denial of service to legitimate user.
+  domain: iam_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: iam.ct.add_user_to_group
+  title: IAM user added to group
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: iam
+    - field: operation
+      op: equals
+      value: AddUserToGroup
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: modify
+  mitre_tactics:
+  - privilege-escalation
+  - persistence
+  mitre_techniques:
+  - T1098.003
+  description: Group membership change inherits all group policies.
+  domain: iam_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: iam.ct.remove_user_from_group
+  title: IAM user removed from group
+  severity: low
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: iam
+    - field: operation
+      op: equals
+      value: RemoveUserFromGroup
+  engines:
+  - ciem
+  primary_engine: ciem
+  action_category: modify
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1531
+  description: Removing user from group revokes inherited permissions.
+  domain: iam_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: iam.ct.update_login_profile
+  title: IAM user console password changed
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: iam
+    - field: operation
+      op: equals
+      value: UpdateLoginProfile
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: modify
+  mitre_tactics:
+  - persistence
+  - credential-access
+  mitre_techniques:
+  - T1098.001
+  description: Password change on another user — potential account takeover.
+  domain: iam_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: iam.ct.delete_login_profile
+  title: IAM user console access removed
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: iam
+    - field: operation
+      op: equals
+      value: DeleteLoginProfile
+  engines:
+  - ciem
+  primary_engine: ciem
+  action_category: delete
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1531
+  description: Console login profile deleted — blocks user console access.
+  domain: iam_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: iam.ct.sts_get_session_token
+  title: STS temporary session token generated
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: sts
+    - field: operation
+      op: equals
+      value: GetSessionToken
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: execute
+  mitre_tactics:
+  - credential-access
+  mitre_techniques:
+  - T1550.001
+  description: Session token generation — may be used to bypass MFA or IP restrictions.
+  domain: iam_security
+  provider: aws
+  remediation: Validate function/container execution is authorized. Review execution role permissions. Check for code injection
+    indicators.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: iam.ct.sts_get_federation_token
+  title: STS federation token generated
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: sts
+    - field: operation
+      op: equals
+      value: GetFederationToken
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: execute
+  mitre_tactics:
+  - credential-access
+  - lateral-movement
+  mitre_techniques:
+  - T1550.001
+  description: Federation token enables temporary access without IAM user — common in token theft attacks.
+  domain: iam_security
+  provider: aws
+  remediation: Validate function/container execution is authorized. Review execution role permissions. Check for code injection
+    indicators.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: iam.ct.sts_assume_role_with_saml
+  title: Role assumed via SAML federation
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: sts
+    - field: operation
+      op: equals
+      value: AssumeRoleWithSAML
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: execute
+  mitre_tactics:
+  - initial-access
+  - lateral-movement
+  mitre_techniques:
+  - T1078.004
+  description: SAML-based role assumption — verify IdP trust and token validity.
+  domain: iam_security
+  provider: aws
+  remediation: Validate function/container execution is authorized. Review execution role permissions. Check for code injection
+    indicators.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: iam.ct.sts_assume_role_with_web_identity
+  title: Role assumed via web identity (OIDC)
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: sts
+    - field: operation
+      op: equals
+      value: AssumeRoleWithWebIdentity
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: execute
+  mitre_tactics:
+  - initial-access
+  - lateral-movement
+  mitre_techniques:
+  - T1078.004
+  description: OIDC-based role assumption — common for EKS pods and CI/CD systems.
+  domain: iam_security
+  provider: aws
+  remediation: Validate function/container execution is authorized. Review execution role permissions. Check for code injection
+    indicators.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: iam.ct.sts_decode_authorization_message
+  title: STS authorization error message decoded
+  severity: low
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: sts
+    - field: operation
+      op: equals
+      value: DecodeAuthorizationMessage
+  engines:
+  - ciem
+  primary_engine: ciem
+  action_category: read
+  mitre_tactics:
+  - discovery
+  mitre_techniques:
+  - T1087.004
+  description: Decoding auth error messages reveals permission boundaries — useful for privilege enumeration.
+  domain: iam_security
+  provider: aws
+  remediation: Verify the accessor has legitimate need-to-know. Review access patterns for anomalies. Consider restricting
+    read permissions.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: iam.ct.sso_create_permission_set
+  title: SSO permission set created
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: sso
+    - field: operation
+      op: equals
+      value: CreatePermissionSet
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: create
+  mitre_tactics:
+  - persistence
+  - privilege-escalation
+  mitre_techniques:
+  - T1098.003
+  description: New SSO permission set — defines what permissions federated users receive.
+  domain: iam_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: iam.ct.sso_delete_permission_set
+  title: SSO permission set deleted
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: sso
+    - field: operation
+      op: equals
+      value: DeletePermissionSet
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: delete
+  mitre_tactics:
+  - impact
+  - defense-evasion
+  mitre_techniques:
+  - T1531
+  description: SSO permission set deletion disrupts federated access.
+  domain: iam_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: iam.ct.sso_create_account_assignment
+  title: SSO account assignment created
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: sso
+    - field: operation
+      op: equals
+      value: CreateAccountAssignment
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: create
+  mitre_tactics:
+  - persistence
+  - privilege-escalation
+  mitre_techniques:
+  - T1098.003
+  description: SSO assignment grants user/group access to an AWS account.
+  domain: iam_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: iam.ct.sso_delete_account_assignment
+  title: SSO account assignment removed
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: sso
+    - field: operation
+      op: equals
+      value: DeleteAccountAssignment
+  engines:
+  - ciem
+  primary_engine: ciem
+  action_category: delete
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1531
+  description: Removal of SSO account assignment revokes federated access.
+  domain: iam_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: iam.ct.sso_provision_permission_set
+  title: SSO permission set provisioned to account
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: sso
+    - field: operation
+      op: equals
+      value: ProvisionPermissionSet
+  engines:
+  - ciem
+  primary_engine: ciem
+  action_category: execute
+  mitre_tactics:
+  - persistence
+  mitre_techniques:
+  - T1098.003
+  description: Permission set provisioning pushes IAM roles into target accounts.
+  domain: iam_security
+  provider: aws
+  remediation: Validate function/container execution is authorized. Review execution role permissions. Check for code injection
+    indicators.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: iam.ct.org_create_account
+  title: New AWS account created in organization
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: organizations
+    - field: operation
+      op: equals
+      value: CreateAccount
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - persistence
+  mitre_techniques:
+  - T1136.003
+  description: New AWS account in org — provides isolated environment for attacker persistence.
+  domain: iam_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: iam.ct.org_leave_organization
+  title: AWS account leaving organization
+  severity: critical
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: organizations
+    - field: operation
+      op: equals
+      value: LeaveOrganization
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  - impact
+  mitre_techniques:
+  - T1562.001
+  description: Account leaving org escapes SCPs, consolidated billing, and central governance.
+  domain: iam_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: iam.ct.org_remove_account
+  title: AWS account removed from organization
+  severity: critical
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: organizations
+    - field: operation
+      op: equals
+      value: RemoveAccountFromOrganization
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - defense-evasion
+  - impact
+  mitre_techniques:
+  - T1562.001
+  description: Forced removal of account from org — breaks governance controls.
+  domain: iam_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: iam.ct.org_create_policy
+  title: Organization policy (SCP) created
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: organizations
+    - field: operation
+      op: equals
+      value: CreatePolicy
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: create
+  mitre_tactics:
+  - privilege-escalation
+  mitre_techniques:
+  - T1484.002
+  description: SCP creation affects permission boundaries across entire OUs.
+  domain: iam_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: iam.ct.org_update_policy
+  title: Organization policy (SCP) modified
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: organizations
+    - field: operation
+      op: equals
+      value: UpdatePolicy
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: modify
+  mitre_tactics:
+  - privilege-escalation
+  - defense-evasion
+  mitre_techniques:
+  - T1484.002
+  description: SCP modification can weaken or remove guardrails org-wide.
+  domain: iam_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: iam.ct.org_delete_policy
+  title: Organization policy (SCP) deleted
+  severity: critical
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: organizations
+    - field: operation
+      op: equals
+      value: DeletePolicy
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: delete
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.001
+  description: SCP deletion removes security guardrails from attached OUs/accounts.
+  domain: iam_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: iam.ct.org_attach_policy
+  title: SCP attached to OU or account
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: organizations
+    - field: operation
+      op: equals
+      value: AttachPolicy
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: modify
+  mitre_tactics:
+  - privilege-escalation
+  mitre_techniques:
+  - T1484.002
+  description: SCP attachment changes effective permissions for all identities in target scope.
+  domain: iam_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: iam.ct.org_detach_policy
+  title: SCP detached from OU or account
+  severity: critical
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: organizations
+    - field: operation
+      op: equals
+      value: DetachPolicy
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  - privilege-escalation
+  mitre_techniques:
+  - T1562.001
+  description: Detaching SCP removes guardrails — common pre-exploitation step.
+  domain: iam_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: iam.ct.deactivate_mfa_device
+  title: MFA device deactivated for IAM user
+  severity: critical
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: iam
+    - field: operation
+      op: equals
+      value: DeactivateMFADevice
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - credential-access
+  - defense-evasion
+  mitre_techniques:
+  - T1556.006
+  description: MFA deactivation removes second factor — critical persistence/takeover indicator.
+  domain: iam_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: iam.ct.delete_virtual_mfa_device
+  title: Virtual MFA device deleted
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: iam
+    - field: operation
+      op: equals
+      value: DeleteVirtualMFADevice
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - credential-access
+  - defense-evasion
+  mitre_techniques:
+  - T1556.006
+  description: Virtual MFA device deletion prevents re-enabling MFA.
+  domain: iam_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: iam.ct.enable_mfa_device
+  title: MFA device enabled for IAM user
+  severity: low
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: iam
+    - field: operation
+      op: equals
+      value: EnableMFADevice
+  engines:
+  - ciem
+  primary_engine: ciem
+  action_category: modify
+  mitre_tactics:
+  - persistence
+  mitre_techniques:
+  - T1098.005
+  description: MFA enrollment — verify this is expected user registering their own device.
+  domain: iam_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: iam.ct.update_account_password_policy
+  title: Account password policy changed
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: iam
+    - field: operation
+      op: equals
+      value: UpdateAccountPasswordPolicy
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  - credential-access
+  mitre_techniques:
+  - T1556
+  description: Weakening password policy enables brute force and credential stuffing.
+  domain: iam_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: iam.ct.delete_account_password_policy
+  title: Account password policy deleted
+  severity: critical
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: iam
+    - field: operation
+      op: equals
+      value: DeleteAccountPasswordPolicy
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: delete
+  mitre_tactics:
+  - defense-evasion
+  - credential-access
+  mitre_techniques:
+  - T1556
+  description: Deleting password policy removes all password complexity requirements.
+  domain: iam_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: iam.ct.delete_saml_provider
+  title: SAML identity provider deleted
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: iam
+    - field: operation
+      op: equals
+      value: DeleteSAMLProvider
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: delete
+  mitre_tactics:
+  - impact
+  - defense-evasion
+  mitre_techniques:
+  - T1531
+  description: SAML provider deletion breaks federated login for all associated users.
+  domain: iam_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: iam.ct.delete_oidc_provider
+  title: OIDC identity provider deleted
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: iam
+    - field: operation
+      op: equals
+      value: DeleteOpenIDConnectProvider
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: delete
+  mitre_tactics:
+  - impact
+  - defense-evasion
+  mitre_techniques:
+  - T1531
+  description: OIDC provider deletion breaks EKS IRSA and CI/CD federation.
+  domain: iam_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: iam.ct.update_oidc_provider_thumbprint
+  title: OIDC provider thumbprint updated
+  severity: critical
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: iam
+    - field: operation
+      op: equals
+      value: UpdateOpenIDConnectProviderThumbprint
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - credential-access
+  - initial-access
+  mitre_techniques:
+  - T1199
+  description: Changing OIDC thumbprint can redirect trust to attacker-controlled IdP.
+  domain: iam_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: iam.ct.delete_access_analyzer
+  title: IAM Access Analyzer deleted
+  severity: critical
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: access-analyzer
+    - field: operation
+      op: equals
+      value: DeleteAnalyzer
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.001
+  description: Deleting Access Analyzer removes external access finding detection.
+  domain: iam_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: iam.ct.archive_access_analyzer_finding
+  title: IAM Access Analyzer finding archived
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: access-analyzer
+    - field: operation
+      op: equals
+      value: UpdateFindings
+  engines:
+  - threat_engine
+  - ciem
+  primary_engine: ciem
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562.001
+  description: Archiving Access Analyzer findings suppresses external access alerts.
+  domain: iam_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50

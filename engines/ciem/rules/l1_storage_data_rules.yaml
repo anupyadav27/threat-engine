@@ -1,0 +1,962 @@
+rules:
+- rule_id: storage.ct.s3_put_bucket_policy
+  title: S3 bucket policy modified
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: s3
+    - field: operation
+      op: equals
+      value: PutBucketPolicy
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - exfiltration
+  - defense-evasion
+  mitre_techniques:
+  - T1537
+  description: Bucket policy change may grant cross-account or public access.
+  domain: data_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: &id001
+  - CIS
+  - NIST_800-53
+  - GDPR
+  - PCI-DSS
+  - HIPAA
+  - ISO_27001
+  risk_score: 70
+- rule_id: storage.ct.s3_put_bucket_acl
+  title: S3 bucket ACL modified
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: s3
+    - field: operation
+      op: equals
+      value: PutBucketAcl
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - exfiltration
+  mitre_techniques:
+  - T1537
+  description: Legacy ACL change — may grant AuthenticatedUsers or AllUsers access.
+  domain: data_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: storage.ct.s3_delete_bucket_encryption
+  title: S3 bucket default encryption removed
+  severity: critical
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: s3
+    - field: operation
+      op: equals
+      value: DeleteBucketEncryption
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: datasec_engine
+  action_category: delete
+  mitre_tactics:
+  - defense-evasion
+  - impact
+  mitre_techniques:
+  - T1486
+  description: Removing default encryption exposes new objects to plaintext storage.
+  domain: data_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: storage.ct.s3_put_bucket_public_access_block_disable
+  title: S3 public access block configuration changed
+  severity: critical
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: s3
+    - field: operation
+      op: equals
+      value: PutBucketPublicAccessBlock
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - exfiltration
+  - defense-evasion
+  mitre_techniques:
+  - T1537
+  description: Disabling public access block is a prerequisite for making bucket contents public.
+  domain: data_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: storage.ct.s3_put_bucket_versioning_suspend
+  title: S3 bucket versioning configuration changed
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: s3
+    - field: operation
+      op: equals
+      value: PutBucketVersioning
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: datasec_engine
+  action_category: modify
+  mitre_tactics:
+  - impact
+  - defense-evasion
+  mitre_techniques:
+  - T1485
+  description: Suspending versioning removes ability to recover deleted or overwritten objects.
+  domain: data_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: storage.ct.s3_put_bucket_replication
+  title: S3 cross-region replication configured
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: s3
+    - field: operation
+      op: equals
+      value: PutBucketReplication
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: datasec_engine
+  action_category: modify
+  mitre_tactics:
+  - exfiltration
+  mitre_techniques:
+  - T1537
+  description: Replication to another region/account — potential data exfiltration channel.
+  domain: data_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: storage.ct.s3_put_bucket_website
+  title: S3 static website hosting enabled
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: s3
+    - field: operation
+      op: equals
+      value: PutBucketWebsite
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - exfiltration
+  - initial-access
+  mitre_techniques:
+  - T1537
+  description: Website hosting on S3 may expose bucket contents via HTTP.
+  domain: data_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: storage.ct.s3_put_bucket_cors
+  title: S3 CORS configuration modified
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: s3
+    - field: operation
+      op: equals
+      value: PutBucketCors
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - exfiltration
+  mitre_techniques:
+  - T1537
+  description: Permissive CORS allows cross-origin browser access to bucket data.
+  domain: data_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: storage.ct.s3_delete_bucket_policy
+  title: S3 bucket policy deleted
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: s3
+    - field: operation
+      op: equals
+      value: DeleteBucketPolicy
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1070
+  description: Deleting bucket policy removes deny rules that may restrict access.
+  domain: data_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: storage.ct.s3_put_object_lock_configuration
+  title: S3 Object Lock configuration changed
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: s3
+    - field: operation
+      op: equals
+      value: PutObjectLockConfiguration
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: datasec_engine
+  action_category: modify
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1485
+  description: Object Lock changes affect data immutability — disabling enables deletion.
+  domain: data_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: storage.ct.ebs_create_snapshot
+  title: EBS snapshot created
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ec2
+    - field: operation
+      op: equals
+      value: CreateSnapshot
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - collection
+  - exfiltration
+  mitre_techniques:
+  - T1537
+  description: EBS snapshot captures full volume — may contain credentials or sensitive data.
+  domain: data_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: storage.ct.ebs_create_snapshots_bulk
+  title: Bulk EBS snapshots created
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ec2
+    - field: operation
+      op: equals
+      value: CreateSnapshots
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - collection
+  - exfiltration
+  mitre_techniques:
+  - T1537
+  description: Bulk snapshot creation — large-scale data collection indicator.
+  domain: data_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: storage.ct.ebs_modify_snapshot_attribute_public
+  title: EBS snapshot sharing permissions modified
+  severity: critical
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ec2
+    - field: operation
+      op: equals
+      value: ModifySnapshotAttribute
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - exfiltration
+  mitre_techniques:
+  - T1537
+  description: Making EBS snapshot public or sharing cross-account exposes volume data.
+  domain: data_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: storage.ct.efs_create_file_system
+  title: EFS file system created
+  severity: low
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: elasticfilesystem
+    - field: operation
+      op: equals
+      value: CreateFileSystem
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - collection
+  mitre_techniques:
+  - T1074.002
+  description: New EFS file system — review encryption and access policy settings.
+  domain: data_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: storage.ct.efs_put_file_system_policy
+  title: EFS file system policy modified
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: elasticfilesystem
+    - field: operation
+      op: equals
+      value: PutFileSystemPolicy
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: datasec_engine
+  action_category: modify
+  mitre_tactics:
+  - exfiltration
+  - persistence
+  mitre_techniques:
+  - T1537
+  description: EFS policy change may grant cross-account or broad network access.
+  domain: data_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: storage.ct.efs_delete_file_system
+  title: EFS file system deleted
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: elasticfilesystem
+    - field: operation
+      op: equals
+      value: DeleteFileSystem
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1485
+  description: EFS deletion destroys all shared file data.
+  domain: data_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: storage.ct.rds_modify_db_instance_public
+  title: RDS instance accessibility modified
+  severity: critical
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: rds
+    - field: operation
+      op: equals
+      value: ModifyDBInstance
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - exfiltration
+  - initial-access
+  mitre_techniques:
+  - T1190
+  description: RDS modification may enable public accessibility or change security groups.
+  domain: data_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: storage.ct.rds_create_db_snapshot
+  title: RDS manual snapshot created
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: rds
+    - field: operation
+      op: equals
+      value: CreateDBSnapshot
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - collection
+  - exfiltration
+  mitre_techniques:
+  - T1537
+  description: Manual RDS snapshot — may be shared externally for data exfiltration.
+  domain: data_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: storage.ct.rds_share_db_snapshot
+  title: RDS snapshot shared with external account
+  severity: critical
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: rds
+    - field: operation
+      op: equals
+      value: ModifyDBSnapshotAttribute
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - exfiltration
+  mitre_techniques:
+  - T1537
+  description: Sharing RDS snapshot cross-account — primary database exfiltration technique.
+  domain: data_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: storage.ct.rds_restore_from_snapshot
+  title: RDS instance restored from snapshot
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: rds
+    - field: operation
+      op: equals
+      value: RestoreDBInstanceFromDBSnapshot
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - collection
+  mitre_techniques:
+  - T1530
+  description: Restoring from snapshot may provide access to data from a different time.
+  domain: data_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: storage.ct.rds_delete_db_instance
+  title: RDS instance deleted
+  severity: critical
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: rds
+    - field: operation
+      op: equals
+      value: DeleteDBInstance
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1485
+  description: RDS deletion — check if final snapshot was skipped (data loss risk).
+  domain: data_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: storage.ct.rds_modify_cluster_snapshot_attribute
+  title: RDS cluster snapshot sharing modified
+  severity: critical
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: rds
+    - field: operation
+      op: equals
+      value: ModifyDBClusterSnapshotAttribute
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - exfiltration
+  mitre_techniques:
+  - T1537
+  description: Aurora cluster snapshot shared externally — contains full database data.
+  domain: data_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: storage.ct.dynamodb_delete_table
+  title: DynamoDB table deleted
+  severity: critical
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: dynamodb
+    - field: operation
+      op: equals
+      value: DeleteTable
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1485
+  description: DynamoDB table deletion destroys all items and indexes.
+  domain: data_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: storage.ct.dynamodb_update_table
+  title: DynamoDB table configuration updated
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: dynamodb
+    - field: operation
+      op: equals
+      value: UpdateTable
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562
+  description: Table update may change encryption, streams, or TTL settings.
+  domain: data_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: storage.ct.dynamodb_create_global_table
+  title: DynamoDB global table created
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: dynamodb
+    - field: operation
+      op: equals
+      value: CreateGlobalTable
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: datasec_engine
+  action_category: create
+  mitre_tactics:
+  - exfiltration
+  mitre_techniques:
+  - T1537
+  description: Global table replicates data to other regions — potential data residency violation.
+  domain: data_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: storage.ct.dynamodb_export_table
+  title: DynamoDB table exported to S3
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: dynamodb
+    - field: operation
+      op: equals
+      value: ExportTableToPointInTime
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: threat_engine
+  action_category: read
+  mitre_tactics:
+  - collection
+  - exfiltration
+  mitre_techniques:
+  - T1530
+  description: Full table export to S3 — bulk data extraction.
+  domain: data_security
+  provider: aws
+  remediation: Verify the accessor has legitimate need-to-know. Review access patterns for anomalies. Consider restricting
+    read permissions.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: storage.ct.dynamodb_delete_backup
+  title: DynamoDB backup deleted
+  severity: high
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: dynamodb
+    - field: operation
+      op: equals
+      value: DeleteBackup
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1485
+  description: Backup deletion removes recovery capability.
+  domain: data_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: storage.ct.redshift_modify_cluster_public
+  title: Redshift cluster accessibility modified
+  severity: critical
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: redshift
+    - field: operation
+      op: equals
+      value: ModifyCluster
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - exfiltration
+  - initial-access
+  mitre_techniques:
+  - T1190
+  description: Redshift modification may enable public access to data warehouse.
+  domain: data_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: storage.ct.redshift_create_cluster_snapshot
+  title: Redshift cluster snapshot created
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: redshift
+    - field: operation
+      op: equals
+      value: CreateClusterSnapshot
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - collection
+  - exfiltration
+  mitre_techniques:
+  - T1537
+  description: Redshift snapshot captures full data warehouse.
+  domain: data_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: storage.ct.redshift_authorize_snapshot_access
+  title: Redshift snapshot shared with external account
+  severity: critical
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: redshift
+    - field: operation
+      op: equals
+      value: AuthorizeSnapshotAccess
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - exfiltration
+  mitre_techniques:
+  - T1537
+  description: Sharing Redshift snapshot enables full data warehouse exfiltration.
+  domain: data_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: storage.ct.redshift_delete_cluster
+  title: Redshift cluster deleted
+  severity: critical
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: redshift
+    - field: operation
+      op: equals
+      value: DeleteCluster
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1485
+  description: Redshift cluster deletion — check skip-final-snapshot flag.
+  domain: data_security
+  provider: aws
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: storage.ct.elasticache_create_replication_group
+  title: ElastiCache replication group created
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: elasticache
+    - field: operation
+      op: equals
+      value: CreateReplicationGroup
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - persistence
+  mitre_techniques:
+  - T1505
+  description: New ElastiCache cluster — review encryption-in-transit and auth settings.
+  domain: data_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: storage.ct.elasticache_modify_replication_group
+  title: ElastiCache replication group modified
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: elasticache
+    - field: operation
+      op: equals
+      value: ModifyReplicationGroup
+  engines:
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1562
+  description: Modification may disable auth token or encryption settings.
+  domain: data_security
+  provider: aws
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: storage.ct.elasticache_create_snapshot
+  title: ElastiCache snapshot created
+  severity: medium
+  log_source_type: cloudtrail
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: elasticache
+    - field: operation
+      op: equals
+      value: CreateSnapshot
+  engines:
+  - threat_engine
+  - datasec_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - collection
+  mitre_techniques:
+  - T1530
+  description: ElastiCache snapshot may contain session tokens, cached credentials.
+  domain: data_security
+  provider: aws
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50

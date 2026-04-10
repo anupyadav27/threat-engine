@@ -179,4 +179,6 @@ async def view_misconfig(
             "avg_age": avg_age,
             "sla_breached": sla_breached,
         },
+        # scan_trend from threat engine (pass-through; engine must supply it)
+        "scanTrend": safe_get(data, "scan_trend", []),
     }

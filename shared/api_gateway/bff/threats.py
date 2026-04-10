@@ -64,8 +64,15 @@ async def view_threats(
     if not isinstance(onboarding_data, dict):
         onboarding_data = {}
 
-    # Mock fallback when engine data is empty
-    if is_empty_or_health(threat_data):
+    # Mock fallback when engine data is empty or has no detections
+    _has_detections = (
+        isinstance(threat_data, dict)
+        and (
+            safe_get(threat_data, "threats", [])
+            or safe_get(threat_data, "summary.total_detections", 0)
+        )
+    )
+    if is_empty_or_health(threat_data) or not _has_detections:
         m = mock_fallback("threats")
         if m is not None:
             return m
@@ -90,6 +97,51 @@ async def view_threats(
     raw = safe_get(threat_data, "threats", []) or []
     threats = [normalize_threat(t) for t in raw]
     _enrich_threats_provider(threats, account_provider_map, default_provider)
+
+    # Atomic threat findings (individual rule evaluations)
+    raw_findings = safe_get(threat_data, "findings", []) or []
+    threat_findings = [
+        {
+            "finding_id":      f.get("finding_id", ""),
+            "rule_id":         f.get("rule_id", ""),
+            "title":           f.get("rule_id", ""),  # rule_id doubles as title
+            "threat_category": f.get("threat_category", ""),
+            "severity":        (f.get("severity") or "medium").lower(),
+            "status":          (f.get("status") or "FAIL").upper(),
+            "resource_type":   f.get("resource_type", ""),
+            "resource_uid":    f.get("resource_uid", ""),
+            "account_id":      f.get("account_id", ""),
+            "account":         f.get("account_id", ""),
+            "region":          f.get("region", ""),
+            "mitre_tactics":   f.get("mitre_tactics", []),
+            "mitre_techniques": f.get("mitre_techniques", []),
+            "provider":        _safe_upper(
+                account_provider_map.get(f.get("account_id", ""), default_provider)
+            ),
+            "first_seen_at":   f.get("first_seen_at"),
+            "last_seen_at":    f.get("last_seen_at"),
+        }
+        for f in raw_findings
+    ]
+    threat_findings = apply_global_filters(threat_findings, provider, account, region)
+
+    # Build finding lookup: finding_id → finding dict (for O(1) joins)
+    findings_by_id: Dict[str, dict] = {f["finding_id"]: f for f in threat_findings if f.get("finding_id")}
+
+    # Attach contributingFindings to each threat using finding_refs from evidence
+    for t in threats:
+        refs = t.get("finding_refs") or []
+        if refs:
+            # Real data path: use exact finding_id references
+            t["contributingFindings"] = [findings_by_id[r] for r in refs if r in findings_by_id]
+        else:
+            # Fallback: match by resource_uid + account (same resource, different rules)
+            t_uid = t.get("resource_uid", "")
+            t_acct = t.get("account") or t.get("account_id", "")
+            t["contributingFindings"] = [
+                f for f in threat_findings
+                if f.get("resource_uid") == t_uid and f.get("account_id") == t_acct
+            ] if t_uid else []
 
     filtered = apply_global_filters(threats, provider, account, region)
 
@@ -307,10 +359,11 @@ async def view_threats(
 
     page_ctx = threats_page_context({"total": total})
     page_ctx["tabs"] = [
-        {"id": "overview", "label": "Overview", "count": total},
-        {"id": "mitre", "label": "MITRE ATT&CK", "count": mitre_count},
-        {"id": "attack_paths", "label": "Attack Paths", "count": len(chains)},
-        {"id": "timeline", "label": "Timeline", "count": len(trend_list)},
+        {"id": "overview",     "label": "Overview",       "count": total},
+        {"id": "mitre",        "label": "MITRE ATT&CK",   "count": mitre_count},
+        {"id": "attack_paths", "label": "Attack Paths",    "count": len(chains)},
+        {"id": "findings",     "label": "Findings",        "count": len(threat_findings)},
+        {"id": "timeline",     "label": "Timeline",        "count": len(trend_list)},
     ]
 
     return {
@@ -344,6 +397,7 @@ async def view_threats(
             "dataScope": "all_scans" if scan_run_id == "latest" else "single_scan",
         },
         "threats": filtered,
+        "threatFindings": threat_findings,
         "total": total,
         "trendData": trend_list,
         "mitreMatrix": mitre_matrix,

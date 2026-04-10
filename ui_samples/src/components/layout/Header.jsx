@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useRef, useEffect } from 'react';
 import { useTheme } from '@/lib/theme-context';
 import { useGlobalFilter } from '@/lib/global-filter-context';
+import { useTenant } from '@/lib/tenant-context';
 import { CLOUD_PROVIDERS } from '@/lib/constants';
 import { Sun, Moon, Bell, ChevronDown, LogOut, User, Settings, Globe } from 'lucide-react';
 
@@ -26,13 +27,8 @@ export default function Header() {
   const tenantMenuRef = useRef(null);
   const userMenuRef = useRef(null);
 
-  const tenants = [
-    { id: 't1', name: 'Acme Corp' },
-    { id: 't2', name: 'TechStart Inc' },
-    { id: 't3', name: 'Global Finance' },
-  ];
-  const [currentTenant, setCurrentTenant] = useState('t1');
-  const currentTenantName = tenants.find(t => t.id === currentTenant)?.name || 'Select Tenant';
+  const { tenants, activeTenant, setActiveTenant } = useTenant();
+  const currentTenantName = activeTenant?.tenant_name || 'Select Workspace';
 
   const mockUser = { name: 'Anup Yadav', email: 'yadav.anup@gmail.com', role: 'Admin', initials: 'AY' };
   const unreadNotifications = 3;
@@ -120,14 +116,23 @@ export default function Header() {
             <ChevronDown size={12} />
           </button>
           {showTenantMenu && (
-            <div className="absolute top-full right-0 mt-1 w-48 rounded-lg border shadow-lg z-50" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+            <div className="absolute top-full right-0 mt-1 w-52 rounded-lg border shadow-lg z-50" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+              {tenants.length === 0 && (
+                <div className="px-3 py-2 text-xs" style={{ color: 'var(--text-muted)' }}>No workspaces found</div>
+              )}
               {tenants.map(t => (
-                <button key={t.id} onClick={() => { setCurrentTenant(t.id); setShowTenantMenu(false); }}
-                  className="w-full text-left px-3 py-2 text-sm border-b last:border-b-0 hover:opacity-75"
-                  style={{ backgroundColor: currentTenant === t.id ? 'var(--bg-tertiary)' : 'transparent', color: 'var(--text-secondary)', borderColor: 'var(--border-primary)' }}>
-                  <div className="font-medium text-xs">{t.name}</div>
+                <button key={t.tenant_id} onClick={() => { setActiveTenant(t); setShowTenantMenu(false); }}
+                  className="w-full text-left px-3 py-2 text-xs border-b last:border-b-0 hover:opacity-75"
+                  style={{ backgroundColor: activeTenant?.tenant_id === t.tenant_id ? 'var(--bg-tertiary)' : 'transparent', color: 'var(--text-secondary)', borderColor: 'var(--border-primary)' }}>
+                  <div className="font-medium">{t.tenant_name}</div>
+                  <div className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{t.account_count ?? 0} accounts</div>
                 </button>
               ))}
+              <button onClick={() => { router.push('/onboarding/tenants'); setShowTenantMenu(false); }}
+                className="w-full text-left px-3 py-2 text-xs border-t hover:opacity-75"
+                style={{ color: 'var(--accent-primary)', borderColor: 'var(--border-primary)' }}>
+                + Manage workspaces
+              </button>
             </div>
           )}
         </div>

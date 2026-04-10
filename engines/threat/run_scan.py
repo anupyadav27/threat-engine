@@ -81,11 +81,11 @@ def _create_report_row(scan_run_id: str, tenant_id: str, provider: str,
         with conn.cursor() as cur:
             cur.execute(
                 """INSERT INTO threat_report
-                   (scan_run_id, tenant_id, provider,
+                   (threat_scan_id, scan_run_id, tenant_id, provider,
                     status, started_at, report_data)
-                   VALUES (%s, %s, %s, 'running', NOW(), %s)
+                   VALUES (%s, %s, %s, %s, 'running', NOW(), %s)
                    ON CONFLICT (scan_run_id) DO UPDATE SET status = 'running'""",
-                (scan_run_id, tenant_id, provider,
+                (scan_run_id, scan_run_id, tenant_id, provider,
                  json.dumps(metadata)),
             )
         conn.commit()
@@ -256,6 +256,62 @@ def main():
             threats=threats,
             misconfig_findings=findings,
         )
+
+        # 7a. Enrich with CIEM log-based threat events
+        try:
+            from engine_common.ciem_reader import CIEMReader
+            ciem = CIEMReader(tenant_id=tenant_id, account_id=account_id, days=7)
+            ciem_threats = ciem.get_threat_events(min_severity="low")
+            ciem_findings_data = ciem.get_ciem_findings(engine_filter="threat")
+            if ciem_threats:
+                logger.info(f"CIEM: {len(ciem_threats)} threat events from logs")
+            if ciem_findings_data:
+                logger.info(f"CIEM: {len(ciem_findings_data)} threat findings from CIEM")
+                # Merge CIEM findings into the already-generated report
+                report_findings = report.get("findings", [])
+                existing_ids = {f.get("finding_id") for f in report_findings}
+                ciem_added = 0
+                for cf in ciem_findings_data:
+                    fid = cf.get("finding_id", "")
+                    if fid and fid in existing_ids:
+                        continue
+                    report_findings.append({
+                        "finding_id": fid,
+                        "rule_id": cf.get("rule_id", ""),
+                        "severity": cf.get("severity", "medium"),
+                        "status": "FAIL",
+                        "title": cf.get("title", ""),
+                        "source": "ciem_log_detection",
+                        "operation": cf.get("operation", ""),
+                        "actor_principal": cf.get("actor_principal", ""),
+                        "resource_uid": cf.get("resource_uid", ""),
+                        "resource_type": cf.get("resource_type", ""),
+                        "account_id": cf.get("account_id", account_id or ""),
+                        "region": cf.get("region", ""),
+                        "event_time": str(cf.get("event_time", "")),
+                        "action_category": cf.get("action_category", ""),
+                        "finding_data": {
+                            "source": "ciem",
+                            "title": cf.get("title", ""),
+                            "description": cf.get("description", ""),
+                            "remediation": cf.get("remediation", ""),
+                            "compliance_frameworks": cf.get("compliance_frameworks", []),
+                            "mitre_tactics": cf.get("mitre_tactics", []),
+                            "mitre_techniques": cf.get("mitre_techniques", []),
+                            "risk_score": cf.get("risk_score"),
+                            "domain": cf.get("domain", ""),
+                        },
+                    })
+                    existing_ids.add(fid)
+                    ciem_added += 1
+                report["findings"] = report_findings
+                # Update summary counts
+                summary = report.get("summary", {})
+                summary["total_findings"] = len(report_findings)
+                report["summary"] = summary
+                logger.info(f"Merged: {ciem_added} CIEM findings → {len(report_findings)} total")
+        except Exception as ciem_exc:
+            logger.warning(f"CIEM enrichment failed (non-fatal): {ciem_exc}")
 
         # Save report to DB (writes threat_report + threat_findings + threat_detections)
         storage = ThreatStorage()

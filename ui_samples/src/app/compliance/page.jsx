@@ -1,621 +1,250 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import {
-  ClipboardCheck, CheckCircle, XCircle, RefreshCw,
-  AlertTriangle, Shield, BarChart3,
+  Shield, ChevronRight, ChevronDown, CheckCircle, XCircle,
+  AlertTriangle, ArrowLeft, Search, Download, X, FileText,
+  Server, ExternalLink, Clock,
 } from 'lucide-react';
-import {
-  RadarChart, Radar, PolarGrid, PolarAngleAxis,
-  PieChart, Pie, Cell,
-  AreaChart, Area, BarChart, Bar,
-  XAxis, YAxis, CartesianGrid, Tooltip as RechartsTip,
-  ResponsiveContainer, Legend,
-} from 'recharts';
-import { postToEngine } from '@/lib/api';
+import { getFromEngine } from '@/lib/api';
 import { TENANT_ID } from '@/lib/constants';
-import { useToast } from '@/lib/toast-context';
-import { useGlobalFilter } from '@/lib/global-filter-context';
-import PageLayout from '@/components/shared/PageLayout';
-import KpiSparkCard from '@/components/shared/KpiSparkCard';
-import SearchBar from '@/components/shared/SearchBar';
+import SeverityBadge from '@/components/shared/SeverityBadge';
 
-/**
- * Fetch compliance data through our local BFF interceptor.
- * The interceptor (src/app/api/bff/compliance/route.js) tries the live NLB,
- * detects degenerate data (empty framework names / all-zero scores), and falls
- * back to rich mock data so every KPI card and chart is populated even before
- * engine DB fixes are deployed to EKS.
- */
-async function fetchComplianceView(params = {}) {
-  const qs = new URLSearchParams();
-  if (TENANT_ID) qs.set('tenant_id', TENANT_ID);
-  if (params.provider) qs.set('provider', params.provider);
-  if (params.account)  qs.set('account',  params.account);
-  if (params.region)   qs.set('region',   params.region);
-
-  const origin =
-    typeof window !== 'undefined'
-      ? window.location.origin
-      : 'http://localhost:3000';
-  const url = `${origin}/api/bff/compliance?${qs}`;
-  try {
-    const res = await fetch(url);
-    if (!res.ok) return { error: `BFF error: ${res.status}` };
-    return res.json();
-  } catch (err) {
-    return { error: err?.message || 'Failed to fetch compliance data' };
-  }
-}
-
-// ── Colour palette ────────────────────────────────────────────────────────────
+/* ─── Colors ─────────────────────────────────────────────── */
 const C = {
-  passed:   '#22c55e',
-  failed:   '#ef4444',
-  critical: '#ef4444',
-  high:     '#f97316',
-  medium:   '#eab308',
-  low:      '#3b82f6',
-  blue:     '#3b82f6',
-  purple:   '#8b5cf6',
-  teal:     '#14b8a6',
-  amber:    '#f59e0b',
+  pass: '#22c55e', fail: '#ef4444', partial: '#f59e0b', na: '#6b7280',
+  blue: '#3b82f6', bg: 'var(--bg-card)', border: 'var(--border-primary)',
 };
 
-const MATRIX_FRAMEWORKS = ['CIS', 'NIST', 'SOC2', 'PCI', 'HIPAA', 'ISO', 'GDPR'];
-const MATRIX_FRAMEWORK_LABELS = {
-  CIS: 'CIS AWS', NIST: 'NIST 800-53', SOC2: 'SOC 2',
-  PCI: 'PCI DSS', HIPAA: 'HIPAA', ISO: 'ISO 27001', GDPR: 'GDPR',
-};
-const FW_COLORS = ['#3b82f6', '#8b5cf6', '#22c55e', '#f97316', '#ef4444', '#14b8a6', '#f59e0b'];
-
-const SEV_CFG = {
-  critical: { bg: 'rgba(239,68,68,0.15)',  text: '#ef4444' },
-  high:     { bg: 'rgba(249,115,22,0.15)', text: '#f97316' },
-  medium:   { bg: 'rgba(234,179,8,0.15)',  text: '#eab308' },
-  low:      { bg: 'rgba(34,197,94,0.15)',  text: '#22c55e' },
+const statusIcon = (s) => {
+  if (s === 'PASS') return <CheckCircle size={16} style={{ color: C.pass }} />;
+  if (s === 'FAIL') return <XCircle size={16} style={{ color: C.fail }} />;
+  if (s === 'PARTIAL') return <AlertTriangle size={16} style={{ color: C.partial }} />;
+  return <span style={{ color: C.na, fontSize: 12 }}>--</span>;
 };
 
-const AUDIT_CHECKLIST = [
-  { label: 'All framework scans up to date',   done: true  },
-  { label: 'Zero critical unresolved controls', done: false },
-  { label: 'Active exceptions reviewed',        done: true  },
-  { label: 'Evidence packages generated',       done: false },
-  { label: 'Audit trail continuity verified',   done: true  },
-  { label: 'Remediation plan for failures',     done: false },
-];
+const pct = (n, d) => d > 0 ? Math.round(100 * n / d) : 0;
 
-function matrixCellColor(score, expired) {
-  if (expired) return { bg: 'var(--bg-tertiary)', text: 'var(--text-muted)' };
-  const hue = (score / 100) * 120;
-  return {
-    bg:   `hsla(${hue}, 70%, 45%, 0.2)`,
-    text: score >= 75 ? '#22c55e' : score >= 55 ? '#f59e0b' : '#ef4444',
-  };
-}
-
-// ── Compliance Gauge ──────────────────────────────────────────────────────────
-function ComplianceGauge({ score = 0, size = 170 }) {
-  const r   = size * 0.38;
-  const cx  = size / 2;
-  const cy  = size * 0.56;
-  const pct = Math.min(Math.max(score, 0), 100) / 100;
-  const toXY = (a) => [cx + r * Math.cos(a), cy + r * Math.sin(a)];
-
-  const [tx1, ty1] = toXY(Math.PI);
-  const [tx2, ty2] = toXY(0);
-  const needleAngle = Math.PI - pct * Math.PI;
-  const [sx2, sy2] = toXY(needleAngle);
-  const largeArc = pct > 0.5 ? 1 : 0;
-  const [nx, ny]  = [cx + (r - 10) * Math.cos(needleAngle), cy + (r - 10) * Math.sin(needleAngle)];
-  const col = score >= 80 ? C.passed : score >= 60 ? C.amber : score >= 40 ? C.high : C.failed;
-
-  return (
-    <svg width={size} height={size * 0.62} viewBox={`0 0 ${size} ${size * 0.62}`}>
-      <path d={`M ${tx1} ${ty1} A ${r} ${r} 0 0 1 ${tx2} ${ty2}`}
-        fill="none" stroke="var(--bg-tertiary)" strokeWidth={size * 0.06} strokeLinecap="round" />
-      {pct > 0 && (
-        <path d={`M ${tx1} ${ty1} A ${r} ${r} 0 ${largeArc} 1 ${sx2} ${sy2}`}
-          fill="none" stroke={col} strokeWidth={size * 0.06} strokeLinecap="round" />
-      )}
-      <line x1={cx} y1={cy} x2={nx} y2={ny} stroke={col} strokeWidth={2.5} strokeLinecap="round" opacity={0.85} />
-      <circle cx={cx} cy={cy} r={4} fill={col} />
-      <text x={cx} y={cy - r * 0.16} textAnchor="middle" fontSize={size * 0.2} fontWeight={900} fill={col}>{score}</text>
-      <text x={cx} y={cy + r * 0.12} textAnchor="middle" fontSize={size * 0.09} fill="var(--text-muted)">/ 100</text>
-    </svg>
-  );
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-
+/* ═══════════════════════════════════════════════════════════
+   Main Compliance Page — Orca-style single page
+   ═══════════════════════════════════════════════════════════ */
 export default function CompliancePage() {
-  const router = useRouter();
-  const toast  = useToast();
-  const { provider, account, region } = useGlobalFilter();
+  // ── State ──
+  const [loading, setLoading] = useState(true);
+  const [frameworks, setFrameworks] = useState([]);
+  const [selectedFw, setSelectedFw] = useState(null);    // framework row clicked
+  const [fwDetail, setFwDetail] = useState(null);         // framework assessment detail
+  const [fwLoading, setFwLoading] = useState(false);
+  const [controlPanel, setControlPanel] = useState(null); // slide-out control
+  const [panelFindings, setPanelFindings] = useState([]);
+  const [panelLoading, setPanelLoading] = useState(false);
+  const [panelTab, setPanelTab] = useState('info');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [expandedSections, setExpandedSections] = useState(new Set());
 
-  const [loading,         setLoading]         = useState(true);
-  const [error,           setError]           = useState(null);
-  const [trendData,       setTrendData]       = useState([]);
-  const [frameworks,      setFrameworks]      = useState([]);
-  const [auditDeadlines,  setAuditDeadlines]  = useState([]);
-  const [exceptions,      setExceptions]      = useState([]);
-  const [accounts,        setAccounts]        = useState([]);
-  const [failingControls, setFailingControls] = useState([]);
-  const [overallScore,    setOverallScore]    = useState(null);
-
-  const [matrixSortBy,  setMatrixSortBy]  = useState('account');
-  const [matrixSortDir, setMatrixSortDir] = useState('asc');
-  const [hoveredCell,   setHoveredCell]   = useState(null);
-  const [tooltipPos,    setTooltipPos]    = useState({ x: 0, y: 0 });
-  const [frameworkSearch, setFrameworkSearch] = useState('');
-
-  // ── Fetch ─────────────────────────────────────────────────────────────────
+  // ── Fetch frameworks list ──
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await fetchComplianceView({
-          provider: provider || undefined,
-          account:  account  || undefined,
-          region:   region   || undefined,
-        });
-        if (data.error) { setError(data.error); return; }
-        if (data.frameworks)      setFrameworks(data.frameworks);
-        if (data.trendData)       setTrendData(data.trendData);
-        if (data.auditDeadlines)  setAuditDeadlines(data.auditDeadlines);
-        if (data.exceptions)      setExceptions(data.exceptions);
-        if (data.accountMatrix)   setAccounts(data.accountMatrix);
-        if (data.failingControls) setFailingControls(data.failingControls);
-        // Score from dedicated key or kpiGroups
-        const sc = data.overallScore
-          ?? data.kpiGroups?.[0]?.items?.find(x => /overall/i.test(x.label))?.value
-          ?? data.kpiGroups?.[1]?.items?.find(x => /overall/i.test(x.label))?.value
-          ?? null;
-        if (sc != null) setOverallScore(sc);
-      } catch (err) {
-        console.warn('[compliance] fetch error:', err);
-        setError(err?.message || 'Failed to load compliance data');
-      } finally { setLoading(false); }
-    };
-    fetchData();
-  }, [provider, account, region]);
+    setLoading(true);
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    fetch(`${origin}/gateway/api/v1/views/compliance?tenant_id=${TENANT_ID || 'default-tenant'}`)
+      .then(r => r.json())
+      .then(d => {
+        setFrameworks(d.frameworks || []);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
-  // ── Actions ───────────────────────────────────────────────────────────────
-  const handleGenerateReport = async () => {
-    try {
-      const r = await postToEngine('compliance', '/api/v1/compliance/generate/from-threat-engine', { tenant_id: TENANT_ID });
-      r && !r.error ? toast.success('Report generation started.') : toast.info('Report queued.');
-    } catch { toast.info('Report request sent.'); }
+  // ── Fetch framework detail when selected ──
+  useEffect(() => {
+    if (!selectedFw) { setFwDetail(null); return; }
+    setFwLoading(true);
+    setExpandedSections(new Set());
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    fetch(`${origin}/gateway/api/v1/views/compliance/framework/${selectedFw.id}?tenant_id=${TENANT_ID || 'default-tenant'}`)
+      .then(r => r.json())
+      .then(d => setFwDetail(d))
+      .catch(() => setFwDetail(null))
+      .finally(() => setFwLoading(false));
+  }, [selectedFw]);
+
+  // ── Fetch control findings when panel opened ──
+  const [controlDetail, setControlDetail] = useState(null);
+
+  const openControlPanel = useCallback((ctrl) => {
+    setControlPanel(ctrl);
+    setControlDetail(null);
+    setPanelTab('info');
+    setPanelFindings([]);
+    setPanelLoading(true);
+    // Extract short control_id: cis_aws_aws_5.10_0059 → 5.10
+    const parts = (ctrl.control_id || '').split('_');
+    const numParts = parts.filter(p => /^\d/.test(p));
+    const shortId = numParts.length > 0 ? numParts[0] : ctrl.control_id;
+    const fwName = selectedFw?.name || selectedFw?.id || '';
+    // Fetch findings + full control detail in parallel
+    Promise.all([
+      getFromEngine('compliance', '/api/v1/compliance/findings/by-control', {
+        control_id: shortId, framework: fwName, limit: 50,
+      }).catch(() => ({ findings: [] })),
+      getFromEngine('compliance', `/api/v1/compliance/control/${ctrl.control_id}`, {}).catch(() => null),
+    ]).then(([findingsData, detailData]) => {
+      setPanelFindings(findingsData?.findings || []);
+      setControlDetail(detailData);
+    }).finally(() => setPanelLoading(false));
+  }, [selectedFw]);
+
+  // ── Computed totals ──
+  const totals = useMemo(() => {
+    const pass = frameworks.reduce((s, f) => s + (f.passed || 0), 0);
+    const fail = frameworks.reduce((s, f) => s + (f.failed || 0), 0);
+    const total = pass + fail || 1;
+    return { pass, fail, total, score: pct(pass, total), byAsset: 0 };
+  }, [frameworks]);
+
+  // ── Toggle section accordion ──
+  const toggleSection = (family) => {
+    setExpandedSections(prev => {
+      const next = new Set(prev);
+      next.has(family) ? next.delete(family) : next.add(family);
+      return next;
+    });
   };
 
-  const handleMatrixSort = (col) => {
-    if (matrixSortBy === col) setMatrixSortDir(d => d === 'asc' ? 'desc' : 'asc');
-    else { setMatrixSortBy(col); setMatrixSortDir('desc'); }
-  };
-
-  // ── Derived KPIs ─────────────────────────────────────────────────────────
-  const passedControls   = frameworks.reduce((s, fw) => s + (fw.passed   || 0), 0);
-  const failedControls   = frameworks.reduce((s, fw) => s + (fw.failed   || 0), 0);
-  const totalControls    = Math.max(frameworks.reduce((s, fw) => s + (fw.controls || 0), 0), passedControls + failedControls);
-  const passRate         = totalControls > 0 ? Math.round((passedControls / totalControls) * 100) : 0;
-  const criticalFailures = failingControls.filter(c => c.severity === 'critical').length;
-  const highFailures     = failingControls.filter(c => c.severity === 'high').length;
-  const atRiskCount      = frameworks.filter(fw => (fw.score ?? 0) < 70).length;
-  const computedScore    = Math.round(overallScore ?? passRate ?? 0);
-  const auditReadiness   = Math.round((AUDIT_CHECKLIST.filter(c => c.done).length / AUDIT_CHECKLIST.length) * 100);
-  const expiringExc      = exceptions.filter(e => e.status === 'expiring-soon').length;
-
-  // ── Trend normalization ───────────────────────────────────────────────────
-  const activeTrend = useMemo(() => {
-    if (trendData.length >= 2) {
-      const M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-      return trendData.map(d => ({
-        date: typeof d.date === 'string' && d.date.includes('-')
-          ? (() => { const p = d.date.split('-'); return `${M[parseInt(p[1],10)-1]??''} ${parseInt(p[2],10)}`; })()
-          : (d.date ?? ''),
-        score: d.score ?? 0,
-      }));
-    }
-    return trendData;
-  }, [trendData]);
-
-  const sparkScore = activeTrend.map(d => d.score ?? 0);
-  const scoreΔ = sparkScore.length >= 2
-    ? Math.round((sparkScore[sparkScore.length - 1] - sparkScore[0]) * 10) / 10
-    : 0;
-
-  // ── Per-framework severity counts (from failingControls) ──────────────────
-  const fwSeverityMap = useMemo(() => {
-    const map = {};
-    failingControls.forEach(c => {
-      const fw = c.framework || 'Unknown';
-      if (!map[fw]) map[fw] = { critical: 0, high: 0, medium: 0, low: 0 };
-      if (c.severity) map[fw][c.severity] = (map[fw][c.severity] || 0) + 1;
-    });
-    return map;
-  }, [failingControls]);
-
-  // ── Sorted matrix rows ────────────────────────────────────────────────────
-  const sortedMatrix = useMemo(() => {
-    return [...accounts].sort((a, b) => {
-      let va, vb;
-      if (matrixSortBy === 'account') {
-        va = a.account || a.account_id || '';
-        vb = b.account || b.account_id || '';
-        return matrixSortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
-      }
-      if (matrixSortBy === 'avg') {
-        const avg = r => MATRIX_FRAMEWORKS.reduce((s, fw) => s + (r[fw] || 0), 0) / MATRIX_FRAMEWORKS.length;
-        va = avg(a); vb = avg(b);
-      } else { va = a[matrixSortBy] || 0; vb = b[matrixSortBy] || 0; }
-      return matrixSortDir === 'asc' ? va - vb : vb - va;
-    });
-  }, [accounts, matrixSortBy, matrixSortDir]);
-
-  // ── Column definitions ────────────────────────────────────────────────────
-  const failingControlColumns = [
-    { accessorKey: 'control_id', header: 'Control ID', cell: i => <code className="text-xs px-2 py-1 rounded" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-tertiary)' }}>{i.getValue()}</code> },
-    { accessorKey: 'title',      header: 'Control',    cell: i => <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{i.getValue()}</span> },
-    { accessorKey: 'framework',  header: 'Framework',  cell: i => <span className="text-xs px-2 py-1 rounded" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>{i.getValue()}</span> },
-    { accessorKey: 'account',    header: 'Account',    cell: i => <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{i.getValue()}</span> },
-    { accessorKey: 'severity',   header: 'Severity',   cell: i => { const s = i.getValue(); const c = SEV_CFG[s] || SEV_CFG.medium; return <span className="text-xs px-2 py-0.5 rounded-full font-semibold capitalize" style={{ backgroundColor: c.bg, color: c.text }}>{s}</span>; } },
-    { accessorKey: 'days_open',  header: 'Days Open',  cell: i => { const d = i.getValue(); return <span className="text-xs font-semibold" style={{ color: d > 30 ? C.failed : d > 14 ? C.high : 'var(--text-tertiary)' }}>{d}d</span>; } },
-  ];
-
-  const auditColumns = [
-    { accessorKey: 'framework',      header: 'Framework',  cell: i => <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{i.getValue()}</span> },
-    { accessorKey: 'type',           header: 'Audit Type', cell: i => <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{i.getValue()}</span> },
-    { accessorKey: 'due_date',       header: 'Due Date',   cell: i => <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(i.getValue()).toLocaleDateString()}</span> },
-    { accessorKey: 'days_remaining', header: 'Days Left',  cell: i => { const d = i.getValue(); return <span className={`text-sm font-semibold ${d <= 30 ? 'text-red-400' : 'text-green-400'}`}>{d}d</span>; } },
-    { accessorKey: 'owner',          header: 'Owner',      cell: i => <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{i.getValue()}</span> },
-    { accessorKey: 'status',         header: 'Status',     cell: i => { const s = i.getValue(); const cfg = { 'on-track': { bg: 'rgba(34,197,94,0.15)', text: '#22c55e', label: 'On Track' }, 'at-risk': { bg: 'rgba(249,115,22,0.15)', text: '#f97316', label: 'At Risk' } }; const c = cfg[s] || cfg['on-track']; return <span className="text-xs px-2 py-1 rounded font-medium" style={{ backgroundColor: c.bg, color: c.text }}>{c.label}</span>; } },
-  ];
-
-  const exceptionColumns = [
-    { accessorKey: 'framework',     header: 'Framework',     cell: i => <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{i.getValue()}</span> },
-    { accessorKey: 'control',       header: 'Control',       cell: i => <span className="text-xs px-2 py-1 rounded" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>{i.getValue()}</span> },
-    { accessorKey: 'justification', header: 'Justification', cell: i => <span className="text-sm line-clamp-2" style={{ color: 'var(--text-secondary)' }}>{i.getValue()}</span> },
-    { accessorKey: 'approved_by',   header: 'Approved By',   cell: i => <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{i.getValue()}</span> },
-    { accessorKey: 'expiry_date',   header: 'Expires',       cell: i => <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(i.getValue()).toLocaleDateString()}</span> },
-    { accessorKey: 'status',        header: 'Status',        cell: i => { const s = i.getValue(); return <span className="text-xs px-2 py-1 rounded font-medium" style={{ backgroundColor: s === 'expiring-soon' ? 'rgba(249,115,22,0.15)' : 'rgba(34,197,94,0.15)', color: s === 'expiring-soon' ? '#f97316' : '#22c55e' }}>{s === 'expiring-soon' ? 'Expiring Soon' : 'Active'}</span>; } },
-  ];
-
-  // ── Insight Strip ─────────────────────────────────────────────────────────
-  const insightStrip = useMemo(() => {
-    const col   = computedScore >= 80 ? C.passed : computedScore >= 60 ? C.amber : computedScore >= 40 ? C.high : C.failed;
-    const level = computedScore >= 80 ? 'Good' : computedScore >= 60 ? 'Fair' : computedScore >= 40 ? 'At Risk' : 'Critical';
-
-    const TrendTip = ({ active, payload, label }) => {
-      if (!active || !payload?.length) return null;
-      const sc = payload[0]?.value ?? 0;
-      const tc = sc >= 80 ? C.passed : sc >= 60 ? C.amber : sc >= 40 ? C.high : C.failed;
-      return (
-        <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-primary)', borderRadius: 10, padding: '10px 14px', boxShadow: '0 6px 24px rgba(0,0,0,.2)' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>{label}</div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-            <span style={{ fontSize: 22, fontWeight: 900, color: tc }}>{sc}</span>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>/ 100</span>
-          </div>
+  // ═══ RENDER ═══
+  return (
+    <div style={{ padding: '20px 24px', maxWidth: '100%', position: 'relative' }}>
+      {/* ── Header ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+        {selectedFw && (
+          <button onClick={() => setSelectedFw(null)}
+            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 8, border: `1px solid ${C.border}`, backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>
+            <ArrowLeft size={14} /> Back
+          </button>
+        )}
+        <Shield size={22} style={{ color: 'var(--accent-primary)' }} />
+        <div>
+          <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+            {selectedFw ? (selectedFw.name || selectedFw.id) : 'Compliance'}
+          </h1>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
+            {selectedFw ? `${fwDetail?.total_controls || '...'} controls` : `${frameworks.length} frameworks`}
+          </p>
         </div>
-      );
-    };
-
-    const top5 = [...failingControls]
-      .sort((a, b) => ({ critical: 4, high: 3, medium: 2, low: 1 }[b.severity] ?? 0) - ({ critical: 4, high: 3, medium: 2, low: 1 }[a.severity] ?? 0))
-      .slice(0, 5);
-
-    return (
-      <div className="flex gap-3 items-stretch" style={{ minHeight: 330, marginBottom: 12 }}>
-
-        {/* ── Col 1: 2×3 KPI Grid ── */}
-        <div style={{ flex: 1.3, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 8, minWidth: 0 }}>
-          <KpiSparkCard label="Overall Score"   value={`${computedScore}%`}             color={col}        sub={`${level} posture`}                          sparkData={sparkScore} delta={scoreΔ} deltaGood="up" />
-          <KpiSparkCard label="Pass Rate"       value={`${passRate}%`}                  color={C.passed}   sub={`${passedControls.toLocaleString()} / ${totalControls.toLocaleString()}`} sparkData={sparkScore} delta={scoreΔ} deltaGood="up" />
-          <KpiSparkCard label="Critical Gaps"   value={criticalFailures}                color={C.critical} sub={`${highFailures} high severity`}             sparkData={sparkScore.map(v => Math.max(0, Math.round((100 - v) / 10)))} delta={-criticalFailures} deltaGood="down" />
-          <KpiSparkCard label="At-Risk FWs"     value={atRiskCount}                     color={C.high}     sub="frameworks below 70%"                        sparkData={sparkScore.map(v => Math.max(0, 7 - Math.round(v / 15)))} delta={null} deltaGood="down" />
-          <KpiSparkCard label="Total Controls"  value={totalControls.toLocaleString()}  color={C.blue}     sub={`${frameworks.length} frameworks`}            sparkData={sparkScore.map(v => Math.round(v * 5))} delta={null} deltaGood="up" />
-          <KpiSparkCard label="Audit Readiness" value={`${auditReadiness}%`}            color={C.teal}     sub={`${expiringExc} exceptions expiring`}         sparkData={sparkScore} delta={null} deltaGood="up" />
-        </div>
-
-        {/* ── Col 2: Gauge + Framework Bars ── */}
-        <div className="p-4 rounded-xl flex flex-col" style={{
-          flex: 1.1, background: 'linear-gradient(160deg, var(--bg-secondary), var(--bg-card))',
-          border: '1px solid var(--border-primary)', minWidth: 0,
-        }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 2 }}>Compliance Posture</div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Overall score · 0–100</div>
-          <div style={{ display: 'flex', justifyContent: 'center' }}>
-            <ComplianceGauge score={computedScore} size={168} />
-          </div>
-          <div style={{ marginTop: 'auto', paddingTop: 8, borderTop: '1px solid var(--border-primary)' }}>
-            {frameworks.length === 0
-              ? <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>No framework data</p>
-              : frameworks.slice(0, 7).map((fw, i) => {
-                  const sc   = fw.score ?? 0;
-                  const sCol = sc >= 80 ? C.passed : sc >= 60 ? C.amber : sc >= 40 ? C.high : C.failed;
-                  return (
-                    <div key={fw.id || i} style={{ marginBottom: 5 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-                        <span style={{ fontSize: 10, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '72%' }}>{fw.name}</span>
-                        <span style={{ fontSize: 10, fontWeight: 700, color: sCol }}>{sc}%</span>
-                      </div>
-                      <div style={{ height: 4, borderRadius: 3, backgroundColor: 'var(--bg-tertiary)' }}>
-                        <div style={{ width: `${sc}%`, height: '100%', borderRadius: 3, backgroundColor: FW_COLORS[i % FW_COLORS.length], opacity: 0.85 }} />
-                      </div>
-                    </div>
-                  );
-                })
-            }
-          </div>
-        </div>
-
-        {/* ── Col 3: Score Trend + Failing Controls Feed ── */}
-        <div className="p-4 rounded-xl flex flex-col" style={{
-          flex: 1.2, background: 'linear-gradient(160deg, var(--bg-secondary), var(--bg-card))',
-          border: '1px solid var(--border-primary)', minWidth: 0,
-        }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 2 }}>Score Trend</div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>12-month compliance score</div>
-          <div style={{ height: 105 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={activeTrend} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="cmpGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor={C.passed} stopOpacity={0.3} />
-                    <stop offset="95%" stopColor={C.passed} stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-primary)" opacity={0.4} />
-                <XAxis dataKey="date" tick={{ fontSize: 9, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} />
-                <RechartsTip content={<TrendTip />} />
-                <Area type="monotone" dataKey="score" stroke={C.passed} strokeWidth={2} fill="url(#cmpGrad)" dot={false} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div style={{ borderTop: '1px solid var(--border-primary)', margin: '10px 0 8px' }} />
-
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
-            Top Failing Controls
-          </div>
-          {top5.length === 0
-            ? <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>No failing controls — great posture! ✅</p>
-            : top5.map((c, i) => {
-                const sc = SEV_CFG[c.severity] || SEV_CFG.medium;
-                return (
-                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 7, paddingBottom: 7, borderBottom: i < top5.length - 1 ? '1px solid var(--border-primary)' : 'none' }}>
-                    <div style={{ width: 3, alignSelf: 'stretch', borderRadius: 2, backgroundColor: sc.text, flexShrink: 0, marginTop: 2 }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {c.title || c.control_id}
-                      </div>
-                      <div style={{ display: 'flex', gap: 6, marginTop: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-                        <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 10, backgroundColor: sc.bg, color: sc.text }}>{c.severity}</span>
-                        <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{c.framework}</span>
-                        {c.days_open > 0 && <span style={{ fontSize: 9, color: c.days_open > 30 ? C.failed : C.amber }}>{c.days_open}d open</span>}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-          }
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          {selectedFw && (
+            <>
+              <button onClick={() => {
+                const origin = typeof window !== 'undefined' ? window.location.origin : '';
+                window.open(`${origin}/gateway/api/v1/views/compliance/framework/${selectedFw.id}/report?tenant_id=${TENANT_ID || 'default-tenant'}&format=csv`, '_blank');
+              }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: `1px solid ${C.border}`, backgroundColor: 'var(--bg-card)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12 }}>
+                <Download size={14} /> CSV
+              </button>
+              <button onClick={() => {
+                const origin = typeof window !== 'undefined' ? window.location.origin : '';
+                window.open(`${origin}/gateway/api/v1/views/compliance/framework/${selectedFw.id}/report?tenant_id=${TENANT_ID || 'default-tenant'}&format=json`, '_blank');
+              }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: `1px solid ${C.border}`, backgroundColor: 'var(--bg-card)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12 }}>
+                <Download size={14} /> JSON
+              </button>
+            </>
+          )}
+          <button style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: `1px solid ${C.border}`, backgroundColor: 'var(--bg-card)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>
+            <Download size={14} /> Export
+          </button>
         </div>
       </div>
-    );
-  }, [frameworks, failingControls, activeTrend, computedScore, passRate, passedControls,
-      totalControls, criticalFailures, highFailures, atRiskCount, auditReadiness,
-      expiringExc, sparkScore, scoreΔ]);
 
-  // ── Insight Row ───────────────────────────────────────────────────────────
-  const insightRow = useMemo(() => {
-    // Radar data
-    const radarData = frameworks.length > 0
-      ? frameworks.map((fw, i) => ({ subject: fw.name?.split(' ')[0] ?? `FW${i}`, fullName: fw.name, score: fw.score ?? 0 }))
-      : MATRIX_FRAMEWORKS.map(k => ({ subject: k, fullName: MATRIX_FRAMEWORK_LABELS[k], score: 0 }));
-
-    // Control status donut
-    const donutData = [
-      { name: 'Passed',     value: passedControls,  color: C.passed },
-      { name: 'Failed',     value: failedControls,  color: C.failed },
-      { name: 'Exceptions', value: exceptions.length, color: C.amber },
-    ].filter(d => d.value > 0);
-    const donutTotal = donutData.reduce((s, d) => s + d.value, 0) || 1;
-
-    // Severity breakdown
-    const sevData = frameworks.slice(0, 7).map(fw => {
-      const sev = fwSeverityMap[fw.name] || fwSeverityMap[fw.id] || {};
-      return { name: fw.name?.split(' ')[0] ?? fw.id, critical: sev.critical || 0, high: sev.high || 0, medium: sev.medium || 0, low: sev.low || 0 };
-    });
-
-    const RadarTip = ({ active, payload }) => {
-      if (!active || !payload?.length) return null;
-      const d = payload[0]?.payload;
-      const sc = d?.score ?? 0;
-      return (
-        <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-primary)', borderRadius: 8, padding: '8px 12px', fontSize: 11 }}>
-          <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 3 }}>{d?.fullName ?? d?.subject}</div>
-          <span style={{ fontSize: 18, fontWeight: 900, color: sc >= 80 ? C.passed : sc >= 60 ? C.amber : C.failed }}>{sc}%</span>
-        </div>
-      );
-    };
-
-    const panel = (title, sub, children) => (
-      <div className="p-4 rounded-xl" style={{ background: 'linear-gradient(160deg, var(--bg-secondary), var(--bg-card))', border: '1px solid var(--border-primary)', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 2 }}>{title}</div>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>{sub}</div>
-        {children}
-      </div>
-    );
-
-    return (
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
-
-        {/* Framework Radar */}
-        {panel('Framework Radar', 'Compliance score across all frameworks',
-          <div style={{ height: 250 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <RadarChart data={radarData} margin={{ top: 10, right: 28, bottom: 10, left: 28 }}>
-                <PolarGrid stroke="var(--border-primary)" />
-                <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fill: 'var(--text-secondary)', fontWeight: 600 }} />
-                <Radar name="Score" dataKey="score" stroke={C.blue} fill={C.blue} fillOpacity={0.18} strokeWidth={2} dot={{ r: 3, fill: C.blue }} />
-                <RechartsTip content={<RadarTip />} />
-              </RadarChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-
-        {/* Control Status Donut */}
-        {panel('Control Status', 'Passed · Failed · Exceptions distribution',
-          <>
-            <div style={{ flex: 1, minHeight: 200 }}>
-              <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie data={donutData} dataKey="value" nameKey="name"
-                    cx="50%" cy="46%" innerRadius="32%" outerRadius="52%"
-                    paddingAngle={3} strokeWidth={0}>
-                    {donutData.map((d, i) => <Cell key={i} fill={d.color} />)}
-                  </Pie>
-                  <RechartsTip
-                    contentStyle={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-primary)', borderRadius: 8, fontSize: 11 }}
-                    formatter={(v, name) => [`${v.toLocaleString()} (${Math.round(v / donutTotal * 100)}%)`, name]}
-                  />
-                  <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 10 }}
-                    formatter={(value, entry) => (
-                      <span style={{ color: 'var(--text-secondary)' }}>
-                        {value}&nbsp;<strong style={{ color: entry.color }}>{Math.round((entry.payload.value / donutTotal) * 100)}%</strong>
-                      </span>
-                    )}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-around', paddingTop: 10, borderTop: '1px solid var(--border-primary)' }}>
-              {[{ label: 'PASSED', val: passedControls, col: C.passed }, { label: 'FAILED', val: failedControls, col: C.failed }, { label: 'EXCEPTIONS', val: exceptions.length, col: C.amber }].map(({ label, val, col }) => (
-                <div key={label} style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 18, fontWeight: 900, color: col }}>{val.toLocaleString()}</div>
-                  <div style={{ fontSize: 9, color: 'var(--text-muted)', letterSpacing: 0.5 }}>{label}</div>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-
-        {/* Severity Breakdown */}
-        {panel('Failures by Severity', 'Failing controls per framework by severity',
-          <div style={{ height: 250 }}>
-            {sevData.some(d => d.critical + d.high + d.medium + d.low > 0) ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={sevData} layout="vertical" margin={{ top: 0, right: 10, bottom: 0, left: 4 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border-primary)" opacity={0.3} horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 9, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} />
-                  <YAxis type="category" dataKey="name" width={38} tick={{ fontSize: 9, fill: 'var(--text-secondary)' }} tickLine={false} axisLine={false} />
-                  <RechartsTip contentStyle={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-primary)', borderRadius: 8, fontSize: 11 }} />
-                  <Bar dataKey="critical" name="Critical" stackId="a" fill={C.critical} />
-                  <Bar dataKey="high"     name="High"     stackId="a" fill={C.high} />
-                  <Bar dataKey="medium"   name="Medium"   stackId="a" fill={C.medium} />
-                  <Bar dataKey="low"      name="Low"      stackId="a" fill={C.low} radius={[0, 2, 2, 0]} />
-                  <Legend iconType="square" iconSize={8} wrapperStyle={{ fontSize: 10 }}
-                    formatter={v => <span style={{ color: 'var(--text-secondary)' }}>{v}</span>} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                <CheckCircle style={{ width: 36, height: 36, color: C.passed }} />
-                <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>No severity breakdown available</p>
-              </div>
-            )}
+      {/* ── Score Strip ── */}
+      <div style={{ display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
+        <ScoreCard label="Compliance Score" sublabel="By Control"
+          value={selectedFw && fwDetail ? `${fwDetail.score}%` : `${totals.score}%`}
+          color={totals.score >= 70 ? C.pass : totals.score >= 40 ? C.partial : C.fail} />
+        {selectedFw && fwDetail && (
+          <div style={{ display: 'flex', gap: 24, padding: '16px 24px', borderRadius: 12, border: `1px solid ${C.border}`, backgroundColor: C.bg, flex: 1 }}>
+            <MiniStat label="Pass" value={fwDetail.summary?.PASS || 0} color={C.pass} />
+            <MiniStat label="Fail" value={fwDetail.summary?.FAIL || 0} color={C.fail} />
+            <MiniStat label="Partial" value={fwDetail.summary?.PARTIAL || 0} color={C.partial} />
+            <MiniStat label="N/A" value={fwDetail.summary?.NOT_APPLICABLE || 0} color={C.na} />
           </div>
         )}
       </div>
-    );
-  }, [frameworks, passedControls, failedControls, exceptions, fwSeverityMap]);
 
-  // ── Tab renderers ─────────────────────────────────────────────────────────
-  const renderMatrixTab = () => (
-    <div className="space-y-6">
-      {/* Heat map */}
-      <div className="rounded-xl border overflow-hidden relative" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-        <div className="px-6 py-4 border-b flex items-center justify-between" style={{ borderColor: 'var(--border-primary)' }}>
-          <div className="flex items-center gap-2">
-            <BarChart3 className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
-            <div>
-              <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>Per-Account Compliance Matrix</h3>
-              <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Continuous gradient — hover for breakdown — click header to sort — click cell to drill down</p>
+      {/* ═══ FRAMEWORKS LIST VIEW — Clean table ═══ */}
+      {!selectedFw && (
+        <div style={{ borderRadius: 12, border: `1px solid ${C.border}`, overflow: 'hidden', backgroundColor: C.bg }}>
+          <div style={{ padding: '12px 20px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>{frameworks.length} Frameworks</span>
+            <div style={{ position: 'relative', width: 220 }}>
+              <Search size={14} style={{ position: 'absolute', left: 10, top: 9, color: 'var(--text-muted)' }} />
+              <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Filter..."
+                style={{ width: '100%', padding: '7px 12px 7px 30px', borderRadius: 8, border: `1px solid ${C.border}`, backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 12, outline: 'none' }} />
             </div>
           </div>
-          <div className="hidden md:flex items-center gap-3 text-xs" style={{ color: 'var(--text-muted)' }}>
-            {[['hsla(0,70%,45%,0.3)', 'Low'], ['hsla(60,70%,45%,0.3)', 'Mid'], ['hsla(120,70%,45%,0.3)', 'High']].map(([bg, label]) => (
-              <span key={label} className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm" style={{ backgroundColor: bg }} />{label}</span>
-            ))}
-          </div>
-        </div>
-        <div className="overflow-x-auto" onMouseLeave={() => setHoveredCell(null)}>
-          <table className="w-full text-sm">
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr className="border-b" style={{ borderColor: 'var(--border-primary)' }}>
-                {[['account', 'Account'], ['env', 'Env', false], ['cloud', 'Cloud', false]].map(([key, label, sortable = true]) => (
-                  <th key={key} className={`text-left py-2.5 px-4 text-xs font-semibold uppercase tracking-wider ${sortable ? 'cursor-pointer hover:opacity-75 select-none' : ''}`}
-                    style={{ color: matrixSortBy === key ? 'var(--accent-primary)' : 'var(--text-muted)' }}
-                    onClick={() => sortable && handleMatrixSort(key)}>
-                    {label} {sortable && matrixSortBy === key ? (matrixSortDir === 'asc' ? '↑' : '↓') : ''}
-                  </th>
+              <tr style={{ borderBottom: `1px solid ${C.border}`, backgroundColor: 'var(--bg-secondary)' }}>
+                {['Framework', 'Provider', 'Score', 'Controls', 'Findings', ''].map(h => (
+                  <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{h}</th>
                 ))}
-                {MATRIX_FRAMEWORKS.map(fw => (
-                  <th key={fw} className="text-center py-2.5 px-3 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:opacity-75 select-none"
-                    style={{ color: matrixSortBy === fw ? 'var(--accent-primary)' : 'var(--text-muted)' }}
-                    onClick={() => handleMatrixSort(fw)}>
-                    {fw} {matrixSortBy === fw ? (matrixSortDir === 'asc' ? '↑' : '↓') : ''}
-                  </th>
-                ))}
-                <th className="text-center py-2.5 px-3 text-xs font-semibold uppercase tracking-wider cursor-pointer hover:opacity-75 select-none"
-                  style={{ color: matrixSortBy === 'avg' ? 'var(--accent-primary)' : 'var(--text-muted)' }}
-                  onClick={() => handleMatrixSort('avg')}>
-                  Avg {matrixSortBy === 'avg' ? (matrixSortDir === 'asc' ? '↑' : '↓') : ''}
-                </th>
               </tr>
             </thead>
             <tbody>
-              {sortedMatrix.length === 0 ? (
-                <tr><td colSpan={MATRIX_FRAMEWORKS.length + 4} className="py-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>No account data available</td></tr>
-              ) : sortedMatrix.map((row, idx) => {
-                const name  = row.account || row.account_id || '';
-                const prov  = (row.provider || row.csp || '').toUpperCase();
-                const exp   = row.credExpired || row.cred_expired || false;
-                const scores = MATRIX_FRAMEWORKS.map(fw => exp ? 0 : (row[fw] || 0));
-                const avg   = exp ? null : Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
-                const env   = name.includes('prod') ? 'prod' : name.includes('staging') ? 'staging' : 'dev';
-                const envC  = { prod: { bg: 'rgba(239,68,68,0.15)', text: '#ef4444' }, staging: { bg: 'rgba(249,115,22,0.15)', text: '#f97316' }, dev: { bg: 'rgba(34,197,94,0.15)', text: '#22c55e' } };
-                const provC = { AWS: { bg: 'rgba(249,115,22,0.15)', text: '#f97316' }, AZURE: { bg: 'rgba(59,130,246,0.15)', text: '#3b82f6' }, GCP: { bg: 'rgba(234,179,8,0.15)', text: '#eab308' } };
-                const pC    = provC[prov] || { bg: 'rgba(139,92,246,0.15)', text: '#8b5cf6' };
+              {loading ? (
+                <tr><td colSpan={6} style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</td></tr>
+              ) : frameworks
+                  .filter(fw => !searchTerm || (fw.name || fw.id || '').toLowerCase().includes(searchTerm.toLowerCase()))
+                  .map((fw, i) => {
+                const passed = fw.passed || 0;
+                const failed = fw.failed || 0;
+                const total = fw.controls || (passed + failed) || 0;
+                const score = fw.score || pct(passed, total);
+                const scoreCol = score >= 70 ? C.pass : score >= 40 ? C.partial : C.fail;
+                const provider = (fw.provider || 'multi').toUpperCase();
+                const providerColors = {
+                  AWS: '#f59e0b', AZURE: '#3b82f6', GCP: '#ef4444', OCI: '#a855f7',
+                  IBM: '#06b6d4', ALICLOUD: '#f97316', MULTI: '#6b7280',
+                };
                 return (
-                  <tr key={row.account_id || `r${idx}`} className="border-b hover:opacity-90 transition-opacity" style={{ borderColor: 'var(--border-primary)' }}>
-                    <td className="py-3 px-4"><span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{name}</span></td>
-                    <td className="py-3 px-4"><span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: envC[env].bg, color: envC[env].text }}>{env}</span></td>
-                    <td className="py-3 px-4"><span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: pC.bg, color: pC.text }}>{prov}</span></td>
-                    {MATRIX_FRAMEWORKS.map(fw => {
-                      const score = row[fw] ?? 0;
-                      const { bg, text } = matrixCellColor(score, exp);
-                      return (
-                        <td key={fw} className="py-2 px-3 text-center cursor-pointer"
-                          onClick={() => !exp && router.push(`/compliance/${fw.toLowerCase()}`)}
-                          onMouseEnter={e => {
-                            if (!exp) {
-                              const r = e.currentTarget.getBoundingClientRect();
-                              setTooltipPos({ x: r.left, y: r.bottom + 4 });
-                              setHoveredCell({ account: name, framework: MATRIX_FRAMEWORK_LABELS[fw] || fw, score, passed: Math.round(score / 5), failed: 20 - Math.round(score / 5) });
-                            }
-                          }}>
-                          {exp ? <span className="text-xs" style={{ color: 'var(--text-muted)' }}>--</span>
-                               : <span className="inline-flex items-center justify-center w-12 h-7 rounded text-xs font-bold" style={{ backgroundColor: bg, color: text }}>{score}</span>}
-                        </td>
-                      );
-                    })}
-                    <td className="py-2 px-3 text-center">
-                      {avg === null ? <span className="text-xs" style={{ color: 'var(--text-muted)' }}>N/A</span>
-                        : <span className="text-sm font-bold" style={{ color: avg >= 75 ? '#22c55e' : avg >= 55 ? '#f59e0b' : '#ef4444' }}>{avg}%</span>}
+                  <tr key={fw.id || i} onClick={() => setSelectedFw(fw)}
+                    style={{ borderBottom: `1px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.1s' }}
+                    onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
+                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+                    <td style={{ padding: '12px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <Shield size={16} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{fw.name || fw.id}</div>
+                          {fw.version && <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>v{fw.version}</div>}
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, fontWeight: 700, backgroundColor: `${providerColors[provider] || providerColors.MULTI}20`, color: providerColors[provider] || providerColors.MULTI }}>
+                        {provider}
+                      </span>
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <svg width="28" height="28" viewBox="0 0 36 36">
+                          <circle cx="18" cy="18" r="15" fill="none" stroke="var(--bg-tertiary)" strokeWidth="3" />
+                          <circle cx="18" cy="18" r="15" fill="none" stroke={scoreCol} strokeWidth="3"
+                            strokeDasharray={`${score * 0.942} 94.2`} strokeLinecap="round" transform="rotate(-90 18 18)" />
+                        </svg>
+                        <span style={{ fontSize: 15, fontWeight: 700, color: scoreCol }}>{score}%</span>
+                      </div>
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>{total}</div>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        <Dot color={C.pass} count={passed} />
+                        <Dot color={C.fail} count={failed} />
+                      </div>
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <span style={{ fontSize: 14, fontWeight: 600, color: (fw.findings || failed) > 0 ? C.fail : C.pass }}>{fw.findings || failed}</span>
+                    </td>
+                    <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                      <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
                     </td>
                   </tr>
                 );
@@ -623,162 +252,420 @@ export default function CompliancePage() {
             </tbody>
           </table>
         </div>
-        {hoveredCell && (
-          <div className="fixed z-50 rounded-xl p-3 shadow-xl border pointer-events-none"
-            style={{ left: `${tooltipPos.x}px`, top: `${tooltipPos.y}px`, backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)', minWidth: 180 }}>
-            <div className="text-xs font-bold mb-1" style={{ color: 'var(--text-primary)' }}>{hoveredCell.account}</div>
-            <div className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>{hoveredCell.framework}</div>
-            <div className="text-lg font-bold mb-1" style={{ color: hoveredCell.score >= 75 ? '#22c55e' : hoveredCell.score >= 55 ? '#f59e0b' : '#ef4444' }}>{hoveredCell.score}%</div>
-            <div className="flex gap-3 text-xs">
-              <span style={{ color: '#22c55e' }}>✓ {hoveredCell.passed} passed</span>
-              <span style={{ color: '#ef4444' }}>✗ {hoveredCell.failed} failed</span>
-            </div>
-            <div className="text-[10px] mt-1.5" style={{ color: 'var(--text-muted)' }}>Click to drill down →</div>
-          </div>
-        )}
-      </div>
+      )}
 
-      {/* Pass/Fail stacked bars */}
-      <div className="rounded-xl border overflow-hidden" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-        <div className="px-6 py-4 border-b flex items-center gap-2" style={{ borderColor: 'var(--border-primary)' }}>
-          <BarChart3 className="w-4 h-4" style={{ color: 'var(--accent-primary)' }} />
-          <div>
-            <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>Framework Pass / Fail Breakdown</h3>
-            <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Passed (green) vs Failed (red) controls per framework</p>
-          </div>
-        </div>
-        <div className="p-6 space-y-3">
-          {frameworks.length === 0 && !loading && <p className="text-sm text-center py-4" style={{ color: 'var(--text-muted)' }}>No framework data available</p>}
-          {frameworks.map(fw => {
-            const tot  = fw.controls || (fw.passed + fw.failed);
-            const pw   = tot > 0 ? (fw.passed / tot) * 100 : 0;
-            const fw2  = tot > 0 ? (fw.failed / tot) * 100 : 0;
-            return (
-              <div key={fw.id} className="flex items-center gap-3">
-                <span className="text-xs font-medium w-44 truncate flex-shrink-0" style={{ color: 'var(--text-primary)' }}>{fw.name}</span>
-                <div className="flex-1 flex h-6 rounded overflow-hidden gap-px" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-                  <div className="h-full flex items-center justify-center text-xs font-bold text-white" style={{ width: `${pw}%`, backgroundColor: '#22c55e' }} title={`${fw.passed} passed`}>{pw > 12 && fw.passed}</div>
-                  <div className="h-full flex items-center justify-center text-xs font-bold text-white" style={{ width: `${fw2}%`, backgroundColor: '#ef4444' }} title={`${fw.failed} failed`}>{fw2 > 12 && fw.failed}</div>
-                </div>
-                <span className="text-xs w-10 text-right flex-shrink-0 font-semibold" style={{ color: fw.score >= 80 ? '#22c55e' : fw.score >= 60 ? '#eab308' : '#ef4444' }}>{fw.score}%</span>
-              </div>
-            );
-          })}
-          <div className="flex items-center gap-4 pt-2">
-            {[['#22c55e', 'Passed'], ['#ef4444', 'Failed']].map(([bg, label]) => (
-              <span key={label} className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                <span className="w-3 h-3 rounded-sm inline-block" style={{ backgroundColor: bg }} />{label}
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderFrameworksTab = () => (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-4">
+      {/* ═══ FRAMEWORK DETAIL VIEW (accordion) ═══ */}
+      {selectedFw && (
         <div>
-          <h2 className="text-lg font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>Framework Compliance Scores</h2>
-          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Click any framework to view detailed controls</p>
-        </div>
-        <SearchBar value={frameworkSearch} onChange={setFrameworkSearch} placeholder="Search frameworks..." />
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {frameworks
-          .filter(fw => !frameworkSearch || fw.name?.toLowerCase().includes(frameworkSearch.toLowerCase()))
-          .map((fw, i) => {
-            const fCol  = FW_COLORS[i % FW_COLORS.length];
-            const sCol  = fw.score >= 80 ? C.passed : fw.score >= 60 ? C.amber : C.failed;
-            const sLvl  = fw.score >= 80 ? 'Good' : fw.score >= 60 ? 'Fair' : 'At Risk';
-            const sev   = fwSeverityMap[fw.name] || fwSeverityMap[fw.id] || {};
-            return (
-              <div key={fw.id} onClick={() => router.push(`/compliance/${fw.id}`)}
-                className="cursor-pointer rounded-xl p-5 border flex flex-col gap-3 hover:scale-[1.02] transition-transform"
-                style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-                <div className="flex items-start justify-between gap-2">
-                  <h4 className="text-sm font-semibold line-clamp-2" style={{ color: 'var(--text-primary)' }}>{fw.name}</h4>
-                  <span className="text-xs px-2 py-0.5 rounded-full font-semibold flex-shrink-0" style={{ backgroundColor: `${sCol}20`, color: sCol }}>{sLvl}</span>
-                </div>
-                <div>
-                  <div className="flex items-end gap-2 mb-2">
-                    <span className="text-3xl font-black" style={{ color: fCol }}>{fw.score}</span>
-                    <span className="text-sm mb-1" style={{ color: 'var(--text-muted)' }}>%</span>
-                  </div>
-                  <div className="w-full h-2 rounded-full" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-                    <div className="h-full rounded-full transition-all" style={{ width: `${fw.score}%`, backgroundColor: fCol }} />
-                  </div>
-                </div>
-                <div className="grid grid-cols-3 gap-2 text-center border-t pt-3" style={{ borderColor: 'var(--border-primary)' }}>
-                  <div><p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Controls</p><p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{fw.controls}</p></div>
-                  <div><p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Passed</p><p className="text-sm font-semibold" style={{ color: C.passed }}>{fw.passed}</p></div>
-                  <div><p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Failed</p><p className="text-sm font-semibold" style={{ color: C.failed }}>{fw.failed}</p></div>
-                </div>
-                {Object.values(sev).some(v => v > 0) && (
-                  <div className="flex gap-2 flex-wrap">
-                    {sev.critical > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(239,68,68,0.15)', color: C.critical }}>{sev.critical} critical</span>}
-                    {sev.high     > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(249,115,22,0.15)', color: C.high }}>{sev.high} high</span>}
-                    {sev.medium   > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(234,179,8,0.15)', color: C.medium }}>{sev.medium} medium</span>}
-                  </div>
-                )}
-                <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Last assessed: {fw.last_assessed ? new Date(fw.last_assessed).toLocaleDateString() : 'N/A'}</p>
+          {/* Search */}
+          <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center' }}>
+            <div style={{ position: 'relative', flex: 1, maxWidth: 300 }}>
+              <Search size={14} style={{ position: 'absolute', left: 10, top: 10, color: 'var(--text-muted)' }} />
+              <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search controls..."
+                style={{ width: '100%', padding: '8px 12px 8px 30px', borderRadius: 8, border: `1px solid ${C.border}`, backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13, outline: 'none' }} />
+            </div>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              {fwDetail?.total_controls || 0} Control Tests
+            </span>
+            <button onClick={() => setExpandedSections(prev => prev.size > 0 ? new Set() : new Set((fwDetail?.families || []).map(f => f.family)))}
+              style={{ fontSize: 12, color: 'var(--accent-primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
+              {expandedSections.size > 0 ? 'Collapse All' : 'Expand All'}
+            </button>
+          </div>
+
+          {fwLoading ? (
+            <div style={{ padding: 60, textAlign: 'center', color: 'var(--text-muted)' }}>Loading framework...</div>
+          ) : (
+            <div style={{ borderRadius: 12, border: `1px solid ${C.border}`, overflow: 'hidden', backgroundColor: C.bg }}>
+              {/* Section header */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 120px', padding: '10px 16px', borderBottom: `1px solid ${C.border}`, backgroundColor: 'var(--bg-secondary)' }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Section Name</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', textAlign: 'center' }}>Score</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', textAlign: 'center' }}>Control Tests</span>
               </div>
-            );
-          })}
-      </div>
+
+              {(fwDetail?.families || []).map((fam) => {
+                const isOpen = expandedSections.has(fam.family);
+                const famScore = pct(fam.pass, fam.total);
+                const filteredControls = searchTerm
+                  ? fam.controls.filter(c => (c.control_name || '').toLowerCase().includes(searchTerm.toLowerCase()) || (c.control_id || '').toLowerCase().includes(searchTerm.toLowerCase()))
+                  : fam.controls;
+                if (searchTerm && filteredControls.length === 0) return null;
+
+                return (
+                  <div key={fam.family}>
+                    {/* Section row */}
+                    <div onClick={() => toggleSection(fam.family)}
+                      style={{ display: 'grid', gridTemplateColumns: '1fr 80px 120px', padding: '14px 16px', borderBottom: `1px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.1s' }}
+                      onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
+                      onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {isOpen ? <ChevronDown size={16} style={{ color: 'var(--text-muted)' }} /> : <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />}
+                        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{fam.family}</span>
+                      </div>
+                      <span style={{ fontSize: 14, fontWeight: 700, textAlign: 'center', color: famScore >= 70 ? C.pass : famScore >= 40 ? C.partial : C.fail }}>{famScore}%</span>
+                      <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                        <Dot color={C.pass} count={fam.pass} />
+                        <Dot color={C.fail} count={fam.fail} />
+                        <Dot color={C.na} count={fam.total - fam.pass - fam.fail} />
+                      </div>
+                    </div>
+
+                    {/* Expanded controls */}
+                    {isOpen && (
+                      <div style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                          <thead>
+                            <tr style={{ borderBottom: `1px solid ${C.border}` }}>
+                              {['Status', 'ID', 'Control', 'Severity', 'Findings', 'Resources'].map(h => (
+                                <th key={h} style={{ padding: '8px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredControls.map((ctrl) => (
+                              <tr key={ctrl.control_id} onClick={() => openControlPanel(ctrl)}
+                                style={{ borderBottom: `1px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.1s' }}
+                                onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
+                                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+                                <td style={{ padding: '10px 14px', width: 50 }}>{statusIcon(ctrl.status)}</td>
+                                <td style={{ padding: '10px 14px', width: 180 }}>
+                                  <code style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{ctrl.control_id?.slice(-15)}</code>
+                                </td>
+                                <td style={{ padding: '10px 14px' }}>
+                                  <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>{ctrl.control_name || ctrl.control_id}</span>
+                                </td>
+                                <td style={{ padding: '10px 14px', width: 90 }}>
+                                  {ctrl.severity && <SeverityBadge severity={ctrl.severity} />}
+                                </td>
+                                <td style={{ padding: '10px 14px', width: 80 }}>
+                                  {ctrl.fail_count > 0 ? (
+                                    <span onClick={(e) => { e.stopPropagation(); window.open(`/misconfig?control=${ctrl.control_id}`, '_blank'); }}
+                                      style={{ fontSize: 12, fontWeight: 600, color: C.fail, cursor: 'pointer', textDecoration: 'underline' }}>
+                                      <AlertTriangle size={12} style={{ verticalAlign: -2, marginRight: 4 }} />{ctrl.fail_count}
+                                    </span>
+                                  ) : (
+                                    <span style={{ fontSize: 11, color: C.na }}>0</span>
+                                  )}
+                                </td>
+                                <td style={{ padding: '10px 14px', width: 80 }}>
+                                  {ctrl.total_resources > 0 ? (
+                                    <span onClick={(e) => { e.stopPropagation(); window.open(`/inventory?control=${ctrl.control_id}`, '_blank'); }}
+                                      style={{ fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer', textDecoration: 'underline' }}>
+                                      {ctrl.total_resources}
+                                    </span>
+                                  ) : (
+                                    <span style={{ fontSize: 11, color: C.na }}>—</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══ CONTROL DETAIL SLIDE-OUT PANEL ═══ */}
+      {controlPanel && (
+        <>
+          <div onClick={() => setControlPanel(null)}
+            style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.45)', zIndex: 40, backdropFilter: 'blur(2px)' }} />
+          <div style={{
+            position: 'fixed', top: 0, right: 0, bottom: 0, width: 560, zIndex: 50,
+            backgroundColor: 'var(--bg-card)', borderLeft: `1px solid ${C.border}`,
+            overflowY: 'auto', display: 'flex', flexDirection: 'column',
+            boxShadow: '-8px 0 32px rgba(0,0,0,0.3)',
+          }}>
+            {/* Panel Header */}
+            <div style={{ padding: '20px 24px', borderBottom: `1px solid ${C.border}`, backgroundColor: 'var(--bg-secondary)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {statusIcon(controlPanel.status)}
+                  <span style={{ fontSize: 12, fontWeight: 700, color: controlPanel.status === 'PASS' ? C.pass : controlPanel.status === 'FAIL' ? C.fail : C.na }}>
+                    {controlPanel.status}
+                  </span>
+                </div>
+                <button onClick={() => setControlPanel(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 18 }}>
+                  <X size={18} />
+                </button>
+              </div>
+              <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', margin: 0, lineHeight: 1.4 }}>
+                {controlPanel.control_name || controlPanel.control_id}
+              </h2>
+              <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, backgroundColor: 'var(--accent-primary)', color: 'white', fontWeight: 600 }}>
+                  {selectedFw?.name || selectedFw?.id}
+                </span>
+                {controlPanel.severity && <SeverityBadge severity={controlPanel.severity} />}
+              </div>
+            </div>
+
+            {/* Panel Tabs */}
+            <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}`, backgroundColor: 'var(--bg-secondary)' }}>
+              {[
+                { id: 'info', label: 'Info' },
+                { id: 'findings', label: `Findings (${panelFindings.length})` },
+                { id: 'remediation', label: 'Remediation' },
+              ].map(t => (
+                <button key={t.id} onClick={() => setPanelTab(t.id)}
+                  style={{
+                    padding: '10px 20px', fontSize: 13, fontWeight: panelTab === t.id ? 700 : 500, border: 'none', cursor: 'pointer',
+                    color: panelTab === t.id ? 'var(--accent-primary)' : 'var(--text-muted)',
+                    borderBottom: panelTab === t.id ? '2px solid var(--accent-primary)' : '2px solid transparent',
+                    backgroundColor: 'transparent',
+                  }}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Panel Content */}
+            <div style={{ padding: 24, flex: 1, overflowY: 'auto' }}>
+              {/* Info Tab */}
+              {panelTab === 'info' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                  {(controlDetail?.control_description || controlPanel.control_description) && (
+                    <Section title="Description">
+                      <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
+                        {controlDetail?.control_description || controlPanel.control_description}
+                      </p>
+                    </Section>
+                  )}
+                  {controlDetail?.rationale && (
+                    <Section title="Rationale">
+                      <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>{controlDetail.rationale}</p>
+                    </Section>
+                  )}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <InfoBox label="Control ID" value={controlPanel.control_id} />
+                    <InfoBox label="Family" value={controlPanel.control_family || controlPanel.domain} />
+                    <InfoBox label="Assessment" value={controlPanel.assessment_type || 'automated'} />
+                    <InfoBox label="Severity" value={controlPanel.severity || 'medium'} />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                    <StatBox label="Pass" value={controlPanel.pass_count || 0} color={C.pass} />
+                    <StatBox label="Fail" value={controlPanel.fail_count || 0} color={C.fail} />
+                    <StatBox label="Total" value={controlPanel.total_resources || 0} color={C.blue} />
+                  </div>
+                </div>
+              )}
+
+              {/* Findings Tab */}
+              {panelTab === 'findings' && (
+                <div>
+                  {panelLoading ? (
+                    <div style={{ padding: 30, textAlign: 'center', color: 'var(--text-muted)' }}>Loading findings...</div>
+                  ) : panelFindings.length === 0 ? (
+                    <div style={{ padding: 30, textAlign: 'center', color: 'var(--text-muted)' }}>No findings for this control</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>{panelFindings.length} findings</div>
+                      {panelFindings.map((f, i) => (
+                        <div key={f.finding_id || i} style={{ padding: '12px 14px', borderRadius: 8, backgroundColor: 'var(--bg-secondary)', border: `1px solid ${C.border}` }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                            <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)' }}>{f.resource_type} · {f.region || 'global'}</div>
+                            <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, backgroundColor: f.status === 'open' ? 'rgba(239,68,68,0.15)' : 'rgba(34,197,94,0.15)', color: f.status === 'open' ? C.fail : C.pass, fontWeight: 600 }}>
+                              {(f.check_result || f.status || '').toUpperCase()}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {f.resource_uid || f.resource_arn || '—'}
+                          </div>
+                          {f.checked_fields?.length > 0 && (
+                            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 }}>
+                              {f.checked_fields.map((cf, ci) => (
+                                <code key={ci} style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-tertiary)' }}>{cf}</code>
+                              ))}
+                            </div>
+                          )}
+                          {f.actual_values && Object.keys(f.actual_values).length > 0 && (
+                            <pre style={{ fontSize: 9, margin: '6px 0 0', padding: 6, borderRadius: 4, backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-tertiary)', overflow: 'auto', maxHeight: 60 }}>
+                              {JSON.stringify(f.actual_values, null, 2)}
+                            </pre>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Remediation Tab */}
+              {/* Remediation Tab — How to fix, CLI/Console/Terraform */}
+              {panelTab === 'remediation' && (
+                <RemediationTab controlDetail={controlDetail} findings={panelFindings} />
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
+}
 
-  // ── Final render ──────────────────────────────────────────────────────────
-  const pageContext = {
-    tabs: [
-      { id: 'overview',   label: 'Overview' },
-      { id: 'matrix',     label: 'Compliance Matrix',  count: accounts.length },
-      { id: 'controls',   label: 'Failing Controls',   count: failingControls.length },
-      { id: 'frameworks', label: 'Frameworks',          count: frameworks.length },
-      { id: 'audits',     label: 'Audit Deadlines',     count: auditDeadlines.length },
-      { id: 'exceptions', label: 'Exceptions',          count: exceptions.length },
-    ],
+/* ─── Remediation Tab Component ─────────────────────────────── */
+
+function RemediationTab({ controlDetail, findings }) {
+  const [activeMode, setActiveMode] = useState('console');
+  const guidance = controlDetail?.implementation_guidance || '';
+  const testing = controlDetail?.testing_procedures || '';
+  const findingRem = findings?.[0]?.remediation || '';
+
+  // Extract CLI commands from testing_procedures or remediation
+  const extractCli = (text) => {
+    if (!text) return null;
+    const lines = text.split('\n');
+    const cliLines = lines.filter(l => {
+      const t = l.trim();
+      return t.startsWith('aws ') || t.startsWith('az ') || t.startsWith('gcloud ') ||
+             t.startsWith('kubectl ') || t.startsWith('ibmcloud ') || t.startsWith('aliyun ') ||
+             t.startsWith('oci ') || t.startsWith('$ ');
+    });
+    return cliLines.length > 0 ? cliLines.join('\n') : null;
   };
 
-  const tabData = {
-    matrix:     { renderTab: renderMatrixTab },
-    controls:   { data: failingControls,  columns: failingControlColumns },
-    frameworks: { renderTab: renderFrameworksTab },
-    audits:     { data: auditDeadlines,   columns: auditColumns },
-    exceptions: { data: exceptions,       columns: exceptionColumns },
-  };
+  const cliFromTesting = extractCli(testing);
+  const cliFromGuidance = extractCli(guidance);
+  const cliContent = cliFromTesting || cliFromGuidance;
+
+  // Console steps = the main guidance/remediation text
+  const consoleContent = guidance || findingRem || null;
+
+  const modes = [
+    { id: 'cli', label: 'CLI', hasContent: !!cliContent },
+    { id: 'console', label: 'Console', hasContent: !!consoleContent },
+    { id: 'terraform', label: 'Terraform', hasContent: false },
+    { id: 'pulumi', label: 'Pulumi', hasContent: false },
+    { id: 'cloudformation', label: 'CloudFormation', hasContent: false },
+    { id: 'arm', label: 'ARM', hasContent: false },
+  ];
 
   return (
-    <div style={{ padding: '24px 24px 0', maxWidth: '100%' }}>
-      {/* Heading */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <ClipboardCheck style={{ width: 22, height: 22, color: 'var(--accent-primary)' }} />
-          <div>
-            <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>Compliance Dashboard</h1>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
-              Enterprise-wide compliance posture · {frameworks.length} frameworks · {totalControls.toLocaleString()} controls
-            </p>
-          </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Mode selector — Orca style */}
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>
+          Remediation Steps For
         </div>
-        <button onClick={handleGenerateReport} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 10, fontSize: 13, fontWeight: 600, backgroundColor: 'var(--accent-primary)', color: 'white', border: 'none', cursor: 'pointer' }}>
-          <RefreshCw style={{ width: 14, height: 14 }} />
-          Generate Report
-        </button>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {modes.map(m => (
+            <button key={m.id} onClick={() => setActiveMode(m.id)}
+              style={{
+                padding: '7px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                border: activeMode === m.id ? '2px solid var(--accent-primary)' : `1px solid ${C.border}`,
+                backgroundColor: activeMode === m.id ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+                color: activeMode === m.id ? 'white' : 'var(--text-secondary)',
+                opacity: m.hasContent || m.id === activeMode ? 1 : 0.5,
+              }}>
+              {m.label}
+              {m.hasContent && <span style={{ marginLeft: 4, fontSize: 9, color: activeMode === m.id ? 'white' : 'var(--accent-success)' }}>●</span>}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <PageLayout
-        icon={ClipboardCheck}
-        pageContext={pageContext}
-        tabData={{ overview: { renderTab: () => <>{insightStrip}{insightRow}</> }, ...tabData }}
-        loading={loading}
-        error={error}
-        defaultTab="overview"
-        hideHeader
-        topNav
-      />
+      {/* Content based on active mode */}
+      {activeMode === 'cli' && (
+        <div style={{ borderRadius: 8, backgroundColor: 'var(--bg-tertiary)', border: `1px solid ${C.border}`, overflow: 'hidden' }}>
+          <div style={{ padding: '8px 14px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>CLI Commands</span>
+          </div>
+          <pre style={{ margin: 0, padding: 14, fontSize: 12, fontFamily: 'monospace', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+            {cliContent || 'CLI remediation commands not available for this control.\n\nUse the Console tab for step-by-step remediation.'}
+          </pre>
+        </div>
+      )}
+
+      {activeMode === 'console' && (
+        <Section title="Console Steps">
+          {consoleContent ? (
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>
+              {consoleContent}
+            </p>
+          ) : (
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>Console remediation steps not available for this control.</p>
+          )}
+        </Section>
+      )}
+
+      {['terraform', 'pulumi', 'cloudformation', 'arm'].includes(activeMode) && (
+        <Section title={`${modes.find(m => m.id === activeMode)?.label} Remediation`}>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
+            {modes.find(m => m.id === activeMode)?.label} remediation will be available in a future update.
+          </p>
+        </Section>
+      )}
+    </div>
+  );
+}
+
+/* ─── Small components ─────────────────────────────────────── */
+
+function ScoreCard({ label, sublabel, value, color }) {
+  return (
+    <div style={{ padding: '16px 24px', borderRadius: 12, border: `1px solid ${C.border}`, backgroundColor: C.bg }}>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{label}</div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+        <span style={{ fontSize: 28, fontWeight: 800, color }}>{value}</span>
+        {sublabel && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{sublabel}</span>}
+      </div>
+    </div>
+  );
+}
+
+function MiniStat({ label, value, color }) {
+  return (
+    <div style={{ textAlign: 'center' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'center' }}>
+        <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: color }} />
+        <span style={{ fontSize: 18, fontWeight: 700, color }}>{value}</span>
+      </div>
+      <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{label}</div>
+    </div>
+  );
+}
+
+function Dot({ color, count }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+      <div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: color, flexShrink: 0 }} />
+      <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>{count}</span>
+    </div>
+  );
+}
+
+function Section({ title, children }) {
+  return (
+    <div>
+      <h3 style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>{title}</h3>
+      <div style={{ padding: '12px 14px', borderRadius: 8, backgroundColor: 'var(--bg-secondary)', border: `1px solid ${C.border}` }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function InfoBox({ label, value }) {
+  return (
+    <div style={{ padding: '10px 12px', borderRadius: 8, backgroundColor: 'var(--bg-secondary)', border: `1px solid ${C.border}` }}>
+      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', wordBreak: 'break-all' }}>{value || '—'}</div>
+    </div>
+  );
+}
+
+function StatBox({ label, value, color }) {
+  return (
+    <div style={{ padding: '12px', borderRadius: 8, backgroundColor: 'var(--bg-secondary)', border: `1px solid ${C.border}`, textAlign: 'center' }}>
+      <div style={{ fontSize: 20, fontWeight: 700, color }}>{value}</div>
+      <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{label}</div>
     </div>
   );
 }

@@ -1,0 +1,351 @@
+rules:
+- rule_id: ibm.k8s_audit.clusterrole_change
+  title: IKS ClusterRole or ClusterRoleBinding created or modified
+  severity: high
+  log_source_type: ibm_k8s_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: ibm_k8s_audit
+    - field: operation
+      op: in
+      value:
+      - create_clusterrole
+      - update_clusterrole
+      - patch_clusterrole
+      - create_clusterrolebinding
+      - update_clusterrolebinding
+      - patch_clusterrolebinding
+  engines:
+  - threat_engine
+  - ciem
+  - container_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - persistence
+  - privilege-escalation
+  mitre_techniques:
+  - T1098.001
+  domain: container_security
+  provider: ibm
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: &id001
+  - CIS
+  - NIST_800-53
+  - SOC2
+  risk_score: 70
+- rule_id: ibm.k8s_audit.rolebinding_change
+  title: IKS RoleBinding created or modified
+  severity: medium
+  log_source_type: ibm_k8s_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: ibm_k8s_audit
+    - field: operation
+      op: in
+      value:
+      - create_rolebinding
+      - update_rolebinding
+      - patch_rolebinding
+      - delete_rolebinding
+  engines:
+  - threat_engine
+  - ciem
+  - container_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - persistence
+  - privilege-escalation
+  mitre_techniques:
+  - T1098.001
+  domain: container_security
+  provider: ibm
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: ibm.k8s_audit.role_deleted
+  title: IKS ClusterRole or Role deleted
+  severity: high
+  log_source_type: ibm_k8s_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: ibm_k8s_audit
+    - field: operation
+      op: in
+      value:
+      - delete_clusterrole
+      - delete_clusterrolebinding
+      - delete_role
+  engines:
+  - threat_engine
+  - ciem
+  - container_engine
+  primary_engine: threat_engine
+  action_category: delete
+  mitre_tactics:
+  - defense-evasion
+  mitre_techniques:
+  - T1070
+  domain: container_security
+  provider: ibm
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: ibm.k8s_audit.secret_read
+  title: IKS Kubernetes secret accessed
+  severity: medium
+  log_source_type: ibm_k8s_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: ibm_k8s_audit
+    - field: operation
+      op: in
+      value:
+      - get_secret
+      - list_secret
+    - field: resource_type
+      op: equals
+      value: secrets
+  engines:
+  - threat_engine
+  - ciem
+  - container_engine
+  primary_engine: threat_engine
+  action_category: read
+  mitre_tactics:
+  - credential-access
+  mitre_techniques:
+  - T1552.007
+  domain: container_security
+  provider: ibm
+  remediation: Verify the accessor has legitimate need-to-know. Review access patterns for anomalies. Consider restricting
+    read permissions.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: ibm.k8s_audit.secret_modify
+  title: IKS Kubernetes secret created or deleted
+  severity: high
+  log_source_type: ibm_k8s_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: ibm_k8s_audit
+    - field: operation
+      op: in
+      value:
+      - create_secret
+      - delete_secret
+      - update_secret
+  engines:
+  - threat_engine
+  - ciem
+  - container_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - credential-access
+  - persistence
+  mitre_techniques:
+  - T1552.007
+  domain: container_security
+  provider: ibm
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: ibm.k8s_audit.privileged_pod
+  title: IKS privileged pod created
+  severity: critical
+  log_source_type: ibm_k8s_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: ibm_k8s_audit
+    - field: operation
+      op: equals
+      value: create_pod
+    - field: resource_type
+      op: equals
+      value: pods
+  engines:
+  - threat_engine
+  - ciem
+  - container_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - execution
+  - privilege-escalation
+  mitre_techniques:
+  - T1610
+  domain: container_security
+  provider: ibm
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: ibm.k8s_audit.pod_exec
+  title: IKS pod exec or attach session started
+  severity: high
+  log_source_type: ibm_k8s_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: ibm_k8s_audit
+    - field: operation
+      op: in
+      value:
+      - create_pod_exec
+      - create_pod_attach
+  engines:
+  - threat_engine
+  - ciem
+  - container_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - execution
+  mitre_techniques:
+  - T1609
+  domain: container_security
+  provider: ibm
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: ibm.k8s_audit.daemonset_created
+  title: IKS DaemonSet created
+  severity: high
+  log_source_type: ibm_k8s_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: ibm_k8s_audit
+    - field: operation
+      op: equals
+      value: create_daemonset
+  engines:
+  - threat_engine
+  - ciem
+  - container_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - persistence
+  - lateral-movement
+  mitre_techniques:
+  - T1610
+  domain: container_security
+  provider: ibm
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: ibm.k8s_audit.namespace_change
+  title: IKS namespace created or deleted
+  severity: medium
+  log_source_type: ibm_k8s_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: ibm_k8s_audit
+    - field: operation
+      op: in
+      value:
+      - create_namespace
+      - delete_namespace
+  engines:
+  - threat_engine
+  - ciem
+  - container_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - persistence
+  - defense-evasion
+  mitre_techniques:
+  - T1578
+  domain: container_security
+  provider: ibm
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: ibm.k8s_audit.webhook_change
+  title: IKS admission webhook created or modified
+  severity: critical
+  log_source_type: ibm_k8s_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: ibm_k8s_audit
+    - field: operation
+      op: in
+      value:
+      - create_mutatingwebhookconfiguration
+      - update_mutatingwebhookconfiguration
+      - create_validatingwebhookconfiguration
+      - update_validatingwebhookconfiguration
+  engines:
+  - threat_engine
+  - ciem
+  - container_engine
+  primary_engine: threat_engine
+  action_category: modify
+  mitre_tactics:
+  - persistence
+  - defense-evasion
+  mitre_techniques:
+  - T1562.001
+  domain: container_security
+  provider: ibm
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 90
+- rule_id: ibm.k8s_audit.serviceaccount_created
+  title: IKS ServiceAccount created
+  severity: medium
+  log_source_type: ibm_k8s_audit
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: ibm_k8s_audit
+    - field: operation
+      op: equals
+      value: create_serviceaccount
+  engines:
+  - threat_engine
+  - ciem
+  - container_engine
+  primary_engine: threat_engine
+  action_category: create
+  mitre_tactics:
+  - persistence
+  mitre_techniques:
+  - T1136.003
+  domain: container_security
+  provider: ibm
+  remediation: Verify the newly created resource follows organizational policy. Check for overly permissive settings. Tag
+    the resource for tracking.
+  compliance_frameworks: *id001
+  risk_score: 50

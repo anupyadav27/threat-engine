@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -22,7 +22,6 @@ import {
   Minus,
   RefreshCw,
   Box,
-  Layers,
   Key,
   ClipboardCheck,
   Globe,
@@ -36,26 +35,48 @@ import {
 } from 'lucide-react';
 import { getFromEngine, fetchView } from '@/lib/api';
 import {
-  RELATION_FAMILIES,
   RESOURCE_DOMAINS,
-  resolveRelationType,
-  classifyResourceDomain,
-  groupRelationshipsByFamily,
 } from '@/lib/inventory-taxonomy';
 import DataTable from '@/components/shared/DataTable';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import StatusIndicator from '@/components/shared/StatusIndicator';
 import CloudServiceIcon from '@/components/shared/CloudServiceIcon';
 import DriftTimeline from '@/components/shared/DriftTimeline';
+import ComplianceFindingDetail from '@/components/shared/ComplianceFindingDetail';
 
-const FAMILY_ICON_MAP = {
-  Layers, Network, Shield, Key, Lock, Zap, ClipboardCheck,
-};
 const DOMAIN_ICON_MAP = {
   KeyRound, Network, Shield, Server, Box, Zap, HardDrive, Database,
   Lock, Globe, MessageSquare, Activity, ClipboardCheck, Brain,
 };
 
+
+/**
+ * Normalize blast-radius response — handles both the old BFF format
+ * (center / total_nodes) and the new format (origin / total_impacted).
+ * Also computes impact_summary from nodes when BFF doesn't provide it.
+ */
+function normalizeBlastData(raw, fallbackOrigin) {
+  if (!raw || typeof raw !== 'object') {
+    return { nodes: [], edges: [], total_impacted: 0, impact_summary: {}, origin: fallbackOrigin, toxic_combos: [] };
+  }
+  const nodes = raw.nodes || [];
+  const edges = raw.edges || [];
+  const origin = raw.origin || raw.center || fallbackOrigin;
+  const total_impacted = raw.total_impacted ?? raw.total_nodes ?? nodes.length;
+  const toxic_combos = raw.toxic_combos || [];
+
+  // Compute impact_summary from nodes when BFF doesn't provide it
+  let impact_summary = raw.impact_summary || null;
+  if (!impact_summary || Object.keys(impact_summary).length === 0) {
+    impact_summary = {};
+    nodes.forEach((n) => {
+      const cat = n.category || 'other';
+      impact_summary[cat] = (impact_summary[cat] || 0) + 1;
+    });
+  }
+
+  return { nodes, edges, origin, total_impacted, impact_summary, toxic_combos };
+}
 
 export default function AssetDetailPage() {
   const params = useParams();
@@ -88,9 +109,8 @@ export default function AssetDetailPage() {
 
         // Fallback to direct engine calls if BFF fails
         if (!bffData || bffData.error) {
-          const [assetRes, relsRes, driftRes] = await Promise.allSettled([
+          const [assetRes, driftRes] = await Promise.allSettled([
             getFromEngine('inventory', `/api/v1/inventory/assets/${encoded}`),
-            getFromEngine('inventory', `/api/v1/inventory/assets/${encoded}/relationships`, { depth: 2 }),
             getFromEngine('inventory', `/api/v1/inventory/assets/${encoded}/drift`, { limit: 20 }),
           ]);
 
@@ -101,18 +121,8 @@ export default function AssetDetailPage() {
             return;
           }
           const base = assetData.asset || assetData;
-          const relsData = relsRes.status === 'fulfilled' ? relsRes.value : null;
-          const rawRels = relsData?.relationships || [];
-          const normalizedRels = rawRels.length > 0
-            ? rawRels.map((r) => ({
-                relationship_type: r.relation_type || r.relationship_type || 'related_to',
-                related_resource: r.source === assetId ? r.target : (r.source || r.target || ''),
-                related_type: r.resource_type || r.label || 'Resource',
-                direction: r.source === assetId ? 'outbound' : 'inbound',
-              }))
-            : base.relationships || [];
           const driftData = driftRes.status === 'fulfilled' ? driftRes.value : null;
-          const blastData = blastRes.status === 'fulfilled' ? blastRes.value : null;
+          const blastRaw = blastRes.status === 'fulfilled' ? blastRes.value : null;
 
           setAsset({
             ...base,
@@ -123,9 +133,8 @@ export default function AssetDetailPage() {
             provider: (base.provider || 'aws').toLowerCase(),
             tags: base.tags || {},
             config: (base.config && Object.keys(base.config).length > 0) ? base.config : {},
-            relationships: normalizedRels,
             drift_info: driftData?.drift_info || base.drift_info || null,
-            blast_radius: blastData || { nodes: [], edges: [], total_impacted: 0, impact_summary: {}, origin: assetId },
+            blast_radius: normalizeBlastData(blastRaw, assetId),
           });
           setLoading(false);
           return;
@@ -133,7 +142,7 @@ export default function AssetDetailPage() {
 
         // ── BFF response: pre-assembled cross-engine data ────────────
         const base = bffData.asset || {};
-        const blastData = blastRes.status === 'fulfilled' ? blastRes.value : null;
+        const blastRaw = blastRes.status === 'fulfilled' ? blastRes.value : null;
 
         setAsset({
           ...base,
@@ -151,9 +160,8 @@ export default function AssetDetailPage() {
           threats: bffData.threat_findings || [],
           threat_severity: bffData.threat_severity || {},
           compliance: bffData.compliance_findings || [],
-          relationships: bffData.relationships || base.relationships || [],
           drift_info: bffData.drift || base.drift_info || null,
-          blast_radius: blastData || { nodes: [], edges: [], total_impacted: 0, impact_summary: {}, origin: assetId },
+          blast_radius: normalizeBlastData(blastRaw, assetId),
         });
       } catch (err) {
         setError(err?.message || 'Failed to load asset details');
@@ -171,64 +179,6 @@ export default function AssetDetailPage() {
     setCopiedId(true);
     setTimeout(() => setCopiedId(false), 2000);
   };
-
-  // Table columns for relationships
-  const relationshipColumns = [
-    {
-      accessorKey: 'relationship_type',
-      header: 'Relationship Type',
-      cell: (info) => (
-        <span
-          className="text-xs font-medium px-2 py-1 rounded"
-          style={{ color: 'var(--text-secondary)', backgroundColor: 'var(--bg-tertiary)' }}
-        >
-          {info.getValue().replace(/_/g, ' ')}
-        </span>
-      ),
-    },
-    {
-      accessorKey: 'related_resource',
-      header: 'Related Resource',
-      cell: (info) => (
-        <code
-          className="text-xs"
-          style={{ color: 'var(--text-tertiary)' }}
-        >
-          {info.getValue().substring(0, 40)}...
-        </code>
-      ),
-    },
-    {
-      accessorKey: 'related_type',
-      header: 'Type',
-      cell: (info) => (
-        <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-          {info.getValue()}
-        </span>
-      ),
-    },
-    {
-      accessorKey: 'direction',
-      header: 'Direction',
-      cell: (info) => {
-        const direction = info.getValue();
-        return (
-          <span
-            className="text-xs font-medium px-2 py-1 rounded"
-            style={{
-              backgroundColor:
-                direction === 'inbound'
-                  ? 'var(--accent-success)'
-                  : 'var(--accent-primary)',
-              color: 'white',
-            }}
-          >
-            {direction === 'inbound' ? '← Inbound' : '→ Outbound'}
-          </span>
-        );
-      },
-    },
-  ];
 
   // Table columns for findings (matches API findings_detail: rule_id, title, severity, status, service)
   const findingsColumns = [
@@ -318,7 +268,37 @@ export default function AssetDetailPage() {
   ];
 
   // Table columns for compliance (matches API: framework, control_id, control_name, status, severity)
+  // ── Compliance expandable rows ──────────────────────────────────────
+  const [expandedCompliance, setExpandedCompliance] = useState(new Set());
+  const [selectedComplianceFinding, setSelectedComplianceFinding] = useState(null);
+
+  const toggleCompliance = useCallback((idx) => {
+    setExpandedCompliance((prev) => {
+      const next = new Set(prev);
+      next.has(idx) ? next.delete(idx) : next.add(idx);
+      return next;
+    });
+  }, []);
+
   const complianceColumns = [
+    {
+      id: 'expand',
+      header: '',
+      size: 36,
+      cell: (info) => {
+        const idx = info.row.index;
+        return (
+          <button
+            onClick={(e) => { e.stopPropagation(); toggleCompliance(idx); }}
+            style={{ color: 'var(--text-muted)' }}
+          >
+            {expandedCompliance.has(idx)
+              ? <ChevronDown className="w-4 h-4" />
+              : <ChevronRight className="w-4 h-4" />}
+          </button>
+        );
+      },
+    },
     {
       accessorKey: 'framework',
       header: 'Framework',
@@ -375,6 +355,86 @@ export default function AssetDetailPage() {
       },
     },
   ];
+
+  const renderComplianceExpanded = useCallback((row) => {
+    const idx = (asset.compliance || []).indexOf(row);
+    if (!expandedCompliance.has(idx)) return null;
+    const fmt = (d) => d ? new Date(d).toLocaleDateString() : '—';
+    return (
+      <div
+        className="px-6 py-4 border-t space-y-3"
+        style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)' }}
+      >
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div>
+            <div className="text-xs font-medium mb-1" style={{ color: 'var(--text-tertiary)' }}>Rule ID</div>
+            <code className="text-xs px-2 py-1 rounded" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}>
+              {row.rule_id || '—'}
+            </code>
+          </div>
+          <div>
+            <div className="text-xs font-medium mb-1" style={{ color: 'var(--text-tertiary)' }}>Category</div>
+            <span className="text-xs px-2 py-1 rounded font-medium"
+              style={{ backgroundColor: 'var(--bg-badge)', color: 'var(--text-secondary)' }}>
+              {row.category || '—'}
+            </span>
+          </div>
+          <div>
+            <div className="text-xs font-medium mb-1" style={{ color: 'var(--text-tertiary)' }}>Framework</div>
+            <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+              {row.framework || '—'} — {row.control_id || ''}
+            </span>
+          </div>
+          <div>
+            <div className="text-xs font-medium mb-1" style={{ color: 'var(--text-tertiary)' }}>Last Seen</div>
+            <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+              {fmt(row.last_seen)}
+            </span>
+          </div>
+        </div>
+        {(row.description || row.control_name) && (
+          <div>
+            <div className="text-xs font-medium mb-1" style={{ color: 'var(--text-tertiary)' }}>Description</div>
+            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+              {row.description || row.control_name}
+            </p>
+          </div>
+        )}
+        {row.rationale && (
+          <div>
+            <div className="text-xs font-medium mb-1" style={{ color: 'var(--text-tertiary)' }}>Rationale</div>
+            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+              {row.rationale}
+            </p>
+          </div>
+        )}
+        {row.remediation && (
+          <div>
+            <div className="text-xs font-medium mb-1" style={{ color: 'var(--text-tertiary)' }}>Remediation</div>
+            <div
+              className="text-sm p-3 rounded border"
+              style={{
+                backgroundColor: 'var(--bg-tertiary)',
+                borderColor: 'var(--border-primary)',
+                color: 'var(--text-secondary)',
+              }}
+            >
+              {row.remediation}
+            </div>
+          </div>
+        )}
+        {row.resource && typeof row.resource === 'object' && (
+          <div>
+            <div className="text-xs font-medium mb-1" style={{ color: 'var(--text-tertiary)' }}>Resource Details</div>
+            <div className="font-mono text-xs p-3 rounded border overflow-x-auto"
+              style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)', color: 'var(--text-secondary)' }}>
+              {JSON.stringify(row.resource, null, 2)}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }, [expandedCompliance, asset]);
 
   // Table columns for threats (MITRE ATT&CK enriched from threat engine)
   const threatColumns = [
@@ -635,7 +695,7 @@ export default function AssetDetailPage() {
       {/* Tabs */}
       <div style={{ borderBottomColor: 'var(--border-primary)' }} className="border-b">
         <div className="flex gap-1">
-          {['overview', 'configuration', 'misconfigurations', 'threats', 'relationships', 'blast-radius', 'compliance', 'drift'].map(
+          {['overview', 'configuration', 'misconfigurations', 'threats', 'blast-radius', 'compliance', 'drift'].map(
             (tab) => (
               <button
                 key={tab}
@@ -905,10 +965,6 @@ export default function AssetDetailPage() {
         </div>
       )}
 
-      {activeTab === 'relationships' && (
-        <RelationshipFamilyView relationships={asset.relationships} assetId={assetId} />
-      )}
-
       {activeTab === 'compliance' && (
         <div
           className="rounded-lg p-6 border"
@@ -932,11 +988,21 @@ export default function AssetDetailPage() {
               pageSize={10}
               loading={loading}
               emptyMessage="No compliance data found"
+              renderExpandedRow={renderComplianceExpanded}
+              onRowClick={(row) => setSelectedComplianceFinding(row)}
             />
           ) : (
             <div className="text-center py-8" style={{ color: 'var(--text-tertiary)' }}>
               No compliance data found
             </div>
+          )}
+          {selectedComplianceFinding && (
+            <ComplianceFindingDetail
+              controlId={selectedComplianceFinding.control_id}
+              framework={selectedComplianceFinding.framework}
+              inlineData={selectedComplianceFinding}
+              onClose={() => setSelectedComplianceFinding(null)}
+            />
           )}
         </div>
       )}
@@ -978,22 +1044,22 @@ export default function AssetDetailPage() {
             style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)' }}
           >
             <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
-              Explore in Threats:
+              Explore:
             </span>
             <Link
               href={`/threats?search=${encodeURIComponent(assetId)}`}
               className="text-xs flex items-center gap-1 font-medium hover:opacity-80 transition-opacity"
               style={{ color: 'var(--accent-primary)' }}
             >
-              View All Threats <ArrowRight className="w-3 h-3" />
+              All Threats <ArrowRight className="w-3 h-3" />
             </Link>
-            <Link
-              href={`/threats/blast-radius?resource_uid=${encodeURIComponent(assetId)}`}
+            <button
+              onClick={() => setActiveTab('blast-radius')}
               className="text-xs flex items-center gap-1 font-medium hover:opacity-80 transition-opacity"
-              style={{ color: 'var(--accent-primary)' }}
+              style={{ color: 'var(--accent-primary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
             >
               Blast Radius <ArrowRight className="w-3 h-3" />
-            </Link>
+            </button>
             <Link
               href="/threats/attack-paths"
               className="text-xs flex items-center gap-1 font-medium hover:opacity-80 transition-opacity"
@@ -1047,138 +1113,6 @@ export default function AssetDetailPage() {
 }
 
 
-/* ─── Relationship Family Grouped View ─── */
-function RelationshipFamilyView({ relationships, assetId }) {
-  const [collapsed, setCollapsed] = useState({});
-  const groups = groupRelationshipsByFamily(relationships);
-  const total = (relationships || []).length;
-
-  if (total === 0) {
-    return (
-      <div className="text-center py-12" style={{ color: 'var(--text-tertiary)' }}>
-        <Network className="w-8 h-8 mx-auto mb-2 opacity-30" />
-        <p className="text-sm">No related resources found</p>
-      </div>
-    );
-  }
-
-  const toggle = (f) => setCollapsed((p) => ({ ...p, [f]: !p[f] }));
-
-  return (
-    <div className="space-y-3">
-      {/* Family summary strip */}
-      <div className="flex flex-wrap gap-2 mb-2">
-        {groups.map((g) => (
-          <button
-            key={g.family}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
-            style={{ backgroundColor: g.familyMeta.color + '15', color: g.familyMeta.color }}
-            onClick={() => {
-              const el = document.getElementById(`rel-family-${g.family}`);
-              el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }}
-          >
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: g.familyMeta.color }} />
-            {g.familyMeta.label}: {g.relationships.length}
-          </button>
-        ))}
-        <span className="flex items-center text-xs" style={{ color: 'var(--text-tertiary)' }}>
-          {total} total
-        </span>
-      </div>
-
-      {/* Family groups */}
-      {groups.map((g) => {
-        const isCollapsed = collapsed[g.family] === true;
-        const FamilyIcon = FAMILY_ICON_MAP[g.familyMeta.iconName] || Layers;
-        return (
-          <div
-            key={g.family}
-            id={`rel-family-${g.family}`}
-            className="rounded-lg border overflow-hidden"
-            style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}
-          >
-            {/* Family header */}
-            <button
-              onClick={() => toggle(g.family)}
-              className="w-full flex items-center gap-3 px-4 py-3 transition-colors"
-              style={{ backgroundColor: g.familyMeta.color + '08' }}
-              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = g.familyMeta.color + '14'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = g.familyMeta.color + '08'; }}
-            >
-              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: g.familyMeta.color }} />
-              <FamilyIcon className="w-4 h-4 flex-shrink-0" style={{ color: g.familyMeta.color }} />
-              <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                {g.familyMeta.label}
-              </span>
-              <span className="text-xs px-2 py-0.5 rounded-full font-medium"
-                style={{ backgroundColor: g.familyMeta.color + '20', color: g.familyMeta.color }}>
-                {g.relationships.length}
-              </span>
-              <span className="text-xs flex-1 text-left" style={{ color: 'var(--text-tertiary)' }}>
-                {g.familyMeta.description}
-              </span>
-              {isCollapsed ? <ChevronRight className="w-4 h-4" style={{ color: 'var(--text-tertiary)' }} /> : <ChevronDown className="w-4 h-4" style={{ color: 'var(--text-tertiary)' }} />}
-            </button>
-
-            {/* Relationship rows */}
-            {!isCollapsed && (
-              <div className="divide-y" style={{ borderColor: 'var(--border-primary)' }}>
-                {g.relationships.map((rel, idx) => {
-                  const resolved = rel._resolved || resolveRelationType(rel.relationship_type || rel.relation_type);
-                  const relType = rel.relationship_type || rel.relation_type || 'related_to';
-                  const target = rel.related_resource || rel.target || '';
-                  const targetType = rel.related_type || '';
-                  const direction = rel.direction || 'outbound';
-                  const shortTarget = target.length > 60 ? '...' + target.slice(-55) : target;
-
-                  return (
-                    <div key={idx} className="flex items-center gap-3 px-4 py-2 text-xs"
-                      style={{ backgroundColor: idx % 2 === 0 ? 'transparent' : 'var(--bg-secondary)' }}>
-                      {/* Relation type pill */}
-                      <span className="px-2 py-0.5 rounded font-medium whitespace-nowrap"
-                        style={{ backgroundColor: resolved?.color + '18', color: resolved?.color, minWidth: 100 }}>
-                        {relType.replace(/_/g, ' ')}
-                      </span>
-                      {/* Direction */}
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold whitespace-nowrap"
-                        style={{
-                          backgroundColor: direction === 'inbound' ? '#22c55e20' : '#3b82f620',
-                          color: direction === 'inbound' ? '#22c55e' : '#3b82f6',
-                        }}>
-                        {direction === 'inbound' ? 'IN' : 'OUT'}
-                      </span>
-                      {/* Target resource (clickable) */}
-                      <a
-                        href={`/inventory/${encodeURIComponent(target)}`}
-                        className="font-mono truncate transition-colors"
-                        style={{ color: 'var(--text-secondary)' }}
-                        onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent-primary)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)'; }}
-                        title={target}
-                      >
-                        {shortTarget}
-                      </a>
-                      {/* Type badge */}
-                      {targetType && (
-                        <span className="ml-auto px-1.5 py-0.5 rounded whitespace-nowrap"
-                          style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-tertiary)' }}>
-                          {targetType}
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-
 /* ─── Category colors & icons for blast radius (taxonomy-based) ─── */
 // Map backend category strings to RESOURCE_DOMAINS for rendering
 function getBlastCategoryMeta(category) {
@@ -1206,224 +1140,364 @@ function BlastRadiusView({ blastData, originName, originType }) {
   const impact = blastData?.impact_summary || {};
   const total = blastData?.total_impacted || 0;
 
-  if (total === 0) {
-    return (
-      <div className="text-center py-16" style={{ color: 'var(--text-tertiary)' }}>
-        <Crosshair className="w-10 h-10 mx-auto mb-3 opacity-30" />
-        <p className="text-sm">No resources depend on this resource</p>
-        <p className="text-xs mt-1 opacity-60">Blast radius is zero — compromising this resource has no downstream impact</p>
-      </div>
-    );
-  }
+  // toxic_combos: nodes in the blast radius that ALSO have co-existing dangerous misconfigs.
+  // These are the highest-priority attacker targets: reachable + already weakened.
+  const toxicCombos = blastData?.toxic_combos || [];
+  const toxicUidMap = new Map(toxicCombos.map((t) => [t.resource_uid, t]));
 
-  // Impact KPI cards — only show categories that have > 0 count
+  const [showOnlyToxic, setShowOnlyToxic] = useState(false);
+
+  // Impact KPI cards
   const impactCards = Object.entries(impact)
     .filter(([, count]) => count > 0)
     .sort((a, b) => {
       const ai = HIGH_VALUE_CATEGORIES.indexOf(a[0]);
       const bi = HIGH_VALUE_CATEGORIES.indexOf(b[0]);
-      // High-value categories first, then by count
       if (ai !== -1 && bi === -1) return -1;
       if (ai === -1 && bi !== -1) return 1;
       if (ai !== -1 && bi !== -1) return ai - bi;
       return b[1] - a[1];
     });
 
-  // Build tree structure: edges map parent→children
+  // Build tree: edges map parent → children
   const childrenMap = {};
   edges.forEach((e) => {
     if (!childrenMap[e.source]) childrenMap[e.source] = [];
-    // Avoid duplicate children
     if (!childrenMap[e.source].find((c) => c.id === e.target)) {
       const node = nodes.find((n) => n.id === e.target);
-      childrenMap[e.source].push({
-        ...node,
-        relation_type: e.relation_type || '',
-      });
+      childrenMap[e.source].push({ ...node, relation_type: e.relation_type || '' });
     }
   });
 
-  return (
-    <div className="space-y-4">
-      {/* Impact Summary */}
-      <div
-        className="rounded-lg p-4 border"
-        style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}
-      >
-        <div className="flex items-center gap-2 mb-3">
-          <Crosshair className="w-4 h-4" style={{ color: 'var(--accent-danger)' }} />
-          <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-            Impact Summary
-          </h3>
-          <span
-            className="text-xs px-2 py-0.5 rounded-full font-bold"
-            style={{ backgroundColor: 'var(--accent-danger)', color: 'white' }}
-          >
-            {total} total
-          </span>
-        </div>
-        <p className="text-xs mb-3" style={{ color: 'var(--text-tertiary)' }}>
-          If this resource is compromised, the following resources are impacted:
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {impactCards.map(([cat, count]) => {
-            const meta = getBlastCategoryMeta(cat);
-            const isHighValue = HIGH_VALUE_CATEGORIES.includes(cat);
-            return (
-              <div
-                key={cat}
-                className="flex items-center gap-2 rounded-lg px-3 py-2 border"
-                style={{
-                  borderColor: isHighValue ? meta.color : 'var(--border-primary)',
-                  backgroundColor: isHighValue ? `${meta.color}10` : 'var(--bg-tertiary)',
-                }}
-              >
-                {meta.icon && <meta.icon className="w-5 h-5" style={{ color: meta.color }} />}
-                <div>
-                  <div className="text-lg font-bold" style={{ color: meta.color }}>{count}</div>
-                  <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{meta.label}</div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+  // Sorted table: toxic first, then high-value, then by hop
+  const sortedNodes = [...nodes].sort((a, b) => {
+    const at = toxicUidMap.has(a.id) ? 0 : 1;
+    const bt = toxicUidMap.has(b.id) ? 0 : 1;
+    if (at !== bt) return at - bt;
+    const ai = HIGH_VALUE_CATEGORIES.indexOf(a.category);
+    const bi = HIGH_VALUE_CATEGORIES.indexOf(b.category);
+    if (ai !== -1 && bi === -1) return -1;
+    if (ai === -1 && bi !== -1) return 1;
+    return (a.hop || 0) - (b.hop || 0);
+  });
 
-      {/* Dependency Tree */}
-      <div
-        className="rounded-lg border overflow-hidden"
-        style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}
-      >
-        <div className="p-4 border-b" style={{ borderColor: 'var(--border-primary)' }}>
+  const displayNodes = showOnlyToxic ? sortedNodes.filter((n) => toxicUidMap.has(n.id)) : sortedNodes;
+
+  return (
+    <div className="space-y-6">
+
+      {/* ════════════════════════════════════════════
+          SECTION 1 — BLAST RADIUS
+          ════════════════════════════════════════════ */}
+      <div>
+        {/* Section heading */}
+        <div className="flex items-center gap-3 mb-4">
           <div className="flex items-center gap-2">
             <Crosshair className="w-5 h-5" style={{ color: 'var(--accent-danger)' }} />
-            <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-              Dependency Tree
+            <h2 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>
+              Blast Radius
             </h2>
-            <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
-              — resources that depend on this resource
-            </span>
           </div>
-        </div>
-        <div className="p-4 font-mono text-xs" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-          {/* Origin */}
-          <div className="flex items-center gap-2 mb-1">
+          <span
+            className="text-xs px-2.5 py-1 rounded-full font-bold"
+            style={{ backgroundColor: total > 0 ? 'rgba(239,68,68,0.15)' : 'var(--bg-tertiary)', color: total > 0 ? '#f87171' : 'var(--text-muted)' }}
+          >
+            {total} reachable resource{total !== 1 ? 's' : ''}
+          </span>
+          {toxicCombos.length > 0 && (
             <span
-              className="inline-flex items-center justify-center w-5 h-5 rounded-full text-white text-[10px] font-bold"
-              style={{ backgroundColor: '#3b82f6' }}
+              className="text-xs px-2.5 py-1 rounded-full font-bold"
+              style={{ backgroundColor: 'rgba(124,58,237,0.15)', color: '#a78bfa' }}
             >
-              ◉
+              ☠ {toxicCombos.length} toxic
             </span>
-            <span className="font-bold" style={{ color: 'var(--text-primary)' }}>
-              {originName}
-            </span>
-            <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-tertiary)' }}>
-              {originType || 'origin'}
-            </span>
-          </div>
-          {/* Children tree */}
-          <TreeBranch
-            parentId={blastData?.origin}
-            childrenMap={childrenMap}
-            depth={0}
-            maxDepth={4}
-            visited={new Set()}
-          />
+          )}
+          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            — resources reachable if this asset is compromised
+          </span>
         </div>
-      </div>
 
-      {/* Impacted Resources Table */}
-      <div
-        className="rounded-lg p-5 border"
-        style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}
-      >
-        <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>
-          Impacted Resources
-        </h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--border-primary)' }}>
-                <th className="text-left py-2 pr-3 font-medium" style={{ color: 'var(--text-tertiary)' }}>Resource</th>
-                <th className="text-left py-2 pr-3 font-medium" style={{ color: 'var(--text-tertiary)' }}>Category</th>
-                <th className="text-left py-2 pr-3 font-medium" style={{ color: 'var(--text-tertiary)' }}>Type</th>
-                <th className="text-left py-2 pr-3 font-medium" style={{ color: 'var(--text-tertiary)' }}>Hop</th>
-                <th className="text-left py-2 font-medium" style={{ color: 'var(--text-tertiary)' }}>Relationship</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[...nodes]
-                .sort((a, b) => {
-                  // High-value categories first, then by hop
-                  const ai = HIGH_VALUE_CATEGORIES.indexOf(a.category);
-                  const bi = HIGH_VALUE_CATEGORIES.indexOf(b.category);
-                  if (ai !== -1 && bi === -1) return -1;
-                  if (ai === -1 && bi !== -1) return 1;
-                  return a.hop - b.hop;
-                })
-                .map((node, idx) => {
-                  const meta = getBlastCategoryMeta(node.category);
-                  const isHighValue = HIGH_VALUE_CATEGORIES.includes(node.category);
+        {total === 0 ? (
+          <div
+            className="rounded-lg border p-10 text-center"
+            style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}
+          >
+            <Crosshair className="w-10 h-10 mx-auto mb-3 opacity-30" style={{ color: 'var(--text-tertiary)' }} />
+            <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>No reachable resources</p>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+              No resources are reachable from this asset via attack-path edges
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Impact category KPIs */}
+            {impactCards.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {impactCards.map(([cat, count]) => {
+                  const meta = getBlastCategoryMeta(cat);
+                  const isHighValue = HIGH_VALUE_CATEGORIES.includes(cat);
                   return (
-                    <tr
-                      key={idx}
-                      style={{ borderBottom: '1px solid var(--border-primary)' }}
-                      className={isHighValue ? 'font-medium' : ''}
+                    <div
+                      key={cat}
+                      className="flex items-center gap-2 rounded-lg px-3 py-2 border"
+                      style={{
+                        borderColor: isHighValue ? meta.color : 'var(--border-primary)',
+                        backgroundColor: isHighValue ? `${meta.color}10` : 'var(--bg-tertiary)',
+                      }}
                     >
-                      <td className="py-2 pr-3">
-                        <code style={{ color: isHighValue ? meta.color : 'var(--text-secondary)' }}>
-                          {(node.name || node.id || '').length > 50
-                            ? (node.name || node.id).substring(0, 50) + '...'
-                            : node.name || node.id}
-                        </code>
-                      </td>
-                      <td className="py-2 pr-3">
-                        <span
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
-                          style={{
-                            backgroundColor: `${meta.color}20`,
-                            color: meta.color,
-                          }}
-                        >
-                          {meta.icon && <meta.icon className="w-3 h-3" />} {meta.label}
-                        </span>
-                      </td>
-                      <td className="py-2 pr-3" style={{ color: 'var(--text-tertiary)' }}>
-                        {node.type || '-'}
-                      </td>
-                      <td className="py-2 pr-3">
-                        <span
-                          className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                          style={{
-                            backgroundColor: node.hop === 1 ? 'var(--accent-danger)' : node.hop === 2 ? 'var(--accent-warning)' : '#f59e0b',
-                            color: 'white',
-                          }}
-                        >
-                          {node.hop}
-                        </span>
-                      </td>
-                      <td className="py-2">
-                        <span
-                          className="text-[10px] px-1.5 py-0.5 rounded"
-                          style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-tertiary)' }}
-                        >
-                          {node.relation_type || '-'}
-                        </span>
-                      </td>
-                    </tr>
+                      {meta.icon && <meta.icon className="w-4 h-4" style={{ color: meta.color }} />}
+                      <div>
+                        <div className="text-base font-bold tabular-nums" style={{ color: meta.color }}>{count}</div>
+                        <div className="text-[10px]" style={{ color: 'var(--text-tertiary)' }}>{meta.label}</div>
+                      </div>
+                    </div>
                   );
                 })}
-            </tbody>
-          </table>
-        </div>
+              </div>
+            )}
+
+            {/* Dependency tree */}
+            <div
+              className="rounded-lg border overflow-hidden"
+              style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}
+            >
+              <div className="px-4 py-3 border-b flex items-center gap-2" style={{ borderColor: 'var(--border-primary)' }}>
+                <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-tertiary)' }}>
+                  Dependency Tree
+                </span>
+                {toxicCombos.length > 0 && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(124,58,237,0.12)', color: '#a78bfa' }}>
+                    ☠ = toxic combo
+                  </span>
+                )}
+              </div>
+              <div className="p-4 font-mono text-xs overflow-x-auto" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                <div className="flex items-center gap-2 mb-1">
+                  <span
+                    className="inline-flex items-center justify-center w-5 h-5 rounded-full text-white text-[10px] font-bold flex-shrink-0"
+                    style={{ backgroundColor: '#3b82f6' }}
+                  >◉</span>
+                  <span className="font-bold" style={{ color: 'var(--text-primary)' }}>{originName}</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-tertiary)' }}>
+                    {originType || 'origin'}
+                  </span>
+                </div>
+                <TreeBranch
+                  parentId={blastData?.origin}
+                  childrenMap={childrenMap}
+                  depth={0}
+                  maxDepth={4}
+                  visited={new Set()}
+                  toxicUidMap={toxicUidMap}
+                />
+              </div>
+            </div>
+
+            {/* Impacted resources table */}
+            <div
+              className="rounded-lg border overflow-hidden"
+              style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}
+            >
+              <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: 'var(--border-primary)' }}>
+                <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-tertiary)' }}>
+                  All Reachable Resources
+                </span>
+                {toxicCombos.length > 0 && (
+                  <button
+                    onClick={() => setShowOnlyToxic((v) => !v)}
+                    className="text-xs px-2.5 py-1 rounded-full font-medium"
+                    style={{
+                      backgroundColor: showOnlyToxic ? '#7c3aed' : 'rgba(124,58,237,0.12)',
+                      color: showOnlyToxic ? 'white' : '#a78bfa',
+                      border: '1px solid rgba(124,58,237,0.3)',
+                    }}
+                  >
+                    {showOnlyToxic ? 'Show all' : `☠ Toxic only (${toxicCombos.length})`}
+                  </button>
+                )}
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border-primary)' }}>
+                      <th className="text-left py-2 px-4 font-medium" style={{ color: 'var(--text-tertiary)' }}>Resource</th>
+                      <th className="text-left py-2 pr-3 font-medium" style={{ color: 'var(--text-tertiary)' }}>Category</th>
+                      <th className="text-left py-2 pr-3 font-medium" style={{ color: 'var(--text-tertiary)' }}>Type</th>
+                      <th className="text-left py-2 pr-3 font-medium" style={{ color: 'var(--text-tertiary)' }}>Hop</th>
+                      <th className="text-left py-2 pr-3 font-medium" style={{ color: 'var(--text-tertiary)' }}>Via</th>
+                      <th className="text-left py-2 pr-4 font-medium" style={{ color: 'var(--text-tertiary)' }}>Toxic Combo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {displayNodes.map((node, idx) => {
+                      const meta = getBlastCategoryMeta(node.category);
+                      const isHighValue = HIGH_VALUE_CATEGORIES.includes(node.category);
+                      const toxic = toxicUidMap.get(node.id);
+                      return (
+                        <tr
+                          key={idx}
+                          style={{
+                            borderBottom: '1px solid var(--border-primary)',
+                            backgroundColor: toxic ? 'rgba(124,58,237,0.05)' : 'transparent',
+                          }}
+                        >
+                          <td className="py-2 px-4">
+                            <div className="flex items-center gap-1.5">
+                              {toxic && <span title={`Toxic: ${(toxic.conditions || []).join(', ')}`} className="text-[11px]">☠</span>}
+                              <code style={{ color: toxic ? '#c4b5fd' : isHighValue ? meta.color : 'var(--text-secondary)' }}>
+                                {(node.name || node.id || '').length > 48
+                                  ? (node.name || node.id).substring(0, 48) + '…'
+                                  : node.name || node.id}
+                              </code>
+                            </div>
+                          </td>
+                          <td className="py-2 pr-3">
+                            <span
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                              style={{ backgroundColor: `${meta.color}20`, color: meta.color }}
+                            >
+                              {meta.icon && <meta.icon className="w-3 h-3" />} {meta.label}
+                            </span>
+                          </td>
+                          <td className="py-2 pr-3" style={{ color: 'var(--text-tertiary)' }}>{node.type || '—'}</td>
+                          <td className="py-2 pr-3">
+                            <span
+                              className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                              style={{
+                                backgroundColor: node.hop === 1 ? 'rgba(239,68,68,0.2)' : node.hop === 2 ? 'rgba(249,115,22,0.2)' : 'rgba(245,158,11,0.2)',
+                                color: node.hop === 1 ? '#f87171' : node.hop === 2 ? '#fb923c' : '#fbbf24',
+                              }}
+                            >
+                              hop {node.hop}
+                            </span>
+                          </td>
+                          <td className="py-2 pr-3">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-tertiary)' }}>
+                              {node.relation_type || '—'}
+                            </span>
+                          </td>
+                          <td className="py-2 pr-4">
+                            {toxic ? (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded font-bold" style={{ backgroundColor: 'rgba(124,58,237,0.25)', color: '#c4b5fd' }}>
+                                Yes
+                              </span>
+                            ) : (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}>
+                                No
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* ════════════════════════════════════════════
+          SECTION 2 — TOXIC COMBINATIONS (only shown when combos exist)
+          ════════════════════════════════════════════ */}
+      {toxicCombos.length > 0 && <div>
+        {/* Section heading */}
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">☠</span>
+            <h2 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>
+              Toxic Combinations
+            </h2>
+          </div>
+          <span
+            className="text-xs px-2.5 py-1 rounded-full font-bold"
+            style={{
+              backgroundColor: toxicCombos.length > 0 ? 'rgba(124,58,237,0.15)' : 'var(--bg-tertiary)',
+              color: toxicCombos.length > 0 ? '#a78bfa' : 'var(--text-muted)',
+            }}
+          >
+            {toxicCombos.length} found
+          </span>
+          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            — reachable resources with co-existing dangerous misconfigurations
+          </span>
+        </div>
+
+        {toxicCombos.length === 0 ? (
+          <div
+            className="rounded-lg border p-8 text-center"
+            style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}
+          >
+            <span className="text-3xl opacity-20">☠</span>
+            <p className="text-sm font-medium mt-2" style={{ color: 'var(--text-secondary)' }}>No toxic combinations found</p>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+              No resources in the blast radius have co-existing critical misconfigurations
+            </p>
+          </div>
+        ) : (
+          <div
+            className="rounded-lg border"
+            style={{ backgroundColor: 'rgba(124,58,237,0.05)', borderColor: 'rgba(124,58,237,0.3)' }}
+          >
+            <div className="px-4 py-3 border-b" style={{ borderColor: 'rgba(124,58,237,0.2)' }}>
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                These resources are <strong style={{ color: 'var(--text-primary)' }}>both reachable from this asset AND have multiple dangerous misconfigurations</strong>.
+                An attacker moving laterally can reach and exploit them immediately.
+              </p>
+            </div>
+            <div className="divide-y" style={{ borderColor: 'rgba(124,58,237,0.15)' }}>
+              {toxicCombos.map((t, i) => (
+                <div key={i} className="flex items-start gap-3 px-4 py-3">
+                  <span className="text-base flex-shrink-0 mt-0.5">☠</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <a
+                        href={`/inventory/${encodeURIComponent(t.resource_uid)}`}
+                        className="font-mono text-xs hover:underline truncate"
+                        style={{ color: '#c4b5fd' }}
+                        title={t.resource_uid}
+                      >
+                        {t.resource_uid.length > 72 ? t.resource_uid.substring(0, 72) + '…' : t.resource_uid}
+                      </a>
+                      {t.severity && (
+                        <span
+                          className="text-[10px] px-1.5 py-0.5 rounded font-bold flex-shrink-0"
+                          style={{
+                            backgroundColor: t.severity === 'CRITICAL' ? 'rgba(239,68,68,0.2)' : 'rgba(249,115,22,0.2)',
+                            color: t.severity === 'CRITICAL' ? '#f87171' : '#fb923c',
+                          }}
+                        >
+                          {t.severity}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {(t.conditions || []).map((cond, ci) => (
+                        <span
+                          key={ci}
+                          className="text-[10px] px-1.5 py-0.5 rounded"
+                          style={{ backgroundColor: 'rgba(239,68,68,0.12)', color: '#fca5a5' }}
+                        >
+                          {cond}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>}
+
     </div>
   );
 }
 
 
 /* ─── Recursive Tree Branch ─── */
-function TreeBranch({ parentId, childrenMap, depth, maxDepth, visited }) {
+function TreeBranch({ parentId, childrenMap, depth, maxDepth, visited, toxicUidMap = new Map() }) {
   if (!parentId || depth >= maxDepth) return null;
   const children = childrenMap[parentId] || [];
   if (children.length === 0) return null;
@@ -1439,20 +1513,26 @@ function TreeBranch({ parentId, childrenMap, depth, maxDepth, visited }) {
         const isLast = idx === children.length - 1;
         const hasChildren = (childrenMap[child.id] || []).length > 0;
         const isHighValue = HIGH_VALUE_CATEGORIES.includes(child.category);
+        const isToxic = toxicUidMap.has(child.id);
 
         return (
           <div key={child.id || idx}>
-            <div className="flex items-center gap-1.5 py-0.5">
+            <div
+              className="flex items-center gap-1.5 py-0.5 rounded"
+              style={isToxic ? { backgroundColor: 'rgba(124,58,237,0.12)', paddingLeft: 4, paddingRight: 4 } : {}}
+            >
               {/* Tree connector */}
               <span style={{ color: 'var(--border-primary)', userSelect: 'none' }}>
                 {isLast ? '└─' : '├─'}
               </span>
+              {/* Toxic skull */}
+              {isToxic && <span title="Toxic combination" className="text-[11px]">☠</span>}
               {/* Category icon */}
-              {meta.icon && <meta.icon className="w-3.5 h-3.5" style={{ color: meta.color }} />}
+              {meta.icon && <meta.icon className="w-3.5 h-3.5" style={{ color: isToxic ? '#a78bfa' : meta.color }} />}
               {/* Name */}
               <span
-                className={isHighValue ? 'font-semibold' : ''}
-                style={{ color: isHighValue ? meta.color : 'var(--text-secondary)' }}
+                className={isHighValue || isToxic ? 'font-semibold' : ''}
+                style={{ color: isToxic ? '#c4b5fd' : isHighValue ? meta.color : 'var(--text-secondary)' }}
               >
                 {(child.name || child.id || '').length > 40
                   ? (child.name || child.id).substring(0, 40) + '...'
@@ -1461,7 +1541,10 @@ function TreeBranch({ parentId, childrenMap, depth, maxDepth, visited }) {
               {/* Type badge */}
               <span
                 className="text-[9px] px-1 py-0.5 rounded"
-                style={{ backgroundColor: `${meta.color}15`, color: meta.color }}
+                style={{
+                  backgroundColor: isToxic ? 'rgba(124,58,237,0.2)' : `${meta.color}15`,
+                  color: isToxic ? '#a78bfa' : meta.color,
+                }}
               >
                 {child.type || child.category}
               </span>
@@ -1478,6 +1561,7 @@ function TreeBranch({ parentId, childrenMap, depth, maxDepth, visited }) {
                 depth={depth + 1}
                 maxDepth={maxDepth}
                 visited={newVisited}
+                toxicUidMap={toxicUidMap}
               />
             )}
           </div>

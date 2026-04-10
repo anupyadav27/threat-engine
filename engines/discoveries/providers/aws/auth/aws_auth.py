@@ -1,5 +1,6 @@
 import os
 import boto3
+import aioboto3
 import botocore
 from typing import Optional
 
@@ -49,6 +50,44 @@ def get_boto3_session(default_region: Optional[str] = None) -> boto3.session.Ses
 
     # No assume role, return session based on profile/env
     return boto3.session.Session(profile_name=profile, region_name=default_region)
+
+
+def get_aioboto3_session(default_region: Optional[str] = None) -> aioboto3.Session:
+    """Create an aioboto3 Session for async AWS API calls.
+
+    Mirrors get_boto3_session() but returns an aioboto3.Session that supports
+    async context-manager clients (``async with session.client(...) as c``).
+
+    - Honors AWS_PROFILE
+    - Optionally assumes role if AWS_ROLE_ARN is set (sync STS call to bootstrap)
+    - Falls back to environment/default credentials
+    """
+    profile = os.getenv("AWS_PROFILE")
+    role_arn = os.getenv("AWS_ROLE_ARN")
+    role_session_name = os.getenv("AWS_ROLE_SESSION_NAME", "compliance-session")
+    external_id = os.getenv("AWS_EXTERNAL_ID")
+    web_identity_token_file = os.getenv("AWS_WEB_IDENTITY_TOKEN_FILE")
+
+    # If running under IRSA, botocore handles web identity automatically.
+    if role_arn and web_identity_token_file:
+        return aioboto3.Session(profile_name=profile, region_name=default_region)
+
+    if role_arn:
+        # Bootstrap via a sync boto3 STS call to get temporary credentials,
+        # then hand them to aioboto3.Session so the async client is pre-credentialed.
+        base_session = boto3.session.Session(profile_name=profile, region_name=default_region)
+        sts = base_session.client("sts")
+        creds = _assume_role(sts, role_arn, role_session_name, external_id)
+        return aioboto3.Session(
+            aws_access_key_id=creds["AccessKeyId"],
+            aws_secret_access_key=creds["SecretAccessKey"],
+            aws_session_token=creds["SessionToken"],
+            region_name=default_region,
+            profile_name=None,
+        )
+
+    # No assume role — return session based on profile/env
+    return aioboto3.Session(profile_name=profile, region_name=default_region)
 
 
 def get_session_for_account(

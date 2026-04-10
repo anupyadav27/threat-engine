@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS iam_report (
     iam_relevant_findings INTEGER DEFAULT 0,
     critical_findings INTEGER DEFAULT 0,
     high_findings INTEGER DEFAULT 0,
+    key_rotation_count INTEGER DEFAULT 0,  -- access keys exceeding rotation policy
     findings_by_module JSONB,
     findings_by_status JSONB,
     report_data JSONB,
@@ -98,6 +99,9 @@ CREATE INDEX IF NOT EXISTS idx_iam_report_modules_gin ON iam_report USING gin(fi
 -- ============================================================================
 -- COMMENTS
 -- ============================================================================
+
+-- Migration: add key_rotation_count if upgrading existing DB
+ALTER TABLE iam_report ADD COLUMN IF NOT EXISTS key_rotation_count INTEGER DEFAULT 0;
 
 COMMENT ON TABLE iam_report IS 'IAM security scan metadata with links to check/threat scans';
 COMMENT ON TABLE iam_findings IS 'Individual IAM security findings (least privilege, MFA, etc.)';

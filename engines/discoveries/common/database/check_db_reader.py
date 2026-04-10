@@ -107,7 +107,7 @@ class CheckDBReader:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(
                     """
-                    SELECT service, discoveries_data
+                    SELECT service, discoveries_data, max_discovery_workers
                     FROM rule_discoveries
                     WHERE provider = %s AND is_active = TRUE
                     ORDER BY service
@@ -120,6 +120,10 @@ class CheckDBReader:
                     if isinstance(data, str):
                         data = json.loads(data)
                     if data and data.get("discovery"):
+                        # Inject per-service worker limit from DB column
+                        max_workers = row.get("max_discovery_workers")
+                        if max_workers and max_workers > 0:
+                            data["max_discovery_workers"] = max_workers
                         result[row["service"]] = data
                 logger.info(
                     f"Loaded discovery configs for {len(result)} services from database"
@@ -128,6 +132,30 @@ class CheckDBReader:
         except Exception as e:
             logger.warning(f"Failed to read all discovery configs from check DB: {e}")
             return {}
+        finally:
+            if conn:
+                conn.close()
+
+    def get_check_services(self, provider: str = "aws") -> set:
+        """Return set of services that have check rules in rule_metadata.
+
+        These services need full discovery (independent + dependent).
+        Services NOT in this set only need independent discoveries.
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT DISTINCT service FROM rule_metadata WHERE provider = %s",
+                    (provider,),
+                )
+                services = {row[0] for row in cur.fetchall() if row[0]}
+                logger.info(f"Loaded {len(services)} services with check rules from database")
+                return services
+        except Exception as e:
+            logger.warning(f"Failed to read check services: {e}")
+            return set()
         finally:
             if conn:
                 conn.close()

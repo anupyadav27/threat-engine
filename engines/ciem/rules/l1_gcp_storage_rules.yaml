@@ -1,0 +1,237 @@
+rules:
+- rule_id: gcp.data_access.unauthorized_access
+  title: GCS access denied (403 Forbidden)
+  severity: medium
+  log_source_type: gcp_data_access
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_data_access
+    - field: error_code
+      op: equals
+      value: PERMISSION_DENIED
+  engines:
+  - datasec_engine
+  - threat_engine
+  primary_engine: datasec_engine
+  action_category: authorization
+  mitre_tactics:
+  - initial-access
+  - credential-access
+  mitre_techniques:
+  - T1530
+  domain: data_security
+  provider: gcp
+  remediation: Review data access policies. Enable encryption at rest and in transit. Implement DLP controls.
+  compliance_frameworks: &id001
+  - CIS
+  - NIST_800-53
+  - GDPR
+  - PCI-DSS
+  - HIPAA
+  - ISO_27001
+  risk_score: 50
+- rule_id: gcp.data_access.public_object_access
+  title: GCS object accessed via allUsers/allAuthenticatedUsers
+  severity: high
+  log_source_type: gcp_data_access
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_data_access
+    - field: operation
+      op: equals
+      value: storage.objects.get
+    - field: actor_principal
+      op: in
+      value:
+      - allUsers
+      - allAuthenticatedUsers
+  engines:
+  - datasec_engine
+  - threat_engine
+  primary_engine: datasec_engine
+  action_category: read
+  mitre_tactics:
+  - collection
+  - initial-access
+  mitre_techniques:
+  - T1530
+  domain: data_security
+  provider: gcp
+  remediation: Verify the accessor has legitimate need-to-know. Review access patterns for anomalies. Consider restricting
+    read permissions.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: gcp.data_access.bulk_download
+  title: GCS bulk object download detected
+  severity: medium
+  log_source_type: gcp_data_access
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_data_access
+    - field: operation
+      op: equals
+      value: storage.objects.get
+  engines:
+  - datasec_engine
+  - threat_engine
+  primary_engine: datasec_engine
+  action_category: read
+  mitre_tactics:
+  - collection
+  - exfiltration
+  mitre_techniques:
+  - T1530
+  description: Requires L2 correlation to detect high-volume download patterns
+  domain: data_security
+  provider: gcp
+  remediation: Verify the accessor has legitimate need-to-know. Review access patterns for anomalies. Consider restricting
+    read permissions.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: gcp.data_access.object_delete
+  title: GCS object deleted
+  severity: medium
+  log_source_type: gcp_data_access
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_data_access
+    - field: operation
+      op: equals
+      value: storage.objects.delete
+  engines:
+  - datasec_engine
+  - threat_engine
+  primary_engine: datasec_engine
+  action_category: delete
+  mitre_tactics:
+  - impact
+  mitre_techniques:
+  - T1485
+  domain: data_security
+  provider: gcp
+  remediation: Investigate deletion. Verify the actor had authorization. Enable MFA delete where applicable. Review CloudTrail
+    for associated activity.
+  compliance_frameworks: *id001
+  risk_score: 50
+- rule_id: gcp.data_access.object_acl_change
+  title: GCS object ACL or IAM policy changed
+  severity: high
+  log_source_type: gcp_data_access
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_data_access
+    - field: operation
+      op: in
+      value:
+      - storage.objects.update
+      - storage.setIamPermissions
+  engines:
+  - datasec_engine
+  - ciem
+  primary_engine: datasec_engine
+  action_category: modify
+  mitre_tactics:
+  - defense-evasion
+  - exfiltration
+  mitre_techniques:
+  - T1537
+  domain: data_security
+  provider: gcp
+  remediation: Review the configuration change for unintended exposure. Validate the actor's authorization. Consider enabling
+    change approval workflows.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: gcp.data_access.bucket_list
+  title: GCS bucket listing operation
+  severity: low
+  log_source_type: gcp_data_access
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_data_access
+    - field: operation
+      op: equals
+      value: storage.objects.list
+  engines:
+  - datasec_engine
+  primary_engine: datasec_engine
+  action_category: read
+  mitre_tactics:
+  - discovery
+  mitre_techniques:
+  - T1580
+  domain: data_security
+  provider: gcp
+  remediation: Verify the accessor has legitimate need-to-know. Review access patterns for anomalies. Consider restricting
+    read permissions.
+  compliance_frameworks: *id001
+  risk_score: 25
+- rule_id: gcp.data_access.cross_project_access
+  title: GCS cross-project object access detected
+  severity: high
+  log_source_type: gcp_data_access
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_data_access
+    - field: operation
+      op: equals
+      value: storage.objects.get
+  engines:
+  - datasec_engine
+  - threat_engine
+  - ciem
+  primary_engine: threat_engine
+  action_category: read
+  mitre_tactics:
+  - lateral-movement
+  - collection
+  mitre_techniques:
+  - T1530
+  description: Requires L2 correlation — compare caller project vs bucket project
+  domain: data_security
+  provider: gcp
+  remediation: Verify the accessor has legitimate need-to-know. Review access patterns for anomalies. Consider restricting
+    read permissions.
+  compliance_frameworks: *id001
+  risk_score: 70
+- rule_id: gcp.data_access.large_egress
+  title: GCS large data egress detected
+  severity: high
+  log_source_type: gcp_data_access
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_data_access
+    - field: operation
+      op: equals
+      value: storage.objects.get
+  engines:
+  - datasec_engine
+  - threat_engine
+  primary_engine: threat_engine
+  action_category: read
+  mitre_tactics:
+  - exfiltration
+  mitre_techniques:
+  - T1048
+  description: Requires L2 correlation — aggregate bytes transferred over time window
+  domain: data_security
+  provider: gcp
+  remediation: Verify the accessor has legitimate need-to-know. Review access patterns for anomalies. Consider restricting
+    read permissions.
+  compliance_frameworks: *id001
+  risk_score: 70
