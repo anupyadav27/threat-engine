@@ -96,8 +96,8 @@ class GCPAuditParser(BaseParser):
             return None
 
         service_name = proto.get("serviceName", "")
-        # Shorten: compute.googleapis.com → compute
-        short_service = service_name.replace(".googleapis.com", "") if service_name else ""
+        # Keep full googleapis.com name so rules can match: compute.googleapis.com, iam.googleapis.com etc.
+        short_service = service_name if service_name else ""
 
         auth_info = proto.get("authenticationInfo", {})
         req_meta = proto.get("requestMetadata", {})

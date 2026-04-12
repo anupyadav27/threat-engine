@@ -116,16 +116,15 @@ class CIEMRuleEvaluator:
         conn = self._get_check_conn()
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                # Batch load in chunks
                 metadata = {}
                 for i in range(0, len(rule_ids), 500):
                     chunk = rule_ids[i:i + 500]
                     placeholders = ",".join(["%s"] * len(chunk))
                     cur.execute(f"""
                         SELECT rule_id, severity, title, description, remediation,
-                               primary_engine, engines, action_category,
+                               subcategory, threat_category, risk_score,
                                mitre_tactics, mitre_techniques,
-                               compliance_frameworks, audit_log_event
+                               compliance_frameworks, data_security
                         FROM rule_metadata
                         WHERE rule_id IN ({placeholders})
                     """, chunk)
@@ -333,6 +332,12 @@ class CIEMRuleEvaluator:
             return f"{col} LIKE %s", [f"%{value}%"]
         elif op == "starts_with":
             return f"{col} LIKE %s", [f"{value}%"]
+        elif op == "starts_with_any":
+            if isinstance(value, list) and value:
+                clauses = [f"{col} LIKE %s" for _ in value]
+                params = [f"{v}%" for v in value]
+                return f"({' OR '.join(clauses)})", params
+            return "", []
 
         return "", []
 
@@ -354,9 +359,9 @@ class CIEMRuleEvaluator:
             "rule_source": rule.get("check_type", "log"),
             "severity": meta.get("severity", event.get("event_severity", "medium")),
             "status": "OPEN",
-            "primary_engine": meta.get("primary_engine", "threat_engine"),
-            "engines": meta.get("engines", []),
-            "action_category": meta.get("action_category", ""),
+            "primary_engine": "ciem",
+            "engines": ["ciem"],
+            "action_category": meta.get("subcategory", meta.get("threat_category", "")),
             "resource_uid": event.get("resource_uid", ""),
             "resource_type": event.get("resource_type", ""),
             "resource_name": event.get("resource_name", ""),

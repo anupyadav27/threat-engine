@@ -125,8 +125,10 @@ class EventNormalizer:
             if not event.actor.principal:
                 event.actor.principal = ui.get("arn", ui.get("userName", ""))
             # Principal type: Root, IAMUser, AssumedRole, AWSService, FederatedUser
-            event.actor.principal_type = ui.get("type", "").lower()
-            event.actor.account_id = ui.get("accountId", "")
+            if not event.actor.principal_type:
+                event.actor.principal_type = ui.get("type", "").lower()
+            if not event.actor.account_id:
+                event.actor.account_id = ui.get("accountId", "")
             # Session name (role session)
             session = ui.get("sessionContext", {})
             if isinstance(session, dict):

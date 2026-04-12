@@ -96,7 +96,8 @@ class IBMActivityParser(BaseParser):
         # Convention: <service>.<resource>.<sub-resource>.<verb>
         # Extract service (first segment) and operation verb (last segment)
         action_parts = action.split(".")
-        service = action_parts[0] if action_parts else ""
+        # Normalize service: hyphens → underscores (iam-identity → iam_identity)
+        service = action_parts[0].replace("-", "_") if action_parts else ""
         operation_verb = action_parts[-1] if action_parts else ""
 
         initiator = raw.get("initiator", {})
@@ -180,7 +181,8 @@ class IBMActivityParser(BaseParser):
         """
         return {
             "service": "_service",
-            "operation": "action",
+            "operation": "action",  # full CADF action (e.g. "iam-identity.user-apikey.create")
+            "outcome": "outcome",   # "success" or "failure" from CADF outcome field
             "actor.principal": "initiatorId",
             "actor.principal_type": "initiatorType",
             "actor.ip_address": "ipAddress",

@@ -100,18 +100,27 @@ class OCIAuditParser(BaseParser):
         operation = parts[-1] if len(parts) > 1 else event_type
 
         # Extract service from eventType or source field
-        # e.g., "com.oraclecloud.computeapi" from eventType
-        service = ".".join(parts[:-1]) if len(parts) > 1 else data.get("source", "")
+        # e.g., "com.oraclecloud.computeapi" from eventType (lowercased for rule matching)
+        service = ".".join(parts[:-1]).lower() if len(parts) > 1 else data.get("source", "").lower()
 
         identity = data.get("identity", {})
         request = data.get("request", {})
         response = data.get("response", {})
+
+        # Derive outcome from HTTP response status
+        status_str = response.get("status", "")
+        try:
+            status_code = int(status_str)
+            _outcome = "success" if 200 <= status_code < 300 else "failure"
+        except (ValueError, TypeError):
+            _outcome = "unknown"
 
         return {
             # Core fields
             "eventType": event_type,
             "_service": service,
             "_operation": operation,
+            "_outcome": _outcome,
             "source": data.get("source", ""),
             "eventTime": data.get("eventTime", ""),
 
@@ -155,6 +164,7 @@ class OCIAuditParser(BaseParser):
         return {
             "service": "_service",
             "operation": "_operation",
+            "outcome": "_outcome",  # "success" / "failure" derived from HTTP response status
             "actor.principal": "principalId",
             "actor.principal_type": "principalName",
             "actor.ip_address": "ipAddress",
