@@ -49,7 +49,9 @@ def _merge_exposes(session: Any, uids: list, reason: str) -> int:
             MATCH (i:Internet {uid: 'INTERNET'})
             MATCH (r:Resource {uid: uid})
             MERGE (i)-[e:EXPOSES]->(r)
-            SET e.reason = $reason
+            SET e.reason = $reason,
+                e.attack_path_category = 'exposure',
+                e.edge_kind = 'path'
             RETURN COUNT(e) AS c
         """, uids=chunk, reason=reason)
         rec = r.single()
@@ -91,7 +93,9 @@ def detect(
                     MATCH (r:Resource {uid: $uid})
                     MERGE (i)-[e:EXPOSES]->(r)
                     SET e.reason = 'check_finding_exposure',
-                        e.resource_type = $rtype
+                        e.resource_type = $rtype,
+                        e.attack_path_category = 'exposure',
+                        e.edge_kind = 'path'
                 """, uid=uid, rtype=record["rtype"] or "")
         count += len(new_uids)
         logger.debug(f"common: check_findings patterns matched {len(new_uids)} resources")

@@ -39,7 +39,9 @@ def _merge_exposes(session: Any, uids: List[str], reason: str) -> int:
             MATCH (i:Internet {uid: 'INTERNET'})
             MATCH (r:Resource {uid: uid})
             MERGE (i)-[e:EXPOSES]->(r)
-            SET e.reason = $reason
+            SET e.reason = $reason,
+                e.attack_path_category = 'exposure',
+                e.edge_kind = 'path'
             RETURN COUNT(e) AS c
         """, uids=chunk, reason=reason)
         rec = r.single()

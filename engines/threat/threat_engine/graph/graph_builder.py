@@ -1502,6 +1502,66 @@ class SecurityGraphBuilder:
                     except Exception as exc2:
                         logger.debug(f"{compute_lbl}→{store_lbl} edges failed: {exc2}")
 
+        # ── 5. Subnet → EC2 lateral movement edges (from discovery_findings SubnetId) ──
+        # Internet-exposed subnets need outgoing attack-path edges so that blast
+        # radius and multi-hop traversal can continue: subnet → EC2 → IAMRole/S3/KMS.
+        # Extracted from raw discovery data (authoritative source) rather than
+        # inferring from inventory relationships which rarely capture this link.
+        try:
+            from psycopg2.extras import RealDictCursor as _RDC5
+            disc5 = self._pg_conn("threat_engine_discoveries")
+            try:
+                with disc5.cursor(cursor_factory=_RDC5) as cur:
+                    cur.execute("""
+                        SELECT DISTINCT
+                            emitted_fields->>'InstanceId' AS instance_id,
+                            emitted_fields->>'SubnetId'   AS subnet_id,
+                            account_id, region
+                        FROM discovery_findings
+                        WHERE discovery_id = 'aws.ec2.describe_instances'
+                          AND emitted_fields->>'SubnetId' IS NOT NULL
+                          AND emitted_fields->>'InstanceId' IS NOT NULL
+                    """)
+                    subnet_rows = cur.fetchall()
+            finally:
+                disc5.close()
+
+            subnet_batch = []
+            for row in subnet_rows:
+                instance_id = row.get("instance_id")
+                subnet_id = row.get("subnet_id")
+                if not instance_id or not subnet_id:
+                    continue
+                region = row.get("region", "")
+                acct = row.get("account_id", "")
+                subnet_batch.append({
+                    "subnet_uid": f"arn:aws:ec2:{region}:{acct}:subnet/{subnet_id}",
+                    "ec2_uid":    f"arn:aws:ec2:{region}:{acct}:instance/{instance_id}",
+                })
+
+            for i in range(0, len(subnet_batch), 500):
+                chunk = subnet_batch[i:i + 500]
+                try:
+                    r = session.run("""
+                        UNWIND $batch AS p
+                        MATCH (subnet:Resource {uid: p.subnet_uid})
+                        MATCH (ec2:Resource {uid: p.ec2_uid})
+                        MERGE (subnet)-[e:CONTAINS]->(ec2)
+                        SET e.attack_path_category = 'lateral_movement',
+                            e.edge_kind = 'path',
+                            e.reason = 'subnet_contains_instance'
+                        RETURN COUNT(e) AS c
+                    """, batch=chunk)
+                    rec = r.single()
+                    count += rec["c"] if rec else 0
+                except Exception as exc:
+                    logger.debug(f"Subnet→EC2 batch failed: {exc}")
+
+            if subnet_batch:
+                logger.info(f"Added Subnet→EC2 lateral_movement edges from {len(subnet_batch)} discovery records")
+        except Exception as exc:
+            logger.warning(f"Subnet→EC2 edges failed: {exc}")
+
         return count
 
     def _infer_internet_exposure(self, session, tenant_id: str) -> int:
