@@ -36,6 +36,218 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# ── Module-level constants (computed once, not per-call) ─────────────────────
+
+# Maps the last segment of a discovery_id to the canonical resource-type suffix.
+# Ordered from most-specific to least-specific; Strategy 0 in type extraction.
+_DID_TO_TYPE: Dict[str, str] = {
+    # EC2
+    "describe_instances":              "instance",
+    "describe_vpcs":                   "vpc",
+    "describe_subnets":                "subnet",
+    "describe_security_groups":        "security-group",
+    "describe_security_group_rules":   "security-group-rule",
+    "describe_volumes":                "volume",
+    "describe_network_acls":           "network-acl",
+    "describe_route_tables":           "route-table",
+    "describe_network_interfaces":     "network-interface",
+    "describe_internet_gateways":      "internet-gateway",
+    "describe_nat_gateways":           "nat-gateway",
+    "describe_transit_gateways":       "transit-gateway",
+    "describe_vpc_endpoints":          "vpc-endpoint",
+    "describe_vpc_peering_connections":"vpc-peering-connection",
+    "describe_addresses":              "elastic-ip",
+    "describe_key_pairs":              "key-pair",
+    "describe_launch_templates":       "launch-template",
+    "describe_images":                 "image",
+    "describe_snapshots":              "snapshot",
+    "describe_dhcp_options":           "dhcp-options",
+    "describe_flow_logs":              "flow-log",
+    "describe_vpn_gateways":           "vpn-gateway",
+    "describe_vpn_connections":        "vpn-connection",
+    "describe_placement_groups":       "placement-group",
+    # IAM
+    "list_roles":                      "role",
+    "list_users":                      "user",
+    "list_policies":                   "policy",
+    "list_groups":                     "group",
+    "list_instance_profiles":          "instance-profile",
+    "list_saml_providers":             "saml-provider",
+    "list_open_id_connect_providers":  "oidc-provider",
+    # Lambda
+    "list_functions":                  "function",
+    "list_layers":                     "layer",
+    # S3
+    "list_buckets":                    "bucket",
+    # DynamoDB
+    "list_tables":                     "table",
+    "describe_table":                  "table",
+    # SQS
+    "list_queues":                     "queue",
+    # SNS
+    "list_topics":                     "topic",
+    # KMS
+    "list_keys":                       "key",
+    "describe_key":                    "key",
+    # RDS
+    "describe_db_instances":           "db-instance",
+    "describe_db_clusters":            "db-cluster",
+    "describe_db_subnet_groups":       "db-subnet-group",
+    "describe_db_parameter_groups":    "db-parameter-group",
+    "describe_db_snapshots":           "db-snapshot",
+    # EKS
+    "describe_cluster":                "cluster",
+    "describe_clusters":               "cluster",
+    "list_clusters":                   "cluster",
+    "describe_nodegroup":              "nodegroup",
+    "list_nodegroups":                 "nodegroup",
+    # ECR
+    "describe_repositories":           "repository",
+    # ECS (describe_clusters and list_clusters already mapped above for EKS;
+    # they resolve to "cluster" regardless which service uses them — correct)
+    "describe_services":               "service",
+    "list_services":                   "service",
+    "describe_task_definition":        "task-definition",
+    "list_task_definitions":           "task-definition",
+    # ELBv2
+    "describe_load_balancers":         "load-balancer",
+    "describe_target_groups":          "target-group",
+    "describe_listeners":              "listener",
+    # ACM
+    "list_certificates":               "certificate",
+    "describe_certificate":            "certificate",
+    # CloudWatch
+    "describe_alarms":                 "alarm",
+    "describe_metric_filters":         "metric-filter",
+    # CloudTrail
+    "describe_trails":                 "trail",
+    "get_trail":                       "trail",
+    # CloudWatch Logs
+    "describe_log_groups":             "log-group",
+    # ElastiCache
+    "describe_replication_groups":     "replication-group",
+    "describe_cache_clusters":         "cache-cluster",
+    "describe_cache_subnet_groups":    "cache-subnet-group",
+    # Route53
+    "list_hosted_zones":               "hosted-zone",
+    "list_resource_record_sets":       "record-set",
+    # CloudFront
+    "list_distributions":              "distribution",
+    # WAFv2
+    "list_web_acls":                   "web-acl",
+    "list_ip_sets":                    "ip-set",
+    "list_rule_groups":                "rule-group",
+    # Secrets Manager
+    "list_secrets":                    "secret",
+    # SSM
+    "describe_parameters":             "parameter",
+    # GuardDuty
+    "list_detectors":                  "detector",
+    # Config
+    "describe_configuration_recorders": "configuration-recorder",
+    # Organizations
+    "list_accounts":                   "account",
+    "describe_organization":           "organization",
+    # Cognito
+    "list_user_pools":                 "user-pool",
+    # Bedrock
+    "list_foundation_models":          "foundation-model",
+    "list_custom_models":              "custom-model",
+    # Kinesis
+    "list_streams":                    "stream",
+    # Firehose
+    "list_delivery_streams":           "delivery-stream",
+    # Step Functions
+    "list_state_machines":             "state-machine",
+    # API Gateway
+    "get_rest_apis":                   "rest-api",
+    "get_apis":                        "api",
+    # SageMaker
+    "list_notebook_instances":         "notebook-instance",
+    "list_endpoints":                  "endpoint",
+    # OpenSearch / Elasticsearch
+    "list_domain_names":               "domain",
+    "describe_domains":                "domain",
+    # Glue
+    "get_databases":                   "database",
+    "list_crawlers":                   "crawler",
+    # MQ
+    "list_brokers":                    "broker",
+    # MSK
+    "list_clusters_v2":                "cluster",
+    # EFS / FSx (same operation name — both resolve to "file-system")
+    "describe_file_systems":           "file-system",
+    "describe_access_points":          "access-point",
+    # Backup
+    "list_backup_vaults":              "backup-vault",
+    # SES
+    "list_identities":                 "identity",
+}
+
+# Maps raw ARN resource-type tokens (as they appear after the last `/` or `:`)
+# to their canonical hyphenated form used in resource_type and the rules table.
+_ARN_TYPE_NORMALIZE: Dict[str, str] = {
+    "loadbalancer":      "load-balancer",
+    "targetgroup":       "target-group",
+    "replicationgroup":  "replication-group",
+    "cachecluster":      "cache-cluster",
+    "subnetgroup":       "subnet-group",
+    "userpool":          "user-pool",
+    "hostedzone":        "hosted-zone",
+    "webacl":            "web-acl",
+    "ipset":             "ip-set",
+    "rulegroup":         "rule-group",
+    "statemachine":      "state-machine",
+    "restapi":           "rest-api",
+    "taskdefinition":    "task-definition",
+    "notebookinstance":  "notebook-instance",
+    "loggroup":          "log-group",
+    "keypair":           "key-pair",
+    "securitygroup":     "security-group",
+    "networkacl":        "network-acl",
+    "routetable":        "route-table",
+    "networkinterface":  "network-interface",
+    "internetgateway":   "internet-gateway",
+    "natgateway":        "nat-gateway",
+    "transitgateway":    "transit-gateway",
+    "vpcendpoint":       "vpc-endpoint",
+    "launchtemplate":    "launch-template",
+    "deliverystream":    "delivery-stream",
+    "instanceprofile":   "instance-profile",
+    "filesystem":        "file-system",
+    "accesspoint":       "access-point",
+    "backupvault":       "backup-vault",
+    "dbinstance":        "db-instance",
+    "dbcluster":         "db-cluster",
+    "dbsubnetgroup":     "db-subnet-group",
+    "dbsnapshot":        "db-snapshot",
+    "configurationrecorder": "configuration-recorder",
+    "foundationmodel":   "foundation-model",
+    "custommodel":       "custom-model",
+    "elasticip":         "elastic-ip",
+    "samlprovider":      "saml-provider",
+    "oidcprovider":      "oidc-provider",
+    "vpcpeeringconnection": "vpc-peering-connection",
+    "vpngateway":        "vpn-gateway",
+    "vpnconnection":     "vpn-connection",
+}
+
+# Maps colon-separated ARN types (parts[5] when no slash) to canonical form.
+# Format: "{arn_service}.{arn_resource_type}" → canonical resource_type
+_ARN_COLON_TYPE: Dict[str, str] = {
+    # RDS: arn:aws:rds:region:acct:db:name  — parts[5]="db"
+    "rds.db":                          "rds.db-instance",
+    "rds.cluster":                     "rds.db-cluster",
+    "rds.subgrp":                      "rds.db-subnet-group",
+    "rds.snapshot":                    "rds.db-snapshot",
+    # ElastiCache: arn:aws:elasticache:region:acct:replicationgroup:name
+    "elasticache.replicationgroup":    "elasticache.replication-group",
+    "elasticache.cachecluster":        "elasticache.cache-cluster",
+    "elasticache.subnetgroup":         "elasticache.cache-subnet-group",
+    # OpenSearch: arn:aws:es:region:acct:domain/name (still slash) but legacy
+    "es.domain":                       "es.domain",
+}
+
 
 class AssetNormalizer:
     """Normalizes raw provider data to canonical assets"""
@@ -427,6 +639,14 @@ class AssetNormalizer:
             discovery_id, merged_fields, service, provider
         )
 
+        # Filter out transactional event records — these are audit/log events,
+        # not infrastructure resources and should never appear in inventory.
+        # OCI: "audit.oci.audit/Event"   K8s: "event.k8s.core/Event"
+        _rt_lower = resource_type.lower()
+        if _rt_lower.endswith("/event") or _rt_lower.endswith(".event"):
+            logger.debug("Filtered event-type record: %s (%s)", resource_type, uid)
+            return None
+
         # Extract name
         name = (
             emitted_fields.get("Name") or
@@ -634,47 +854,85 @@ class AssetNormalizer:
         # Junk sub-resources that pollute the asset set
         "ec2.vpc_block_public_access_exclusion_resource": None,
         "ec2.vpc_block_public_access_exclusion": None,
+        # Duplicate types: subnets/route-tables/etc discovered under both 'vpc' and 'ec2' services.
+        # Canonical is always ec2.X (matches ARN namespace and relationship rules).
+        "vpc.subnet":           "ec2.subnet",
+        "vpc.route_table":      "ec2.route-table",
+        "vpc.security_group":   "ec2.security-group",
+        "vpc.network_acl":      "ec2.network-acl",
+        "vpc.vpc":              "ec2.vpc",
+        "vpc.internet_gateway": "ec2.internet-gateway",
+        "vpc.nat_gateway":      "ec2.nat-gateway",
+        "vpc.flow_log":         "ec2.flow-log",
+        "vpc.peering_connection": "ec2.vpc-peering-connection",
+        "vpc.endpoint":         "ec2.vpc-endpoint",
+        "vpc.dhcp_options":     "ec2.dhcp-options",
     }
 
     def _correct_resource_type(self, resource_type: str, resource_arn: str) -> str:
-        """Post-normalization correction for known misclassified resource types.
-
-        Args:
-            resource_type: The type string produced by _extract_aws_resource_type_*
-            resource_arn:  Original ARN of the resource
-
-        Returns:
-            Corrected resource type, or original if no correction needed.
-            For junk types (mapped to None), returns original so the caller
-            can still create the asset — the UI/graph query will deprioritise it.
         """
+        Post-normalization correction for known misclassified resource types.
+
+        Applies corrections in order:
+          1. Explicit _TYPE_CORRECTIONS map (highest priority)
+          2. ARN slash-separated: arn:aws:ec2:..:instance/i-abc → ec2.instance
+             with _ARN_TYPE_NORMALIZE applied (loadbalancer → load-balancer)
+          3. ARN colon-separated: arn:aws:rds:..:db:name → rds.db-instance
+          4. Returns original type unchanged if no correction applies.
+        """
+        # --- 1. Explicit corrections map ---
         if resource_type in self._TYPE_CORRECTIONS:
             corrected = self._TYPE_CORRECTIONS[resource_type]
             if corrected:
                 logger.debug(
                     "Type correction: %s → %s (arn=%s)",
-                    resource_type, corrected, resource_arn[:80] if resource_arn else ""
+                    resource_type, corrected, resource_arn[:80] if resource_arn else "",
                 )
                 return corrected
-            # None → junk; return original (let graph query deprioritise)
+            return resource_type  # None → junk, keep original
+
+        if not (resource_arn and resource_arn.startswith("arn:aws:")):
             return resource_type
 
-        # ARN-based correction: extract real type from resource_uid/resource_arn pattern
-        # arn:aws:ec2:region:account:RESOURCE_TYPE/id → use RESOURCE_TYPE
-        if resource_arn and resource_arn.startswith("arn:aws:"):
-            parts = resource_arn.split(":")
-            if len(parts) >= 6:
-                resource_part = parts[5]
-                if "/" in resource_part:
-                    arn_type = resource_part.split("/")[0]
-                    service = parts[2]  # e.g. "ec2", "iam", "s3"
-                    expected = f"{service}.{arn_type}"
-                    if expected != resource_type and arn_type:
-                        logger.debug(
-                            "ARN-based type correction: %s → %s (arn=%s)",
-                            resource_type, expected, resource_arn[:80]
-                        )
-                        return expected
+        parts = resource_arn.split(":")
+        if len(parts) < 6:
+            return resource_type
+
+        arn_service     = parts[2]   # e.g. "ec2", "rds", "elasticloadbalancing"
+        resource_part   = parts[5]   # e.g. "instance/i-abc" or "db" (colon-sep)
+
+        # Map service names that differ between ARN and the `service` column
+        _ARN_SVC_ALIAS = {
+            "elasticloadbalancing": "elbv2",
+            "s3-object-lambda":     "s3",
+            "execute-api":          "apigateway",
+            "states":               "states",
+        }
+        effective_svc = _ARN_SVC_ALIAS.get(arn_service, arn_service)
+
+        # --- 2. Slash-separated ARN type ---
+        if "/" in resource_part:
+            raw_type  = resource_part.split("/")[0]
+            canonical = _ARN_TYPE_NORMALIZE.get(raw_type, raw_type)
+            expected  = f"{effective_svc}.{canonical}"
+            if expected != resource_type and canonical:
+                logger.debug(
+                    "ARN slash-type correction: %s → %s (arn=%s)",
+                    resource_type, expected, resource_arn[:80],
+                )
+                return expected
+
+        # --- 3. Colon-separated ARN type (no slash in parts[5]) ---
+        elif resource_part:
+            colon_key = f"{arn_service}.{resource_part}"
+            if colon_key in _ARN_COLON_TYPE:
+                expected = _ARN_COLON_TYPE[colon_key]
+                if expected != resource_type:
+                    logger.debug(
+                        "ARN colon-type correction: %s → %s (arn=%s)",
+                        resource_type, expected, resource_arn[:80],
+                    )
+                return expected
 
         return resource_type
 
@@ -688,56 +946,17 @@ class AssetNormalizer:
         """
         Extract resource type from flat emitted fields or ARN.
 
-        Uses multiple strategies:
-          0. Discovery_id → type mapping (most reliable)
-          1. ARN resource-type segment (e.g. arn:aws:iam::123:role/name → iam.role)
-          2. Primary ID field signatures (specific fields like NetworkAclId before generic VpcId)
-          3. Fallback to service.resource
+        Strategies (in priority order):
+          0. discovery_id → type mapping via module-level _DID_TO_TYPE (most reliable)
+          1. ARN resource-type segment — slash-separated or colon-separated with normalize
+          2. Primary ID field signatures (specific fields before generic ones)
+          3. S3 service default
+          4. DB-based index resolution
+          5. Fallback: service.resource
         """
-        # --- Strategy 0: Discovery_id → type (most reliable) ---
+        # --- Strategy 0: discovery_id action → type (computed once at module level) ---
         if discovery_id:
-            # aws.ec2.describe_network_acls → network-acl
-            action = discovery_id.split(".")[-1] if "." in discovery_id else ""
-            _DID_TO_TYPE = {
-                "describe_network_acls": "network-acl",
-                "describe_route_tables": "route-table",
-                "describe_network_interfaces": "network-interface",
-                "describe_instances": "instance",
-                "describe_vpcs": "vpc",
-                "describe_subnets": "subnet",
-                "describe_security_groups": "security-group",
-                "describe_security_group_rules": "security-group-rule",
-                "describe_volumes": "volume",
-                "describe_internet_gateways": "internet-gateway",
-                "describe_nat_gateways": "nat-gateway",
-                "describe_transit_gateways": "transit-gateway",
-                "describe_vpc_endpoints": "vpc-endpoint",
-                "describe_addresses": "elastic-ip",
-                "describe_key_pairs": "key-pair",
-                "describe_launch_templates": "launch-template",
-                "describe_images": "image",
-                "describe_snapshots": "snapshot",
-                "describe_dhcp_options": "dhcp-options",
-                "describe_flow_logs": "flow-log",
-                "list_roles": "role",
-                "list_users": "user",
-                "list_policies": "policy",
-                "list_groups": "group",
-                "list_instance_profiles": "instance-profile",
-                "list_functions": "function",
-                "list_buckets": "bucket",
-                "list_tables": "table",
-                "list_queues": "queue",
-                "list_topics": "topic",
-                "list_keys": "key",
-                "describe_db_instances": "db-instance",
-                "describe_clusters": "cluster",
-                "list_clusters": "cluster",
-                "describe_repositories": "repository",
-                "describe_log_groups": "log-group",
-                "describe_alarms": "alarm",
-                "describe_trails": "trail",
-            }
+            action = discovery_id.split(".")[-1] if "." in discovery_id else discovery_id
             if action in _DID_TO_TYPE:
                 return f"{service}.{_DID_TO_TYPE[action]}"
 
@@ -746,59 +965,96 @@ class AssetNormalizer:
             arn_parts = resource_arn.split(":")
             if len(arn_parts) >= 6:
                 resource_part = arn_parts[5]
+                arn_service = arn_parts[2]
+
                 if "/" in resource_part:
-                    arn_type = resource_part.split("/")[0]
-                    if arn_type:
-                        return f"{service}.{arn_type}"
+                    # Slash-separated: arn:aws:ec2:...:instance/i-abc → "instance"
+                    raw_type = resource_part.split("/")[0]
+                    # Normalize compound words to hyphenated form
+                    canonical = _ARN_TYPE_NORMALIZE.get(raw_type, raw_type)
+                    if canonical:
+                        return f"{service}.{canonical}"
+
                 elif resource_part and ":::" in resource_arn:
-                    return f"{service}.bucket"
+                    # S3 global ARN: arn:aws:s3:::bucketname
+                    return "s3.bucket"
+
+                elif resource_part:
+                    # Colon-separated ARN: arn:aws:rds:region:acct:db:name
+                    # parts[5] = resource type token, parts[6] = resource name
+                    colon_key = f"{arn_service}.{resource_part}"
+                    if colon_key in _ARN_COLON_TYPE:
+                        return _ARN_COLON_TYPE[colon_key]
+                    # Normalize and use directly if recognisable
+                    canonical = _ARN_TYPE_NORMALIZE.get(resource_part, resource_part)
+                    if canonical and canonical != resource_part:
+                        return f"{service}.{canonical}"
 
         # --- Strategy 2: Primary ID field signatures ---
-        # Order matters: specific IDs before generic ones (NetworkAclId before VpcId)
-        _FIELD_TO_TYPE = {
-            # Specific IDs first
-            "NetworkAclId": "network-acl",
-            "RouteTableId": "route-table",
-            "NetworkInterfaceId": "network-interface",
-            "SecurityGroupRuleId": "security-group-rule",
-            "SecurityGroupId": "security-group", "GroupId": "security-group",
-            "NatGatewayId": "nat-gateway",
-            "InternetGatewayId": "internet-gateway",
-            "TransitGatewayId": "transit-gateway",
-            "FlowLogId": "flow-log",
-            "InstanceId": "instance",
-            "VolumeId": "volume",
-            # Generic IDs last
-            "SubnetId": "subnet",
-            "VpcId": "vpc",
-            # Service-specific
-            "BucketName": "bucket", "BucketArn": "bucket",
-            "UserName": "user",
-            "RoleName": "role", "RoleId": "role",
-            "GroupName": "group",
-            "PolicyName": "policy", "PolicyId": "policy",
-            "InstanceProfileName": "instance-profile", "InstanceProfileId": "instance-profile",
-            "FunctionName": "function", "FunctionArn": "function",
-            "DBInstanceIdentifier": "db-instance",
-            "ClusterIdentifier": "cluster",
-            "DistributionId": "distribution",
-            "HostedZoneId": "hosted-zone",
-            "CertificateArn": "certificate",
-            "TopicArn": "topic",
-            "QueueUrl": "queue",
-            "TableName": "table",
-            "StreamName": "stream",
+        # Ordered: specific IDs first (NetworkAclId before VpcId)
+        _FIELD_TO_TYPE: Dict[str, str] = {
+            "NetworkAclId":           "network-acl",
+            "RouteTableId":           "route-table",
+            "NetworkInterfaceId":     "network-interface",
+            "SecurityGroupRuleId":    "security-group-rule",
+            "SecurityGroupId":        "security-group",
+            "GroupId":                "security-group",
+            "NatGatewayId":           "nat-gateway",
+            "InternetGatewayId":      "internet-gateway",
+            "TransitGatewayId":       "transit-gateway",
+            "FlowLogId":              "flow-log",
+            "InstanceId":             "instance",
+            "VolumeId":               "volume",
+            "SubnetId":               "subnet",
+            "VpcId":                  "vpc",
+            "BucketName":             "bucket",
+            "BucketArn":              "bucket",
+            "UserName":               "user",
+            "RoleName":               "role",
+            "RoleId":                 "role",
+            "GroupName":              "group",
+            "PolicyName":             "policy",
+            "PolicyId":               "policy",
+            "InstanceProfileName":    "instance-profile",
+            "InstanceProfileId":      "instance-profile",
+            "FunctionName":           "function",
+            "FunctionArn":            "function",
+            "DBInstanceIdentifier":   "db-instance",
+            "DBClusterIdentifier":    "db-cluster",
+            "ClusterIdentifier":      "cluster",
+            "ReplicationGroupId":     "replication-group",
+            "CacheClusterId":         "cache-cluster",
+            "DistributionId":         "distribution",
+            "HostedZoneId":           "hosted-zone",
+            "CertificateArn":         "certificate",
+            "TopicArn":               "topic",
+            "QueueUrl":               "queue",
+            "TableName":              "table",
+            "StreamName":             "stream",
+            "LoadBalancerArn":        "load-balancer",
+            "LoadBalancerName":       "load-balancer",
+            "TargetGroupArn":         "target-group",
+            "WebACLId":               "web-acl",
+            "WebACLArn":              "web-acl",
+            "SecretARN":              "secret",
+            "SecretId":               "secret",
+            "StateMachineArn":        "state-machine",
+            "FileSystemId":           "file-system",
+            "UserPoolId":             "user-pool",
+            "DetectorId":             "detector",
+            "DeliveryStreamName":     "delivery-stream",
+            "DomainName":             "domain",
         }
 
         for field_name, rtype in _FIELD_TO_TYPE.items():
-            if field_name in fields and fields[field_name]:
+            if fields.get(field_name):
                 return f"{service}.{rtype}"
 
-        # --- S3 service default ---
+        # --- Strategy 3: S3 service default ---
         if service == "s3" and ("Name" in fields or "BucketRegion" in fields):
             return "s3.bucket"
 
-        # --- DB-based index resolution ---
+        # --- Strategy 4: DB-based index resolution ---
         if self.classifier:
             resolved = self.classifier.resolve_resource_type(service, fields, resource_arn or "")
             if resolved:

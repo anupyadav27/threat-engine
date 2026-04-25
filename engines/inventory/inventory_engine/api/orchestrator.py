@@ -60,6 +60,18 @@ from ..drift.drift_detector import DriftDetector
 from ..index.index_writer import PostgresIndexWriter
 
 
+def _build_db_url_from_env(prefix: str = "INVENTORY") -> Optional[str]:
+    """Build a PostgreSQL URL from INVENTORY_DB_* env vars. Returns None if host not set."""
+    host = os.getenv(f"{prefix}_DB_HOST")
+    if not host:
+        return None
+    port     = os.getenv(f"{prefix}_DB_PORT", "5432")
+    dbname   = os.getenv(f"{prefix}_DB_NAME", "threat_engine_inventory")
+    user     = os.getenv(f"{prefix}_DB_USER", "postgres")
+    password = os.getenv(f"{prefix}_DB_PASSWORD", "")
+    return f"postgresql://{user}:{password}@{host}:{port}/{dbname}"
+
+
 class ScanOrchestrator:
     """Orchestrates inventory scan execution (DB-first)."""
     
@@ -76,6 +88,12 @@ class ScanOrchestrator:
             db_url: PostgreSQL database URL (required for DB-first indexing)
         """
         self.tenant_id = tenant_id
+        # Auto-build db_url from env vars when not explicitly provided
+        if not db_url:
+            db_url = (
+                os.getenv("INVENTORY_DB_URL")
+                or _build_db_url_from_env("INVENTORY")
+            )
         self.db_url = db_url
         # DB-first only: no direct cloud API calls (AWSConnector) and no S3 (boto3).
 
@@ -553,13 +571,16 @@ class ScanOrchestrator:
                 filtered_count += 1
                 continue
 
-            # If catalog extracted a better ARN, inject it into the record for the normalizer
-            if catalog_arn and not discovery_record.get("resource_arn"):
+            # If catalog extracted a UID/ARN and the record has none, inject it.
+            # Use resource_uid (universal across all CSPs) — not resource_arn which
+            # is AWS-specific. For AWS the value is the ARN; for Azure/GCP/OCI it
+            # is the provider-native canonical identifier.
+            if catalog_arn and not discovery_record.get("resource_uid"):
                 # Work on a copy so we don't mutate the DB row dict
                 discovery_record = dict(discovery_record)
-                discovery_record["resource_arn"] = catalog_arn
+                discovery_record["resource_uid"] = catalog_arn
                 logger.debug(
-                    f"Catalog ARN extracted for {provider_str}.{discovery_record.get('service')}"
+                    f"Catalog UID injected for {provider_str}.{discovery_record.get('service')}"
                     f".{resource_type}: {catalog_arn}"
                 )
 

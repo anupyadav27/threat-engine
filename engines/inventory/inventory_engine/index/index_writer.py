@@ -130,63 +130,116 @@ class PostgresIndexWriter(IndexWriter):
                 return [_serialize_value(item) for item in obj]
             return obj
 
+        # Common tag key variants for each enrichment column
+        _ENV_KEYS    = ("Environment", "environment", "Env", "env", "deployment_env")
+        _COST_KEYS   = ("CostCenter", "cost_center", "Cost_Center", "CostCentre", "costcenter")
+        _CRIT_KEYS   = ("Criticality", "criticality", "Priority", "priority", "Impact", "impact")
+        _OWNER_KEYS  = ("Owner", "owner", "OwnedBy", "owned_by", "TeamOwner")
+        _BU_KEYS     = ("BusinessUnit", "business_unit", "BU", "bu", "Team", "team")
+
+        def _tag_val(tags: dict, keys: tuple):
+            for k in keys:
+                v = tags.get(k)
+                if v and isinstance(v, str) and v.strip():
+                    return v.strip()
+            return None
+
         for asset in assets:
             finding_id = generate_finding_id(asset)
 
             # Extract enrichment data from metadata
-            configuration = asset.metadata.get('configuration', {}) if asset.metadata else {}
-            labels = asset.metadata.get('labels', {}) if asset.metadata else {}
-            properties = {k: v for k, v in asset.metadata.items() if k not in ['configuration', 'labels', 'raw_refs']} if asset.metadata else {}
+            meta = asset.metadata or {}
+            configuration = meta.get('configuration', {})
+            labels = meta.get('labels', {})
+            emitted = meta.get('emitted_fields', {}) or {}
+            properties = {k: v for k, v in meta.items()
+                          if k not in ('configuration', 'labels', 'raw_refs')}
 
             # Serialize datetime objects
             configuration = _serialize_value(configuration)
             labels = _serialize_value(labels)
             properties = _serialize_value(properties)
 
+            tags = asset.tags or {}
+
+            # Populate tag-derived enrichment columns
+            environment_val   = _tag_val(tags, _ENV_KEYS)
+            cost_center_val   = _tag_val(tags, _COST_KEYS)
+            criticality_val   = _tag_val(tags, _CRIT_KEYS)
+            owner_val         = _tag_val(tags, _OWNER_KEYS)
+            business_unit_val = _tag_val(tags, _BU_KEYS)
+
+            # display_name: prefer explicit field, fall back to name
+            display_name_val = (
+                emitted.get("displayName") or emitted.get("display_name")
+                or tags.get("DisplayName") or asset.name
+            )
+            # description: from emitted fields or tags
+            description_val = (
+                emitted.get("description") or emitted.get("Description")
+                or tags.get("Description") or tags.get("description")
+            )
+
+            # Timestamps
+            now = datetime.now(timezone.utc)
+            first_seen_raw = meta.get("first_seen_at") or emitted.get("creationTimestamp")
+            if isinstance(first_seen_raw, str):
+                try:
+                    from dateutil import parser as _dp
+                    first_seen_at = _dp.parse(first_seen_raw)
+                except Exception:
+                    first_seen_at = now
+            elif isinstance(first_seen_raw, datetime):
+                first_seen_at = first_seen_raw
+            else:
+                first_seen_at = now
+
             # Remove stale row if resource_uid exists under a different asset_id
-            # (handles the dual unique constraint: PK on asset_id + UNIQUE on resource_uid,tenant_id)
             cursor.execute(
                 "DELETE FROM inventory_findings WHERE resource_uid = %s AND tenant_id = %s AND asset_id != %s",
                 (asset.resource_uid, asset.tenant_id, finding_id),
             )
 
-            # Extract new identifier-driven fields from metadata
-            source_ids = json.dumps(getattr(asset, 'source_discovery_ids', []) or
-                                     (asset.metadata or {}).get('source_discovery_ids', []))
-            identifier_key = getattr(asset, 'identifier_key', None) or \
-                             (asset.metadata or {}).get('identifier_key', '')
-            scope_val = getattr(asset, 'scope', None) or \
-                        (asset.metadata or {}).get('scope', '')
-            category_val = getattr(asset, 'category', None) or \
-                           (asset.metadata or {}).get('category', '')
-            managed_by_val = getattr(asset, 'managed_by', None) or \
-                             (asset.metadata or {}).get('managed_by', '')
-            is_container_val = getattr(asset, 'is_container', False) or \
-                               (asset.metadata or {}).get('is_container', False)
-            container_parent_val = getattr(asset, 'container_parent', None) or \
-                                   (asset.metadata or {}).get('container_parent', '')
+            # Extract identifier-driven fields from metadata
+            _src = (getattr(asset, 'source_discovery_ids', None) or
+                    meta.get('source_discovery_ids') or
+                    meta.get('enriched_from') or [])
+            source_ids = json.dumps(_src)
+            identifier_key = getattr(asset, 'identifier_key', None) or meta.get('identifier_key', '')
+            scope_val = getattr(asset, 'scope', None) or meta.get('scope', '')
+            category_val = getattr(asset, 'category', None) or meta.get('category', '')
+            managed_by_val = getattr(asset, 'managed_by', None) or meta.get('managed_by', '')
+            is_container_val = getattr(asset, 'is_container', False) or meta.get('is_container', False)
+            container_parent_val = getattr(asset, 'container_parent', None) or meta.get('container_parent', '')
 
             cursor.execute("""
                 INSERT INTO inventory_findings (
                     asset_id, tenant_id, resource_uid, provider, account_id,
-                    region, resource_type, resource_id, name, tags, labels,
-                    properties, configuration,
-                    scan_run_id, latest_scan_run_id, updated_at,
+                    region, resource_type, resource_id, name, display_name, description,
+                    tags, labels, properties, configuration,
+                    scan_run_id, latest_scan_run_id, first_seen_at, last_seen_at, updated_at,
                     source_discovery_ids, identifier_key, scope, category,
-                    managed_by, is_container, container_parent
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    managed_by, is_container, container_parent,
+                    environment, cost_center, criticality, owner, business_unit
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                )
                 ON CONFLICT (asset_id) DO UPDATE SET
                     tenant_id = EXCLUDED.tenant_id,
                     resource_uid = EXCLUDED.resource_uid,
                     resource_type = EXCLUDED.resource_type,
                     resource_id = EXCLUDED.resource_id,
                     name = EXCLUDED.name,
+                    display_name = EXCLUDED.display_name,
+                    description = EXCLUDED.description,
                     tags = EXCLUDED.tags,
                     labels = EXCLUDED.labels,
                     properties = EXCLUDED.properties,
                     configuration = EXCLUDED.configuration,
                     scan_run_id = EXCLUDED.scan_run_id,
                     latest_scan_run_id = EXCLUDED.latest_scan_run_id,
+                    last_seen_at = EXCLUDED.last_seen_at,
                     updated_at = EXCLUDED.updated_at,
                     source_discovery_ids = EXCLUDED.source_discovery_ids,
                     identifier_key = EXCLUDED.identifier_key,
@@ -194,17 +247,24 @@ class PostgresIndexWriter(IndexWriter):
                     category = EXCLUDED.category,
                     managed_by = EXCLUDED.managed_by,
                     is_container = EXCLUDED.is_container,
-                    container_parent = EXCLUDED.container_parent
+                    container_parent = EXCLUDED.container_parent,
+                    environment = COALESCE(EXCLUDED.environment, inventory_findings.environment),
+                    cost_center = COALESCE(EXCLUDED.cost_center, inventory_findings.cost_center),
+                    criticality = COALESCE(EXCLUDED.criticality, inventory_findings.criticality),
+                    owner = COALESCE(EXCLUDED.owner, inventory_findings.owner),
+                    business_unit = COALESCE(EXCLUDED.business_unit, inventory_findings.business_unit)
             """, (
                 finding_id, asset.tenant_id, asset.resource_uid,
                 asset.provider.value, asset.account_id, asset.region,
                 asset.resource_type, asset.resource_id, asset.name,
-                json.dumps(asset.tags), json.dumps(labels),
+                display_name_val, description_val,
+                json.dumps(tags), json.dumps(labels),
                 json.dumps(properties), json.dumps(configuration),
-                asset.scan_run_id, asset.scan_run_id,
-                datetime.now(timezone.utc),
+                asset.scan_run_id, asset.scan_run_id, first_seen_at, now, now,
                 source_ids, identifier_key, scope_val, category_val,
                 managed_by_val, is_container_val, container_parent_val,
+                environment_val, cost_center_val, criticality_val,
+                owner_val, business_unit_val,
             ))
 
         self.conn.commit()
