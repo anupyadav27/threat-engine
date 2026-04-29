@@ -1,9 +1,0 @@
-"""
-App config for admin_monitoring.
-"""
-from django.apps import AppConfig
-
-
-class AdminMonitoringConfig(AppConfig):
-    default_auto_field = 'django.db.models.BigAutoField'
-    name = 'apps.admin_monitoring'

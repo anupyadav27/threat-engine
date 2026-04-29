@@ -20,13 +20,13 @@ Filter rules sourced from:
   (enterprise catalog covering AWS, Azure, GCP, OCI, AliCloud, IBM)
 
 Local YAML sources per CSP (in priority order where multiple exist):
-  aws:      A) engine_check/engine_check_aws/services/{svc}/discoveries/   (curated, 100 svcs)
-            B) data_pythonsdk/aws/{svc}/step6_{svc}.discovery.yaml         (generated, 446 svcs)
-  azure:       data_pythonsdk/azure/{svc}/step6_{svc}.discovery.yaml
-  gcp:         data_pythonsdk/gcp/{svc}/step6_{svc}.discovery.yaml
-  oci:         data_pythonsdk/oci/{svc}/step6_{svc}.discovery.yaml
-  alicloud:    data_pythonsdk/alicloud/{svc}/step6_{svc}.discovery.yaml
-  ibm:         data_pythonsdk/ibm/{svc}/step6_{svc}.discovery.yaml
+  aws:      A) engine_check/engine_check_aws/services/{svc}/discoveries/       (curated, 100 svcs)
+            B) catalog/discovery_generator_data/aws/{svc}/step6_{svc}.discovery.yaml (generated)
+  azure:       catalog/discovery_generator_data/azure/{svc}/step6_{svc}.discovery.yaml
+  gcp:         catalog/discovery_generator_data/gcp/{svc}/step6_{svc}.discovery.yaml
+  oci:         catalog/discovery_generator_data/oci/{svc}/step6_{svc}.discovery.yaml
+  alicloud:    catalog/discovery_generator_data/alicloud/{svc}/step6_{svc}.discovery.yaml
+  ibm:         catalog/discovery_generator_data/ibm/{svc}/step6_{svc}.discovery.yaml
 
 Usage:
     # Dry-run — see what would change without touching RDS
@@ -81,7 +81,7 @@ ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent  # shared/dat
 # For all other CSPs: only catalog/{csp}/
 
 ENGINE_CHECK_SERVICES = ROOT / "engines" / "check" / "engine_check_aws" / "services"
-PYTHONSDK_ROOT        = ROOT / "catalog"
+PYTHONSDK_ROOT        = ROOT / "catalog" / "discovery_generator_data"
 
 ALL_CSPS = ["aws", "azure", "gcp", "oci", "alicloud", "ibm"]
 
@@ -127,6 +127,29 @@ def _boto3_client(parsed: dict) -> str:
     return (parsed or {}).get("services", {}).get("client", "")
 
 
+def validate_for_each_chains(service: str, parsed: dict) -> list[str]:
+    """Return list of broken for_each references in a service's discovery YAML.
+
+    A broken reference is a for_each value that names a discovery_id that doesn't
+    exist in the same service's discovery list. These cause silent scan gaps.
+
+    Returns list of error strings (empty = no issues).
+    """
+    disc_list = parsed.get("discovery", []) if parsed else []
+    if not disc_list and isinstance(parsed, list):
+        disc_list = parsed
+    known_ids = {d.get("discovery_id") for d in disc_list if isinstance(d, dict) and d.get("discovery_id")}
+    errors = []
+    for d in disc_list:
+        if not isinstance(d, dict):
+            continue
+        fe = d.get("for_each")
+        child_id = d.get("discovery_id", "?")
+        if fe and fe not in known_ids:
+            errors.append(f"  {child_id}: for_each={fe!r} references missing discovery_id")
+    return errors
+
+
 # ── Source enumeration ─────────────────────────────────────────────────────────
 
 def _aws_curated() -> dict[str, Path]:
@@ -147,7 +170,7 @@ def _aws_curated() -> dict[str, Path]:
 
 
 def _pythonsdk_services(csp: str) -> dict[str, Path]:
-    """Generated step6 YAMLs from data_pythonsdk/{csp}/."""
+    """Generated step6 YAMLs from catalog/discovery_generator_data/{csp}/."""
     result = {}
     csp_dir = PYTHONSDK_ROOT / csp
     if not csp_dir.exists():
@@ -329,6 +352,13 @@ def sync_csp(csp: str, conn, args) -> dict:
         disc_list = _discovery_list(parsed)
         if not disc_list:
             continue
+
+        # Validate for_each chains — warn (never block) on broken references
+        chain_errors = validate_for_each_chains(svc, parsed)
+        if chain_errors:
+            print(f"  WARN {csp}/{svc}: broken for_each references:")
+            for err in chain_errors:
+                print(err)
 
         local_ops    = len(disc_list)
         local_fields = sum(
